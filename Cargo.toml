@@ -13,7 +13,7 @@ autobins = false
 [lib]
 name = "libhtp2"
 path = "lib.rs"
-crate-type = ["staticlib", "rlib"]
+crate-type = ["staticlib", "rlib", "cdylib"]
 
 
 [dependencies]
