@@ -3230,7 +3230,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(mut connp: *mut htp_connp_t)
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
                     if (*(*connp).cfg).process_response_header.expect("non-null function pointer")(connp,
-                                                                                                   (if (*(*connp).out_header).realptr.is_null()
+                                                                                                   if (*(*connp).out_header).realptr.is_null()
                                                                                                        {
                                                                                                         ((*connp).out_header
                                                                                                              as
@@ -3241,7 +3241,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(mut connp: *mut htp_connp_t)
                                                                                                                                             isize)
                                                                                                     } else {
                                                                                                         (*(*connp).out_header).realptr
-                                                                                                    }),
+                                                                                                    },
                                                                                                    (*(*connp).out_header).len)
                            != 1 as libc::c_int {
                         return -(1 as libc::c_int)
@@ -3286,7 +3286,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(mut connp: *mut htp_connp_t)
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
                     if (*(*connp).cfg).process_response_header.expect("non-null function pointer")(connp,
-                                                                                                   (if (*(*connp).out_header).realptr.is_null()
+                                                                                                   if (*(*connp).out_header).realptr.is_null()
                                                                                                        {
                                                                                                         ((*connp).out_header
                                                                                                              as
@@ -3297,7 +3297,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(mut connp: *mut htp_connp_t)
                                                                                                                                             isize)
                                                                                                     } else {
                                                                                                         (*(*connp).out_header).realptr
-                                                                                                    }),
+                                                                                                    },
                                                                                                    (*(*connp).out_header).len)
                            != 1 as libc::c_int {
                         return -(1 as libc::c_int)
@@ -3379,7 +3379,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(mut connp: *mut htp_connp_t)
                                     *const u8 as *const libc::c_char);
                     }
                     if (*(*connp).cfg).process_response_header.expect("non-null function pointer")(connp,
-                                                                                                   (if (*(*connp).out_header).realptr.is_null()
+                                                                                                   if (*(*connp).out_header).realptr.is_null()
                                                                                                        {
                                                                                                         ((*connp).out_header
                                                                                                              as
@@ -3390,7 +3390,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(mut connp: *mut htp_connp_t)
                                                                                                                                             isize)
                                                                                                     } else {
                                                                                                         (*(*connp).out_header).realptr
-                                                                                                    }),
+                                                                                                    },
                                                                                                    (*(*connp).out_header).len)
                            != 1 as libc::c_int {
                         return -(1 as libc::c_int)

@@ -1550,7 +1550,7 @@ pub unsafe extern "C" fn htp_conn_remove_tx(mut conn: *mut htp_conn_t,
 pub unsafe extern "C" fn htp_conn_track_inbound_data(mut conn:
                                                          *mut htp_conn_t,
                                                      mut len: size_t,
-                                                     mut timestamp:
+                                                     mut _timestamp:
                                                          *const htp_time_t) {
     if conn.is_null() { return }
     (*conn).in_data_counter =
@@ -1652,7 +1652,7 @@ pub unsafe extern "C" fn htp_conn_track_inbound_data(mut conn:
 pub unsafe extern "C" fn htp_conn_track_outbound_data(mut conn:
                                                           *mut htp_conn_t,
                                                       mut len: size_t,
-                                                      mut timestamp:
+                                                      mut _timestamp:
                                                           *const htp_time_t) {
     if conn.is_null() { return }
     (*conn).out_data_counter =

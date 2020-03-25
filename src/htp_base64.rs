@@ -187,10 +187,8 @@ pub unsafe extern "C" fn htp_base64_decode_single(mut value_in: libc::c_schar)
          50 as libc::c_int as libc::c_schar,
          51 as libc::c_int as libc::c_schar];
     static mut decoding_size: libc::c_schar =
-        unsafe {
             ::std::mem::size_of::<[libc::c_schar; 80]>() as libc::c_ulong as
-                libc::c_schar
-        };
+                libc::c_schar;
     value_in = (value_in as libc::c_int - 43 as libc::c_int) as libc::c_schar;
     if (value_in as libc::c_int) < 0 as libc::c_int ||
            value_in as libc::c_int >

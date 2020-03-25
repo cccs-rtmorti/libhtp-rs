@@ -511,7 +511,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
             } else {
                 let mut matchByte: libc::c_uint =
                     *dic.offset(dicPos.wrapping_sub(rep0 as
-                                                        libc::c_ulong).wrapping_add((if dicPos
+                                                        libc::c_ulong).wrapping_add(if dicPos
                                                                                             <
                                                                                             rep0
                                                                                                 as
@@ -524,7 +524,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                                                                                              libc::c_int
                                                                                              as
                                                                                              libc::c_ulong
-                                                                                     }))
+                                                                                     })
                                     as isize) as libc::c_uint;
                 let mut offs: libc::c_uint =
                     0x100 as libc::c_int as libc::c_uint;
@@ -1008,7 +1008,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                                 CLzmaProb;
                         *dic.offset(dicPos as isize) =
                             *dic.offset(dicPos.wrapping_sub(rep0 as
-                                                                libc::c_ulong).wrapping_add((if dicPos
+                                                                libc::c_ulong).wrapping_add(if dicPos
                                                                                                     <
                                                                                                     rep0
                                                                                                         as
@@ -1021,7 +1021,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                                                                                                      libc::c_int
                                                                                                      as
                                                                                                      libc::c_ulong
-                                                                                             }))
+                                                                                             })
                                             as isize);
                         dicPos = dicPos.wrapping_add(1);
                         processedPos = processedPos.wrapping_add(1);
@@ -2350,7 +2350,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                         } else { len };
                     pos =
                         dicPos.wrapping_sub(rep0 as
-                                                libc::c_ulong).wrapping_add((if dicPos
+                                                libc::c_ulong).wrapping_add(if dicPos
                                                                                     <
                                                                                     rep0
                                                                                         as
@@ -2363,7 +2363,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                                                                                      libc::c_int
                                                                                      as
                                                                                      libc::c_ulong
-                                                                             }));
+                                                                             });
                     processedPos =
                         (processedPos as libc::c_uint).wrapping_add(curLen) as
                             UInt32 as UInt32;
@@ -2453,7 +2453,7 @@ unsafe extern "C" fn LzmaDec_WriteRem(mut p: *mut CLzmaDec,
         while len != 0 as libc::c_int as libc::c_uint {
             len = len.wrapping_sub(1);
             *dic.offset(dicPos as isize) =
-                *dic.offset(dicPos.wrapping_sub(rep0).wrapping_add((if dicPos
+                *dic.offset(dicPos.wrapping_sub(rep0).wrapping_add(if dicPos
                                                                            <
                                                                            rep0
                                                                        {
@@ -2463,7 +2463,7 @@ unsafe extern "C" fn LzmaDec_WriteRem(mut p: *mut CLzmaDec,
                                                                             libc::c_int
                                                                             as
                                                                             libc::c_ulong
-                                                                    })) as
+                                                                    }) as
                                 isize);
             dicPos = dicPos.wrapping_add(1)
         }
@@ -2702,7 +2702,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                                                                         as
                                                                         usize]
                                                               as
-                                                              libc::c_ulong).wrapping_add((if (*p).dicPos
+                                                              libc::c_ulong).wrapping_add(if (*p).dicPos
                                                                                                   <
                                                                                                   (*p).reps[0
                                                                                                                 as
@@ -2719,7 +2719,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                                                                                                    libc::c_int
                                                                                                    as
                                                                                                    libc::c_ulong
-                                                                                           }))
+                                                                                           })
                                      as isize) as libc::c_uint;
             let mut offs: libc::c_uint = 0x100 as libc::c_int as libc::c_uint;
             let mut symbol_0: libc::c_uint = 1 as libc::c_int as libc::c_uint;

@@ -574,7 +574,7 @@ unsafe extern "C" fn Hc_GetMatchesSpec(mut lenLimit: libc::c_uint,
         if delta >= _cyclicBufferSize { break ; }
         let mut diff: ptrdiff_t = 0;
         curMatch =
-            *son.offset(_cyclicBufferPos.wrapping_sub(delta).wrapping_add((if delta
+            *son.offset(_cyclicBufferPos.wrapping_sub(delta).wrapping_add(if delta
                                                                                   >
                                                                                   _cyclicBufferPos
                                                                               {
@@ -585,7 +585,7 @@ unsafe extern "C" fn Hc_GetMatchesSpec(mut lenLimit: libc::c_uint,
                                                                                    libc::c_int
                                                                                    as
                                                                                    libc::c_uint
-                                                                           }))
+                                                                           })
                             as isize);
         diff = 0 as libc::c_int as ptrdiff_t - delta as libc::c_long;
         if *cur.offset(maxLen as isize) as libc::c_int ==
@@ -649,7 +649,7 @@ pub unsafe extern "C" fn GetMatchesSpec1(mut lenLimit: UInt32,
             return distances
         }
         let mut pair: *mut CLzRef =
-            son.offset(((_cyclicBufferPos.wrapping_sub(delta).wrapping_add((if delta
+            son.offset(((_cyclicBufferPos.wrapping_sub(delta).wrapping_add(if delta
                                                                                    >
                                                                                    _cyclicBufferPos
                                                                                {
@@ -660,7 +660,7 @@ pub unsafe extern "C" fn GetMatchesSpec1(mut lenLimit: UInt32,
                                                                                     libc::c_int
                                                                                     as
                                                                                     libc::c_uint
-                                                                            }))
+                                                                            })
                              as size_t) << 1 as libc::c_int) as isize);
         let mut pb: *const Byte = cur.offset(-(delta as isize));
         let mut len: libc::c_uint = if len0 < len1 { len0 } else { len1 };
@@ -731,7 +731,7 @@ unsafe extern "C" fn SkipMatchesSpec(mut lenLimit: UInt32,
             return
         }
         let mut pair: *mut CLzRef =
-            son.offset(((_cyclicBufferPos.wrapping_sub(delta).wrapping_add((if delta
+            son.offset(((_cyclicBufferPos.wrapping_sub(delta).wrapping_add(if delta
                                                                                    >
                                                                                    _cyclicBufferPos
                                                                                {
@@ -742,7 +742,7 @@ unsafe extern "C" fn SkipMatchesSpec(mut lenLimit: UInt32,
                                                                                     libc::c_int
                                                                                     as
                                                                                     libc::c_uint
-                                                                            }))
+                                                                            })
                              as size_t) << 1 as libc::c_int) as isize);
         let mut pb: *const Byte = cur.offset(-(delta as isize));
         let mut len: libc::c_uint = if len0 < len1 { len0 } else { len1 };

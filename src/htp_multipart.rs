@@ -2639,7 +2639,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(mut part:
                 // Process the pending header, if any.
                 if !(*(*part).parser).pending_header_line.is_null() {
                     if htp_mpartp_parse_header(part,
-                                               (if (*(*(*part).parser).pending_header_line).realptr.is_null()
+                                               if (*(*(*part).parser).pending_header_line).realptr.is_null()
                                                    {
                                                     ((*(*part).parser).pending_header_line
                                                          as
@@ -2650,7 +2650,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(mut part:
                                                                                         isize)
                                                 } else {
                                                     (*(*(*part).parser).pending_header_line).realptr
-                                                }),
+                                                },
                                                (*(*(*part).parser).pending_header_line).len)
                            == -(1 as libc::c_int) {
                         bstr_free(line);
@@ -2743,7 +2743,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(mut part:
             } else {
                 // Process the pending header line.                        
                 if htp_mpartp_parse_header(part,
-                                           (if (*(*(*part).parser).pending_header_line).realptr.is_null()
+                                           if (*(*(*part).parser).pending_header_line).realptr.is_null()
                                                {
                                                 ((*(*part).parser).pending_header_line
                                                      as
@@ -2754,7 +2754,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(mut part:
                                                                                     isize)
                                             } else {
                                                 (*(*(*part).parser).pending_header_line).realptr
-                                            }),
+                                            },
                                            (*(*(*part).parser).pending_header_line).len)
                        == -(1 as libc::c_int) {
                     bstr_free(line);

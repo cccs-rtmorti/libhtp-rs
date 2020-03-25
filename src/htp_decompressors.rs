@@ -1647,17 +1647,16 @@ pub struct htp_decompressor_gzip_t {
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
  */
-unsafe extern "C" fn SzAlloc(mut p: ISzAllocPtr, mut size: size_t)
+unsafe extern "C" fn SzAlloc(mut _p: ISzAllocPtr, mut size: size_t)
  -> *mut libc::c_void {
     return malloc(size);
 }
-unsafe extern "C" fn SzFree(mut p: ISzAllocPtr,
+unsafe extern "C" fn SzFree(mut _p: ISzAllocPtr,
                             mut address: *mut libc::c_void) {
     free(address);
 }
 #[no_mangle]
 pub static mut lzma_Alloc: ISzAlloc =
-    unsafe {
         {
             let mut init =
                 ISzAlloc{Alloc:
@@ -1672,8 +1671,7 @@ pub static mut lzma_Alloc: ISzAlloc =
                                                                *mut libc::c_void)
                                           -> ()),};
             init
-        }
-    };
+        };
 /* *
  *  @brief See if the header has extensions
  *  @return number of bytes to skip

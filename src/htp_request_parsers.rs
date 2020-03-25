@@ -1,4 +1,3 @@
-use ::libc;
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
