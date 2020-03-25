@@ -1,8 +1,7 @@
 use ::libc;
 extern "C" {
     #[no_mangle]
-    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong)
-     -> *mut libc::c_void;
+    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
 }
@@ -17,10 +16,8 @@ pub type BoolInt = libc::c_int;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ISzAlloc {
-    pub Alloc: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: size_t)
-                          -> *mut libc::c_void>,
-    pub Free: Option<unsafe extern "C" fn(_: ISzAllocPtr,
-                                          _: *mut libc::c_void) -> ()>,
+    pub Alloc: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void>,
+    pub Free: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()>,
 }
 pub type ISzAllocPtr = *const ISzAlloc;
 pub type CLzmaProb = UInt16;
@@ -107,26 +104,24 @@ Out:
     < kMatchSpecLenStart : normal remain
     = kMatchSpecLenStart : finished
 */
-unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
-                                          mut limit: SizeT,
-                                          mut bufLimit: *const Byte)
- -> libc::c_int {
+unsafe extern "C" fn LzmaDec_DecodeReal_3(
+    mut p: *mut CLzmaDec,
+    mut limit: SizeT,
+    mut bufLimit: *const Byte,
+) -> libc::c_int {
     let mut probs: *mut CLzmaProb = (*p).probs_1664;
     let mut state: libc::c_uint = (*p).state;
     let mut rep0: UInt32 = (*p).reps[0 as libc::c_int as usize];
     let mut rep1: UInt32 = (*p).reps[1 as libc::c_int as usize];
     let mut rep2: UInt32 = (*p).reps[2 as libc::c_int as usize];
     let mut rep3: UInt32 = (*p).reps[3 as libc::c_int as usize];
-    let mut pbMask: libc::c_uint =
-        ((1 as libc::c_int as libc::c_uint) <<
-             (*p).prop.pb as
-                 libc::c_int).wrapping_sub(1 as libc::c_int as libc::c_uint);
+    let mut pbMask: libc::c_uint = ((1 as libc::c_int as libc::c_uint)
+        << (*p).prop.pb as libc::c_int)
+        .wrapping_sub(1 as libc::c_int as libc::c_uint);
     let mut lc: libc::c_uint = (*p).prop.lc as libc::c_uint;
-    let mut lpMask: libc::c_uint =
-        ((0x100 as libc::c_int as libc::c_uint) <<
-             (*p).prop.lp as
-                 libc::c_int).wrapping_sub(0x100 as libc::c_int as
-                                               libc::c_uint >> lc);
+    let mut lpMask: libc::c_uint = ((0x100 as libc::c_int as libc::c_uint)
+        << (*p).prop.lp as libc::c_int)
+        .wrapping_sub(0x100 as libc::c_int as libc::c_uint >> lc);
     let mut dic: *mut Byte = (*p).dic;
     let mut dicBufSize: SizeT = (*p).dicBufSize;
     let mut dicPos: SizeT = (*p).dicPos;
@@ -137,32 +132,26 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
     let mut range: UInt32 = (*p).range;
     let mut code: UInt32 = (*p).code;
     let mut current_block_1101: u64;
-    loop  {
+    loop {
         let mut prob: *mut CLzmaProb = 0 as *mut CLzmaProb;
         let mut bound: UInt32 = 0;
         let mut ttt: libc::c_uint = 0;
-        let mut posState: libc::c_uint =
-            (processedPos & pbMask) << 4 as libc::c_int;
-        prob =
-            probs.offset((-(1664 as libc::c_int) +
-                              ((1 as libc::c_int) <<
-                                   (14 as libc::c_int >> 1 as libc::c_int)) +
-                              ((16 as libc::c_int) << 4 as libc::c_int) +
-                              (0 as libc::c_int +
-                                   2 as libc::c_int *
-                                       (((1 as libc::c_int) <<
-                                             4 as libc::c_int) <<
-                                            3 as libc::c_int) +
-                                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-                              (0 as libc::c_int +
-                                   2 as libc::c_int *
-                                       (((1 as libc::c_int) <<
-                                             4 as libc::c_int) <<
-                                            3 as libc::c_int) +
-                                   ((1 as libc::c_int) << 8 as libc::c_int)))
-                             as
-                             isize).offset(posState.wrapping_add(state) as
-                                               isize);
+        let mut posState: libc::c_uint = (processedPos & pbMask) << 4 as libc::c_int;
+        prob = probs
+            .offset(
+                (-(1664 as libc::c_int)
+                    + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))) as isize,
+            )
+            .offset(posState.wrapping_add(state) as isize);
         ttt = *prob as libc::c_uint;
         if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
             range <<= 8 as libc::c_int;
@@ -174,75 +163,57 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
         if code < bound {
             let mut symbol: libc::c_uint = 0;
             range = bound;
-            *prob =
-                ttt.wrapping_add((((1 as libc::c_int) << 11 as libc::c_int) as
-                                      libc::c_uint).wrapping_sub(ttt) >>
-                                     5 as libc::c_int) as CLzmaProb;
-            prob =
-                probs.offset((-(1664 as libc::c_int) +
-                                  ((1 as libc::c_int) <<
-                                       (14 as libc::c_int >>
-                                            1 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  ((1 as libc::c_int) << 4 as libc::c_int) +
-                                  12 as libc::c_int + 12 as libc::c_int +
-                                  12 as libc::c_int + 12 as libc::c_int +
-                                  ((4 as libc::c_int) << 6 as libc::c_int)) as
-                                 isize);
-            if processedPos != 0 as libc::c_int as libc::c_uint ||
-                   checkDicSize != 0 as libc::c_int as libc::c_uint {
-                prob =
-                    prob.offset((3 as libc::c_int as
-                                     UInt32).wrapping_mul(((processedPos <<
-                                                                8 as
-                                                                    libc::c_int).wrapping_add(*dic.offset((if dicPos
-                                                                                                                  ==
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      libc::c_int
-                                                                                                                      as
-                                                                                                                      libc::c_ulong
-                                                                                                              {
-                                                                                                               dicBufSize
-                                                                                                           } else {
-                                                                                                               dicPos
-                                                                                                           }).wrapping_sub(1
-                                                                                                                               as
-                                                                                                                               libc::c_int
-                                                                                                                               as
-                                                                                                                               libc::c_ulong)
-                                                                                                              as
-                                                                                                              isize)
-                                                                                                  as
-                                                                                                  libc::c_uint)
-                                                               & lpMask) <<
-                                                              lc) as isize)
+            *prob = ttt.wrapping_add(
+                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint).wrapping_sub(ttt)
+                    >> 5 as libc::c_int,
+            ) as CLzmaProb;
+            prob = probs.offset(
+                (-(1664 as libc::c_int)
+                    + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                    + ((1 as libc::c_int) << 4 as libc::c_int)
+                    + 12 as libc::c_int
+                    + 12 as libc::c_int
+                    + 12 as libc::c_int
+                    + 12 as libc::c_int
+                    + ((4 as libc::c_int) << 6 as libc::c_int)) as isize,
+            );
+            if processedPos != 0 as libc::c_int as libc::c_uint
+                || checkDicSize != 0 as libc::c_int as libc::c_uint
+            {
+                prob = prob.offset(
+                    (3 as libc::c_int as UInt32).wrapping_mul(
+                        ((processedPos << 8 as libc::c_int).wrapping_add(
+                            *dic.offset(
+                                (if dicPos == 0 as libc::c_int as libc::c_ulong {
+                                    dicBufSize
+                                } else {
+                                    dicPos
+                                })
+                                .wrapping_sub(1 as libc::c_int as libc::c_ulong)
+                                    as isize,
+                            ) as libc::c_uint,
+                        ) & lpMask)
+                            << lc,
+                    ) as isize,
+                )
             }
             processedPos = processedPos.wrapping_add(1);
             if state < 7 as libc::c_int as libc::c_uint {
-                state =
-                    state.wrapping_sub(if state <
-                                              4 as libc::c_int as libc::c_uint
-                                          {
-                                           state
-                                       } else {
-                                           3 as libc::c_int as libc::c_uint
-                                       });
+                state = state.wrapping_sub(if state < 4 as libc::c_int as libc::c_uint {
+                    state
+                } else {
+                    3 as libc::c_int as libc::c_uint
+                });
                 symbol = 1 as libc::c_int as libc::c_uint;
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -254,28 +225,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -287,28 +250,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -320,28 +275,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -353,28 +300,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -386,28 +325,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -419,28 +350,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -452,28 +375,20 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
@@ -485,65 +400,43 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob.offset(symbol as isize) =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *prob.offset(symbol as isize) = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     *prob.offset(symbol as isize) =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
             } else {
                 let mut matchByte: libc::c_uint =
-                    *dic.offset(dicPos.wrapping_sub(rep0 as
-                                                        libc::c_ulong).wrapping_add((if dicPos
-                                                                                            <
-                                                                                            rep0
-                                                                                                as
-                                                                                                libc::c_ulong
-                                                                                        {
-                                                                                         dicBufSize
-                                                                                     } else {
-                                                                                         0
-                                                                                             as
-                                                                                             libc::c_int
-                                                                                             as
-                                                                                             libc::c_ulong
-                                                                                     }))
-                                    as isize) as libc::c_uint;
-                let mut offs: libc::c_uint =
-                    0x100 as libc::c_int as libc::c_uint;
-                state =
-                    state.wrapping_sub(if state <
-                                              10 as libc::c_int as
-                                                  libc::c_uint {
-                                           3 as libc::c_int
-                                       } else { 6 as libc::c_int } as
-                                           libc::c_uint);
+                    *dic.offset(dicPos.wrapping_sub(rep0 as libc::c_ulong).wrapping_add(
+                        if dicPos < rep0 as libc::c_ulong {
+                            dicBufSize
+                        } else {
+                            0 as libc::c_int as libc::c_ulong
+                        },
+                    ) as isize) as libc::c_uint;
+                let mut offs: libc::c_uint = 0x100 as libc::c_int as libc::c_uint;
+                state = state.wrapping_sub(if state < 10 as libc::c_int as libc::c_uint {
+                    3 as libc::c_int
+                } else {
+                    6 as libc::c_int
+                } as libc::c_uint);
                 symbol = 1 as libc::c_int as libc::c_uint;
                 let mut bit: libc::c_uint = 0;
                 let mut probLit: *mut CLzmaProb = 0 as *mut CLzmaProb;
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -554,36 +447,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -594,36 +476,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -634,36 +505,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -674,36 +534,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -714,36 +563,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -754,36 +592,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -794,36 +621,25 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as
-                                    isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -834,65 +650,46 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *probLit =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
+                    *probLit = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
                     symbol = symbol.wrapping_add(symbol);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *probLit =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *probLit = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
             }
             let fresh17 = dicPos;
             dicPos = dicPos.wrapping_add(1);
             *dic.offset(fresh17 as isize) = symbol as Byte
         } else {
-            range =
-                (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                    UInt32;
-            code =
-                (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                    UInt32;
+            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
             *prob = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
-            prob =
-                probs.offset((-(1664 as libc::c_int) +
-                                  ((1 as libc::c_int) <<
-                                       (14 as libc::c_int >>
-                                            1 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  ((1 as libc::c_int) << 4 as libc::c_int)) as
-                                 isize).offset(state as isize);
+            prob = probs
+                .offset(
+                    (-(1664 as libc::c_int)
+                        + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + ((1 as libc::c_int) << 4 as libc::c_int)) as isize,
+                )
+                .offset(state as isize);
             ttt = *prob as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                 range <<= 8 as libc::c_int;
@@ -903,67 +700,51 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
             bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
             if code < bound {
                 range = bound;
-                *prob =
-                    ttt.wrapping_add((((1 as libc::c_int) <<
-                                           11 as libc::c_int) as
-                                          libc::c_uint).wrapping_sub(ttt) >>
-                                         5 as libc::c_int) as CLzmaProb;
+                *prob = ttt.wrapping_add(
+                    (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint).wrapping_sub(ttt)
+                        >> 5 as libc::c_int,
+                ) as CLzmaProb;
                 state = state.wrapping_add(12 as libc::c_int as libc::c_uint);
-                prob =
-                    probs.offset((-(1664 as libc::c_int) +
-                                      ((1 as libc::c_int) <<
-                                           (14 as libc::c_int >>
-                                                1 as libc::c_int)) +
-                                      ((16 as libc::c_int) <<
-                                           4 as libc::c_int) +
-                                      (0 as libc::c_int +
-                                           2 as libc::c_int *
-                                               (((1 as libc::c_int) <<
-                                                     4 as libc::c_int) <<
-                                                    3 as libc::c_int) +
-                                           ((1 as libc::c_int) <<
-                                                8 as libc::c_int))) as isize);
+                prob = probs.offset(
+                    (-(1664 as libc::c_int)
+                        + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int)))
+                        as isize,
+                );
                 current_block_1101 = 4800884466390615302;
             } else {
-                range =
-                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                code =
-                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                *prob =
-                    ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                *prob = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
                 /*
-        // that case was checked before with kBadRepCode
-        if (checkDicSize == 0 && processedPos == 0)
-          return SZ_ERROR_DATA;
-        */
-                prob =
-                    probs.offset((-(1664 as libc::c_int) +
-                                      ((1 as libc::c_int) <<
-                                           (14 as libc::c_int >>
-                                                1 as libc::c_int)) +
-                                      ((16 as libc::c_int) <<
-                                           4 as libc::c_int) +
-                                      (0 as libc::c_int +
-                                           2 as libc::c_int *
-                                               (((1 as libc::c_int) <<
-                                                     4 as libc::c_int) <<
-                                                    3 as libc::c_int) +
-                                           ((1 as libc::c_int) <<
-                                                8 as libc::c_int)) +
-                                      (0 as libc::c_int +
-                                           2 as libc::c_int *
-                                               (((1 as libc::c_int) <<
-                                                     4 as libc::c_int) <<
-                                                    3 as libc::c_int) +
-                                           ((1 as libc::c_int) <<
-                                                8 as libc::c_int)) +
-                                      ((16 as libc::c_int) <<
-                                           4 as libc::c_int) +
-                                      ((1 as libc::c_int) << 4 as libc::c_int)
-                                      + 12 as libc::c_int) as
-                                     isize).offset(state as isize);
+                // that case was checked before with kBadRepCode
+                if (checkDicSize == 0 && processedPos == 0)
+                  return SZ_ERROR_DATA;
+                */
+                prob = probs
+                    .offset(
+                        (-(1664 as libc::c_int)
+                            + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                            + ((16 as libc::c_int) << 4 as libc::c_int)
+                            + (0 as libc::c_int
+                                + 2 as libc::c_int
+                                    * (((1 as libc::c_int) << 4 as libc::c_int)
+                                        << 3 as libc::c_int)
+                                + ((1 as libc::c_int) << 8 as libc::c_int))
+                            + (0 as libc::c_int
+                                + 2 as libc::c_int
+                                    * (((1 as libc::c_int) << 4 as libc::c_int)
+                                        << 3 as libc::c_int)
+                                + ((1 as libc::c_int) << 8 as libc::c_int))
+                            + ((16 as libc::c_int) << 4 as libc::c_int)
+                            + ((1 as libc::c_int) << 4 as libc::c_int)
+                            + 12 as libc::c_int) as isize,
+                    )
+                    .offset(state as isize);
                 ttt = *prob as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     range <<= 8 as libc::c_int;
@@ -974,208 +755,144 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    *prob =
-                        ttt.wrapping_add((((1 as libc::c_int) <<
-                                               11 as libc::c_int) as
-                                              libc::c_uint).wrapping_sub(ttt)
-                                             >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    prob =
-                        probs.offset((-(1664 as libc::c_int) +
-                                          ((1 as libc::c_int) <<
-                                               (14 as libc::c_int >>
-                                                    1 as libc::c_int))) as
-                                         isize).offset(posState.wrapping_add(state)
-                                                           as isize);
+                    *prob = ttt.wrapping_add(
+                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                            .wrapping_sub(ttt)
+                            >> 5 as libc::c_int,
+                    ) as CLzmaProb;
+                    prob = probs
+                        .offset(
+                            (-(1664 as libc::c_int)
+                                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int)))
+                                as isize,
+                        )
+                        .offset(posState.wrapping_add(state) as isize);
                     ttt = *prob as libc::c_uint;
-                    if range <
-                           (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                         range <<= 8 as libc::c_int;
                         let fresh20 = buf;
                         buf = buf.offset(1);
-                        code =
-                            code << 8 as libc::c_int |
-                                *fresh20 as libc::c_uint
+                        code = code << 8 as libc::c_int | *fresh20 as libc::c_uint
                     }
                     bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                     if code < bound {
                         range = bound;
-                        *prob =
-                            ttt.wrapping_add((((1 as libc::c_int) <<
-                                                   11 as libc::c_int) as
-                                                  libc::c_uint).wrapping_sub(ttt)
-                                                 >> 5 as libc::c_int) as
-                                CLzmaProb;
+                        *prob = ttt.wrapping_add(
+                            (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                .wrapping_sub(ttt)
+                                >> 5 as libc::c_int,
+                        ) as CLzmaProb;
                         *dic.offset(dicPos as isize) =
-                            *dic.offset(dicPos.wrapping_sub(rep0 as
-                                                                libc::c_ulong).wrapping_add((if dicPos
-                                                                                                    <
-                                                                                                    rep0
-                                                                                                        as
-                                                                                                        libc::c_ulong
-                                                                                                {
-                                                                                                 dicBufSize
-                                                                                             } else {
-                                                                                                 0
-                                                                                                     as
-                                                                                                     libc::c_int
-                                                                                                     as
-                                                                                                     libc::c_ulong
-                                                                                             }))
-                                            as isize);
+                            *dic.offset(dicPos.wrapping_sub(rep0 as libc::c_ulong).wrapping_add(
+                                if dicPos < rep0 as libc::c_ulong {
+                                    dicBufSize
+                                } else {
+                                    0 as libc::c_int as libc::c_ulong
+                                },
+                            ) as isize);
                         dicPos = dicPos.wrapping_add(1);
                         processedPos = processedPos.wrapping_add(1);
-                        state =
-                            if state < 7 as libc::c_int as libc::c_uint {
-                                9 as libc::c_int
-                            } else { 11 as libc::c_int } as libc::c_uint;
+                        state = if state < 7 as libc::c_int as libc::c_uint {
+                            9 as libc::c_int
+                        } else {
+                            11 as libc::c_int
+                        } as libc::c_uint;
                         current_block_1101 = 13183875560443969876;
                     } else {
-                        range =
-                            (range as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        code =
-                            (code as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        *prob =
-                            ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                CLzmaProb;
+                        range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        *prob = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
                         current_block_1101 = 7237866862515803946;
                     }
                 } else {
                     let mut distance: UInt32 = 0;
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    *prob =
-                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                            CLzmaProb;
-                    prob =
-                        probs.offset((-(1664 as libc::c_int) +
-                                          ((1 as libc::c_int) <<
-                                               (14 as libc::c_int >>
-                                                    1 as libc::c_int)) +
-                                          ((16 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          (0 as libc::c_int +
-                                               2 as libc::c_int *
-                                                   (((1 as libc::c_int) <<
-                                                         4 as libc::c_int) <<
-                                                        3 as libc::c_int) +
-                                               ((1 as libc::c_int) <<
-                                                    8 as libc::c_int)) +
-                                          (0 as libc::c_int +
-                                               2 as libc::c_int *
-                                                   (((1 as libc::c_int) <<
-                                                         4 as libc::c_int) <<
-                                                        3 as libc::c_int) +
-                                               ((1 as libc::c_int) <<
-                                                    8 as libc::c_int)) +
-                                          ((16 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          ((1 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          12 as libc::c_int +
-                                          12 as libc::c_int) as
-                                         isize).offset(state as isize);
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    *prob = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                    prob = probs
+                        .offset(
+                            (-(1664 as libc::c_int)
+                                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                                + ((16 as libc::c_int) << 4 as libc::c_int)
+                                + (0 as libc::c_int
+                                    + 2 as libc::c_int
+                                        * (((1 as libc::c_int) << 4 as libc::c_int)
+                                            << 3 as libc::c_int)
+                                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                                + (0 as libc::c_int
+                                    + 2 as libc::c_int
+                                        * (((1 as libc::c_int) << 4 as libc::c_int)
+                                            << 3 as libc::c_int)
+                                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                                + ((16 as libc::c_int) << 4 as libc::c_int)
+                                + ((1 as libc::c_int) << 4 as libc::c_int)
+                                + 12 as libc::c_int
+                                + 12 as libc::c_int) as isize,
+                        )
+                        .offset(state as isize);
                     ttt = *prob as libc::c_uint;
-                    if range <
-                           (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                         range <<= 8 as libc::c_int;
                         let fresh21 = buf;
                         buf = buf.offset(1);
-                        code =
-                            code << 8 as libc::c_int |
-                                *fresh21 as libc::c_uint
+                        code = code << 8 as libc::c_int | *fresh21 as libc::c_uint
                     }
                     bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                     if code < bound {
                         range = bound;
-                        *prob =
-                            ttt.wrapping_add((((1 as libc::c_int) <<
-                                                   11 as libc::c_int) as
-                                                  libc::c_uint).wrapping_sub(ttt)
-                                                 >> 5 as libc::c_int) as
-                                CLzmaProb;
+                        *prob = ttt.wrapping_add(
+                            (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                .wrapping_sub(ttt)
+                                >> 5 as libc::c_int,
+                        ) as CLzmaProb;
                         distance = rep1
                     } else {
-                        range =
-                            (range as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        code =
-                            (code as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        *prob =
-                            ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                CLzmaProb;
-                        prob =
-                            probs.offset((-(1664 as libc::c_int) +
-                                              ((1 as libc::c_int) <<
-                                                   (14 as libc::c_int >>
-                                                        1 as libc::c_int)) +
-                                              ((16 as libc::c_int) <<
-                                                   4 as libc::c_int) +
-                                              (0 as libc::c_int +
-                                                   2 as libc::c_int *
-                                                       (((1 as libc::c_int) <<
-                                                             4 as libc::c_int)
-                                                            <<
-                                                            3 as libc::c_int)
-                                                   +
-                                                   ((1 as libc::c_int) <<
-                                                        8 as libc::c_int)) +
-                                              (0 as libc::c_int +
-                                                   2 as libc::c_int *
-                                                       (((1 as libc::c_int) <<
-                                                             4 as libc::c_int)
-                                                            <<
-                                                            3 as libc::c_int)
-                                                   +
-                                                   ((1 as libc::c_int) <<
-                                                        8 as libc::c_int)) +
-                                              ((16 as libc::c_int) <<
-                                                   4 as libc::c_int) +
-                                              ((1 as libc::c_int) <<
-                                                   4 as libc::c_int) +
-                                              12 as libc::c_int +
-                                              12 as libc::c_int +
-                                              12 as libc::c_int) as
-                                             isize).offset(state as isize);
+                        range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        *prob = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                        prob = probs
+                            .offset(
+                                (-(1664 as libc::c_int)
+                                    + ((1 as libc::c_int)
+                                        << (14 as libc::c_int >> 1 as libc::c_int))
+                                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                                    + (0 as libc::c_int
+                                        + 2 as libc::c_int
+                                            * (((1 as libc::c_int) << 4 as libc::c_int)
+                                                << 3 as libc::c_int)
+                                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                                    + (0 as libc::c_int
+                                        + 2 as libc::c_int
+                                            * (((1 as libc::c_int) << 4 as libc::c_int)
+                                                << 3 as libc::c_int)
+                                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                                    + ((1 as libc::c_int) << 4 as libc::c_int)
+                                    + 12 as libc::c_int
+                                    + 12 as libc::c_int
+                                    + 12 as libc::c_int) as isize,
+                            )
+                            .offset(state as isize);
                         ttt = *prob as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh22 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh22 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh22 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            ) as CLzmaProb;
                             distance = rep2
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            *prob =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            *prob = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
                             distance = rep3;
                             rep3 = rep2
                         }
@@ -1186,1153 +903,729 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                     current_block_1101 = 7237866862515803946;
                 }
                 match current_block_1101 {
-                    13183875560443969876 => { }
+                    13183875560443969876 => {}
                     _ => {
-                        state =
-                            if state < 7 as libc::c_int as libc::c_uint {
-                                8 as libc::c_int
-                            } else { 11 as libc::c_int } as libc::c_uint;
-                        prob =
-                            probs.offset((-(1664 as libc::c_int) +
-                                              ((1 as libc::c_int) <<
-                                                   (14 as libc::c_int >>
-                                                        1 as libc::c_int)) +
-                                              ((16 as libc::c_int) <<
-                                                   4 as libc::c_int)) as
-                                             isize);
+                        state = if state < 7 as libc::c_int as libc::c_uint {
+                            8 as libc::c_int
+                        } else {
+                            11 as libc::c_int
+                        } as libc::c_uint;
+                        prob = probs.offset(
+                            (-(1664 as libc::c_int)
+                                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                                + ((16 as libc::c_int) << 4 as libc::c_int))
+                                as isize,
+                        );
                         current_block_1101 = 4800884466390615302;
                     }
                 }
             }
             match current_block_1101 {
-                13183875560443969876 => { }
+                13183875560443969876 => {}
                 _ => {
-                    let mut probLen: *mut CLzmaProb =
-                        prob.offset(0 as libc::c_int as isize);
+                    let mut probLen: *mut CLzmaProb = prob.offset(0 as libc::c_int as isize);
                     ttt = *probLen as libc::c_uint;
-                    if range <
-                           (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                         range <<= 8 as libc::c_int;
                         let fresh23 = buf;
                         buf = buf.offset(1);
-                        code =
-                            code << 8 as libc::c_int |
-                                *fresh23 as libc::c_uint
+                        code = code << 8 as libc::c_int | *fresh23 as libc::c_uint
                     }
                     bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                     if code < bound {
                         range = bound;
-                        *probLen =
-                            ttt.wrapping_add((((1 as libc::c_int) <<
-                                                   11 as libc::c_int) as
-                                                  libc::c_uint).wrapping_sub(ttt)
-                                                 >> 5 as libc::c_int) as
-                                CLzmaProb;
-                        probLen =
-                            prob.offset(0 as libc::c_int as
-                                            isize).offset(posState as isize);
+                        *probLen = ttt.wrapping_add(
+                            (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                .wrapping_sub(ttt)
+                                >> 5 as libc::c_int,
+                        ) as CLzmaProb;
+                        probLen = prob
+                            .offset(0 as libc::c_int as isize)
+                            .offset(posState as isize);
                         len = 1 as libc::c_int as libc::c_uint;
                         ttt = *probLen.offset(len as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh24 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh24 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh24 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *probLen.offset(len as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *probLen.offset(len as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             len = len.wrapping_add(len)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *probLen.offset(len as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            len =
-                                len.wrapping_add(len).wrapping_add(1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            len = len
+                                .wrapping_add(len)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
                         ttt = *probLen.offset(len as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh25 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh25 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh25 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *probLen.offset(len as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *probLen.offset(len as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             len = len.wrapping_add(len)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *probLen.offset(len as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            len =
-                                len.wrapping_add(len).wrapping_add(1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            len = len
+                                .wrapping_add(len)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
                         ttt = *probLen.offset(len as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh26 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh26 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh26 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *probLen.offset(len as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *probLen.offset(len as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             len = len.wrapping_add(len)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *probLen.offset(len as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            len =
-                                len.wrapping_add(len).wrapping_add(1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            len = len
+                                .wrapping_add(len)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        len =
-                            len.wrapping_sub(8 as libc::c_int as libc::c_uint)
+                        len = len.wrapping_sub(8 as libc::c_int as libc::c_uint)
                     } else {
-                        range =
-                            (range as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        code =
-                            (code as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        *probLen =
-                            ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                CLzmaProb;
-                        probLen =
-                            prob.offset((0 as libc::c_int +
-                                             ((1 as libc::c_int) <<
-                                                  3 as libc::c_int)) as
-                                            isize);
+                        range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        *probLen = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                        probLen = prob.offset(
+                            (0 as libc::c_int + ((1 as libc::c_int) << 3 as libc::c_int)) as isize,
+                        );
                         ttt = *probLen as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh27 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh27 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh27 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *probLen =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            probLen =
-                                prob.offset(0 as libc::c_int as
-                                                isize).offset(posState as
-                                                                  isize).offset(((1
-                                                                                      as
-                                                                                      libc::c_int)
-                                                                                     <<
-                                                                                     3
-                                                                                         as
-                                                                                         libc::c_int)
-                                                                                    as
-                                                                                    isize);
+                            *probLen = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            ) as CLzmaProb;
+                            probLen = prob
+                                .offset(0 as libc::c_int as isize)
+                                .offset(posState as isize)
+                                .offset(((1 as libc::c_int) << 3 as libc::c_int) as isize);
                             len = 1 as libc::c_int as libc::c_uint;
-                            ttt =
-                                *probLen.offset(len as isize) as libc::c_uint;
-                            if range <
-                                   (1 as libc::c_int as UInt32) <<
-                                       24 as libc::c_int {
+                            ttt = *probLen.offset(len as isize) as libc::c_uint;
+                            if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                 range <<= 8 as libc::c_int;
                                 let fresh28 = buf;
                                 buf = buf.offset(1);
-                                code =
-                                    code << 8 as libc::c_int |
-                                        *fresh28 as libc::c_uint
+                                code = code << 8 as libc::c_int | *fresh28 as libc::c_uint
                             }
-                            bound =
-                                (range >>
-                                     11 as libc::c_int).wrapping_mul(ttt);
+                            bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                             if code < bound {
                                 range = bound;
-                                *probLen.offset(len as isize) =
-                                    ttt.wrapping_add((((1 as libc::c_int) <<
-                                                           11 as libc::c_int)
-                                                          as
-                                                          libc::c_uint).wrapping_sub(ttt)
-                                                         >> 5 as libc::c_int)
-                                        as CLzmaProb;
+                                *probLen.offset(len as isize) = ttt.wrapping_add(
+                                    (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                        .wrapping_sub(ttt)
+                                        >> 5 as libc::c_int,
+                                )
+                                    as CLzmaProb;
                                 len = len.wrapping_add(len)
                             } else {
                                 range =
-                                    (range as
-                                         libc::c_uint).wrapping_sub(bound) as
-                                        UInt32 as UInt32;
+                                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                                 code =
-                                    (code as libc::c_uint).wrapping_sub(bound)
-                                        as UInt32 as UInt32;
+                                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                                 *probLen.offset(len as isize) =
-                                    ttt.wrapping_sub(ttt >> 5 as libc::c_int)
-                                        as CLzmaProb;
-                                len =
-                                    len.wrapping_add(len).wrapping_add(1 as
-                                                                           libc::c_int
-                                                                           as
-                                                                           libc::c_uint)
+                                    ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                len = len
+                                    .wrapping_add(len)
+                                    .wrapping_add(1 as libc::c_int as libc::c_uint)
                             }
-                            ttt =
-                                *probLen.offset(len as isize) as libc::c_uint;
-                            if range <
-                                   (1 as libc::c_int as UInt32) <<
-                                       24 as libc::c_int {
+                            ttt = *probLen.offset(len as isize) as libc::c_uint;
+                            if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                 range <<= 8 as libc::c_int;
                                 let fresh29 = buf;
                                 buf = buf.offset(1);
-                                code =
-                                    code << 8 as libc::c_int |
-                                        *fresh29 as libc::c_uint
+                                code = code << 8 as libc::c_int | *fresh29 as libc::c_uint
                             }
-                            bound =
-                                (range >>
-                                     11 as libc::c_int).wrapping_mul(ttt);
+                            bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                             if code < bound {
                                 range = bound;
-                                *probLen.offset(len as isize) =
-                                    ttt.wrapping_add((((1 as libc::c_int) <<
-                                                           11 as libc::c_int)
-                                                          as
-                                                          libc::c_uint).wrapping_sub(ttt)
-                                                         >> 5 as libc::c_int)
-                                        as CLzmaProb;
+                                *probLen.offset(len as isize) = ttt.wrapping_add(
+                                    (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                        .wrapping_sub(ttt)
+                                        >> 5 as libc::c_int,
+                                )
+                                    as CLzmaProb;
                                 len = len.wrapping_add(len)
                             } else {
                                 range =
-                                    (range as
-                                         libc::c_uint).wrapping_sub(bound) as
-                                        UInt32 as UInt32;
+                                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                                 code =
-                                    (code as libc::c_uint).wrapping_sub(bound)
-                                        as UInt32 as UInt32;
+                                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                                 *probLen.offset(len as isize) =
-                                    ttt.wrapping_sub(ttt >> 5 as libc::c_int)
-                                        as CLzmaProb;
-                                len =
-                                    len.wrapping_add(len).wrapping_add(1 as
-                                                                           libc::c_int
-                                                                           as
-                                                                           libc::c_uint)
+                                    ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                len = len
+                                    .wrapping_add(len)
+                                    .wrapping_add(1 as libc::c_int as libc::c_uint)
                             }
-                            ttt =
-                                *probLen.offset(len as isize) as libc::c_uint;
-                            if range <
-                                   (1 as libc::c_int as UInt32) <<
-                                       24 as libc::c_int {
+                            ttt = *probLen.offset(len as isize) as libc::c_uint;
+                            if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                 range <<= 8 as libc::c_int;
                                 let fresh30 = buf;
                                 buf = buf.offset(1);
-                                code =
-                                    code << 8 as libc::c_int |
-                                        *fresh30 as libc::c_uint
+                                code = code << 8 as libc::c_int | *fresh30 as libc::c_uint
                             }
-                            bound =
-                                (range >>
-                                     11 as libc::c_int).wrapping_mul(ttt);
+                            bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                             if code < bound {
                                 range = bound;
-                                *probLen.offset(len as isize) =
-                                    ttt.wrapping_add((((1 as libc::c_int) <<
-                                                           11 as libc::c_int)
-                                                          as
-                                                          libc::c_uint).wrapping_sub(ttt)
-                                                         >> 5 as libc::c_int)
-                                        as CLzmaProb;
+                                *probLen.offset(len as isize) = ttt.wrapping_add(
+                                    (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                        .wrapping_sub(ttt)
+                                        >> 5 as libc::c_int,
+                                )
+                                    as CLzmaProb;
                                 len = len.wrapping_add(len)
                             } else {
                                 range =
-                                    (range as
-                                         libc::c_uint).wrapping_sub(bound) as
-                                        UInt32 as UInt32;
+                                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                                 code =
-                                    (code as libc::c_uint).wrapping_sub(bound)
-                                        as UInt32 as UInt32;
+                                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                                 *probLen.offset(len as isize) =
-                                    ttt.wrapping_sub(ttt >> 5 as libc::c_int)
-                                        as CLzmaProb;
-                                len =
-                                    len.wrapping_add(len).wrapping_add(1 as
-                                                                           libc::c_int
-                                                                           as
-                                                                           libc::c_uint)
+                                    ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                len = len
+                                    .wrapping_add(len)
+                                    .wrapping_add(1 as libc::c_int as libc::c_uint)
                             }
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            *probLen =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            probLen =
-                                prob.offset((0 as libc::c_int +
-                                                 2 as libc::c_int *
-                                                     (((1 as libc::c_int) <<
-                                                           4 as libc::c_int)
-                                                          <<
-                                                          3 as libc::c_int))
-                                                as isize);
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            *probLen = ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            probLen = prob.offset(
+                                (0 as libc::c_int
+                                    + 2 as libc::c_int
+                                        * (((1 as libc::c_int) << 4 as libc::c_int)
+                                            << 3 as libc::c_int))
+                                    as isize,
+                            );
                             len = 1 as libc::c_int as libc::c_uint;
-                            loop  {
-                                ttt =
-                                    *probLen.offset(len as isize) as
-                                        libc::c_uint;
-                                if range <
-                                       (1 as libc::c_int as UInt32) <<
-                                           24 as libc::c_int {
+                            loop {
+                                ttt = *probLen.offset(len as isize) as libc::c_uint;
+                                if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                     range <<= 8 as libc::c_int;
                                     let fresh31 = buf;
                                     buf = buf.offset(1);
-                                    code =
-                                        code << 8 as libc::c_int |
-                                            *fresh31 as libc::c_uint
+                                    code = code << 8 as libc::c_int | *fresh31 as libc::c_uint
                                 }
-                                bound =
-                                    (range >>
-                                         11 as libc::c_int).wrapping_mul(ttt);
+                                bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                                 if code < bound {
                                     range = bound;
-                                    *probLen.offset(len as isize) =
-                                        ttt.wrapping_add((((1 as libc::c_int)
-                                                               <<
-                                                               11 as
-                                                                   libc::c_int)
-                                                              as
-                                                              libc::c_uint).wrapping_sub(ttt)
-                                                             >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
+                                    *probLen.offset(len as isize) = ttt.wrapping_add(
+                                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                            .wrapping_sub(ttt)
+                                            >> 5 as libc::c_int,
+                                    )
+                                        as CLzmaProb;
                                     len = len.wrapping_add(len)
                                 } else {
-                                    range =
-                                        (range as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
+                                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
+                                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
                                     *probLen.offset(len as isize) =
-                                        ttt.wrapping_sub(ttt >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    len =
-                                        len.wrapping_add(len).wrapping_add(1
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               libc::c_uint)
+                                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                    len = len
+                                        .wrapping_add(len)
+                                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                                 }
-                                if !(len <
-                                         ((1 as libc::c_int) <<
-                                              8 as libc::c_int) as
-                                             libc::c_uint) {
-                                    break ;
+                                if !(len < ((1 as libc::c_int) << 8 as libc::c_int) as libc::c_uint)
+                                {
+                                    break;
                                 }
                             }
-                            len =
-                                len.wrapping_sub(((1 as libc::c_int) <<
-                                                      8 as libc::c_int) as
-                                                     libc::c_uint);
-                            len =
-                                len.wrapping_add((((1 as libc::c_int) <<
-                                                       3 as libc::c_int) *
-                                                      2 as libc::c_int) as
-                                                     libc::c_uint)
+                            len = len.wrapping_sub(
+                                ((1 as libc::c_int) << 8 as libc::c_int) as libc::c_uint,
+                            );
+                            len = len.wrapping_add(
+                                (((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int)
+                                    as libc::c_uint,
+                            )
                         }
                     }
                     if state >= 12 as libc::c_int as libc::c_uint {
                         let mut distance_0: UInt32 = 0;
-                        prob =
-                            probs.offset((-(1664 as libc::c_int) +
-                                              ((1 as libc::c_int) <<
-                                                   (14 as libc::c_int >>
-                                                        1 as libc::c_int)) +
-                                              ((16 as libc::c_int) <<
-                                                   4 as libc::c_int) +
-                                              (0 as libc::c_int +
-                                                   2 as libc::c_int *
-                                                       (((1 as libc::c_int) <<
-                                                             4 as libc::c_int)
-                                                            <<
-                                                            3 as libc::c_int)
-                                                   +
-                                                   ((1 as libc::c_int) <<
-                                                        8 as libc::c_int)) +
-                                              (0 as libc::c_int +
-                                                   2 as libc::c_int *
-                                                       (((1 as libc::c_int) <<
-                                                             4 as libc::c_int)
-                                                            <<
-                                                            3 as libc::c_int)
-                                                   +
-                                                   ((1 as libc::c_int) <<
-                                                        8 as libc::c_int)) +
-                                              ((16 as libc::c_int) <<
-                                                   4 as libc::c_int) +
-                                              ((1 as libc::c_int) <<
-                                                   4 as libc::c_int) +
-                                              12 as libc::c_int +
-                                              12 as libc::c_int +
-                                              12 as libc::c_int +
-                                              12 as libc::c_int) as
-                                             isize).offset(((if len <
-                                                                    4 as
-                                                                        libc::c_int
-                                                                        as
-                                                                        libc::c_uint
-                                                                {
-                                                                 len
-                                                             } else {
-                                                                 (4 as
-                                                                      libc::c_int
-                                                                      -
-                                                                      1 as
-                                                                          libc::c_int)
-                                                                     as
-                                                                     libc::c_uint
-                                                             }) <<
-                                                                6 as
-                                                                    libc::c_int)
-                                                               as isize);
+                        prob = probs
+                            .offset(
+                                (-(1664 as libc::c_int)
+                                    + ((1 as libc::c_int)
+                                        << (14 as libc::c_int >> 1 as libc::c_int))
+                                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                                    + (0 as libc::c_int
+                                        + 2 as libc::c_int
+                                            * (((1 as libc::c_int) << 4 as libc::c_int)
+                                                << 3 as libc::c_int)
+                                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                                    + (0 as libc::c_int
+                                        + 2 as libc::c_int
+                                            * (((1 as libc::c_int) << 4 as libc::c_int)
+                                                << 3 as libc::c_int)
+                                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                                    + ((1 as libc::c_int) << 4 as libc::c_int)
+                                    + 12 as libc::c_int
+                                    + 12 as libc::c_int
+                                    + 12 as libc::c_int
+                                    + 12 as libc::c_int) as isize,
+                            )
+                            .offset(
+                                ((if len < 4 as libc::c_int as libc::c_uint {
+                                    len
+                                } else {
+                                    (4 as libc::c_int - 1 as libc::c_int) as libc::c_uint
+                                }) << 6 as libc::c_int) as isize,
+                            );
                         distance_0 = 1 as libc::c_int as UInt32;
-                        ttt =
-                            *prob.offset(distance_0 as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh32 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh32 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh32 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             distance_0 = distance_0.wrapping_add(distance_0)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            distance_0 =
-                                distance_0.wrapping_add(distance_0).wrapping_add(1
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            distance_0 = distance_0
+                                .wrapping_add(distance_0)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        ttt =
-                            *prob.offset(distance_0 as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh33 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh33 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh33 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             distance_0 = distance_0.wrapping_add(distance_0)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            distance_0 =
-                                distance_0.wrapping_add(distance_0).wrapping_add(1
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            distance_0 = distance_0
+                                .wrapping_add(distance_0)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        ttt =
-                            *prob.offset(distance_0 as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh34 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh34 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh34 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             distance_0 = distance_0.wrapping_add(distance_0)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            distance_0 =
-                                distance_0.wrapping_add(distance_0).wrapping_add(1
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            distance_0 = distance_0
+                                .wrapping_add(distance_0)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        ttt =
-                            *prob.offset(distance_0 as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh35 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh35 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh35 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             distance_0 = distance_0.wrapping_add(distance_0)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            distance_0 =
-                                distance_0.wrapping_add(distance_0).wrapping_add(1
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            distance_0 = distance_0
+                                .wrapping_add(distance_0)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        ttt =
-                            *prob.offset(distance_0 as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh36 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh36 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh36 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             distance_0 = distance_0.wrapping_add(distance_0)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            distance_0 =
-                                distance_0.wrapping_add(distance_0).wrapping_add(1
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            distance_0 = distance_0
+                                .wrapping_add(distance_0)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        ttt =
-                            *prob.offset(distance_0 as isize) as libc::c_uint;
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
+                        ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             range <<= 8 as libc::c_int;
                             let fresh37 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh37 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh37 as libc::c_uint
                         }
-                        bound =
-                            (range >> 11 as libc::c_int).wrapping_mul(ttt);
+                        bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                         if code < bound {
                             range = bound;
-                            *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_add((((1 as libc::c_int) <<
-                                                       11 as libc::c_int) as
-                                                      libc::c_uint).wrapping_sub(ttt)
-                                                     >> 5 as libc::c_int) as
-                                    CLzmaProb;
+                            *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                    .wrapping_sub(ttt)
+                                    >> 5 as libc::c_int,
+                            )
+                                as CLzmaProb;
                             distance_0 = distance_0.wrapping_add(distance_0)
                         } else {
-                            range =
-                                (range as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
-                            code =
-                                (code as libc::c_uint).wrapping_sub(bound) as
-                                    UInt32 as UInt32;
+                            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                             *prob.offset(distance_0 as isize) =
-                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as
-                                    CLzmaProb;
-                            distance_0 =
-                                distance_0.wrapping_add(distance_0).wrapping_add(1
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_uint)
+                                ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                            distance_0 = distance_0
+                                .wrapping_add(distance_0)
+                                .wrapping_add(1 as libc::c_int as libc::c_uint)
                         }
-                        distance_0 =
-                            (distance_0 as
-                                 libc::c_uint).wrapping_sub(0x40 as
-                                                                libc::c_int as
-                                                                libc::c_uint)
-                                as UInt32 as UInt32;
+                        distance_0 = (distance_0 as libc::c_uint)
+                            .wrapping_sub(0x40 as libc::c_int as libc::c_uint)
+                            as UInt32 as UInt32;
                         if distance_0 >= 4 as libc::c_int as libc::c_uint {
                             let mut posSlot: libc::c_uint = distance_0;
-                            let mut numDirectBits: libc::c_uint =
-                                (distance_0 >>
-                                     1 as
-                                         libc::c_int).wrapping_sub(1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_uint);
-                            distance_0 =
-                                2 as libc::c_int as libc::c_uint |
-                                    distance_0 &
-                                        1 as libc::c_int as libc::c_uint;
+                            let mut numDirectBits: libc::c_uint = (distance_0 >> 1 as libc::c_int)
+                                .wrapping_sub(1 as libc::c_int as libc::c_uint);
+                            distance_0 = 2 as libc::c_int as libc::c_uint
+                                | distance_0 & 1 as libc::c_int as libc::c_uint;
                             if posSlot < 14 as libc::c_int as libc::c_uint {
                                 distance_0 <<= numDirectBits;
-                                prob =
-                                    probs.offset(-(1664 as libc::c_int) as
-                                                     isize);
-                                let mut m: UInt32 =
-                                    1 as libc::c_int as UInt32;
+                                prob = probs.offset(-(1664 as libc::c_int) as isize);
+                                let mut m: UInt32 = 1 as libc::c_int as UInt32;
                                 distance_0 = distance_0.wrapping_add(1);
-                                loop  {
-                                    ttt =
-                                        *prob.offset(distance_0 as isize) as
-                                            libc::c_uint;
-                                    if range <
-                                           (1 as libc::c_int as UInt32) <<
-                                               24 as libc::c_int {
+                                loop {
+                                    ttt = *prob.offset(distance_0 as isize) as libc::c_uint;
+                                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                         range <<= 8 as libc::c_int;
                                         let fresh38 = buf;
                                         buf = buf.offset(1);
-                                        code =
-                                            code << 8 as libc::c_int |
-                                                *fresh38 as libc::c_uint
+                                        code = code << 8 as libc::c_int | *fresh38 as libc::c_uint
                                     }
-                                    bound =
-                                        (range >>
-                                             11 as
-                                                 libc::c_int).wrapping_mul(ttt);
+                                    bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                                     if code < bound {
                                         range = bound;
-                                        *prob.offset(distance_0 as isize) =
-                                            ttt.wrapping_add((((1 as
-                                                                    libc::c_int)
-                                                                   <<
-                                                                   11 as
-                                                                       libc::c_int)
-                                                                  as
-                                                                  libc::c_uint).wrapping_sub(ttt)
-                                                                 >>
-                                                                 5 as
-                                                                     libc::c_int)
-                                                as CLzmaProb;
-                                        distance_0 =
-                                            (distance_0 as
-                                                 libc::c_uint).wrapping_add(m)
-                                                as UInt32 as UInt32;
-                                        m =
-                                            (m as
-                                                 libc::c_uint).wrapping_add(m)
-                                                as UInt32 as UInt32
+                                        *prob.offset(distance_0 as isize) = ttt.wrapping_add(
+                                            (((1 as libc::c_int) << 11 as libc::c_int)
+                                                as libc::c_uint)
+                                                .wrapping_sub(ttt)
+                                                >> 5 as libc::c_int,
+                                        )
+                                            as CLzmaProb;
+                                        distance_0 = (distance_0 as libc::c_uint).wrapping_add(m)
+                                            as UInt32
+                                            as UInt32;
+                                        m = (m as libc::c_uint).wrapping_add(m) as UInt32 as UInt32
                                     } else {
-                                        range =
-                                            (range as
-                                                 libc::c_uint).wrapping_sub(bound)
-                                                as UInt32 as UInt32;
-                                        code =
-                                            (code as
-                                                 libc::c_uint).wrapping_sub(bound)
-                                                as UInt32 as UInt32;
+                                        range = (range as libc::c_uint).wrapping_sub(bound)
+                                            as UInt32
+                                            as UInt32;
+                                        code = (code as libc::c_uint).wrapping_sub(bound) as UInt32
+                                            as UInt32;
                                         *prob.offset(distance_0 as isize) =
-                                            ttt.wrapping_sub(ttt >>
-                                                                 5 as
-                                                                     libc::c_int)
-                                                as CLzmaProb;
-                                        m =
-                                            (m as
-                                                 libc::c_uint).wrapping_add(m)
-                                                as UInt32 as UInt32;
-                                        distance_0 =
-                                            (distance_0 as
-                                                 libc::c_uint).wrapping_add(m)
-                                                as UInt32 as UInt32
+                                            ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                        m = (m as libc::c_uint).wrapping_add(m) as UInt32 as UInt32;
+                                        distance_0 = (distance_0 as libc::c_uint).wrapping_add(m)
+                                            as UInt32
+                                            as UInt32
                                     }
-                                    numDirectBits =
-                                        numDirectBits.wrapping_sub(1);
-                                    if !(numDirectBits != 0) { break ; }
+                                    numDirectBits = numDirectBits.wrapping_sub(1);
+                                    if !(numDirectBits != 0) {
+                                        break;
+                                    }
                                 }
                                 distance_0 =
-                                    (distance_0 as
-                                         libc::c_uint).wrapping_sub(m) as
-                                        UInt32 as UInt32
+                                    (distance_0 as libc::c_uint).wrapping_sub(m) as UInt32 as UInt32
                             } else {
                                 numDirectBits =
-                                    numDirectBits.wrapping_sub(4 as
-                                                                   libc::c_int
-                                                                   as
-                                                                   libc::c_uint);
-                                loop  {
-                                    if range <
-                                           (1 as libc::c_int as UInt32) <<
-                                               24 as libc::c_int {
+                                    numDirectBits.wrapping_sub(4 as libc::c_int as libc::c_uint);
+                                loop {
+                                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                         range <<= 8 as libc::c_int;
                                         let fresh39 = buf;
                                         buf = buf.offset(1);
-                                        code =
-                                            code << 8 as libc::c_int |
-                                                *fresh39 as libc::c_uint
+                                        code = code << 8 as libc::c_int | *fresh39 as libc::c_uint
                                     }
                                     range >>= 1 as libc::c_int;
                                     let mut t: UInt32 = 0;
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_sub(range)
-                                            as UInt32 as UInt32;
+                                    code = (code as libc::c_uint).wrapping_sub(range) as UInt32
+                                        as UInt32;
                                     /*
-              distance <<= 1;
-              if (code >= range)
-              {
-                code -= range;
-                distance |= 1;
-              }
-              */
-                                    t =
-                                        (0 as libc::c_int as
-                                             libc::c_uint).wrapping_sub(code
-                                                                            >>
-                                                                            31
-                                                                                as
-                                                                                libc::c_int); /* (UInt32)((Int32)code >> 31) */
-                                    distance_0 =
-                                        (distance_0 <<
-                                             1 as
-                                                 libc::c_int).wrapping_add(t.wrapping_add(1
-                                                                                              as
-                                                                                              libc::c_int
-                                                                                              as
-                                                                                              libc::c_uint)); /* we use SizeT to avoid the BUG of VC14 for AMD64 */
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_add(range
-                                                                            &
-                                                                            t)
-                                            as UInt32 as UInt32;
-                                    numDirectBits =
-                                        numDirectBits.wrapping_sub(1);
-                                    if !(numDirectBits != 0) { break ; }
+                                    distance <<= 1;
+                                    if (code >= range)
+                                    {
+                                      code -= range;
+                                      distance |= 1;
+                                    }
+                                    */
+                                    t = (0 as libc::c_int as libc::c_uint)
+                                        .wrapping_sub(code >> 31 as libc::c_int); /* (UInt32)((Int32)code >> 31) */
+                                    distance_0 = (distance_0 << 1 as libc::c_int).wrapping_add(
+                                        t.wrapping_add(1 as libc::c_int as libc::c_uint),
+                                    ); /* we use SizeT to avoid the BUG of VC14 for AMD64 */
+                                    code = (code as libc::c_uint).wrapping_add(range & t) as UInt32
+                                        as UInt32;
+                                    numDirectBits = numDirectBits.wrapping_sub(1);
+                                    if !(numDirectBits != 0) {
+                                        break;
+                                    }
                                 }
-                                prob =
-                                    probs.offset((-(1664 as libc::c_int) +
-                                                      ((1 as libc::c_int) <<
-                                                           (14 as libc::c_int
-                                                                >>
-                                                                1 as
-                                                                    libc::c_int))
-                                                      +
-                                                      ((16 as libc::c_int) <<
-                                                           4 as libc::c_int) +
-                                                      (0 as libc::c_int +
-                                                           2 as libc::c_int *
-                                                               (((1 as
-                                                                      libc::c_int)
-                                                                     <<
-                                                                     4 as
-                                                                         libc::c_int)
-                                                                    <<
-                                                                    3 as
-                                                                        libc::c_int)
-                                                           +
-                                                           ((1 as libc::c_int)
-                                                                <<
-                                                                8 as
-                                                                    libc::c_int))
-                                                      +
-                                                      (0 as libc::c_int +
-                                                           2 as libc::c_int *
-                                                               (((1 as
-                                                                      libc::c_int)
-                                                                     <<
-                                                                     4 as
-                                                                         libc::c_int)
-                                                                    <<
-                                                                    3 as
-                                                                        libc::c_int)
-                                                           +
-                                                           ((1 as libc::c_int)
-                                                                <<
-                                                                8 as
-                                                                    libc::c_int))
-                                                      +
-                                                      ((16 as libc::c_int) <<
-                                                           4 as libc::c_int))
-                                                     as isize);
+                                prob = probs.offset(
+                                    (-(1664 as libc::c_int)
+                                        + ((1 as libc::c_int)
+                                            << (14 as libc::c_int >> 1 as libc::c_int))
+                                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                                        + (0 as libc::c_int
+                                            + 2 as libc::c_int
+                                                * (((1 as libc::c_int) << 4 as libc::c_int)
+                                                    << 3 as libc::c_int)
+                                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                                        + (0 as libc::c_int
+                                            + 2 as libc::c_int
+                                                * (((1 as libc::c_int) << 4 as libc::c_int)
+                                                    << 3 as libc::c_int)
+                                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                                        + ((16 as libc::c_int) << 4 as libc::c_int))
+                                        as isize,
+                                );
                                 distance_0 <<= 4 as libc::c_int;
-                                let mut i: libc::c_uint =
-                                    1 as libc::c_int as libc::c_uint;
-                                ttt =
-                                    *prob.offset(i as isize) as libc::c_uint;
-                                if range <
-                                       (1 as libc::c_int as UInt32) <<
-                                           24 as libc::c_int {
+                                let mut i: libc::c_uint = 1 as libc::c_int as libc::c_uint;
+                                ttt = *prob.offset(i as isize) as libc::c_uint;
+                                if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                     range <<= 8 as libc::c_int;
                                     let fresh40 = buf;
                                     buf = buf.offset(1);
-                                    code =
-                                        code << 8 as libc::c_int |
-                                            *fresh40 as libc::c_uint
+                                    code = code << 8 as libc::c_int | *fresh40 as libc::c_uint
                                 }
-                                bound =
-                                    (range >>
-                                         11 as libc::c_int).wrapping_mul(ttt);
+                                bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                                 if code < bound {
                                     range = bound;
-                                    *prob.offset(i as isize) =
-                                        ttt.wrapping_add((((1 as libc::c_int)
-                                                               <<
-                                                               11 as
-                                                                   libc::c_int)
-                                                              as
-                                                              libc::c_uint).wrapping_sub(ttt)
-                                                             >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_add(1 as libc::c_int as
-                                                           libc::c_uint)
+                                    *prob.offset(i as isize) = ttt.wrapping_add(
+                                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                            .wrapping_sub(ttt)
+                                            >> 5 as libc::c_int,
+                                    )
+                                        as CLzmaProb;
+                                    i = i.wrapping_add(1 as libc::c_int as libc::c_uint)
                                 } else {
-                                    range =
-                                        (range as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
+                                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
+                                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
                                     *prob.offset(i as isize) =
-                                        ttt.wrapping_sub(ttt >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_add((1 as libc::c_int *
-                                                            2 as libc::c_int)
-                                                           as libc::c_uint)
+                                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                    i = i.wrapping_add(
+                                        (1 as libc::c_int * 2 as libc::c_int) as libc::c_uint,
+                                    )
                                 }
-                                ttt =
-                                    *prob.offset(i as isize) as libc::c_uint;
-                                if range <
-                                       (1 as libc::c_int as UInt32) <<
-                                           24 as libc::c_int {
+                                ttt = *prob.offset(i as isize) as libc::c_uint;
+                                if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                     range <<= 8 as libc::c_int;
                                     let fresh41 = buf;
                                     buf = buf.offset(1);
-                                    code =
-                                        code << 8 as libc::c_int |
-                                            *fresh41 as libc::c_uint
+                                    code = code << 8 as libc::c_int | *fresh41 as libc::c_uint
                                 }
-                                bound =
-                                    (range >>
-                                         11 as libc::c_int).wrapping_mul(ttt);
+                                bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                                 if code < bound {
                                     range = bound;
-                                    *prob.offset(i as isize) =
-                                        ttt.wrapping_add((((1 as libc::c_int)
-                                                               <<
-                                                               11 as
-                                                                   libc::c_int)
-                                                              as
-                                                              libc::c_uint).wrapping_sub(ttt)
-                                                             >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_add(2 as libc::c_int as
-                                                           libc::c_uint)
+                                    *prob.offset(i as isize) = ttt.wrapping_add(
+                                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                            .wrapping_sub(ttt)
+                                            >> 5 as libc::c_int,
+                                    )
+                                        as CLzmaProb;
+                                    i = i.wrapping_add(2 as libc::c_int as libc::c_uint)
                                 } else {
-                                    range =
-                                        (range as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
+                                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
+                                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
                                     *prob.offset(i as isize) =
-                                        ttt.wrapping_sub(ttt >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_add((2 as libc::c_int *
-                                                            2 as libc::c_int)
-                                                           as libc::c_uint)
+                                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                    i = i.wrapping_add(
+                                        (2 as libc::c_int * 2 as libc::c_int) as libc::c_uint,
+                                    )
                                 }
-                                ttt =
-                                    *prob.offset(i as isize) as libc::c_uint;
-                                if range <
-                                       (1 as libc::c_int as UInt32) <<
-                                           24 as libc::c_int {
+                                ttt = *prob.offset(i as isize) as libc::c_uint;
+                                if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                     range <<= 8 as libc::c_int;
                                     let fresh42 = buf;
                                     buf = buf.offset(1);
-                                    code =
-                                        code << 8 as libc::c_int |
-                                            *fresh42 as libc::c_uint
+                                    code = code << 8 as libc::c_int | *fresh42 as libc::c_uint
                                 }
-                                bound =
-                                    (range >>
-                                         11 as libc::c_int).wrapping_mul(ttt);
+                                bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                                 if code < bound {
                                     range = bound;
-                                    *prob.offset(i as isize) =
-                                        ttt.wrapping_add((((1 as libc::c_int)
-                                                               <<
-                                                               11 as
-                                                                   libc::c_int)
-                                                              as
-                                                              libc::c_uint).wrapping_sub(ttt)
-                                                             >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_add(4 as libc::c_int as
-                                                           libc::c_uint)
+                                    *prob.offset(i as isize) = ttt.wrapping_add(
+                                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                            .wrapping_sub(ttt)
+                                            >> 5 as libc::c_int,
+                                    )
+                                        as CLzmaProb;
+                                    i = i.wrapping_add(4 as libc::c_int as libc::c_uint)
                                 } else {
-                                    range =
-                                        (range as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
+                                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
+                                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
                                     *prob.offset(i as isize) =
-                                        ttt.wrapping_sub(ttt >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_add((4 as libc::c_int *
-                                                            2 as libc::c_int)
-                                                           as libc::c_uint)
+                                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb;
+                                    i = i.wrapping_add(
+                                        (4 as libc::c_int * 2 as libc::c_int) as libc::c_uint,
+                                    )
                                 }
-                                ttt =
-                                    *prob.offset(i as isize) as libc::c_uint;
-                                if range <
-                                       (1 as libc::c_int as UInt32) <<
-                                           24 as libc::c_int {
+                                ttt = *prob.offset(i as isize) as libc::c_uint;
+                                if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                                     range <<= 8 as libc::c_int;
                                     let fresh43 = buf;
                                     buf = buf.offset(1);
-                                    code =
-                                        code << 8 as libc::c_int |
-                                            *fresh43 as libc::c_uint
+                                    code = code << 8 as libc::c_int | *fresh43 as libc::c_uint
                                 }
-                                bound =
-                                    (range >>
-                                         11 as libc::c_int).wrapping_mul(ttt);
+                                bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                                 if code < bound {
                                     range = bound;
-                                    *prob.offset(i as isize) =
-                                        ttt.wrapping_add((((1 as libc::c_int)
-                                                               <<
-                                                               11 as
-                                                                   libc::c_int)
-                                                              as
-                                                              libc::c_uint).wrapping_sub(ttt)
-                                                             >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb;
-                                    i =
-                                        i.wrapping_sub(8 as libc::c_int as
-                                                           libc::c_uint)
+                                    *prob.offset(i as isize) = ttt.wrapping_add(
+                                        (((1 as libc::c_int) << 11 as libc::c_int) as libc::c_uint)
+                                            .wrapping_sub(ttt)
+                                            >> 5 as libc::c_int,
+                                    )
+                                        as CLzmaProb;
+                                    i = i.wrapping_sub(8 as libc::c_int as libc::c_uint)
                                 } else {
-                                    range =
-                                        (range as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
-                                    code =
-                                        (code as
-                                             libc::c_uint).wrapping_sub(bound)
-                                            as UInt32 as UInt32;
+                                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
+                                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32
+                                        as UInt32;
                                     *prob.offset(i as isize) =
-                                        ttt.wrapping_sub(ttt >>
-                                                             5 as libc::c_int)
-                                            as CLzmaProb
+                                        ttt.wrapping_sub(ttt >> 5 as libc::c_int) as CLzmaProb
                                 }
                                 distance_0 |= i;
                                 if distance_0 == 0xffffffff as libc::c_uint {
-                                    len =
-                                        (2 as libc::c_int +
-                                             ((1 as libc::c_int) <<
-                                                  3 as libc::c_int) *
-                                                 2 as libc::c_int +
-                                             ((1 as libc::c_int) <<
-                                                  8 as libc::c_int)) as
-                                            libc::c_uint;
-                                    state =
-                                        state.wrapping_sub(12 as libc::c_int
-                                                               as
-                                                               libc::c_uint);
-                                    break ;
+                                    len = (2 as libc::c_int
+                                        + ((1 as libc::c_int) << 3 as libc::c_int)
+                                            * 2 as libc::c_int
+                                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                                        as libc::c_uint;
+                                    state = state.wrapping_sub(12 as libc::c_int as libc::c_uint);
+                                    break;
                                 }
                             }
                         }
                         rep3 = rep2;
                         rep2 = rep1;
                         rep1 = rep0;
-                        rep0 =
-                            distance_0.wrapping_add(1 as libc::c_int as
-                                                        libc::c_uint);
-                        state =
-                            if state <
-                                   (12 as libc::c_int + 7 as libc::c_int) as
-                                       libc::c_uint {
-                                7 as libc::c_int
-                            } else { (7 as libc::c_int) + 3 as libc::c_int }
-                                as libc::c_uint;
-                        if distance_0 >=
-                               (if checkDicSize ==
-                                       0 as libc::c_int as libc::c_uint {
-                                    processedPos
-                                } else { checkDicSize }) {
+                        rep0 = distance_0.wrapping_add(1 as libc::c_int as libc::c_uint);
+                        state = if state < (12 as libc::c_int + 7 as libc::c_int) as libc::c_uint {
+                            7 as libc::c_int
+                        } else {
+                            (7 as libc::c_int) + 3 as libc::c_int
+                        } as libc::c_uint;
+                        if distance_0
+                            >= (if checkDicSize == 0 as libc::c_int as libc::c_uint {
+                                processedPos
+                            } else {
+                                checkDicSize
+                            })
+                        {
                             (*p).dicPos = dicPos;
-                            return 1 as libc::c_int
+                            return 1 as libc::c_int;
                         }
                     }
                     len = len.wrapping_add(2 as libc::c_int as libc::c_uint);
@@ -2342,68 +1635,57 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
                     rem = limit.wrapping_sub(dicPos);
                     if rem == 0 as libc::c_int as libc::c_ulong {
                         (*p).dicPos = dicPos;
-                        return 1 as libc::c_int
+                        return 1 as libc::c_int;
                     }
-                    curLen =
-                        if rem < len as libc::c_ulong {
-                            rem as libc::c_uint
-                        } else { len };
-                    pos =
-                        dicPos.wrapping_sub(rep0 as
-                                                libc::c_ulong).wrapping_add((if dicPos
-                                                                                    <
-                                                                                    rep0
-                                                                                        as
-                                                                                        libc::c_ulong
-                                                                                {
-                                                                                 dicBufSize
-                                                                             } else {
-                                                                                 0
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     libc::c_ulong
-                                                                             }));
+                    curLen = if rem < len as libc::c_ulong {
+                        rem as libc::c_uint
+                    } else {
+                        len
+                    };
+                    pos = dicPos.wrapping_sub(rep0 as libc::c_ulong).wrapping_add(
+                        if dicPos < rep0 as libc::c_ulong {
+                            dicBufSize
+                        } else {
+                            0 as libc::c_int as libc::c_ulong
+                        },
+                    );
                     processedPos =
-                        (processedPos as libc::c_uint).wrapping_add(curLen) as
-                            UInt32 as UInt32;
+                        (processedPos as libc::c_uint).wrapping_add(curLen) as UInt32 as UInt32;
                     len = len.wrapping_sub(curLen);
-                    if curLen as libc::c_ulong <= dicBufSize.wrapping_sub(pos)
-                       {
+                    if curLen as libc::c_ulong <= dicBufSize.wrapping_sub(pos) {
                         let mut dest: *mut Byte = dic.offset(dicPos as isize);
-                        let mut src: ptrdiff_t =
-                            pos as ptrdiff_t - dicPos as ptrdiff_t;
-                        let mut lim: *const Byte =
-                            dest.offset(curLen as isize);
-                        dicPos =
-                            (dicPos as
-                                 libc::c_ulong).wrapping_add(curLen as SizeT)
-                                as SizeT as SizeT;
-                        loop  {
+                        let mut src: ptrdiff_t = pos as ptrdiff_t - dicPos as ptrdiff_t;
+                        let mut lim: *const Byte = dest.offset(curLen as isize);
+                        dicPos = (dicPos as libc::c_ulong).wrapping_add(curLen as SizeT) as SizeT
+                            as SizeT;
+                        loop {
                             *dest = *dest.offset(src as isize);
                             dest = dest.offset(1);
-                            if !(dest != lim as *mut Byte) { break ; }
+                            if !(dest != lim as *mut Byte) {
+                                break;
+                            }
                         }
                     } else {
-                        loop  {
+                        loop {
                             let fresh44 = dicPos;
                             dicPos = dicPos.wrapping_add(1);
-                            *dic.offset(fresh44 as isize) =
-                                *dic.offset(pos as isize);
+                            *dic.offset(fresh44 as isize) = *dic.offset(pos as isize);
                             pos = pos.wrapping_add(1);
                             if pos == dicBufSize {
                                 pos = 0 as libc::c_int as SizeT
                             }
                             curLen = curLen.wrapping_sub(1);
                             if !(curLen != 0 as libc::c_int as libc::c_uint) {
-                                break ;
+                                break;
                             }
                         }
                     }
                 }
             }
         }
-        if !(dicPos < limit && buf < bufLimit) { break ; }
+        if !(dicPos < limit && buf < bufLimit) {
+            break;
+        }
     }
     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
         range <<= 8 as libc::c_int;
@@ -2424,131 +1706,111 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(mut p: *mut CLzmaDec,
     (*p).state = state;
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn LzmaDec_WriteRem(mut p: *mut CLzmaDec,
-                                      mut limit: SizeT) {
-    if (*p).remainLen != 0 as libc::c_int as libc::c_uint &&
-           (*p).remainLen <
-               (2 as libc::c_int +
-                    ((1 as libc::c_int) << 3 as libc::c_int) *
-                        2 as libc::c_int +
-                    ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint
-       {
+unsafe extern "C" fn LzmaDec_WriteRem(mut p: *mut CLzmaDec, mut limit: SizeT) {
+    if (*p).remainLen != 0 as libc::c_int as libc::c_uint
+        && (*p).remainLen
+            < (2 as libc::c_int
+                + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+                + ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint
+    {
         let mut dic: *mut Byte = (*p).dic;
         let mut dicPos: SizeT = (*p).dicPos;
         let mut dicBufSize: SizeT = (*p).dicBufSize;
         let mut len: libc::c_uint = (*p).remainLen;
         let mut rep0: SizeT = (*p).reps[0 as libc::c_int as usize] as SizeT;
         let mut rem: SizeT = limit.wrapping_sub(dicPos);
-        if rem < len as libc::c_ulong { len = rem as libc::c_uint }
-        if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint &&
-               (*p).prop.dicSize.wrapping_sub((*p).processedPos) <= len {
+        if rem < len as libc::c_ulong {
+            len = rem as libc::c_uint
+        }
+        if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint
+            && (*p).prop.dicSize.wrapping_sub((*p).processedPos) <= len
+        {
             (*p).checkDicSize = (*p).prop.dicSize
         }
         (*p).processedPos =
-            ((*p).processedPos as libc::c_uint).wrapping_add(len) as UInt32 as
-                UInt32;
-        (*p).remainLen =
-            ((*p).remainLen as libc::c_uint).wrapping_sub(len) as UInt32 as
-                UInt32;
+            ((*p).processedPos as libc::c_uint).wrapping_add(len) as UInt32 as UInt32;
+        (*p).remainLen = ((*p).remainLen as libc::c_uint).wrapping_sub(len) as UInt32 as UInt32;
         while len != 0 as libc::c_int as libc::c_uint {
             len = len.wrapping_sub(1);
             *dic.offset(dicPos as isize) =
-                *dic.offset(dicPos.wrapping_sub(rep0).wrapping_add((if dicPos
-                                                                           <
-                                                                           rep0
-                                                                       {
-                                                                        dicBufSize
-                                                                    } else {
-                                                                        0 as
-                                                                            libc::c_int
-                                                                            as
-                                                                            libc::c_ulong
-                                                                    })) as
-                                isize);
+                *dic.offset(dicPos.wrapping_sub(rep0).wrapping_add(if dicPos < rep0 {
+                    dicBufSize
+                } else {
+                    0 as libc::c_int as libc::c_ulong
+                }) as isize);
             dicPos = dicPos.wrapping_add(1)
         }
         (*p).dicPos = dicPos
     };
 }
-unsafe extern "C" fn LzmaDec_DecodeReal2(mut p: *mut CLzmaDec,
-                                         mut limit: SizeT,
-                                         mut bufLimit: *const Byte,
-                                         mut memlimit: SizeT) -> libc::c_int {
-    loop  {
+unsafe extern "C" fn LzmaDec_DecodeReal2(
+    mut p: *mut CLzmaDec,
+    mut limit: SizeT,
+    mut bufLimit: *const Byte,
+    mut memlimit: SizeT,
+) -> libc::c_int {
+    loop {
         let mut limit2: SizeT = limit;
         if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint {
-            let mut rem: UInt32 =
-                (*p).prop.dicSize.wrapping_sub((*p).processedPos);
+            let mut rem: UInt32 = (*p).prop.dicSize.wrapping_sub((*p).processedPos);
             if limit.wrapping_sub((*p).dicPos) > rem as libc::c_ulong {
                 if (*p).dicBufSize < (*p).prop.dicSize as libc::c_ulong {
                     (*p).dicBufSize = (*p).prop.dicSize as SizeT
                 }
-                if (*p).dicBufSize > memlimit { return 2 as libc::c_int }
+                if (*p).dicBufSize > memlimit {
+                    return 2 as libc::c_int;
+                }
                 let mut tmp: *mut Byte =
-                    realloc((*p).dic as *mut libc::c_void, (*p).dicBufSize) as
-                        *mut Byte;
-                if tmp.is_null() { return 2 as libc::c_int }
+                    realloc((*p).dic as *mut libc::c_void, (*p).dicBufSize) as *mut Byte;
+                if tmp.is_null() {
+                    return 2 as libc::c_int;
+                }
                 (*p).dic = tmp;
                 limit2 = (*p).dicPos.wrapping_add(rem as libc::c_ulong)
             }
             if (*p).processedPos == 0 as libc::c_int as libc::c_uint {
-                if (*p).code >=
-                       ((0xffffffff as libc::c_uint >> 11 as libc::c_int) <<
-                            11 as libc::c_int -
-                                1 as
-                                    libc::c_int).wrapping_add(((0xffffffff as
-                                                                    libc::c_uint).wrapping_sub((0xffffffff
-                                                                                                    as
-                                                                                                    libc::c_uint
-                                                                                                    >>
-                                                                                                    11
-                                                                                                        as
-                                                                                                        libc::c_int)
-                                                                                                   <<
-                                                                                                   11
-                                                                                                       as
-                                                                                                       libc::c_int
-                                                                                                       -
-                                                                                                       1
-                                                                                                           as
-                                                                                                           libc::c_int)
-                                                                   >>
-                                                                   11 as
-                                                                       libc::c_int)
-                                                                  <<
-                                                                  11 as
-                                                                      libc::c_int
-                                                                      -
-                                                                      1 as
-                                                                          libc::c_int)
-                   {
-                    return 1 as libc::c_int
+                if (*p).code
+                    >= ((0xffffffff as libc::c_uint >> 11 as libc::c_int)
+                        << 11 as libc::c_int - 1 as libc::c_int)
+                        .wrapping_add(
+                            ((0xffffffff as libc::c_uint).wrapping_sub(
+                                (0xffffffff as libc::c_uint >> 11 as libc::c_int)
+                                    << 11 as libc::c_int - 1 as libc::c_int,
+                            ) >> 11 as libc::c_int)
+                                << 11 as libc::c_int - 1 as libc::c_int,
+                        )
+                {
+                    return 1 as libc::c_int;
                 }
             }
         }
-        let mut __result__: libc::c_int =
-            LzmaDec_DecodeReal_3(p, limit2, bufLimit);
-        if __result__ != 0 as libc::c_int { return __result__ }
-        if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint &&
-               (*p).processedPos >= (*p).prop.dicSize {
+        let mut __result__: libc::c_int = LzmaDec_DecodeReal_3(p, limit2, bufLimit);
+        if __result__ != 0 as libc::c_int {
+            return __result__;
+        }
+        if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint
+            && (*p).processedPos >= (*p).prop.dicSize
+        {
             (*p).checkDicSize = (*p).prop.dicSize
         }
         LzmaDec_WriteRem(p, limit);
-        if !((*p).dicPos < limit && (*p).buf < bufLimit &&
-                 (*p).remainLen <
-                     (2 as libc::c_int +
-                          ((1 as libc::c_int) << 3 as libc::c_int) *
-                              2 as libc::c_int +
-                          ((1 as libc::c_int) << 8 as libc::c_int)) as
-                         libc::c_uint) {
-            break ;
+        if !((*p).dicPos < limit
+            && (*p).buf < bufLimit
+            && (*p).remainLen
+                < (2 as libc::c_int
+                    + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+                    + ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint)
+        {
+            break;
         }
     }
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
-                                      mut buf: *const Byte, mut inSize: SizeT)
- -> ELzmaDummy {
+unsafe extern "C" fn LzmaDec_TryDummy(
+    mut p: *const CLzmaDec,
+    mut buf: *const Byte,
+    mut inSize: SizeT,
+) -> ELzmaDummy {
     let mut range: UInt32 = (*p).range;
     let mut code: UInt32 = (*p).code;
     let mut bufLimit: *const Byte = buf.offset(inSize as isize);
@@ -2558,29 +1820,29 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
     let mut prob: *const CLzmaProb = 0 as *const CLzmaProb;
     let mut bound: UInt32 = 0;
     let mut ttt: libc::c_uint = 0;
-    let mut posState: libc::c_uint =
-        ((*p).processedPos &
-             (((1 as libc::c_int) << (*p).prop.pb as libc::c_int) -
-                  1 as libc::c_int) as libc::c_uint) << 4 as libc::c_int;
-    prob =
-        probs.offset((-(1664 as libc::c_int) +
-                          ((1 as libc::c_int) <<
-                               (14 as libc::c_int >> 1 as libc::c_int)) +
-                          ((16 as libc::c_int) << 4 as libc::c_int) +
-                          (0 as libc::c_int +
-                               2 as libc::c_int *
-                                   (((1 as libc::c_int) << 4 as libc::c_int)
-                                        << 3 as libc::c_int) +
-                               ((1 as libc::c_int) << 8 as libc::c_int)) +
-                          (0 as libc::c_int +
-                               2 as libc::c_int *
-                                   (((1 as libc::c_int) << 4 as libc::c_int)
-                                        << 3 as libc::c_int) +
-                               ((1 as libc::c_int) << 8 as libc::c_int))) as
-                         isize).offset(posState.wrapping_add(state) as isize);
+    let mut posState: libc::c_uint = ((*p).processedPos
+        & (((1 as libc::c_int) << (*p).prop.pb as libc::c_int) - 1 as libc::c_int) as libc::c_uint)
+        << 4 as libc::c_int;
+    prob = probs
+        .offset(
+            (-(1664 as libc::c_int)
+                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                + ((16 as libc::c_int) << 4 as libc::c_int)
+                + (0 as libc::c_int
+                    + 2 as libc::c_int
+                        * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                + (0 as libc::c_int
+                    + 2 as libc::c_int
+                        * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                    + ((1 as libc::c_int) << 8 as libc::c_int))) as isize,
+        )
+        .offset(posState.wrapping_add(state) as isize);
     ttt = *prob as libc::c_uint;
     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-        if buf >= bufLimit { return DUMMY_ERROR }
+        if buf >= bufLimit {
+            return DUMMY_ERROR;
+        }
         range <<= 8 as libc::c_int;
         let fresh46 = buf;
         buf = buf.offset(1);
@@ -2590,85 +1852,59 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
     if code < bound {
         range = bound;
         /* if (bufLimit - buf >= 7) return DUMMY_LIT; */
-        prob =
-            probs.offset((-(1664 as libc::c_int) +
-                              ((1 as libc::c_int) <<
-                                   (14 as libc::c_int >> 1 as libc::c_int)) +
-                              ((16 as libc::c_int) << 4 as libc::c_int) +
-                              (0 as libc::c_int +
-                                   2 as libc::c_int *
-                                       (((1 as libc::c_int) <<
-                                             4 as libc::c_int) <<
-                                            3 as libc::c_int) +
-                                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-                              (0 as libc::c_int +
-                                   2 as libc::c_int *
-                                       (((1 as libc::c_int) <<
-                                             4 as libc::c_int) <<
-                                            3 as libc::c_int) +
-                                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-                              ((16 as libc::c_int) << 4 as libc::c_int) +
-                              ((1 as libc::c_int) << 4 as libc::c_int) +
-                              12 as libc::c_int + 12 as libc::c_int +
-                              12 as libc::c_int + 12 as libc::c_int +
-                              ((4 as libc::c_int) << 6 as libc::c_int)) as
-                             isize);
-        if (*p).checkDicSize != 0 as libc::c_int as libc::c_uint ||
-               (*p).processedPos != 0 as libc::c_int as libc::c_uint {
-            prob =
-                prob.offset((0x300 as libc::c_int as
-                                 UInt32).wrapping_mul((((*p).processedPos &
-                                                            (((1 as
-                                                                   libc::c_int)
-                                                                  <<
-                                                                  (*p).prop.lp
-                                                                      as
-                                                                      libc::c_int)
-                                                                 -
-                                                                 1 as
-                                                                     libc::c_int)
-                                                                as
-                                                                libc::c_uint)
-                                                           <<
-                                                           (*p).prop.lc as
-                                                               libc::c_int).wrapping_add((*(*p).dic.offset((if (*p).dicPos
-                                                                                                                   ==
-                                                                                                                   0
-                                                                                                                       as
-                                                                                                                       libc::c_int
-                                                                                                                       as
-                                                                                                                       libc::c_ulong
-                                                                                                               {
-                                                                                                                (*p).dicBufSize
-                                                                                                            } else {
-                                                                                                                (*p).dicPos
-                                                                                                            }).wrapping_sub(1
-                                                                                                                                as
-                                                                                                                                libc::c_int
-                                                                                                                                as
-                                                                                                                                libc::c_ulong)
-                                                                                                               as
-                                                                                                               isize)
-                                                                                              as
-                                                                                              libc::c_int
-                                                                                              >>
-                                                                                              8
-                                                                                                  as
-                                                                                                  libc::c_int
-                                                                                                  -
-                                                                                                  (*p).prop.lc
-                                                                                                      as
-                                                                                                      libc::c_int)
-                                                                                             as
-                                                                                             libc::c_uint))
-                                as isize)
+        prob = probs.offset(
+            (-(1664 as libc::c_int)
+                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                + ((16 as libc::c_int) << 4 as libc::c_int)
+                + (0 as libc::c_int
+                    + 2 as libc::c_int
+                        * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                + (0 as libc::c_int
+                    + 2 as libc::c_int
+                        * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                + ((16 as libc::c_int) << 4 as libc::c_int)
+                + ((1 as libc::c_int) << 4 as libc::c_int)
+                + 12 as libc::c_int
+                + 12 as libc::c_int
+                + 12 as libc::c_int
+                + 12 as libc::c_int
+                + ((4 as libc::c_int) << 6 as libc::c_int)) as isize,
+        );
+        if (*p).checkDicSize != 0 as libc::c_int as libc::c_uint
+            || (*p).processedPos != 0 as libc::c_int as libc::c_uint
+        {
+            prob = prob.offset(
+                (0x300 as libc::c_int as UInt32).wrapping_mul(
+                    (((*p).processedPos
+                        & (((1 as libc::c_int) << (*p).prop.lp as libc::c_int) - 1 as libc::c_int)
+                            as libc::c_uint)
+                        << (*p).prop.lc as libc::c_int)
+                        .wrapping_add(
+                            (*(*p).dic.offset(
+                                (if (*p).dicPos == 0 as libc::c_int as libc::c_ulong {
+                                    (*p).dicBufSize
+                                } else {
+                                    (*p).dicPos
+                                })
+                                .wrapping_sub(1 as libc::c_int as libc::c_ulong)
+                                    as isize,
+                            ) as libc::c_int
+                                >> 8 as libc::c_int - (*p).prop.lc as libc::c_int)
+                                as libc::c_uint,
+                        ),
+                ) as isize,
+            )
         }
         if state < 7 as libc::c_int as libc::c_uint {
             let mut symbol: libc::c_uint = 1 as libc::c_int as libc::c_uint;
-            loop  {
+            loop {
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                    if buf >= bufLimit { return DUMMY_ERROR }
+                    if buf >= bufLimit {
+                        return DUMMY_ERROR;
+                    }
                     range <<= 8 as libc::c_int;
                     let fresh47 = buf;
                     buf = buf.offset(1);
@@ -2679,62 +1915,42 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                     range = bound;
                     symbol = symbol.wrapping_add(symbol)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    symbol =
-                        symbol.wrapping_add(symbol).wrapping_add(1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    symbol = symbol
+                        .wrapping_add(symbol)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 if !(symbol < 0x100 as libc::c_int as libc::c_uint) {
-                    break ;
+                    break;
                 }
             }
         } else {
-            let mut matchByte: libc::c_uint =
-                *(*p).dic.offset((*p).dicPos.wrapping_sub((*p).reps[0 as
-                                                                        libc::c_int
-                                                                        as
-                                                                        usize]
-                                                              as
-                                                              libc::c_ulong).wrapping_add((if (*p).dicPos
-                                                                                                  <
-                                                                                                  (*p).reps[0
-                                                                                                                as
-                                                                                                                libc::c_int
-                                                                                                                as
-                                                                                                                usize]
-                                                                                                      as
-                                                                                                      libc::c_ulong
-                                                                                              {
-                                                                                               (*p).dicBufSize
-                                                                                           } else {
-                                                                                               0
-                                                                                                   as
-                                                                                                   libc::c_int
-                                                                                                   as
-                                                                                                   libc::c_ulong
-                                                                                           }))
-                                     as isize) as libc::c_uint;
+            let mut matchByte: libc::c_uint = *(*p).dic.offset(
+                (*p).dicPos
+                    .wrapping_sub((*p).reps[0 as libc::c_int as usize] as libc::c_ulong)
+                    .wrapping_add(
+                        if (*p).dicPos < (*p).reps[0 as libc::c_int as usize] as libc::c_ulong {
+                            (*p).dicBufSize
+                        } else {
+                            0 as libc::c_int as libc::c_ulong
+                        },
+                    ) as isize,
+            ) as libc::c_uint;
             let mut offs: libc::c_uint = 0x100 as libc::c_int as libc::c_uint;
             let mut symbol_0: libc::c_uint = 1 as libc::c_int as libc::c_uint;
-            loop  {
+            loop {
                 let mut bit: libc::c_uint = 0;
                 let mut probLit: *const CLzmaProb = 0 as *const CLzmaProb;
                 matchByte = matchByte.wrapping_add(matchByte);
                 bit = offs;
                 offs &= matchByte;
-                probLit =
-                    prob.offset(offs.wrapping_add(bit).wrapping_add(symbol_0)
-                                    as isize);
+                probLit = prob.offset(offs.wrapping_add(bit).wrapping_add(symbol_0) as isize);
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                    if buf >= bufLimit { return DUMMY_ERROR }
+                    if buf >= bufLimit {
+                        return DUMMY_ERROR;
+                    }
                     range <<= 8 as libc::c_int;
                     let fresh48 = buf;
                     buf = buf.offset(1);
@@ -2746,52 +1962,44 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                     symbol_0 = symbol_0.wrapping_add(symbol_0);
                     offs ^= bit
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    symbol_0 =
-                        symbol_0.wrapping_add(symbol_0).wrapping_add(1 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    symbol_0 = symbol_0
+                        .wrapping_add(symbol_0)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
                 if !(symbol_0 < 0x100 as libc::c_int as libc::c_uint) {
-                    break ;
+                    break;
                 }
             }
         }
         res = DUMMY_LIT
     } else {
         let mut len: libc::c_uint = 0;
-        range =
-            (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+        range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
         code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
-        prob =
-            probs.offset((-(1664 as libc::c_int) +
-                              ((1 as libc::c_int) <<
-                                   (14 as libc::c_int >> 1 as libc::c_int)) +
-                              ((16 as libc::c_int) << 4 as libc::c_int) +
-                              (0 as libc::c_int +
-                                   2 as libc::c_int *
-                                       (((1 as libc::c_int) <<
-                                             4 as libc::c_int) <<
-                                            3 as libc::c_int) +
-                                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-                              (0 as libc::c_int +
-                                   2 as libc::c_int *
-                                       (((1 as libc::c_int) <<
-                                             4 as libc::c_int) <<
-                                            3 as libc::c_int) +
-                                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-                              ((16 as libc::c_int) << 4 as libc::c_int) +
-                              ((1 as libc::c_int) << 4 as libc::c_int)) as
-                             isize).offset(state as isize);
+        prob = probs
+            .offset(
+                (-(1664 as libc::c_int)
+                    + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                    + ((1 as libc::c_int) << 4 as libc::c_int)) as isize,
+            )
+            .offset(state as isize);
         ttt = *prob as libc::c_uint;
         if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-            if buf >= bufLimit { return DUMMY_ERROR }
+            if buf >= bufLimit {
+                return DUMMY_ERROR;
+            }
             range <<= 8 as libc::c_int;
             let fresh49 = buf;
             buf = buf.offset(1);
@@ -2801,55 +2009,43 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
         if code < bound {
             range = bound;
             state = 0 as libc::c_int as libc::c_uint;
-            prob =
-                probs.offset((-(1664 as libc::c_int) +
-                                  ((1 as libc::c_int) <<
-                                       (14 as libc::c_int >>
-                                            1 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int))) as isize);
+            prob = probs.offset(
+                (-(1664 as libc::c_int)
+                    + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)
+                    + (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                        + ((1 as libc::c_int) << 8 as libc::c_int))) as isize,
+            );
             res = DUMMY_MATCH
         } else {
-            range =
-                (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                    UInt32;
-            code =
-                (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                    UInt32;
+            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
             res = DUMMY_REP;
-            prob =
-                probs.offset((-(1664 as libc::c_int) +
-                                  ((1 as libc::c_int) <<
-                                       (14 as libc::c_int >>
-                                            1 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  ((1 as libc::c_int) << 4 as libc::c_int) +
-                                  12 as libc::c_int) as
-                                 isize).offset(state as isize);
+            prob = probs
+                .offset(
+                    (-(1664 as libc::c_int)
+                        + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + ((1 as libc::c_int) << 4 as libc::c_int)
+                        + 12 as libc::c_int) as isize,
+                )
+                .offset(state as isize);
             ttt = *prob as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                if buf >= bufLimit { return DUMMY_ERROR }
+                if buf >= bufLimit {
+                    return DUMMY_ERROR;
+                }
                 range <<= 8 as libc::c_int;
                 let fresh50 = buf;
                 buf = buf.offset(1);
@@ -2858,16 +2054,18 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
             bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
             if code < bound {
                 range = bound;
-                prob =
-                    probs.offset((-(1664 as libc::c_int) +
-                                      ((1 as libc::c_int) <<
-                                           (14 as libc::c_int >>
-                                                1 as libc::c_int))) as
-                                     isize).offset(posState.wrapping_add(state)
-                                                       as isize);
+                prob = probs
+                    .offset(
+                        (-(1664 as libc::c_int)
+                            + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int)))
+                            as isize,
+                    )
+                    .offset(posState.wrapping_add(state) as isize);
                 ttt = *prob as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                    if buf >= bufLimit { return DUMMY_ERROR }
+                    if buf >= bufLimit {
+                        return DUMMY_ERROR;
+                    }
                     range <<= 8 as libc::c_int;
                     let fresh51 = buf;
                     buf = buf.offset(1);
@@ -2876,61 +2074,49 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                 bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                 if code < bound {
                     range = bound;
-                    if range <
-                           (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                        if buf >= bufLimit { return DUMMY_ERROR }
+                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                        if buf >= bufLimit {
+                            return DUMMY_ERROR;
+                        }
                         range <<= 8 as libc::c_int;
                         let fresh52 = buf;
                         buf = buf.offset(1);
-                        code =
-                            code << 8 as libc::c_int |
-                                *fresh52 as libc::c_uint
+                        code = code << 8 as libc::c_int | *fresh52 as libc::c_uint
                     }
-                    return DUMMY_REP
+                    return DUMMY_REP;
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32
                 }
             } else {
-                range =
-                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                code =
-                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                prob =
-                    probs.offset((-(1664 as libc::c_int) +
-                                      ((1 as libc::c_int) <<
-                                           (14 as libc::c_int >>
-                                                1 as libc::c_int)) +
-                                      ((16 as libc::c_int) <<
-                                           4 as libc::c_int) +
-                                      (0 as libc::c_int +
-                                           2 as libc::c_int *
-                                               (((1 as libc::c_int) <<
-                                                     4 as libc::c_int) <<
-                                                    3 as libc::c_int) +
-                                           ((1 as libc::c_int) <<
-                                                8 as libc::c_int)) +
-                                      (0 as libc::c_int +
-                                           2 as libc::c_int *
-                                               (((1 as libc::c_int) <<
-                                                     4 as libc::c_int) <<
-                                                    3 as libc::c_int) +
-                                           ((1 as libc::c_int) <<
-                                                8 as libc::c_int)) +
-                                      ((16 as libc::c_int) <<
-                                           4 as libc::c_int) +
-                                      ((1 as libc::c_int) << 4 as libc::c_int)
-                                      + 12 as libc::c_int + 12 as libc::c_int)
-                                     as isize).offset(state as isize);
+                range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                prob = probs
+                    .offset(
+                        (-(1664 as libc::c_int)
+                            + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                            + ((16 as libc::c_int) << 4 as libc::c_int)
+                            + (0 as libc::c_int
+                                + 2 as libc::c_int
+                                    * (((1 as libc::c_int) << 4 as libc::c_int)
+                                        << 3 as libc::c_int)
+                                + ((1 as libc::c_int) << 8 as libc::c_int))
+                            + (0 as libc::c_int
+                                + 2 as libc::c_int
+                                    * (((1 as libc::c_int) << 4 as libc::c_int)
+                                        << 3 as libc::c_int)
+                                + ((1 as libc::c_int) << 8 as libc::c_int))
+                            + ((16 as libc::c_int) << 4 as libc::c_int)
+                            + ((1 as libc::c_int) << 4 as libc::c_int)
+                            + 12 as libc::c_int
+                            + 12 as libc::c_int) as isize,
+                    )
+                    .offset(state as isize);
                 ttt = *prob as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                    if buf >= bufLimit { return DUMMY_ERROR }
+                    if buf >= bufLimit {
+                        return DUMMY_ERROR;
+                    }
                     range <<= 8 as libc::c_int;
                     let fresh53 = buf;
                     buf = buf.offset(1);
@@ -2940,81 +2126,64 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                 if code < bound {
                     range = bound
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    prob =
-                        probs.offset((-(1664 as libc::c_int) +
-                                          ((1 as libc::c_int) <<
-                                               (14 as libc::c_int >>
-                                                    1 as libc::c_int)) +
-                                          ((16 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          (0 as libc::c_int +
-                                               2 as libc::c_int *
-                                                   (((1 as libc::c_int) <<
-                                                         4 as libc::c_int) <<
-                                                        3 as libc::c_int) +
-                                               ((1 as libc::c_int) <<
-                                                    8 as libc::c_int)) +
-                                          (0 as libc::c_int +
-                                               2 as libc::c_int *
-                                                   (((1 as libc::c_int) <<
-                                                         4 as libc::c_int) <<
-                                                        3 as libc::c_int) +
-                                               ((1 as libc::c_int) <<
-                                                    8 as libc::c_int)) +
-                                          ((16 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          ((1 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          12 as libc::c_int +
-                                          12 as libc::c_int +
-                                          12 as libc::c_int) as
-                                         isize).offset(state as isize);
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    prob = probs
+                        .offset(
+                            (-(1664 as libc::c_int)
+                                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                                + ((16 as libc::c_int) << 4 as libc::c_int)
+                                + (0 as libc::c_int
+                                    + 2 as libc::c_int
+                                        * (((1 as libc::c_int) << 4 as libc::c_int)
+                                            << 3 as libc::c_int)
+                                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                                + (0 as libc::c_int
+                                    + 2 as libc::c_int
+                                        * (((1 as libc::c_int) << 4 as libc::c_int)
+                                            << 3 as libc::c_int)
+                                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                                + ((16 as libc::c_int) << 4 as libc::c_int)
+                                + ((1 as libc::c_int) << 4 as libc::c_int)
+                                + 12 as libc::c_int
+                                + 12 as libc::c_int
+                                + 12 as libc::c_int) as isize,
+                        )
+                        .offset(state as isize);
                     ttt = *prob as libc::c_uint;
-                    if range <
-                           (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                        if buf >= bufLimit { return DUMMY_ERROR }
+                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                        if buf >= bufLimit {
+                            return DUMMY_ERROR;
+                        }
                         range <<= 8 as libc::c_int;
                         let fresh54 = buf;
                         buf = buf.offset(1);
-                        code =
-                            code << 8 as libc::c_int |
-                                *fresh54 as libc::c_uint
+                        code = code << 8 as libc::c_int | *fresh54 as libc::c_uint
                     }
                     bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                     if code < bound {
                         range = bound
                     } else {
-                        range =
-                            (range as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        code =
-                            (code as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32
+                        range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32
                     }
                 }
             }
             state = 12 as libc::c_int as libc::c_uint;
-            prob =
-                probs.offset((-(1664 as libc::c_int) +
-                                  ((1 as libc::c_int) <<
-                                       (14 as libc::c_int >>
-                                            1 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int))
-                                 as isize)
+            prob = probs.offset(
+                (-(1664 as libc::c_int)
+                    + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                    + ((16 as libc::c_int) << 4 as libc::c_int)) as isize,
+            )
         }
         let mut limit: libc::c_uint = 0;
         let mut offset: libc::c_uint = 0;
-        let mut probLen: *const CLzmaProb =
-            prob.offset(0 as libc::c_int as isize);
+        let mut probLen: *const CLzmaProb = prob.offset(0 as libc::c_int as isize);
         ttt = *probLen as libc::c_uint;
         if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-            if buf >= bufLimit { return DUMMY_ERROR }
+            if buf >= bufLimit {
+                return DUMMY_ERROR;
+            }
             range <<= 8 as libc::c_int;
             let fresh55 = buf;
             buf = buf.offset(1);
@@ -3023,25 +2192,21 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
         bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
         if code < bound {
             range = bound;
-            probLen =
-                prob.offset(0 as libc::c_int as
-                                isize).offset(posState as isize);
+            probLen = prob
+                .offset(0 as libc::c_int as isize)
+                .offset(posState as isize);
             offset = 0 as libc::c_int as libc::c_uint;
             limit = ((1 as libc::c_int) << 3 as libc::c_int) as libc::c_uint
         } else {
-            range =
-                (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                    UInt32;
-            code =
-                (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                    UInt32;
+            range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+            code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
             probLen =
-                prob.offset((0 as libc::c_int +
-                                 ((1 as libc::c_int) << 3 as libc::c_int)) as
-                                isize);
+                prob.offset((0 as libc::c_int + ((1 as libc::c_int) << 3 as libc::c_int)) as isize);
             ttt = *probLen as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                if buf >= bufLimit { return DUMMY_ERROR }
+                if buf >= bufLimit {
+                    return DUMMY_ERROR;
+                }
                 range <<= 8 as libc::c_int;
                 let fresh56 = buf;
                 buf = buf.offset(1);
@@ -3050,45 +2215,33 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
             bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
             if code < bound {
                 range = bound;
-                probLen =
-                    prob.offset(0 as libc::c_int as
-                                    isize).offset(posState as
-                                                      isize).offset(((1 as
-                                                                          libc::c_int)
-                                                                         <<
-                                                                         3 as
-                                                                             libc::c_int)
-                                                                        as
-                                                                        isize);
-                offset =
-                    ((1 as libc::c_int) << 3 as libc::c_int) as libc::c_uint;
-                limit =
-                    ((1 as libc::c_int) << 3 as libc::c_int) as libc::c_uint
+                probLen = prob
+                    .offset(0 as libc::c_int as isize)
+                    .offset(posState as isize)
+                    .offset(((1 as libc::c_int) << 3 as libc::c_int) as isize);
+                offset = ((1 as libc::c_int) << 3 as libc::c_int) as libc::c_uint;
+                limit = ((1 as libc::c_int) << 3 as libc::c_int) as libc::c_uint
             } else {
-                range =
-                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                code =
-                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                probLen =
-                    prob.offset((0 as libc::c_int +
-                                     2 as libc::c_int *
-                                         (((1 as libc::c_int) <<
-                                               4 as libc::c_int) <<
-                                              3 as libc::c_int)) as isize);
+                range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                probLen = prob.offset(
+                    (0 as libc::c_int
+                        + 2 as libc::c_int
+                            * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int))
+                        as isize,
+                );
                 offset =
-                    (((1 as libc::c_int) << 3 as libc::c_int) *
-                         2 as libc::c_int) as libc::c_uint;
-                limit =
-                    ((1 as libc::c_int) << 8 as libc::c_int) as libc::c_uint
+                    (((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int) as libc::c_uint;
+                limit = ((1 as libc::c_int) << 8 as libc::c_int) as libc::c_uint
             }
         }
         len = 1 as libc::c_int as libc::c_uint;
-        loop  {
+        loop {
             ttt = *probLen.offset(len as isize) as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                if buf >= bufLimit { return DUMMY_ERROR }
+                if buf >= bufLimit {
+                    return DUMMY_ERROR;
+                }
                 range <<= 8 as libc::c_int;
                 let fresh57 = buf;
                 buf = buf.offset(1);
@@ -3099,62 +2252,54 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                 range = bound;
                 len = len.wrapping_add(len)
             } else {
-                range =
-                    (range as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                code =
-                    (code as libc::c_uint).wrapping_sub(bound) as UInt32 as
-                        UInt32;
-                len =
-                    len.wrapping_add(len).wrapping_add(1 as libc::c_int as
-                                                           libc::c_uint)
+                range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                len = len
+                    .wrapping_add(len)
+                    .wrapping_add(1 as libc::c_int as libc::c_uint)
             }
-            if !(len < limit) { break ; }
+            if !(len < limit) {
+                break;
+            }
         }
         len = len.wrapping_sub(limit);
         len = len.wrapping_add(offset);
         if state < 4 as libc::c_int as libc::c_uint {
             let mut posSlot: libc::c_uint = 0;
-            prob =
-                probs.offset((-(1664 as libc::c_int) +
-                                  ((1 as libc::c_int) <<
-                                       (14 as libc::c_int >>
-                                            1 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  (0 as libc::c_int +
-                                       2 as libc::c_int *
-                                           (((1 as libc::c_int) <<
-                                                 4 as libc::c_int) <<
-                                                3 as libc::c_int) +
-                                       ((1 as libc::c_int) <<
-                                            8 as libc::c_int)) +
-                                  ((16 as libc::c_int) << 4 as libc::c_int) +
-                                  ((1 as libc::c_int) << 4 as libc::c_int) +
-                                  12 as libc::c_int + 12 as libc::c_int +
-                                  12 as libc::c_int + 12 as libc::c_int) as
-                                 isize).offset(((if len <
-                                                        (4 as libc::c_int -
-                                                             1 as libc::c_int)
-                                                            as libc::c_uint {
-                                                     len
-                                                 } else {
-                                                     (4 as libc::c_int -
-                                                          1 as libc::c_int) as
-                                                         libc::c_uint
-                                                 }) << 6 as libc::c_int) as
-                                                   isize);
+            prob = probs
+                .offset(
+                    (-(1664 as libc::c_int)
+                        + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                        + (0 as libc::c_int
+                            + 2 as libc::c_int
+                                * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                            + ((1 as libc::c_int) << 8 as libc::c_int))
+                        + ((16 as libc::c_int) << 4 as libc::c_int)
+                        + ((1 as libc::c_int) << 4 as libc::c_int)
+                        + 12 as libc::c_int
+                        + 12 as libc::c_int
+                        + 12 as libc::c_int
+                        + 12 as libc::c_int) as isize,
+                )
+                .offset(
+                    ((if len < (4 as libc::c_int - 1 as libc::c_int) as libc::c_uint {
+                        len
+                    } else {
+                        (4 as libc::c_int - 1 as libc::c_int) as libc::c_uint
+                    }) << 6 as libc::c_int) as isize,
+                );
             posSlot = 1 as libc::c_int as libc::c_uint;
-            loop  {
+            loop {
                 ttt = *prob.offset(posSlot as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                    if buf >= bufLimit { return DUMMY_ERROR }
+                    if buf >= bufLimit {
+                        return DUMMY_ERROR;
+                    }
                     range <<= 8 as libc::c_int;
                     let fresh58 = buf;
                     buf = buf.offset(1);
@@ -3165,118 +2310,83 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                     range = bound;
                     posSlot = posSlot.wrapping_add(posSlot)
                 } else {
-                    range =
-                        (range as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    code =
-                        (code as libc::c_uint).wrapping_sub(bound) as UInt32
-                            as UInt32;
-                    posSlot =
-                        posSlot.wrapping_add(posSlot).wrapping_add(1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_uint)
+                    range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                    posSlot = posSlot
+                        .wrapping_add(posSlot)
+                        .wrapping_add(1 as libc::c_int as libc::c_uint)
                 }
-                if !(posSlot <
-                         ((1 as libc::c_int) << 6 as libc::c_int) as
-                             libc::c_uint) {
-                    break ;
+                if !(posSlot < ((1 as libc::c_int) << 6 as libc::c_int) as libc::c_uint) {
+                    break;
                 }
             }
             posSlot =
-                posSlot.wrapping_sub(((1 as libc::c_int) << 6 as libc::c_int)
-                                         as libc::c_uint);
+                posSlot.wrapping_sub(((1 as libc::c_int) << 6 as libc::c_int) as libc::c_uint);
             if posSlot >= 4 as libc::c_int as libc::c_uint {
                 let mut numDirectBits: libc::c_uint =
-                    (posSlot >>
-                         1 as
-                             libc::c_int).wrapping_sub(1 as libc::c_int as
-                                                           libc::c_uint);
+                    (posSlot >> 1 as libc::c_int).wrapping_sub(1 as libc::c_int as libc::c_uint);
                 /* if (bufLimit - buf >= 8) return DUMMY_MATCH; */
                 if posSlot < 14 as libc::c_int as libc::c_uint {
-                    prob =
-                        probs.offset(-(1664 as libc::c_int) as
-                                         isize).offset(((2 as libc::c_int as
-                                                             libc::c_uint |
-                                                             posSlot &
-                                                                 1 as
-                                                                     libc::c_int
-                                                                     as
-                                                                     libc::c_uint)
-                                                            << numDirectBits)
-                                                           as isize)
+                    prob = probs.offset(-(1664 as libc::c_int) as isize).offset(
+                        ((2 as libc::c_int as libc::c_uint
+                            | posSlot & 1 as libc::c_int as libc::c_uint)
+                            << numDirectBits) as isize,
+                    )
                 } else {
-                    numDirectBits =
-                        numDirectBits.wrapping_sub(4 as libc::c_int as
-                                                       libc::c_uint);
-                    loop  {
-                        if range <
-                               (1 as libc::c_int as UInt32) <<
-                                   24 as libc::c_int {
-                            if buf >= bufLimit { return DUMMY_ERROR }
+                    numDirectBits = numDirectBits.wrapping_sub(4 as libc::c_int as libc::c_uint);
+                    loop {
+                        if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                            if buf >= bufLimit {
+                                return DUMMY_ERROR;
+                            }
                             range <<= 8 as libc::c_int;
                             let fresh59 = buf;
                             buf = buf.offset(1);
-                            code =
-                                code << 8 as libc::c_int |
-                                    *fresh59 as libc::c_uint
+                            code = code << 8 as libc::c_int | *fresh59 as libc::c_uint
                         }
                         range >>= 1 as libc::c_int;
-                        code =
-                            (code as
-                                 libc::c_uint).wrapping_sub(range &
-                                                                (code.wrapping_sub(range)
-                                                                     >>
-                                                                     31 as
-                                                                         libc::c_int).wrapping_sub(1
-                                                                                                       as
-                                                                                                       libc::c_int
-                                                                                                       as
-                                                                                                       libc::c_uint))
-                                as UInt32 as UInt32;
+                        code = (code as libc::c_uint).wrapping_sub(
+                            range
+                                & (code.wrapping_sub(range) >> 31 as libc::c_int)
+                                    .wrapping_sub(1 as libc::c_int as libc::c_uint),
+                        ) as UInt32 as UInt32;
                         numDirectBits = numDirectBits.wrapping_sub(1);
-                        if !(numDirectBits != 0) { break ; }
+                        if !(numDirectBits != 0) {
+                            break;
+                        }
                         /* if (code >= range) code -= range; */
                     } /* some internal error */
-                    prob =
-                        probs.offset((-(1664 as libc::c_int) +
-                                          ((1 as libc::c_int) <<
-                                               (14 as libc::c_int >>
-                                                    1 as libc::c_int)) +
-                                          ((16 as libc::c_int) <<
-                                               4 as libc::c_int) +
-                                          (0 as libc::c_int +
-                                               2 as libc::c_int *
-                                                   (((1 as libc::c_int) <<
-                                                         4 as libc::c_int) <<
-                                                        3 as libc::c_int) +
-                                               ((1 as libc::c_int) <<
-                                                    8 as libc::c_int)) +
-                                          (0 as libc::c_int +
-                                               2 as libc::c_int *
-                                                   (((1 as libc::c_int) <<
-                                                         4 as libc::c_int) <<
-                                                        3 as libc::c_int) +
-                                               ((1 as libc::c_int) <<
-                                                    8 as libc::c_int)) +
-                                          ((16 as libc::c_int) <<
-                                               4 as libc::c_int)) as
-                                         isize); /* some internal error */
+                    prob = probs.offset(
+                        (-(1664 as libc::c_int)
+                            + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                            + ((16 as libc::c_int) << 4 as libc::c_int)
+                            + (0 as libc::c_int
+                                + 2 as libc::c_int
+                                    * (((1 as libc::c_int) << 4 as libc::c_int)
+                                        << 3 as libc::c_int)
+                                + ((1 as libc::c_int) << 8 as libc::c_int))
+                            + (0 as libc::c_int
+                                + 2 as libc::c_int
+                                    * (((1 as libc::c_int) << 4 as libc::c_int)
+                                        << 3 as libc::c_int)
+                                + ((1 as libc::c_int) << 8 as libc::c_int))
+                            + ((16 as libc::c_int) << 4 as libc::c_int))
+                            as isize,
+                    ); /* some internal error */
                     numDirectBits = 4 as libc::c_int as libc::c_uint
                 }
                 let mut i: libc::c_uint = 1 as libc::c_int as libc::c_uint;
                 let mut m: libc::c_uint = 1 as libc::c_int as libc::c_uint;
-                loop  {
+                loop {
                     ttt = *prob.offset(i as isize) as libc::c_uint;
-                    if range <
-                           (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-                        if buf >= bufLimit { return DUMMY_ERROR }
+                    if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
+                        if buf >= bufLimit {
+                            return DUMMY_ERROR;
+                        }
                         range <<= 8 as libc::c_int;
                         let fresh60 = buf;
                         buf = buf.offset(1);
-                        code =
-                            code << 8 as libc::c_int |
-                                *fresh60 as libc::c_uint
+                        code = code << 8 as libc::c_int | *fresh60 as libc::c_uint
                     }
                     bound = (range >> 11 as libc::c_int).wrapping_mul(ttt);
                     if code < bound {
@@ -3284,23 +2394,23 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
                         i = i.wrapping_add(m);
                         m = m.wrapping_add(m)
                     } else {
-                        range =
-                            (range as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
-                        code =
-                            (code as libc::c_uint).wrapping_sub(bound) as
-                                UInt32 as UInt32;
+                        range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
+                        code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                         m = m.wrapping_add(m);
                         i = i.wrapping_add(m)
                     }
                     numDirectBits = numDirectBits.wrapping_sub(1);
-                    if !(numDirectBits != 0) { break ; }
+                    if !(numDirectBits != 0) {
+                        break;
+                    }
                 }
             }
         }
     }
     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
-        if buf >= bufLimit { return DUMMY_ERROR }
+        if buf >= bufLimit {
+            return DUMMY_ERROR;
+        }
         range <<= 8 as libc::c_int;
         let fresh61 = buf;
         buf = buf.offset(1);
@@ -3308,30 +2418,29 @@ unsafe extern "C" fn LzmaDec_TryDummy(mut p: *const CLzmaDec,
     }
     return res;
 }
-unsafe extern "C" fn LzmaDec_InitDicAndState(mut p: *mut CLzmaDec,
-                                             mut initDic: BoolInt,
-                                             mut initState: BoolInt) {
-    (*p).remainLen =
-        (2 as libc::c_int +
-             ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int +
-             ((1 as libc::c_int) << 8 as libc::c_int) + 1 as libc::c_int) as
-            UInt32;
+unsafe extern "C" fn LzmaDec_InitDicAndState(
+    mut p: *mut CLzmaDec,
+    mut initDic: BoolInt,
+    mut initState: BoolInt,
+) {
+    (*p).remainLen = (2 as libc::c_int
+        + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+        + ((1 as libc::c_int) << 8 as libc::c_int)
+        + 1 as libc::c_int) as UInt32;
     (*p).tempBufSize = 0 as libc::c_int as libc::c_uint;
     if initDic != 0 {
         (*p).processedPos = 0 as libc::c_int as UInt32;
         (*p).checkDicSize = 0 as libc::c_int as UInt32;
-        (*p).remainLen =
-            (2 as libc::c_int +
-                 ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int +
-                 ((1 as libc::c_int) << 8 as libc::c_int) + 2 as libc::c_int)
-                as UInt32
+        (*p).remainLen = (2 as libc::c_int
+            + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+            + ((1 as libc::c_int) << 8 as libc::c_int)
+            + 2 as libc::c_int) as UInt32
     }
     if initState != 0 {
-        (*p).remainLen =
-            (2 as libc::c_int +
-                 ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int +
-                 ((1 as libc::c_int) << 8 as libc::c_int) + 2 as libc::c_int)
-                as UInt32
+        (*p).remainLen = (2 as libc::c_int
+            + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+            + ((1 as libc::c_int) << 8 as libc::c_int)
+            + 2 as libc::c_int) as UInt32
     };
 }
 #[no_mangle]
@@ -3340,22 +2449,26 @@ pub unsafe extern "C" fn LzmaDec_Init(mut p: *mut CLzmaDec) {
     LzmaDec_InitDicAndState(p, 1 as libc::c_int, 1 as libc::c_int);
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDec_DecodeToDic(mut p: *mut CLzmaDec,
-                                             mut dicLimit: SizeT,
-                                             mut src: *const Byte,
-                                             mut srcLen: *mut SizeT,
-                                             mut finishMode: ELzmaFinishMode,
-                                             mut status: *mut ELzmaStatus,
-                                             mut memlimit: SizeT) -> SRes {
+pub unsafe extern "C" fn LzmaDec_DecodeToDic(
+    mut p: *mut CLzmaDec,
+    mut dicLimit: SizeT,
+    mut src: *const Byte,
+    mut srcLen: *mut SizeT,
+    mut finishMode: ELzmaFinishMode,
+    mut status: *mut ELzmaStatus,
+    mut memlimit: SizeT,
+) -> SRes {
     let mut inSize: SizeT = *srcLen;
     *srcLen = 0 as libc::c_int as SizeT;
     *status = LZMA_STATUS_NOT_SPECIFIED;
-    if (*p).remainLen >
-           (2 as libc::c_int +
-                ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int +
-                ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint {
-        while inSize > 0 as libc::c_int as libc::c_ulong &&
-                  (*p).tempBufSize < 5 as libc::c_int as libc::c_uint {
+    if (*p).remainLen
+        > (2 as libc::c_int
+            + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+            + ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint
+    {
+        while inSize > 0 as libc::c_int as libc::c_ulong
+            && (*p).tempBufSize < 5 as libc::c_int as libc::c_uint
+        {
             let fresh62 = src;
             src = src.offset(1);
             let fresh63 = (*p).tempBufSize;
@@ -3364,152 +2477,128 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(mut p: *mut CLzmaDec,
             *srcLen = (*srcLen).wrapping_add(1);
             inSize = inSize.wrapping_sub(1)
         }
-        if (*p).tempBufSize != 0 as libc::c_int as libc::c_uint &&
-               (*p).tempBuf[0 as libc::c_int as usize] as libc::c_int !=
-                   0 as libc::c_int {
-            return 1 as libc::c_int
+        if (*p).tempBufSize != 0 as libc::c_int as libc::c_uint
+            && (*p).tempBuf[0 as libc::c_int as usize] as libc::c_int != 0 as libc::c_int
+        {
+            return 1 as libc::c_int;
         }
         if (*p).tempBufSize < 5 as libc::c_int as libc::c_uint {
             *status = LZMA_STATUS_NEEDS_MORE_INPUT;
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
-        (*p).code =
-            ((*p).tempBuf[1 as libc::c_int as usize] as UInt32) <<
-                24 as libc::c_int |
-                ((*p).tempBuf[2 as libc::c_int as usize] as UInt32) <<
-                    16 as libc::c_int |
-                ((*p).tempBuf[3 as libc::c_int as usize] as UInt32) <<
-                    8 as libc::c_int |
-                (*p).tempBuf[4 as libc::c_int as usize] as UInt32;
+        (*p).code = ((*p).tempBuf[1 as libc::c_int as usize] as UInt32) << 24 as libc::c_int
+            | ((*p).tempBuf[2 as libc::c_int as usize] as UInt32) << 16 as libc::c_int
+            | ((*p).tempBuf[3 as libc::c_int as usize] as UInt32) << 8 as libc::c_int
+            | (*p).tempBuf[4 as libc::c_int as usize] as UInt32;
         (*p).range = 0xffffffff as libc::c_uint;
         (*p).tempBufSize = 0 as libc::c_int as libc::c_uint;
-        if (*p).remainLen >
-               (2 as libc::c_int +
-                    ((1 as libc::c_int) << 3 as libc::c_int) *
-                        2 as libc::c_int +
-                    ((1 as libc::c_int) << 8 as libc::c_int) +
-                    1 as libc::c_int) as libc::c_uint {
-            let mut numProbs: SizeT =
-                ((-(1664 as libc::c_int) +
-                      ((1 as libc::c_int) <<
-                           (14 as libc::c_int >> 1 as libc::c_int)) +
-                      ((16 as libc::c_int) << 4 as libc::c_int) +
-                      (0 as libc::c_int +
-                           2 as libc::c_int *
-                               (((1 as libc::c_int) << 4 as libc::c_int) <<
-                                    3 as libc::c_int) +
-                           ((1 as libc::c_int) << 8 as libc::c_int)) +
-                      (0 as libc::c_int +
-                           2 as libc::c_int *
-                               (((1 as libc::c_int) << 4 as libc::c_int) <<
-                                    3 as libc::c_int) +
-                           ((1 as libc::c_int) << 8 as libc::c_int)) +
-                      ((16 as libc::c_int) << 4 as libc::c_int) +
-                      ((1 as libc::c_int) << 4 as libc::c_int) +
-                      12 as libc::c_int + 12 as libc::c_int +
-                      12 as libc::c_int + 12 as libc::c_int +
-                      ((4 as libc::c_int) << 6 as libc::c_int) +
-                      1664 as libc::c_int) as
-                     libc::c_uint).wrapping_add((0x300 as libc::c_int as
-                                                     UInt32) <<
-                                                    (*p).prop.lc as
-                                                        libc::c_int +
-                                                        (*p).prop.lp as
-                                                            libc::c_int) as
-                    SizeT;
+        if (*p).remainLen
+            > (2 as libc::c_int
+                + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+                + ((1 as libc::c_int) << 8 as libc::c_int)
+                + 1 as libc::c_int) as libc::c_uint
+        {
+            let mut numProbs: SizeT = ((-(1664 as libc::c_int)
+                + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+                + ((16 as libc::c_int) << 4 as libc::c_int)
+                + (0 as libc::c_int
+                    + 2 as libc::c_int
+                        * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                + (0 as libc::c_int
+                    + 2 as libc::c_int
+                        * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+                    + ((1 as libc::c_int) << 8 as libc::c_int))
+                + ((16 as libc::c_int) << 4 as libc::c_int)
+                + ((1 as libc::c_int) << 4 as libc::c_int)
+                + 12 as libc::c_int
+                + 12 as libc::c_int
+                + 12 as libc::c_int
+                + 12 as libc::c_int
+                + ((4 as libc::c_int) << 6 as libc::c_int)
+                + 1664 as libc::c_int) as libc::c_uint)
+                .wrapping_add(
+                    (0x300 as libc::c_int as UInt32)
+                        << (*p).prop.lc as libc::c_int + (*p).prop.lp as libc::c_int,
+                ) as SizeT;
             let mut i: SizeT = 0;
             let mut probs: *mut CLzmaProb = (*p).probs;
             i = 0 as libc::c_int as SizeT;
             while i < numProbs {
                 *probs.offset(i as isize) =
-                    ((1 as libc::c_int) << 11 as libc::c_int >>
-                         1 as libc::c_int) as CLzmaProb;
+                    ((1 as libc::c_int) << 11 as libc::c_int >> 1 as libc::c_int) as CLzmaProb;
                 i = i.wrapping_add(1)
             }
             (*p).reps[3 as libc::c_int as usize] = 1 as libc::c_int as UInt32;
-            (*p).reps[2 as libc::c_int as usize] =
-                (*p).reps[3 as libc::c_int as usize];
-            (*p).reps[1 as libc::c_int as usize] =
-                (*p).reps[2 as libc::c_int as usize];
-            (*p).reps[0 as libc::c_int as usize] =
-                (*p).reps[1 as libc::c_int as usize];
+            (*p).reps[2 as libc::c_int as usize] = (*p).reps[3 as libc::c_int as usize];
+            (*p).reps[1 as libc::c_int as usize] = (*p).reps[2 as libc::c_int as usize];
+            (*p).reps[0 as libc::c_int as usize] = (*p).reps[1 as libc::c_int as usize];
             (*p).state = 0 as libc::c_int as UInt32
         }
         (*p).remainLen = 0 as libc::c_int as UInt32
     }
     LzmaDec_WriteRem(p, dicLimit);
-    while (*p).remainLen !=
-              (2 as libc::c_int +
-                   ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
-                   + ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint
-          {
+    while (*p).remainLen
+        != (2 as libc::c_int
+            + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
+            + ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint
+    {
         let mut checkEndMarkNow: libc::c_int = 0 as libc::c_int;
         if (*p).dicPos >= dicLimit {
-            if (*p).remainLen == 0 as libc::c_int as libc::c_uint &&
-                   (*p).code == 0 as libc::c_int as libc::c_uint {
+            if (*p).remainLen == 0 as libc::c_int as libc::c_uint
+                && (*p).code == 0 as libc::c_int as libc::c_uint
+            {
                 *status = LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK;
-                return 0 as libc::c_int
+                return 0 as libc::c_int;
             }
-            if finishMode as libc::c_uint ==
-                   LZMA_FINISH_ANY as libc::c_int as libc::c_uint {
+            if finishMode as libc::c_uint == LZMA_FINISH_ANY as libc::c_int as libc::c_uint {
                 *status = LZMA_STATUS_NOT_FINISHED;
-                return 0 as libc::c_int
+                return 0 as libc::c_int;
             }
             if (*p).remainLen != 0 as libc::c_int as libc::c_uint {
                 *status = LZMA_STATUS_NOT_FINISHED;
-                return 1 as libc::c_int
+                return 1 as libc::c_int;
             }
             checkEndMarkNow = 1 as libc::c_int
         }
         if (*p).tempBufSize == 0 as libc::c_int as libc::c_uint {
             let mut processed: SizeT = 0;
             let mut bufLimit: *const Byte = 0 as *const Byte;
-            if inSize < 20 as libc::c_int as libc::c_ulong ||
-                   checkEndMarkNow != 0 {
-                let mut dummyRes: libc::c_int =
-                    LzmaDec_TryDummy(p, src, inSize) as libc::c_int;
+            if inSize < 20 as libc::c_int as libc::c_ulong || checkEndMarkNow != 0 {
+                let mut dummyRes: libc::c_int = LzmaDec_TryDummy(p, src, inSize) as libc::c_int;
                 if dummyRes == DUMMY_ERROR as libc::c_int {
-                    memcpy((*p).tempBuf.as_mut_ptr() as *mut libc::c_void,
-                           src as *const libc::c_void, inSize);
+                    memcpy(
+                        (*p).tempBuf.as_mut_ptr() as *mut libc::c_void,
+                        src as *const libc::c_void,
+                        inSize,
+                    );
                     (*p).tempBufSize = inSize as libc::c_uint;
-                    *srcLen =
-                        (*srcLen as libc::c_ulong).wrapping_add(inSize) as
-                            SizeT as SizeT;
+                    *srcLen = (*srcLen as libc::c_ulong).wrapping_add(inSize) as SizeT as SizeT;
                     *status = LZMA_STATUS_NEEDS_MORE_INPUT;
-                    return 0 as libc::c_int
+                    return 0 as libc::c_int;
                 }
-                if checkEndMarkNow != 0 &&
-                       dummyRes != DUMMY_MATCH as libc::c_int {
+                if checkEndMarkNow != 0 && dummyRes != DUMMY_MATCH as libc::c_int {
                     *status = LZMA_STATUS_NOT_FINISHED;
-                    return 1 as libc::c_int
+                    return 1 as libc::c_int;
                 }
                 bufLimit = src
             } else {
-                bufLimit =
-                    src.offset(inSize as
-                                   isize).offset(-(20 as libc::c_int as
-                                                       isize))
+                bufLimit = src
+                    .offset(inSize as isize)
+                    .offset(-(20 as libc::c_int as isize))
             }
             (*p).buf = src;
-            if LzmaDec_DecodeReal2(p, dicLimit, bufLimit, memlimit) !=
-                   0 as libc::c_int {
-                return 1 as libc::c_int
+            if LzmaDec_DecodeReal2(p, dicLimit, bufLimit, memlimit) != 0 as libc::c_int {
+                return 1 as libc::c_int;
             }
-            processed =
-                (*p).buf.wrapping_offset_from(src) as libc::c_long as SizeT;
-            *srcLen =
-                (*srcLen as libc::c_ulong).wrapping_add(processed) as SizeT as
-                    SizeT;
+            processed = (*p).buf.wrapping_offset_from(src) as libc::c_long as SizeT;
+            *srcLen = (*srcLen as libc::c_ulong).wrapping_add(processed) as SizeT as SizeT;
             src = src.offset(processed as isize);
-            inSize =
-                (inSize as libc::c_ulong).wrapping_sub(processed) as SizeT as
-                    SizeT
+            inSize = (inSize as libc::c_ulong).wrapping_sub(processed) as SizeT as SizeT
         } else {
             let mut rem: libc::c_uint = (*p).tempBufSize;
-            let mut lookAhead: libc::c_uint =
-                0 as libc::c_int as libc::c_uint;
-            while rem < 20 as libc::c_int as libc::c_uint &&
-                      (lookAhead as libc::c_ulong) < inSize {
+            let mut lookAhead: libc::c_uint = 0 as libc::c_int as libc::c_uint;
+            while rem < 20 as libc::c_int as libc::c_uint && (lookAhead as libc::c_ulong) < inSize {
                 let fresh64 = lookAhead;
                 lookAhead = lookAhead.wrapping_add(1);
                 let fresh65 = rem;
@@ -3517,67 +2606,62 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(mut p: *mut CLzmaDec,
                 (*p).tempBuf[fresh65 as usize] = *src.offset(fresh64 as isize)
             }
             (*p).tempBufSize = rem;
-            if rem < 20 as libc::c_int as libc::c_uint || checkEndMarkNow != 0
-               {
+            if rem < 20 as libc::c_int as libc::c_uint || checkEndMarkNow != 0 {
                 let mut dummyRes_0: libc::c_int =
-                    LzmaDec_TryDummy(p, (*p).tempBuf.as_mut_ptr(),
-                                     rem as SizeT) as libc::c_int;
+                    LzmaDec_TryDummy(p, (*p).tempBuf.as_mut_ptr(), rem as SizeT) as libc::c_int;
                 if dummyRes_0 == DUMMY_ERROR as libc::c_int {
-                    *srcLen =
-                        (*srcLen as
-                             libc::c_ulong).wrapping_add(lookAhead as SizeT)
-                            as SizeT as SizeT;
+                    *srcLen = (*srcLen as libc::c_ulong).wrapping_add(lookAhead as SizeT) as SizeT
+                        as SizeT;
                     *status = LZMA_STATUS_NEEDS_MORE_INPUT;
-                    return 0 as libc::c_int
+                    return 0 as libc::c_int;
                 }
-                if checkEndMarkNow != 0 &&
-                       dummyRes_0 != DUMMY_MATCH as libc::c_int {
+                if checkEndMarkNow != 0 && dummyRes_0 != DUMMY_MATCH as libc::c_int {
                     *status = LZMA_STATUS_NOT_FINISHED;
-                    return 1 as libc::c_int
+                    return 1 as libc::c_int;
                 }
             }
             (*p).buf = (*p).tempBuf.as_mut_ptr();
-            if LzmaDec_DecodeReal2(p, dicLimit, (*p).buf, memlimit) !=
-                   0 as libc::c_int {
-                return 1 as libc::c_int
+            if LzmaDec_DecodeReal2(p, dicLimit, (*p).buf, memlimit) != 0 as libc::c_int {
+                return 1 as libc::c_int;
             }
-            let mut kkk: libc::c_uint =
-                (*p).buf.wrapping_offset_from((*p).tempBuf.as_mut_ptr()) as
-                    libc::c_long as libc::c_uint;
-            if rem < kkk { return 11 as libc::c_int }
+            let mut kkk: libc::c_uint = (*p).buf.wrapping_offset_from((*p).tempBuf.as_mut_ptr())
+                as libc::c_long as libc::c_uint;
+            if rem < kkk {
+                return 11 as libc::c_int;
+            }
             rem = rem.wrapping_sub(kkk);
-            if lookAhead < rem { return 11 as libc::c_int }
+            if lookAhead < rem {
+                return 11 as libc::c_int;
+            }
             lookAhead = lookAhead.wrapping_sub(rem);
-            *srcLen =
-                (*srcLen as libc::c_ulong).wrapping_add(lookAhead as SizeT) as
-                    SizeT as SizeT;
+            *srcLen = (*srcLen as libc::c_ulong).wrapping_add(lookAhead as SizeT) as SizeT as SizeT;
             src = src.offset(lookAhead as isize);
-            inSize =
-                (inSize as libc::c_ulong).wrapping_sub(lookAhead as SizeT) as
-                    SizeT as SizeT;
+            inSize = (inSize as libc::c_ulong).wrapping_sub(lookAhead as SizeT) as SizeT as SizeT;
             (*p).tempBufSize = 0 as libc::c_int as libc::c_uint
         }
     }
     if (*p).code != 0 as libc::c_int as libc::c_uint {
-        return 1 as libc::c_int
+        return 1 as libc::c_int;
     }
     *status = LZMA_STATUS_FINISHED_WITH_MARK;
     return 0 as libc::c_int;
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDec_DecodeToBuf(mut p: *mut CLzmaDec,
-                                             mut dest: *mut Byte,
-                                             mut destLen: *mut SizeT,
-                                             mut src: *const Byte,
-                                             mut srcLen: *mut SizeT,
-                                             mut finishMode: ELzmaFinishMode,
-                                             mut status: *mut ELzmaStatus,
-                                             mut memlimit: SizeT) -> SRes {
+pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
+    mut p: *mut CLzmaDec,
+    mut dest: *mut Byte,
+    mut destLen: *mut SizeT,
+    mut src: *const Byte,
+    mut srcLen: *mut SizeT,
+    mut finishMode: ELzmaFinishMode,
+    mut status: *mut ELzmaStatus,
+    mut memlimit: SizeT,
+) -> SRes {
     let mut outSize: SizeT = *destLen;
     let mut inSize: SizeT = *srcLen;
     *destLen = 0 as libc::c_int as SizeT;
     *srcLen = *destLen;
-    loop  {
+    loop {
         let mut inSizeCur: SizeT = inSize;
         let mut outSizeCur: SizeT = 0;
         let mut dicPos: SizeT = 0;
@@ -3594,12 +2678,17 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(mut p: *mut CLzmaDec,
                         (*p).dicBufSize = (*p).prop.dicSize as SizeT
                     }
                     let mut tmp: *mut Byte =
-                        realloc((*p).dic as *mut libc::c_void,
-                                (*p).dicBufSize) as *mut Byte;
-                    if tmp.is_null() { return 2 as libc::c_int }
+                        realloc((*p).dic as *mut libc::c_void, (*p).dicBufSize) as *mut Byte;
+                    if tmp.is_null() {
+                        return 2 as libc::c_int;
+                    }
                     (*p).dic = tmp
-                } else { return 2 as libc::c_int }
-            } else { (*p).dicPos = 0 as libc::c_int as SizeT }
+                } else {
+                    return 2 as libc::c_int;
+                }
+            } else {
+                (*p).dicPos = 0 as libc::c_int as SizeT
+            }
         }
         dicPos = (*p).dicPos;
         if outSize > (*p).dicBufSize.wrapping_sub(dicPos) {
@@ -3609,81 +2698,74 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(mut p: *mut CLzmaDec,
             outSizeCur = dicPos.wrapping_add(outSize);
             curFinishMode = finishMode
         }
-        res =
-            LzmaDec_DecodeToDic(p, outSizeCur, src, &mut inSizeCur,
-                                curFinishMode, status, memlimit);
+        res = LzmaDec_DecodeToDic(
+            p,
+            outSizeCur,
+            src,
+            &mut inSizeCur,
+            curFinishMode,
+            status,
+            memlimit,
+        );
         src = src.offset(inSizeCur as isize);
-        inSize =
-            (inSize as libc::c_ulong).wrapping_sub(inSizeCur) as SizeT as
-                SizeT;
-        *srcLen =
-            (*srcLen as libc::c_ulong).wrapping_add(inSizeCur) as SizeT as
-                SizeT;
+        inSize = (inSize as libc::c_ulong).wrapping_sub(inSizeCur) as SizeT as SizeT;
+        *srcLen = (*srcLen as libc::c_ulong).wrapping_add(inSizeCur) as SizeT as SizeT;
         outSizeCur = (*p).dicPos.wrapping_sub(dicPos);
-        memcpy(dest as *mut libc::c_void,
-               (*p).dic.offset(dicPos as isize) as *const libc::c_void,
-               outSizeCur);
+        memcpy(
+            dest as *mut libc::c_void,
+            (*p).dic.offset(dicPos as isize) as *const libc::c_void,
+            outSizeCur,
+        );
         dest = dest.offset(outSizeCur as isize);
-        outSize =
-            (outSize as libc::c_ulong).wrapping_sub(outSizeCur) as SizeT as
-                SizeT;
-        *destLen =
-            (*destLen as libc::c_ulong).wrapping_add(outSizeCur) as SizeT as
-                SizeT;
-        if res != 0 as libc::c_int { return res }
-        if outSizeCur == 0 as libc::c_int as libc::c_ulong ||
-               outSize == 0 as libc::c_int as libc::c_ulong {
-            return 0 as libc::c_int
+        outSize = (outSize as libc::c_ulong).wrapping_sub(outSizeCur) as SizeT as SizeT;
+        *destLen = (*destLen as libc::c_ulong).wrapping_add(outSizeCur) as SizeT as SizeT;
+        if res != 0 as libc::c_int {
+            return res;
         }
-    };
+        if outSizeCur == 0 as libc::c_int as libc::c_ulong
+            || outSize == 0 as libc::c_int as libc::c_ulong
+        {
+            return 0 as libc::c_int;
+        }
+    }
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDec_FreeProbs(mut p: *mut CLzmaDec,
-                                           mut alloc: ISzAllocPtr) {
-    (*alloc).Free.expect("non-null function pointer")(alloc,
-                                                      (*p).probs as
-                                                          *mut libc::c_void);
+pub unsafe extern "C" fn LzmaDec_FreeProbs(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
+    (*alloc).Free.expect("non-null function pointer")(alloc, (*p).probs as *mut libc::c_void);
     (*p).probs = 0 as *mut CLzmaProb;
 }
-unsafe extern "C" fn LzmaDec_FreeDict(mut p: *mut CLzmaDec,
-                                      mut alloc: ISzAllocPtr) {
-    (*alloc).Free.expect("non-null function pointer")(alloc,
-                                                      (*p).dic as
-                                                          *mut libc::c_void);
+unsafe extern "C" fn LzmaDec_FreeDict(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
+    (*alloc).Free.expect("non-null function pointer")(alloc, (*p).dic as *mut libc::c_void);
     (*p).dic = 0 as *mut Byte;
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDec_Free(mut p: *mut CLzmaDec,
-                                      mut alloc: ISzAllocPtr) {
+pub unsafe extern "C" fn LzmaDec_Free(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
     LzmaDec_FreeProbs(p, alloc);
     LzmaDec_FreeDict(p, alloc);
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaProps_Decode(mut p: *mut CLzmaProps,
-                                          mut data: *const Byte,
-                                          mut size: libc::c_uint) -> SRes {
+pub unsafe extern "C" fn LzmaProps_Decode(
+    mut p: *mut CLzmaProps,
+    mut data: *const Byte,
+    mut size: libc::c_uint,
+) -> SRes {
     let mut dicSize: UInt32 = 0;
     let mut d: Byte = 0;
     if size < 5 as libc::c_int as libc::c_uint {
-        return 4 as libc::c_int
+        return 4 as libc::c_int;
     } else {
-        dicSize =
-            *data.offset(1 as libc::c_int as isize) as libc::c_uint |
-                (*data.offset(2 as libc::c_int as isize) as UInt32) <<
-                    8 as libc::c_int |
-                (*data.offset(3 as libc::c_int as isize) as UInt32) <<
-                    16 as libc::c_int |
-                (*data.offset(4 as libc::c_int as isize) as UInt32) <<
-                    24 as libc::c_int
+        dicSize = *data.offset(1 as libc::c_int as isize) as libc::c_uint
+            | (*data.offset(2 as libc::c_int as isize) as UInt32) << 8 as libc::c_int
+            | (*data.offset(3 as libc::c_int as isize) as UInt32) << 16 as libc::c_int
+            | (*data.offset(4 as libc::c_int as isize) as UInt32) << 24 as libc::c_int
     }
     if dicSize < ((1 as libc::c_int) << 12 as libc::c_int) as libc::c_uint {
         dicSize = ((1 as libc::c_int) << 12 as libc::c_int) as UInt32
     }
     (*p).dicSize = dicSize;
     d = *data.offset(0 as libc::c_int as isize);
-    if d as libc::c_int >=
-           9 as libc::c_int * 5 as libc::c_int * 5 as libc::c_int {
-        return 4 as libc::c_int
+    if d as libc::c_int >= 9 as libc::c_int * 5 as libc::c_int * 5 as libc::c_int {
+        return 4 as libc::c_int;
     }
     (*p).lc = (d as libc::c_int % 9 as libc::c_int) as Byte;
     d = (d as libc::c_int / 9 as libc::c_int) as Byte;
@@ -3692,112 +2774,119 @@ pub unsafe extern "C" fn LzmaProps_Decode(mut p: *mut CLzmaProps,
     (*p)._pad_ = 0 as libc::c_int as Byte;
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn LzmaDec_AllocateProbs2(mut p: *mut CLzmaDec,
-                                            mut propNew: *const CLzmaProps,
-                                            mut alloc: ISzAllocPtr) -> SRes {
-    let mut numProbs: UInt32 =
-        ((-(1664 as libc::c_int) +
-              ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
-              + ((16 as libc::c_int) << 4 as libc::c_int) +
-              (0 as libc::c_int +
-                   2 as libc::c_int *
-                       (((1 as libc::c_int) << 4 as libc::c_int) <<
-                            3 as libc::c_int) +
-                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-              (0 as libc::c_int +
-                   2 as libc::c_int *
-                       (((1 as libc::c_int) << 4 as libc::c_int) <<
-                            3 as libc::c_int) +
-                   ((1 as libc::c_int) << 8 as libc::c_int)) +
-              ((16 as libc::c_int) << 4 as libc::c_int) +
-              ((1 as libc::c_int) << 4 as libc::c_int) + 12 as libc::c_int +
-              12 as libc::c_int + 12 as libc::c_int + 12 as libc::c_int +
-              ((4 as libc::c_int) << 6 as libc::c_int) + 1664 as libc::c_int)
-             as
-             libc::c_uint).wrapping_add((0x300 as libc::c_int as UInt32) <<
-                                            (*propNew).lc as libc::c_int +
-                                                (*propNew).lp as libc::c_int);
+unsafe extern "C" fn LzmaDec_AllocateProbs2(
+    mut p: *mut CLzmaDec,
+    mut propNew: *const CLzmaProps,
+    mut alloc: ISzAllocPtr,
+) -> SRes {
+    let mut numProbs: UInt32 = ((-(1664 as libc::c_int)
+        + ((1 as libc::c_int) << (14 as libc::c_int >> 1 as libc::c_int))
+        + ((16 as libc::c_int) << 4 as libc::c_int)
+        + (0 as libc::c_int
+            + 2 as libc::c_int * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+            + ((1 as libc::c_int) << 8 as libc::c_int))
+        + (0 as libc::c_int
+            + 2 as libc::c_int * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
+            + ((1 as libc::c_int) << 8 as libc::c_int))
+        + ((16 as libc::c_int) << 4 as libc::c_int)
+        + ((1 as libc::c_int) << 4 as libc::c_int)
+        + 12 as libc::c_int
+        + 12 as libc::c_int
+        + 12 as libc::c_int
+        + 12 as libc::c_int
+        + ((4 as libc::c_int) << 6 as libc::c_int)
+        + 1664 as libc::c_int) as libc::c_uint)
+        .wrapping_add(
+            (0x300 as libc::c_int as UInt32)
+                << (*propNew).lc as libc::c_int + (*propNew).lp as libc::c_int,
+        );
     if (*p).probs.is_null() || numProbs != (*p).numProbs {
         LzmaDec_FreeProbs(p, alloc);
-        (*p).probs =
-            (*alloc).Alloc.expect("non-null function pointer")(alloc,
-                                                               (numProbs as
-                                                                    libc::c_ulong).wrapping_mul(::std::mem::size_of::<CLzmaProb>()
-                                                                                                    as
-                                                                                                    libc::c_ulong))
-                as *mut CLzmaProb;
-        if (*p).probs.is_null() { return 2 as libc::c_int }
+        (*p).probs = (*alloc).Alloc.expect("non-null function pointer")(
+            alloc,
+            (numProbs as libc::c_ulong)
+                .wrapping_mul(::std::mem::size_of::<CLzmaProb>() as libc::c_ulong),
+        ) as *mut CLzmaProb;
+        if (*p).probs.is_null() {
+            return 2 as libc::c_int;
+        }
         (*p).probs_1664 = (*p).probs.offset(1664 as libc::c_int as isize);
         (*p).numProbs = numProbs
     }
     return 0 as libc::c_int;
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDec_AllocateProbs(mut p: *mut CLzmaDec,
-                                               mut props: *const Byte,
-                                               mut propsSize: libc::c_uint,
-                                               mut alloc: ISzAllocPtr)
- -> SRes {
-    let mut propNew: CLzmaProps =
-        CLzmaProps{lc: 0, lp: 0, pb: 0, _pad_: 0, dicSize: 0,};
-    let mut __result__: libc::c_int =
-        LzmaProps_Decode(&mut propNew, props, propsSize);
-    if __result__ != 0 as libc::c_int { return __result__ }
-    let mut __result___0: libc::c_int =
-        LzmaDec_AllocateProbs2(p, &mut propNew, alloc);
-    if __result___0 != 0 as libc::c_int { return __result___0 }
+pub unsafe extern "C" fn LzmaDec_AllocateProbs(
+    mut p: *mut CLzmaDec,
+    mut props: *const Byte,
+    mut propsSize: libc::c_uint,
+    mut alloc: ISzAllocPtr,
+) -> SRes {
+    let mut propNew: CLzmaProps = CLzmaProps {
+        lc: 0,
+        lp: 0,
+        pb: 0,
+        _pad_: 0,
+        dicSize: 0,
+    };
+    let mut __result__: libc::c_int = LzmaProps_Decode(&mut propNew, props, propsSize);
+    if __result__ != 0 as libc::c_int {
+        return __result__;
+    }
+    let mut __result___0: libc::c_int = LzmaDec_AllocateProbs2(p, &mut propNew, alloc);
+    if __result___0 != 0 as libc::c_int {
+        return __result___0;
+    }
     (*p).prop = propNew;
     return 0 as libc::c_int;
 }
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDec_Allocate(mut p: *mut CLzmaDec,
-                                          mut props: *const Byte,
-                                          mut propsSize: libc::c_uint,
-                                          mut alloc: ISzAllocPtr) -> SRes {
-    let mut propNew: CLzmaProps =
-        CLzmaProps{lc: 0, lp: 0, pb: 0, _pad_: 0, dicSize: 0,};
+pub unsafe extern "C" fn LzmaDec_Allocate(
+    mut p: *mut CLzmaDec,
+    mut props: *const Byte,
+    mut propsSize: libc::c_uint,
+    mut alloc: ISzAllocPtr,
+) -> SRes {
+    let mut propNew: CLzmaProps = CLzmaProps {
+        lc: 0,
+        lp: 0,
+        pb: 0,
+        _pad_: 0,
+        dicSize: 0,
+    };
     let mut dicBufSize: SizeT = 0;
-    let mut __result__: libc::c_int =
-        LzmaProps_Decode(&mut propNew, props, propsSize);
-    if __result__ != 0 as libc::c_int { return __result__ }
-    let mut __result___0: libc::c_int =
-        LzmaDec_AllocateProbs2(p, &mut propNew, alloc);
-    if __result___0 != 0 as libc::c_int { return __result___0 }
+    let mut __result__: libc::c_int = LzmaProps_Decode(&mut propNew, props, propsSize);
+    if __result__ != 0 as libc::c_int {
+        return __result__;
+    }
+    let mut __result___0: libc::c_int = LzmaDec_AllocateProbs2(p, &mut propNew, alloc);
+    if __result___0 != 0 as libc::c_int {
+        return __result___0;
+    }
     let mut dictSize: UInt32 = propNew.dicSize;
-    let mut mask: SizeT =
-        ((1 as libc::c_int as UInt32) <<
-             12 as libc::c_int).wrapping_sub(1 as libc::c_int as libc::c_uint)
-            as SizeT;
+    let mut mask: SizeT = ((1 as libc::c_int as UInt32) << 12 as libc::c_int)
+        .wrapping_sub(1 as libc::c_int as libc::c_uint) as SizeT;
     if dictSize >= (1 as libc::c_int as UInt32) << 30 as libc::c_int {
-        mask =
-            ((1 as libc::c_int as UInt32) <<
-                 22 as
-                     libc::c_int).wrapping_sub(1 as libc::c_int as
-                                                   libc::c_uint) as SizeT
+        mask = ((1 as libc::c_int as UInt32) << 22 as libc::c_int)
+            .wrapping_sub(1 as libc::c_int as libc::c_uint) as SizeT
     } else if dictSize >= (1 as libc::c_int as UInt32) << 22 as libc::c_int {
-        mask =
-            ((1 as libc::c_int as UInt32) <<
-                 20 as
-                     libc::c_int).wrapping_sub(1 as libc::c_int as
-                                                   libc::c_uint) as SizeT
+        mask = ((1 as libc::c_int as UInt32) << 20 as libc::c_int)
+            .wrapping_sub(1 as libc::c_int as libc::c_uint) as SizeT
     }
     dicBufSize = (dictSize as SizeT).wrapping_add(mask) & !mask;
     if dicBufSize < dictSize as libc::c_ulong {
         dicBufSize = dictSize as SizeT
     }
-    if dicBufSize > ((1 as libc::c_int) << 12 as libc::c_int) as libc::c_ulong
-       {
+    if dicBufSize > ((1 as libc::c_int) << 12 as libc::c_int) as libc::c_ulong {
         dicBufSize = ((1 as libc::c_int) << 12 as libc::c_int) as SizeT
     }
     if (*p).dic.is_null() || dicBufSize != (*p).dicBufSize {
         LzmaDec_FreeDict(p, alloc);
         (*p).dic =
-            (*alloc).Alloc.expect("non-null function pointer")(alloc,
-                                                               dicBufSize) as
-                *mut Byte;
+            (*alloc).Alloc.expect("non-null function pointer")(alloc, dicBufSize) as *mut Byte;
         if (*p).dic.is_null() {
             LzmaDec_FreeProbs(p, alloc);
-            return 2 as libc::c_int
+            return 2 as libc::c_int;
         }
     }
     (*p).dicBufSize = dicBufSize;
@@ -3808,7 +2897,7 @@ pub unsafe extern "C" fn LzmaDec_Allocate(mut p: *mut CLzmaDec,
 2018-04-21 : Igor Pavlov : Public domain */
 /* #define _LZMA_PROB32 */
 /* _LZMA_PROB32 can increase the speed on some CPUs,
-   but memory usage for CLzmaDec::probs will be doubled in that case */
+but memory usage for CLzmaDec::probs will be doubled in that case */
 /* ---------- LZMA Properties ---------- */
 /* LzmaProps_Decode - decodes properties
 Returns:
@@ -3817,27 +2906,27 @@ Returns:
 */
 /* ---------- LZMA Decoder state ---------- */
 /* LZMA_REQUIRED_INPUT_MAX = number of required input bytes for worst case.
-   Num bits = log2((2^11 / 31) ^ 22) + 26 < 134 + 26 = 160; */
+Num bits = log2((2^11 / 31) ^ 22) + 26 < 134 + 26 = 160; */
 /* Don't change this structure. ASM code can use it. */
 /* There are two types of LZMA streams:
-     - Stream with end mark. That end mark adds about 6 bytes to compressed size.
-     - Stream without end mark. You must know exact uncompressed size to decompress such stream. */
+- Stream with end mark. That end mark adds about 6 bytes to compressed size.
+- Stream without end mark. You must know exact uncompressed size to decompress such stream. */
 /* finish at any point */
 /* block must be finished at the end */
 /* ELzmaFinishMode has meaning only if the decoding reaches output limit !!!
 
-   You must use LZMA_FINISH_END, when you know that current output buffer
-   covers last bytes of block. In other cases you must use LZMA_FINISH_ANY.
+You must use LZMA_FINISH_END, when you know that current output buffer
+covers last bytes of block. In other cases you must use LZMA_FINISH_ANY.
 
-   If LZMA decoder sees end marker before reaching output limit, it returns SZ_OK,
-   and output value of destLen will be less than output buffer size limit.
-   You can check status result also.
+If LZMA decoder sees end marker before reaching output limit, it returns SZ_OK,
+and output value of destLen will be less than output buffer size limit.
+You can check status result also.
 
-   You can use multiple checks to test data integrity after full decompression:
-     1) Check Result and "status" variable.
-     2) Check that output(destLen) = uncompressedSize, if you know real uncompressedSize.
-     3) Check that output(srcLen) = compressedSize, if you know real compressedSize.
-        You must use correct finish mode in that case. */
+You can use multiple checks to test data integrity after full decompression:
+  1) Check Result and "status" variable.
+  2) Check that output(destLen) = uncompressedSize, if you know real uncompressedSize.
+  3) Check that output(srcLen) = compressedSize, if you know real compressedSize.
+     You must use correct finish mode in that case. */
 /* use main error code instead */
 /* stream was finished with end mark. */
 /* stream was not finished */
@@ -3846,11 +2935,11 @@ Returns:
 /* ELzmaStatus is used only as output value for function call */
 /* ---------- Interfaces ---------- */
 /* There are 3 levels of interfaces:
-     1) Dictionary Interface
-     2) Buffer Interface
-     3) One Call Interface
-   You can select any of these interfaces, but don't mix functions from different
-   groups for same object. */
+  1) Dictionary Interface
+  2) Buffer Interface
+  3) One Call Interface
+You can select any of these interfaces, but don't mix functions from different
+groups for same object. */
 /* There are two variants to allocate state for Dictionary Interface:
      1) LzmaDec_Allocate / LzmaDec_Free
      2) LzmaDec_AllocateProbs / LzmaDec_FreeProbs
@@ -3882,7 +2971,7 @@ LzmaDec_Allocate* can return:
      LzmaDec_Free()
 */
 /* LzmaDec_DecodeToDic
-   
+
    The decoding to internal dictionary buffer (CLzmaDec::dic).
    You must manually update CLzmaDec::dicPos, if it reaches CLzmaDec::dicBufSize !!!
 
@@ -3931,56 +3020,74 @@ Returns:
   SZ_ERROR_INPUT_EOF - It needs more bytes in input buffer (src).
 */
 #[no_mangle]
-pub unsafe extern "C" fn LzmaDecode(mut dest: *mut Byte,
-                                    mut destLen: *mut SizeT,
-                                    mut src: *const Byte,
-                                    mut srcLen: *mut SizeT,
-                                    mut propData: *const Byte,
-                                    mut propSize: libc::c_uint,
-                                    mut finishMode: ELzmaFinishMode,
-                                    mut status: *mut ELzmaStatus,
-                                    mut alloc: ISzAllocPtr) -> SRes {
-    let mut p: CLzmaDec =
-        CLzmaDec{prop: CLzmaProps{lc: 0, lp: 0, pb: 0, _pad_: 0, dicSize: 0,},
-                 probs: 0 as *mut CLzmaProb,
-                 probs_1664: 0 as *mut CLzmaProb,
-                 dic: 0 as *mut Byte,
-                 dicBufSize: 0,
-                 dicPos: 0,
-                 buf: 0 as *const Byte,
-                 range: 0,
-                 code: 0,
-                 processedPos: 0,
-                 checkDicSize: 0,
-                 reps: [0; 4],
-                 state: 0,
-                 remainLen: 0,
-                 numProbs: 0,
-                 tempBufSize: 0,
-                 tempBuf: [0; 20],};
+pub unsafe extern "C" fn LzmaDecode(
+    mut dest: *mut Byte,
+    mut destLen: *mut SizeT,
+    mut src: *const Byte,
+    mut srcLen: *mut SizeT,
+    mut propData: *const Byte,
+    mut propSize: libc::c_uint,
+    mut finishMode: ELzmaFinishMode,
+    mut status: *mut ELzmaStatus,
+    mut alloc: ISzAllocPtr,
+) -> SRes {
+    let mut p: CLzmaDec = CLzmaDec {
+        prop: CLzmaProps {
+            lc: 0,
+            lp: 0,
+            pb: 0,
+            _pad_: 0,
+            dicSize: 0,
+        },
+        probs: 0 as *mut CLzmaProb,
+        probs_1664: 0 as *mut CLzmaProb,
+        dic: 0 as *mut Byte,
+        dicBufSize: 0,
+        dicPos: 0,
+        buf: 0 as *const Byte,
+        range: 0,
+        code: 0,
+        processedPos: 0,
+        checkDicSize: 0,
+        reps: [0; 4],
+        state: 0,
+        remainLen: 0,
+        numProbs: 0,
+        tempBufSize: 0,
+        tempBuf: [0; 20],
+    };
     let mut res: SRes = 0;
     let mut outSize: SizeT = *destLen;
     let mut inSize: SizeT = *srcLen;
     *srcLen = 0 as libc::c_int as SizeT;
     *destLen = *srcLen;
     *status = LZMA_STATUS_NOT_SPECIFIED;
-    if inSize < 5 as libc::c_int as libc::c_ulong { return 6 as libc::c_int }
+    if inSize < 5 as libc::c_int as libc::c_ulong {
+        return 6 as libc::c_int;
+    }
     p.dic = 0 as *mut Byte;
     p.probs = 0 as *mut CLzmaProb;
-    let mut __result__: libc::c_int =
-        LzmaDec_AllocateProbs(&mut p, propData, propSize, alloc);
-    if __result__ != 0 as libc::c_int { return __result__ }
+    let mut __result__: libc::c_int = LzmaDec_AllocateProbs(&mut p, propData, propSize, alloc);
+    if __result__ != 0 as libc::c_int {
+        return __result__;
+    }
     p.dic = dest;
     p.dicBufSize = outSize;
     LzmaDec_Init(&mut p);
     *srcLen = inSize;
-    res =
-        LzmaDec_DecodeToDic(&mut p, outSize, src, srcLen, finishMode, status,
-                            18446744073709551615 as libc::c_ulong);
+    res = LzmaDec_DecodeToDic(
+        &mut p,
+        outSize,
+        src,
+        srcLen,
+        finishMode,
+        status,
+        18446744073709551615 as libc::c_ulong,
+    );
     *destLen = p.dicPos;
-    if res == 0 as libc::c_int &&
-           *status as libc::c_uint ==
-               LZMA_STATUS_NEEDS_MORE_INPUT as libc::c_int as libc::c_uint {
+    if res == 0 as libc::c_int
+        && *status as libc::c_uint == LZMA_STATUS_NEEDS_MORE_INPUT as libc::c_int as libc::c_uint
+    {
         res = 6 as libc::c_int
     }
     LzmaDec_FreeProbs(&mut p, alloc);

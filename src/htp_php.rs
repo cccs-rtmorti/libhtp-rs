@@ -3,28 +3,28 @@ extern "C" {
     #[no_mangle]
     fn __ctype_b_loc() -> *mut *const libc::c_ushort;
     /* *
- * Create a new bstring by copying the provided bstring.
- *
- * @param[in] b
- * @return New bstring, or NULL if memory allocation failed.
- */
+     * Create a new bstring by copying the provided bstring.
+     *
+     * @param[in] b
+     * @return New bstring, or NULL if memory allocation failed.
+     */
     #[no_mangle]
     fn bstr_dup(b: *const bstr) -> *mut bstr;
     /* *
- * Create a new bstring by copying the provided memory region.
- *
- * @param[in] data
- * @param[in] len
- * @return New bstring, or NULL if memory allocation failed
- */
+     * Create a new bstring by copying the provided memory region.
+     *
+     * @param[in] data
+     * @param[in] len
+     * @return New bstring, or NULL if memory allocation failed
+     */
     #[no_mangle]
     fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
     /* *
- * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
- * input.
- *
- * @param[in] b
- */
+     * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
+     * input.
+     *
+     * @param[in] b
+     */
     #[no_mangle]
     fn bstr_free(b: *mut bstr);
 }
@@ -43,74 +43,74 @@ pub const _ISlower: C2RustUnnamed = 512;
 pub const _ISupper: C2RustUnnamed = 256;
 pub type size_t = libc::c_ulong;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
  */
 pub type htp_status_t = libc::c_int;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -123,10 +123,10 @@ pub type htp_status_t = libc::c_int;
 /* * Server IP address. */
 /* * Server port. */
 /* *
-     * Transactions carried out on this connection. The list may contain
-     * NULL elements when some of the transactions are deleted (and then
-     * removed from a connection by calling htp_conn_remove_tx().
-     */
+ * Transactions carried out on this connection. The list may contain
+ * NULL elements when some of the transactions are deleted (and then
+ * removed from a connection by calling htp_conn_remove_tx().
+ */
 /* * Log messages associated with this connection. */
 /* * Parsing flags: HTP_CONN_PIPELINED. */
 /* * When was this connection opened? Can be NULL. */
@@ -219,19 +219,19 @@ pub struct htp_param_t {
  * Enumerates the possible values for authentication type.
  */
 /* *
-     * This is the default value that is used before
-     * the presence of authentication is determined (e.g.,
-     * before request headers are seen).
-     */
+ * This is the default value that is used before
+ * the presence of authentication is determined (e.g.,
+ * before request headers are seen).
+ */
 /* * No authentication. */
 /* * HTTP Basic authentication used. */
 /* * HTTP Digest authentication used. */
 /* * Unrecognized authentication method. */
 /* *
-     * This is the default value, which is used until the presence
-     * of content encoding is determined (e.g., before request headers
-     * are seen.
-     */
+ * This is the default value, which is used until the presence
+ * of content encoding is determined (e.g., before request headers
+ * are seen.
+ */
 /* * No compression. */
 /* * Gzip compression. */
 /* * Deflate compression. */
@@ -264,9 +264,9 @@ pub struct htp_param_t {
  * HTTP methods.
  */
 /* *
-     * Used by default, until the method is determined (e.g., before
-     * the request line is processed.
-     */
+ * Used by default, until the method is determined (e.g., before
+ * the request line is processed.
+ */
 // A collection of unique parser IDs.
 pub type htp_parser_id_t = libc::c_uint;
 /* * multipart/form-data parser. */
@@ -287,37 +287,37 @@ pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
 /* * Embedded in the URL. */
 pub const HTP_SOURCE_URL: htp_data_source_t = 0;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -332,37 +332,37 @@ pub struct bstr_t {
     pub realptr: *mut libc::c_uchar,
 }
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -375,37 +375,37 @@ pub struct bstr_t {
 // Private transaction functions
 // Utility functions
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -420,48 +420,52 @@ pub struct bstr_t {
  * @return HTP_OK on success, HTP_ERROR on failure.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_php_parameter_processor(mut p: *mut htp_param_t)
- -> htp_status_t {
-    if p.is_null() { return -(1 as libc::c_int) }
+pub unsafe extern "C" fn htp_php_parameter_processor(mut p: *mut htp_param_t) -> htp_status_t {
+    if p.is_null() {
+        return -(1 as libc::c_int);
+    }
     // Name transformation
     let mut new_name: *mut bstr = 0 as *mut bstr;
     // Ignore whitespace characters at the beginning of parameter name.
-    let mut data: *mut libc::c_uchar =
-        if (*(*p).name).realptr.is_null() {
-            ((*p).name as
-                 *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as
-                                                libc::c_ulong as isize)
-        } else { (*(*p).name).realptr };
+    let mut data: *mut libc::c_uchar = if (*(*p).name).realptr.is_null() {
+        ((*p).name as *mut libc::c_uchar)
+            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+    } else {
+        (*(*p).name).realptr
+    };
     let mut len: size_t = (*(*p).name).len;
     let mut pos: size_t = 0 as libc::c_int as size_t;
     // Advance over any whitespace characters at the beginning of the name.
-    while pos < len &&
-              *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as
-                                             libc::c_int as isize) as
-                  libc::c_int &
-                  _ISspace as libc::c_int as libc::c_ushort as libc::c_int !=
-                  0 {
+    while pos < len
+        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as libc::c_int as isize)
+            as libc::c_int
+            & _ISspace as libc::c_int as libc::c_ushort as libc::c_int
+            != 0
+    {
         pos = pos.wrapping_add(1)
     }
     // Have we seen any whitespace?
     if pos > 0 as libc::c_int as libc::c_ulong {
         // Make a copy of the name, starting with
         // the first non-whitespace character.
-        new_name =
-            bstr_dup_mem(data.offset(pos as isize) as *const libc::c_void,
-                         len.wrapping_sub(pos));
-        if new_name.is_null() { return -(1 as libc::c_int) }
+        new_name = bstr_dup_mem(
+            data.offset(pos as isize) as *const libc::c_void,
+            len.wrapping_sub(pos),
+        );
+        if new_name.is_null() {
+            return -(1 as libc::c_int);
+        }
     }
     // Replace remaining whitespace characters with underscores.
     let mut offset: size_t = pos;
     pos = 0 as libc::c_int as size_t;
     // Advance to the end of name or to the first whitespace character.
-    while offset.wrapping_add(pos) < len &&
-              *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as
-                                             libc::c_int as isize) as
-                  libc::c_int &
-                  _ISspace as libc::c_int as libc::c_ushort as libc::c_int ==
-                  0 {
+    while offset.wrapping_add(pos) < len
+        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as libc::c_int as isize)
+            as libc::c_int
+            & _ISspace as libc::c_int as libc::c_ushort as libc::c_int
+            == 0
+    {
         pos = pos.wrapping_add(1)
     }
     // Are we at the end of the name?
@@ -471,29 +475,34 @@ pub unsafe extern "C" fn htp_php_parameter_processor(mut p: *mut htp_param_t)
         // with a parameter that does not have any whitespace in front).
         if new_name.is_null() {
             new_name = bstr_dup((*p).name);
-            if new_name.is_null() { return -(1 as libc::c_int) }
+            if new_name.is_null() {
+                return -(1 as libc::c_int);
+            }
         }
         // Change the pointers to the new name and ditch the offset.
-        data =
-            if (*new_name).realptr.is_null() {
-                (new_name as
-                     *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>()
-                                                    as libc::c_ulong as isize)
-            } else { (*new_name).realptr };
+        data = if (*new_name).realptr.is_null() {
+            (new_name as *mut libc::c_uchar)
+                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+        } else {
+            (*new_name).realptr
+        };
         len = (*new_name).len;
         // Replace any whitespace characters in the copy with underscores.
         while pos < len {
-            if *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as
-                                              libc::c_int as isize) as
-                   libc::c_int &
-                   _ISspace as libc::c_int as libc::c_ushort as libc::c_int !=
-                   0 {
+            if *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as libc::c_int as isize)
+                as libc::c_int
+                & _ISspace as libc::c_int as libc::c_ushort as libc::c_int
+                != 0
+            {
                 *data.offset(pos as isize) = '_' as i32 as libc::c_uchar
             }
             pos = pos.wrapping_add(1)
         }
     }
     // If we made any changes, free the old parameter name and put the new one in.
-    if !new_name.is_null() { bstr_free((*p).name); (*p).name = new_name }
+    if !new_name.is_null() {
+        bstr_free((*p).name);
+        (*p).name = new_name
+    }
     return 1 as libc::c_int;
 }

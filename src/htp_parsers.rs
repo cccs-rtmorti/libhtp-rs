@@ -3,66 +3,69 @@ extern "C" {
     #[no_mangle]
     fn __ctype_b_loc() -> *mut *const libc::c_ushort;
     /* *
- * Checks whether bstring begins with NUL-terminated string. Case insensitive.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return 1 if true, otherwise 0.
- */
+     * Checks whether bstring begins with NUL-terminated string. Case insensitive.
+     *
+     * @param[in] bhaystack
+     * @param[in] cneedle
+     * @return 1 if true, otherwise 0.
+     */
     #[no_mangle]
-    fn bstr_begins_with_c_nocase(bhaystack: *const bstr,
-                                 cneedle: *const libc::c_char) -> libc::c_int;
+    fn bstr_begins_with_c_nocase(
+        bhaystack: *const bstr,
+        cneedle: *const libc::c_char,
+    ) -> libc::c_int;
     /* *
- * Create a new bstring by copying a part of the provided bstring.
- *
- * @param[in] b
- * @param[in] offset
- * @param[in] len
- * @return New bstring, or NULL if memory allocation failed.
- */
+     * Create a new bstring by copying a part of the provided bstring.
+     *
+     * @param[in] b
+     * @param[in] offset
+     * @param[in] len
+     * @return New bstring, or NULL if memory allocation failed.
+     */
     #[no_mangle]
     fn bstr_dup_ex(b: *const bstr, offset: size_t, len: size_t) -> *mut bstr;
     /* *
- * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
- * input.
- *
- * @param[in] b
- */
+     * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
+     * input.
+     *
+     * @param[in] b
+     */
     #[no_mangle]
     fn bstr_free(b: *mut bstr);
     /* *
- * Find the needle in the haystack, with the needle being a NUL-terminated
- * string.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return Position of the match, or -1 if the needle could not be found.
- */
+     * Find the needle in the haystack, with the needle being a NUL-terminated
+     * string.
+     *
+     * @param[in] bhaystack
+     * @param[in] cneedle
+     * @return Position of the match, or -1 if the needle could not be found.
+     */
     #[no_mangle]
-    fn bstr_index_of_c(bhaystack: *const bstr, cneedle: *const libc::c_char)
-     -> libc::c_int;
+    fn bstr_index_of_c(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
     #[no_mangle]
-    fn htp_base64_decode_mem(data: *const libc::c_void, len: size_t)
-     -> *mut bstr;
+    fn htp_base64_decode_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
     /* *
- * Retrieve the first element that matches the given NUL-terminated key.
- *
- * @param[in] table
- * @param[in] ckey
- * @return Matched element, or NULL if no elements match the key.
- */
+     * Retrieve the first element that matches the given NUL-terminated key.
+     *
+     * @param[in] table
+     * @param[in] ckey
+     * @return Matched element, or NULL if no elements match the key.
+     */
     #[no_mangle]
-    fn htp_table_get_c(table: *const htp_table_t, ckey: *const libc::c_char)
-     -> *mut libc::c_void;
+    fn htp_table_get_c(table: *const htp_table_t, ckey: *const libc::c_char) -> *mut libc::c_void;
     #[no_mangle]
-    fn htp_parse_positive_integer_whitespace(data: *mut libc::c_uchar,
-                                             len: size_t, base: libc::c_int)
-     -> int64_t;
+    fn htp_parse_positive_integer_whitespace(
+        data: *mut libc::c_uchar,
+        len: size_t,
+        base: libc::c_int,
+    ) -> int64_t;
     #[no_mangle]
-    fn htp_extract_quoted_string_as_bstr(data: *mut libc::c_uchar,
-                                         len: size_t, out: *mut *mut bstr,
-                                         endoffset: *mut size_t)
-     -> htp_status_t;
+    fn htp_extract_quoted_string_as_bstr(
+        data: *mut libc::c_uchar,
+        len: size_t,
+        out: *mut *mut bstr,
+        endoffset: *mut size_t,
+    ) -> htp_status_t;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -98,37 +101,37 @@ pub struct timeval {
 }
 pub type htp_status_t = libc::c_int;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -165,24 +168,15 @@ pub struct htp_cfg_t {
     pub log_level: htp_log_level_t,
     pub tx_auto_destroy: libc::c_int,
     pub server_personality: htp_server_personality_t,
-    pub parse_request_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t)
-                                       -> libc::c_int>,
-    pub parse_response_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t)
-                                        -> libc::c_int>,
-    pub process_request_header: Option<unsafe extern "C" fn(_:
-                                                                *mut htp_connp_t,
-                                                            _:
-                                                                *mut libc::c_uchar,
-                                                            _: size_t)
-                                           -> libc::c_int>,
-    pub process_response_header: Option<unsafe extern "C" fn(_:
-                                                                 *mut htp_connp_t,
-                                                             _:
-                                                                 *mut libc::c_uchar,
-                                                             _: size_t)
-                                            -> libc::c_int>,
-    pub parameter_processor: Option<unsafe extern "C" fn(_: *mut htp_param_t)
-                                        -> libc::c_int>,
+    pub parse_request_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub parse_response_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub process_request_header: Option<
+        unsafe extern "C" fn(_: *mut htp_connp_t, _: *mut libc::c_uchar, _: size_t) -> libc::c_int,
+    >,
+    pub process_response_header: Option<
+        unsafe extern "C" fn(_: *mut htp_connp_t, _: *mut libc::c_uchar, _: size_t) -> libc::c_int,
+    >,
+    pub parameter_processor: Option<unsafe extern "C" fn(_: *mut htp_param_t) -> libc::c_int>,
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
     pub generate_request_uri_normalized: libc::c_int,
     pub response_decompression_enabled: libc::c_int,
@@ -220,37 +214,37 @@ pub struct htp_cfg_t {
     pub compression_bomb_limit: int32_t,
 }
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -265,9 +259,9 @@ pub struct htp_cfg_t {
  * Enumerates the possible server personalities.
  */
 /* *
-     * Minimal personality that performs at little work as possible. All optional
-     * features are disabled. This personality is a good starting point for customization.
-     */
+ * Minimal personality that performs at little work as possible. All optional
+ * features are disabled. This personality is a good starting point for customization.
+ */
 /* * A generic personality that aims to work reasonably well for all server types. */
 /* * The IDS personality tries to perform as much decoding as possible. */
 /* * Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0. */
@@ -293,37 +287,37 @@ pub struct htp_hook_t {
     pub callbacks: *mut htp_list_array_t,
 }
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -371,37 +365,37 @@ pub const HTP_URL_DECODE_REMOVE_PERCENT: htp_url_encoding_handling_t = 1;
 /* * Ignore invalid URL encodings and leave the % in the data. */
 pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -414,10 +408,10 @@ pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
 /* * Server IP address. */
 /* * Server port. */
 /* *
-     * Transactions carried out on this connection. The list may contain
-     * NULL elements when some of the transactions are deleted (and then
-     * removed from a connection by calling htp_conn_remove_tx().
-     */
+ * Transactions carried out on this connection. The list may contain
+ * NULL elements when some of the transactions are deleted (and then
+ * removed from a connection by calling htp_conn_remove_tx().
+ */
 /* * Log messages associated with this connection. */
 /* * Parsing flags: HTP_CONN_PIPELINED. */
 /* * When was this connection opened? Can be NULL. */
@@ -510,19 +504,19 @@ pub struct htp_param_t {
  * Enumerates the possible values for authentication type.
  */
 /* *
-     * This is the default value that is used before
-     * the presence of authentication is determined (e.g.,
-     * before request headers are seen).
-     */
+ * This is the default value that is used before
+ * the presence of authentication is determined (e.g.,
+ * before request headers are seen).
+ */
 /* * No authentication. */
 /* * HTTP Basic authentication used. */
 /* * HTTP Digest authentication used. */
 /* * Unrecognized authentication method. */
 /* *
-     * This is the default value, which is used until the presence
-     * of content encoding is determined (e.g., before request headers
-     * are seen.
-     */
+ * This is the default value, which is used until the presence
+ * of content encoding is determined (e.g., before request headers
+ * are seen.
+ */
 /* * No compression. */
 /* * Gzip compression. */
 /* * Deflate compression. */
@@ -555,9 +549,9 @@ pub struct htp_param_t {
  * HTTP methods.
  */
 /* *
-     * Used by default, until the method is determined (e.g., before
-     * the request line is processed.
-     */
+ * Used by default, until the method is determined (e.g., before
+ * the request line is processed.
+ */
 // A collection of unique parser IDs.
 pub type htp_parser_id_t = libc::c_uint;
 /* * multipart/form-data parser. */
@@ -578,37 +572,37 @@ pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
 /* * Embedded in the URL. */
 pub const HTP_SOURCE_URL: htp_data_source_t = 0;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -623,37 +617,37 @@ pub struct bstr_t {
     pub realptr: *mut libc::c_uchar,
 }
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -688,10 +682,8 @@ pub struct htp_connp_t {
     pub in_content_length: int64_t,
     pub in_body_data_left: int64_t,
     pub in_chunked_length: int64_t,
-    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t)
-                             -> libc::c_int>,
-    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t)
-                                      -> libc::c_int>,
+    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
     pub in_data_receiver_hook: *mut htp_hook_t,
     pub out_next_tx_index: size_t,
     pub out_timestamp: htp_time_t,
@@ -709,10 +701,8 @@ pub struct htp_connp_t {
     pub out_content_length: int64_t,
     pub out_body_data_left: int64_t,
     pub out_chunked_length: int64_t,
-    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t)
-                              -> libc::c_int>,
-    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t)
-                                       -> libc::c_int>,
+    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
     pub out_data_receiver_hook: *mut htp_hook_t,
     pub out_decompressor: *mut htp_decompressor_t,
     pub put_file: *mut htp_file_t,
@@ -732,13 +722,11 @@ pub const HTP_FILE_MULTIPART: htp_file_source_t = 1;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct htp_decompressor_t {
-    pub decompress: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t,
-                                                _: *mut htp_tx_data_t)
-                               -> htp_status_t>,
-    pub callback: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t)
-                             -> htp_status_t>,
-    pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t)
-                            -> ()>,
+    pub decompress: Option<
+        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut htp_tx_data_t) -> htp_status_t,
+    >,
+    pub callback: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> htp_status_t>,
+    pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
 }
 /* *
@@ -748,9 +736,9 @@ pub struct htp_decompressor_t {
 /* * The connection to which this transaction belongs. */
 /* * The configuration structure associated with this transaction. */
 /* *
-     * Is the configuration structure shared with other transactions or connections? If
-     * this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
-     */
+ * Is the configuration structure shared with other transactions or connections? If
+ * this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
+ */
 /* * The user data associated with this transaction. */
 // Request fields
 /* * Contains a count of how many empty lines were skipped before the request line. */
@@ -758,202 +746,202 @@ pub struct htp_decompressor_t {
 /* * Request method. */
 /* * Request method, as number. Available only if we were able to recognize the request method. */
 /* *
-     * Request URI, raw, as given to us on the request line. This field can take different forms,
-     * for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
-     * string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
-     * URI elements. Can be NULL if the request line contains only a request method (which is
-     * an extreme case of HTTP/0.9, but passes in practice.
-     */
+ * Request URI, raw, as given to us on the request line. This field can take different forms,
+ * for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
+ * string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
+ * URI elements. Can be NULL if the request line contains only a request method (which is
+ * an extreme case of HTTP/0.9, but passes in practice.
+ */
 /* * Request protocol, as text. Can be NULL if no protocol was specified. */
 /* *
-     * Protocol version as a number. Multiply the high version number by 100, then add the low
-     * version number. You should prefer to work the pre-defined HTP_PROTOCOL_* constants.
-     */
+ * Protocol version as a number. Multiply the high version number by 100, then add the low
+ * version number. You should prefer to work the pre-defined HTP_PROTOCOL_* constants.
+ */
 /* *
-     * Is this request using HTTP/0.9? We need a separate field for this purpose because
-     * the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
-     * example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
-     * as HTTP/0.9.
-     */
+ * Is this request using HTTP/0.9? We need a separate field for this purpose because
+ * the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
+ * example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
+ * as HTTP/0.9.
+ */
 /* *
-     * This structure holds the individual components parsed out of the request URI, with
-     * appropriate normalization and transformation applied, per configuration. No information
-     * is added. In extreme cases when no URI is provided on the request line, all fields
-     * will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
-     * htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
-     */
+ * This structure holds the individual components parsed out of the request URI, with
+ * appropriate normalization and transformation applied, per configuration. No information
+ * is added. In extreme cases when no URI is provided on the request line, all fields
+ * will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
+ * htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
+ */
 /* *
-     * This structure holds the individual components parsed out of the request URI, but
-     * without any modification. The purpose of this field is to allow you to look at the data as it
-     * was supplied on the request line. Fields can be NULL, depending on what data was supplied.
-     * The port_number field is always -1.
-     */
+ * This structure holds the individual components parsed out of the request URI, but
+ * without any modification. The purpose of this field is to allow you to look at the data as it
+ * was supplied on the request line. Fields can be NULL, depending on what data was supplied.
+ * The port_number field is always -1.
+ */
 /* HTTP 1.1 RFC
-     * 
-     * 4.3 Message Body
-     * 
-     * The message-body (if any) of an HTTP message is used to carry the
-     * entity-body associated with the request or response. The message-body
-     * differs from the entity-body only when a transfer-coding has been
-     * applied, as indicated by the Transfer-Encoding header field (section
-     * 14.41).
-     *
-     *     message-body = entity-body
-     *                  | <entity-body encoded as per Transfer-Encoding>
-     */
+ *
+ * 4.3 Message Body
+ *
+ * The message-body (if any) of an HTTP message is used to carry the
+ * entity-body associated with the request or response. The message-body
+ * differs from the entity-body only when a transfer-coding has been
+ * applied, as indicated by the Transfer-Encoding header field (section
+ * 14.41).
+ *
+ *     message-body = entity-body
+ *                  | <entity-body encoded as per Transfer-Encoding>
+ */
 /* *
-     * The length of the request message-body. In most cases, this value
-     * will be the same as request_entity_len. The values will be different
-     * if request compression or chunking were applied. In that case,
-     * request_message_len contains the length of the request body as it
-     * has been seen over TCP; request_entity_len contains length after
-     * de-chunking and decompression.
-     */
+ * The length of the request message-body. In most cases, this value
+ * will be the same as request_entity_len. The values will be different
+ * if request compression or chunking were applied. In that case,
+ * request_message_len contains the length of the request body as it
+ * has been seen over TCP; request_entity_len contains length after
+ * de-chunking and decompression.
+ */
 /* *
-     * The length of the request entity-body. In most cases, this value
-     * will be the same as request_message_len. The values will be different
-     * if request compression or chunking were applied. In that case,
-     * request_message_len contains the length of the request body as it
-     * has been seen over TCP; request_entity_len contains length after
-     * de-chunking and decompression.
-     */
+ * The length of the request entity-body. In most cases, this value
+ * will be the same as request_message_len. The values will be different
+ * if request compression or chunking were applied. In that case,
+ * request_message_len contains the length of the request body as it
+ * has been seen over TCP; request_entity_len contains length after
+ * de-chunking and decompression.
+ */
 /* * Parsed request headers. */
 /* *
-     * Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
-     * determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
-     * and HTP_CODING_UNRECOGNIZED.
-     */
+ * Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
+ * determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
+ * and HTP_CODING_UNRECOGNIZED.
+ */
 /* * Request body compression. */
 /* *
-     * This field contain the request content type when that information is
-     * available in request headers. The contents of the field will be converted
-     * to lowercase and any parameters (e.g., character set information) removed.
-     */
+ * This field contain the request content type when that information is
+ * available in request headers. The contents of the field will be converted
+ * to lowercase and any parameters (e.g., character set information) removed.
+ */
 /* *
-     * Contains the value specified in the Content-Length header. The value of this
-     * field will be -1 from the beginning of the transaction and until request
-     * headers are processed. It will stay -1 if the C-L header was not provided,
-     * or if the value in it cannot be parsed.
-     */
+ * Contains the value specified in the Content-Length header. The value of this
+ * field will be -1 from the beginning of the transaction and until request
+ * headers are processed. It will stay -1 if the C-L header was not provided,
+ * or if the value in it cannot be parsed.
+ */
 /* *
-     * Transaction-specific REQUEST_BODY_DATA hook. Behaves as
-     * the configuration hook with the same name.
-     */
+ * Transaction-specific REQUEST_BODY_DATA hook. Behaves as
+ * the configuration hook with the same name.
+ */
 /* *
-     * Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
-     * the configuration hook with the same name.
-     */
+ * Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
+ * the configuration hook with the same name.
+ */
 /* *
-     * Query string URLENCODED parser. Available only
-     * when the query string is not NULL and not empty.
-     */
+ * Query string URLENCODED parser. Available only
+ * when the query string is not NULL and not empty.
+ */
 /* *
-     * Request body URLENCODED parser. Available only when the request body is in the
-     * application/x-www-form-urlencoded format and the parser was configured to run.
-     */
+ * Request body URLENCODED parser. Available only when the request body is in the
+ * application/x-www-form-urlencoded format and the parser was configured to run.
+ */
 /* *
-     * Request body MULTIPART parser. Available only when the body is in the
-     * multipart/form-data format and the parser was configured to run.
-     */
+ * Request body MULTIPART parser. Available only when the body is in the
+ * multipart/form-data format and the parser was configured to run.
+ */
 /* * Request parameters. */
 /* * Request cookies */
 /* * Authentication type used in the request. */
 /* * Authentication username. */
 /* * Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC. */
 /* *
-     * Request hostname. Per the RFC, the hostname will be taken from the Host header
-     * when available. If the host information is also available in the URI, it is used
-     * instead of whatever might be in the Host header. Can be NULL. This field does
-     * not contain port information.
-     */
+ * Request hostname. Per the RFC, the hostname will be taken from the Host header
+ * when available. If the host information is also available in the URI, it is used
+ * instead of whatever might be in the Host header. Can be NULL. This field does
+ * not contain port information.
+ */
 /* *
-     * Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
-     * -1 by default.
-     */
+ * Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
+ * -1 by default.
+ */
 // Response fields
 /* * How many empty lines did we ignore before reaching the status line? */
 /* * Response line. */
 /* * Response protocol, as text. Can be NULL. */
 /* *
-     * Response protocol as number. Available only if we were able to parse the protocol version,
-     * HTP_PROTOCOL_INVALID otherwise. HTP_PROTOCOL_UNKNOWN until parsing is attempted.
-     */
+ * Response protocol as number. Available only if we were able to parse the protocol version,
+ * HTP_PROTOCOL_INVALID otherwise. HTP_PROTOCOL_UNKNOWN until parsing is attempted.
+ */
 /* *
-     * Response status code, as text. Starts as NULL and can remain NULL on
-     * an invalid response that does not specify status code.
-     */
+ * Response status code, as text. Starts as NULL and can remain NULL on
+ * an invalid response that does not specify status code.
+ */
 /* *
-     * Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
-     * otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
-     */
+ * Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
+ * otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
+ */
 /* *
-     * This field is set by the protocol decoder with it thinks that the
-     * backend server will reject a request with a particular status code.
-     */
+ * This field is set by the protocol decoder with it thinks that the
+ * backend server will reject a request with a particular status code.
+ */
 /* * The message associated with the response status code. Can be NULL. */
 /* * Have we seen the server respond with a 100 response? */
 /* * Parsed response headers. Contains instances of htp_header_t. */
 /* HTTP 1.1 RFC
-     * 
-     * 4.3 Message Body
-     * 
-     * The message-body (if any) of an HTTP message is used to carry the
-     * entity-body associated with the request or response. The message-body
-     * differs from the entity-body only when a transfer-coding has been
-     * applied, as indicated by the Transfer-Encoding header field (section
-     * 14.41).
-     *
-     *     message-body = entity-body
-     *                  | <entity-body encoded as per Transfer-Encoding>
-     */
+ *
+ * 4.3 Message Body
+ *
+ * The message-body (if any) of an HTTP message is used to carry the
+ * entity-body associated with the request or response. The message-body
+ * differs from the entity-body only when a transfer-coding has been
+ * applied, as indicated by the Transfer-Encoding header field (section
+ * 14.41).
+ *
+ *     message-body = entity-body
+ *                  | <entity-body encoded as per Transfer-Encoding>
+ */
 /* *
-     * The length of the response message-body. In most cases, this value
-     * will be the same as response_entity_len. The values will be different
-     * if response compression or chunking were applied. In that case,
-     * response_message_len contains the length of the response body as it
-     * has been seen over TCP; response_entity_len contains the length after
-     * de-chunking and decompression.
-     */
+ * The length of the response message-body. In most cases, this value
+ * will be the same as response_entity_len. The values will be different
+ * if response compression or chunking were applied. In that case,
+ * response_message_len contains the length of the response body as it
+ * has been seen over TCP; response_entity_len contains the length after
+ * de-chunking and decompression.
+ */
 /* *
-     * The length of the response entity-body. In most cases, this value
-     * will be the same as response_message_len. The values will be different
-     * if request compression or chunking were applied. In that case,
-     * response_message_len contains the length of the response body as it
-     * has been seen over TCP; response_entity_len contains length after
-     * de-chunking and decompression.
-     */
+ * The length of the response entity-body. In most cases, this value
+ * will be the same as response_message_len. The values will be different
+ * if request compression or chunking were applied. In that case,
+ * response_message_len contains the length of the response body as it
+ * has been seen over TCP; response_entity_len contains length after
+ * de-chunking and decompression.
+ */
 /* *
-     * Contains the value specified in the Content-Length header. The value of this
-     * field will be -1 from the beginning of the transaction and until response
-     * headers are processed. It will stay -1 if the C-L header was not provided,
-     * or if the value in it cannot be parsed.
-     */
+ * Contains the value specified in the Content-Length header. The value of this
+ * field will be -1 from the beginning of the transaction and until response
+ * headers are processed. It will stay -1 if the C-L header was not provided,
+ * or if the value in it cannot be parsed.
+ */
 /* *
-     * Response transfer coding, which indicates if there is a response body,
-     * and how it is transported (e.g., as-is, or chunked).
-     */
+ * Response transfer coding, which indicates if there is a response body,
+ * and how it is transported (e.g., as-is, or chunked).
+ */
 /* *
-     * Response body compression, which indicates if compression is used
-     * for the response body. This field is an interpretation of the information
-     * available in response headers.
-     */
+ * Response body compression, which indicates if compression is used
+ * for the response body. This field is an interpretation of the information
+ * available in response headers.
+ */
 /* *
-     * Response body compression processing information, which is related to how
-     * the library is going to process (or has processed) a response body. Changing
-     * this field mid-processing can influence library actions. For example, setting
-     * this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
-     * decompression.
-     */
+ * Response body compression processing information, which is related to how
+ * the library is going to process (or has processed) a response body. Changing
+ * this field mid-processing can influence library actions. For example, setting
+ * this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
+ * decompression.
+ */
 /* *
-     * This field will contain the response content type when that information
-     * is available in response headers. The contents of the field will be converted
-     * to lowercase and any parameters (e.g., character set information) removed.
-     */
+ * This field will contain the response content type when that information
+ * is available in response headers. The contents of the field will be converted
+ * to lowercase and any parameters (e.g., character set information) removed.
+ */
 // Common fields
 /* *
-     * Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
-     * HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
-     */
+ * Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
+ * HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
+ */
 /* * Request progress. */
 /* * Response progress. */
 /* * Transaction index on the connection. */
@@ -1033,38 +1021,38 @@ pub struct htp_tx_t {
     pub res_header_repetitions: uint16_t,
 }
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
-/* 
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
+/*
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
  */
@@ -1074,15 +1062,15 @@ pub struct htp_tx_t {
  * use bstr instances to wrap already available data.
  */
 /* *
-     * Make copies of all data. This strategy should be used when
-     * the supplied buffers are transient and will go away after
-     * the invoked function returns.
-     */
+ * Make copies of all data. This strategy should be used when
+ * the supplied buffers are transient and will go away after
+ * the invoked function returns.
+ */
 /* *
-     * Reuse buffers, without a change of ownership. We assume the
-     * buffers will continue to be available until the transaction
-     * is deleted by the container.
-     */
+ * Reuse buffers, without a change of ownership. We assume the
+ * buffers will continue to be available until the transaction
+ * is deleted by the container.
+ */
 /* *
  * Possible states of a progressing transaction. Internally, progress will change
  * to the next state when the processing activities associated with that state
@@ -1116,37 +1104,37 @@ pub const HTP_CODING_IDENTITY: htp_transfer_coding_t = 2;
 pub const HTP_CODING_NO_BODY: htp_transfer_coding_t = 1;
 pub const HTP_CODING_UNKNOWN: htp_transfer_coding_t = 0;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -1173,37 +1161,37 @@ pub const HTP_AUTH_BASIC: htp_auth_type_t = 2;
 pub const HTP_AUTH_NONE: htp_auth_type_t = 1;
 pub const HTP_AUTH_UNKNOWN: htp_auth_type_t = 0;
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -1226,12 +1214,15 @@ pub struct htp_mpartp_t {
     pub extract_limit: libc::c_int,
     pub extract_dir: *mut libc::c_char,
     pub file_count: libc::c_int,
-    pub handle_data: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t,
-                                                 _: *const libc::c_uchar,
-                                                 _: size_t, _: libc::c_int)
-                                -> libc::c_int>,
-    pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t)
-                                    -> libc::c_int>,
+    pub handle_data: Option<
+        unsafe extern "C" fn(
+            _: *mut htp_mpartp_t,
+            _: *const libc::c_uchar,
+            _: size_t,
+            _: libc::c_int,
+        ) -> libc::c_int,
+    >,
+    pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t) -> libc::c_int>,
     pub parser_state: htp_multipart_state_t,
     pub boundary_match_pos: size_t,
     pub current_part: *mut htp_multipart_part_t,
@@ -1420,37 +1411,37 @@ pub struct htp_header_t {
     pub flags: uint64_t,
 }
 /* **************************************************************************
- * Copyright (c) 2009-2010 Open Information Security Foundation
- * Copyright (c) 2010-2013 Qualys, Inc.
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
+* Copyright (c) 2009-2010 Open Information Security Foundation
+* Copyright (c) 2010-2013 Qualys, Inc.
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*
+* - Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
+* - Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 
- * - Neither the name of the Qualys, Inc. nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- ***************************************************************************/
+* - Neither the name of the Qualys, Inc. nor the names of its
+*   contributors may be used to endorse or promote products derived from
+*   this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+***************************************************************************/
 /* *
  * @file
  * @author Ivan Ristic <ivanr@webkreator.com>
@@ -1459,54 +1450,45 @@ pub struct htp_header_t {
  * Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
  * function will only understand a properly formatted protocol information. It does
  * not try to be flexible.
- * 
+ *
  * @param[in] protocol
  * @return Protocol version or PROTOCOL_UNKNOWN.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr)
- -> libc::c_int {
-    if protocol.is_null() { return -(2 as libc::c_int) }
+pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr) -> libc::c_int {
+    if protocol.is_null() {
+        return -(2 as libc::c_int);
+    }
     // TODO This function uses a very strict approach to parsing, whereas
     //      browsers will typically be more flexible, allowing whitespace
     //      before and after the forward slash, as well as allowing leading
     //      zeroes in the numbers. We should be able to parse such malformed
     //      content correctly (but emit a warning).
     if (*protocol).len == 8 as libc::c_int as libc::c_ulong {
-        let mut ptr: *mut libc::c_uchar =
-            if (*protocol).realptr.is_null() {
-                (protocol as
-                     *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>()
-                                                    as libc::c_ulong as isize)
-            } else { (*protocol).realptr };
+        let mut ptr: *mut libc::c_uchar = if (*protocol).realptr.is_null() {
+            (protocol as *mut libc::c_uchar)
+                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+        } else {
+            (*protocol).realptr
+        };
         if *ptr.offset(0 as libc::c_int as isize) as libc::c_int == 'H' as i32
-               &&
-               *ptr.offset(1 as libc::c_int as isize) as libc::c_int ==
-                   'T' as i32 &&
-               *ptr.offset(2 as libc::c_int as isize) as libc::c_int ==
-                   'T' as i32 &&
-               *ptr.offset(3 as libc::c_int as isize) as libc::c_int ==
-                   'P' as i32 &&
-               *ptr.offset(4 as libc::c_int as isize) as libc::c_int ==
-                   '/' as i32 &&
-               *ptr.offset(6 as libc::c_int as isize) as libc::c_int ==
-                   '.' as i32 {
+            && *ptr.offset(1 as libc::c_int as isize) as libc::c_int == 'T' as i32
+            && *ptr.offset(2 as libc::c_int as isize) as libc::c_int == 'T' as i32
+            && *ptr.offset(3 as libc::c_int as isize) as libc::c_int == 'P' as i32
+            && *ptr.offset(4 as libc::c_int as isize) as libc::c_int == '/' as i32
+            && *ptr.offset(6 as libc::c_int as isize) as libc::c_int == '.' as i32
+        {
             // Check the version numbers
-            if *ptr.offset(5 as libc::c_int as isize) as libc::c_int ==
-                   '0' as i32 {
-                if *ptr.offset(7 as libc::c_int as isize) as libc::c_int ==
-                       '9' as i32 {
-                    return 9 as libc::c_int
+            if *ptr.offset(5 as libc::c_int as isize) as libc::c_int == '0' as i32 {
+                if *ptr.offset(7 as libc::c_int as isize) as libc::c_int == '9' as i32 {
+                    return 9 as libc::c_int;
                 }
-            } else if *ptr.offset(5 as libc::c_int as isize) as libc::c_int ==
-                          '1' as i32 {
-                if *ptr.offset(7 as libc::c_int as isize) as libc::c_int ==
-                       '0' as i32 {
-                    return 100 as libc::c_int
+            } else if *ptr.offset(5 as libc::c_int as isize) as libc::c_int == '1' as i32 {
+                if *ptr.offset(7 as libc::c_int as isize) as libc::c_int == '0' as i32 {
+                    return 100 as libc::c_int;
                 } else {
-                    if *ptr.offset(7 as libc::c_int as isize) as libc::c_int
-                           == '1' as i32 {
-                        return 101 as libc::c_int
+                    if *ptr.offset(7 as libc::c_int as isize) as libc::c_int == '1' as i32 {
+                        return 101 as libc::c_int;
                     }
                 }
             }
@@ -1521,23 +1503,22 @@ pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr)
  * @return Status code on success, or HTP_STATUS_INVALID on error.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr)
- -> libc::c_int {
-    let mut r: int64_t =
-        htp_parse_positive_integer_whitespace(if (*status).realptr.is_null() {
-                                                  (status as
-                                                       *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>()
-                                                                                      as
-                                                                                      libc::c_ulong
-                                                                                      as
-                                                                                      isize)
-                                              } else { (*status).realptr },
-                                              (*status).len,
-                                              10 as libc::c_int);
-    if r >= 100 as libc::c_int as libc::c_long &&
-           r <= 999 as libc::c_int as libc::c_long {
-        return r as libc::c_int
-    } else { return -(1 as libc::c_int) };
+pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr) -> libc::c_int {
+    let mut r: int64_t = htp_parse_positive_integer_whitespace(
+        if (*status).realptr.is_null() {
+            (status as *mut libc::c_uchar)
+                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+        } else {
+            (*status).realptr
+        },
+        (*status).len,
+        10 as libc::c_int,
+    );
+    if r >= 100 as libc::c_int as libc::c_long && r <= 999 as libc::c_int as libc::c_long {
+        return r as libc::c_int;
+    } else {
+        return -(1 as libc::c_int);
+    };
 }
 /* *
  * Parses Digest Authorization request header.
@@ -1546,103 +1527,111 @@ pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr)
  * @param[in] auth_header
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_authorization_digest(mut connp:
-                                                            *mut htp_connp_t,
-                                                        mut auth_header:
-                                                            *mut htp_header_t)
- -> libc::c_int {
+pub unsafe extern "C" fn htp_parse_authorization_digest(
+    mut connp: *mut htp_connp_t,
+    mut auth_header: *mut htp_header_t,
+) -> libc::c_int {
     // Extract the username
-    let mut i: libc::c_int =
-        bstr_index_of_c((*auth_header).value,
-                        b"username=\x00" as *const u8 as *const libc::c_char);
-    if i == -(1 as libc::c_int) { return 0 as libc::c_int }
-    let mut data: *mut libc::c_uchar =
-        if (*(*auth_header).value).realptr.is_null() {
-            ((*auth_header).value as
-                 *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as
-                                                libc::c_ulong as isize)
-        } else { (*(*auth_header).value).realptr };
+    let mut i: libc::c_int = bstr_index_of_c(
+        (*auth_header).value,
+        b"username=\x00" as *const u8 as *const libc::c_char,
+    );
+    if i == -(1 as libc::c_int) {
+        return 0 as libc::c_int;
+    }
+    let mut data: *mut libc::c_uchar = if (*(*auth_header).value).realptr.is_null() {
+        ((*auth_header).value as *mut libc::c_uchar)
+            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+    } else {
+        (*(*auth_header).value).realptr
+    };
     let mut len: size_t = (*(*auth_header).value).len;
     let mut pos: size_t = (i + 9 as libc::c_int) as size_t;
     // Ignore whitespace
-    while pos < len &&
-              *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as
-                                             libc::c_int as isize) as
-                  libc::c_int &
-                  _ISspace as libc::c_int as libc::c_ushort as libc::c_int !=
-                  0 {
+    while pos < len
+        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as libc::c_int as isize)
+            as libc::c_int
+            & _ISspace as libc::c_int as libc::c_ushort as libc::c_int
+            != 0
+    {
         pos = pos.wrapping_add(1)
     }
-    if pos == len { return 0 as libc::c_int }
-    if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
-        return 0 as libc::c_int
+    if pos == len {
+        return 0 as libc::c_int;
     }
-    return htp_extract_quoted_string_as_bstr(data.offset(pos as isize),
-                                             len.wrapping_sub(pos),
-                                             &mut (*(*connp).in_tx).request_auth_username,
-                                             0 as *mut size_t);
+    if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
+        return 0 as libc::c_int;
+    }
+    return htp_extract_quoted_string_as_bstr(
+        data.offset(pos as isize),
+        len.wrapping_sub(pos),
+        &mut (*(*connp).in_tx).request_auth_username,
+        0 as *mut size_t,
+    );
 }
 /* *
  * Parses Basic Authorization request header.
- * 
+ *
  * @param[in] connp
  * @param[in] auth_header
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_authorization_basic(mut connp:
-                                                           *mut htp_connp_t,
-                                                       mut auth_header:
-                                                           *mut htp_header_t)
- -> libc::c_int {
-    let mut data: *mut libc::c_uchar =
-        if (*(*auth_header).value).realptr.is_null() {
-            ((*auth_header).value as
-                 *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as
-                                                libc::c_ulong as isize)
-        } else { (*(*auth_header).value).realptr };
+pub unsafe extern "C" fn htp_parse_authorization_basic(
+    mut connp: *mut htp_connp_t,
+    mut auth_header: *mut htp_header_t,
+) -> libc::c_int {
+    let mut data: *mut libc::c_uchar = if (*(*auth_header).value).realptr.is_null() {
+        ((*auth_header).value as *mut libc::c_uchar)
+            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+    } else {
+        (*(*auth_header).value).realptr
+    };
     let mut len: size_t = (*(*auth_header).value).len;
     let mut pos: size_t = 5 as libc::c_int as size_t;
     // Ignore whitespace
-    while pos < len &&
-              *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as
-                                             libc::c_int as isize) as
-                  libc::c_int &
-                  _ISspace as libc::c_int as libc::c_ushort as libc::c_int !=
-                  0 {
+    while pos < len
+        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as libc::c_int as isize)
+            as libc::c_int
+            & _ISspace as libc::c_int as libc::c_ushort as libc::c_int
+            != 0
+    {
         pos = pos.wrapping_add(1)
     }
-    if pos == len { return 0 as libc::c_int }
+    if pos == len {
+        return 0 as libc::c_int;
+    }
     // Decode base64-encoded data
-    let mut decoded: *mut bstr =
-        htp_base64_decode_mem(data.offset(pos as isize) as
-                                  *const libc::c_void, len.wrapping_sub(pos));
-    if decoded.is_null() { return -(1 as libc::c_int) }
+    let mut decoded: *mut bstr = htp_base64_decode_mem(
+        data.offset(pos as isize) as *const libc::c_void,
+        len.wrapping_sub(pos),
+    );
+    if decoded.is_null() {
+        return -(1 as libc::c_int);
+    }
     // Now extract the username and password
-    let mut i: libc::c_int =
-        bstr_index_of_c(decoded,
-                        b":\x00" as *const u8 as *const libc::c_char);
+    let mut i: libc::c_int = bstr_index_of_c(decoded, b":\x00" as *const u8 as *const libc::c_char);
     if i == -(1 as libc::c_int) {
         bstr_free(decoded);
-        return 0 as libc::c_int
+        return 0 as libc::c_int;
     }
     (*(*connp).in_tx).request_auth_username =
         bstr_dup_ex(decoded, 0 as libc::c_int as size_t, i as size_t);
     if (*(*connp).in_tx).request_auth_username.is_null() {
         bstr_free(decoded);
-        return -(1 as libc::c_int)
+        return -(1 as libc::c_int);
     }
-    (*(*connp).in_tx).request_auth_password =
-        bstr_dup_ex(decoded, (i + 1 as libc::c_int) as size_t,
-                    (*decoded).len.wrapping_sub(i as
-                                                    libc::c_ulong).wrapping_sub(1
-                                                                                    as
-                                                                                    libc::c_int
-                                                                                    as
-                                                                                    libc::c_ulong));
+    (*(*connp).in_tx).request_auth_password = bstr_dup_ex(
+        decoded,
+        (i + 1 as libc::c_int) as size_t,
+        (*decoded)
+            .len
+            .wrapping_sub(i as libc::c_ulong)
+            .wrapping_sub(1 as libc::c_int as libc::c_ulong),
+    );
     if (*(*connp).in_tx).request_auth_password.is_null() {
         bstr_free(decoded);
         bstr_free((*(*connp).in_tx).request_auth_username);
-        return -(1 as libc::c_int)
+        return -(1 as libc::c_int);
     }
     bstr_free(decoded);
     return 1 as libc::c_int;
@@ -1653,30 +1642,33 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(mut connp:
  * @param[in] connp
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_authorization(mut connp: *mut htp_connp_t)
- -> libc::c_int {
-    let mut auth_header: *mut htp_header_t =
-        htp_table_get_c((*(*connp).in_tx).request_headers,
-                        b"authorization\x00" as *const u8 as
-                            *const libc::c_char) as *mut htp_header_t;
+pub unsafe extern "C" fn htp_parse_authorization(mut connp: *mut htp_connp_t) -> libc::c_int {
+    let mut auth_header: *mut htp_header_t = htp_table_get_c(
+        (*(*connp).in_tx).request_headers,
+        b"authorization\x00" as *const u8 as *const libc::c_char,
+    ) as *mut htp_header_t;
     if auth_header.is_null() {
         (*(*connp).in_tx).request_auth_type = HTP_AUTH_NONE;
-        return 1 as libc::c_int
+        return 1 as libc::c_int;
     }
     // TODO Need a flag to raise when failing to parse authentication headers.
-    if bstr_begins_with_c_nocase((*auth_header).value,
-                                 b"basic\x00" as *const u8 as
-                                     *const libc::c_char) != 0 {
+    if bstr_begins_with_c_nocase(
+        (*auth_header).value,
+        b"basic\x00" as *const u8 as *const libc::c_char,
+    ) != 0
+    {
         // Basic authentication
         (*(*connp).in_tx).request_auth_type = HTP_AUTH_BASIC;
-        return htp_parse_authorization_basic(connp, auth_header)
+        return htp_parse_authorization_basic(connp, auth_header);
     } else {
-        if bstr_begins_with_c_nocase((*auth_header).value,
-                                     b"digest\x00" as *const u8 as
-                                         *const libc::c_char) != 0 {
+        if bstr_begins_with_c_nocase(
+            (*auth_header).value,
+            b"digest\x00" as *const u8 as *const libc::c_char,
+        ) != 0
+        {
             // Digest authentication
             (*(*connp).in_tx).request_auth_type = HTP_AUTH_DIGEST;
-            return htp_parse_authorization_digest(connp, auth_header)
+            return htp_parse_authorization_digest(connp, auth_header);
         } else {
             // Unrecognized authentication method
             (*(*connp).in_tx).request_auth_type = HTP_AUTH_UNRECOGNIZED
