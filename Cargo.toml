@@ -9,6 +9,7 @@ version = "0.0.0"
 publish = false
 edition = "2018"
 autobins = false
+license-file = "LICENSE"
 
 [lib]
 name = "libhtp2"

@@ -32,7 +32,6 @@ pub mod src {
     pub mod htp_request;
     pub mod htp_request_apache_2_2;
     pub mod htp_request_generic;
-    pub mod htp_request_parsers;
     pub mod htp_response;
     pub mod htp_response_generic;
     pub mod htp_table;

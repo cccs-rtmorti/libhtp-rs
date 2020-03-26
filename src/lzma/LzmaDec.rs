@@ -13,16 +13,18 @@ pub type UInt16 = libc::c_ushort;
 pub type UInt32 = libc::c_uint;
 pub type SizeT = size_t;
 pub type BoolInt = libc::c_int;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ISzAlloc {
     pub Alloc: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void>,
     pub Free: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()>,
 }
 pub type ISzAllocPtr = *const ISzAlloc;
 pub type CLzmaProb = UInt16;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct _CLzmaProps {
     pub lc: Byte,
     pub lp: Byte,
@@ -31,8 +33,9 @@ pub struct _CLzmaProps {
     pub dicSize: UInt32,
 }
 pub type CLzmaProps = _CLzmaProps;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct CLzmaDec {
     pub prop: CLzmaProps,
     pub probs: *mut CLzmaProb,

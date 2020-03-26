@@ -13,44 +13,9 @@ extern "C" {
 }
 pub type size_t = libc::c_ulong;
 pub type htp_status_t = libc::c_int;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-#[derive(Copy, Clone)]
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_list_array_t {
     pub first: size_t,
     pub last: size_t,
@@ -58,43 +23,16 @@ pub struct htp_list_array_t {
     pub current_size: size_t,
     pub elements: *mut *mut libc::c_void,
 }
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
 // Array-backed list
+
+/**
+ * Initialize an array-backed list.
+ *
+ * @param[in] l
+ * @param[in] size
+ * @return HTP_OK or HTP_ERROR if allocation failed
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_init(
     mut l: *mut htp_list_array_t,
@@ -114,6 +52,13 @@ pub unsafe extern "C" fn htp_list_array_init(
     (*l).max_size = size;
     return 1 as libc::c_int;
 }
+
+/**
+ * Create new array-backed list.
+ *
+ * @param[in] size
+ * @return Newly created list.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_create(mut size: size_t) -> *mut htp_list_array_t {
     // It makes no sense to create a zero-size list.
@@ -134,6 +79,14 @@ pub unsafe extern "C" fn htp_list_array_create(mut size: size_t) -> *mut htp_lis
     }
     return l;
 }
+
+/**
+ * Remove all elements from the list. It is the responsibility of the caller
+ * to iterate over list elements and deallocate them if necessary, prior to
+ * invoking this function.
+ *
+ * @param[in] l
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_clear(mut l: *mut htp_list_array_t) {
     if l.is_null() {
@@ -144,6 +97,13 @@ pub unsafe extern "C" fn htp_list_array_clear(mut l: *mut htp_list_array_t) {
     (*l).last = 0 as libc::c_int as size_t;
     (*l).current_size = 0 as libc::c_int as size_t;
 }
+
+/**
+ * Free the memory occupied by this list. This function assumes
+ * the elements held by the list were freed beforehand.
+ *
+ * @param[in] l
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
     if l.is_null() {
@@ -152,6 +112,14 @@ pub unsafe extern "C" fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
     free((*l).elements as *mut libc::c_void);
     free(l as *mut libc::c_void);
 }
+
+/**
+ * Free the memory occupied by this list, except itself.
+ * This function assumes the elements held by the list
+ * were freed beforehand.
+ *
+ * @param[in] l
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_release(mut l: *mut htp_list_array_t) {
     if l.is_null() {
@@ -159,6 +127,15 @@ pub unsafe extern "C" fn htp_list_array_release(mut l: *mut htp_list_array_t) {
     }
     free((*l).elements as *mut libc::c_void);
 }
+
+/**
+ * Find the element at the given index.
+ *
+ * @param[in] l
+ * @param[in] idx
+ * @return the desired element, or NULL if the list is too small, or
+ *         if the element at that position carries a NULL
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_get(
     mut l: *const htp_list_array_t,
@@ -178,6 +155,13 @@ pub unsafe extern "C" fn htp_list_array_get(
             .offset(idx.wrapping_sub((*l).max_size.wrapping_sub((*l).first)) as isize);
     };
 }
+
+/**
+ * Remove one element from the end of the list.
+ *
+ * @param[in] l
+ * @return The removed element, or NULL if the list is empty.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mut libc::c_void {
     if l.is_null() {
@@ -203,6 +187,15 @@ pub unsafe extern "C" fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mu
     (*l).current_size = (*l).current_size.wrapping_sub(1);
     return r as *mut libc::c_void;
 }
+
+/**
+ * Add new element to the end of the list, expanding the list as necessary.
+ *
+ * @param[in] l
+ * @param[in] e
+ * @return HTP_OK on success or HTP_ERROR on failure.
+ *
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_push(
     mut l: *mut htp_list_array_t,
@@ -281,6 +274,17 @@ pub unsafe extern "C" fn htp_list_array_push(
     }
     return 1 as libc::c_int;
 }
+
+/**
+ * Replace the element at the given index with the provided element.
+ *
+ * @param[in] l
+ * @param[in] idx
+ * @param[in] e
+ *
+ * @return HTP_OK if an element with the given index was replaced; HTP_ERROR
+ *         if the desired index does not exist.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_replace(
     mut l: *mut htp_list_array_t,
@@ -299,6 +303,13 @@ pub unsafe extern "C" fn htp_list_array_replace(
     *fresh1 = e;
     return 1 as libc::c_int;
 }
+
+/**
+ * Returns the size of the list.
+ *
+ * @param[in] l
+ * @return List size.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_array_size(mut l: *const htp_list_array_t) -> size_t {
     if l.is_null() {
@@ -306,78 +317,6 @@ pub unsafe extern "C" fn htp_list_array_size(mut l: *const htp_list_array_t) -> 
     }
     return (*l).current_size;
 }
-// Functions
-/* *
- * Create new array-backed list.
- *
- * @param[in] size
- * @return Newly created list.
- */
-/* *
- * Initialize an array-backed list.
- *
- * @param[in] l
- * @param[in] size
- * @return HTP_OK or HTP_ERROR if allocation failed
- */
-/* *
- * Remove all elements from the list. It is the responsibility of the caller
- * to iterate over list elements and deallocate them if necessary, prior to
- * invoking this function.
- *
- * @param[in] l
- */
-/* *
- * Free the memory occupied by this list. This function assumes
- * the elements held by the list were freed beforehand.
- *
- * @param[in] l
- */
-/* *
- * Free the memory occupied by this list, except itself.
- * This function assumes the elements held by the list
- * were freed beforehand.
- *
- * @param[in] l
- */
-/* *
- * Find the element at the given index.
- *
- * @param[in] l
- * @param[in] idx
- * @return the desired element, or NULL if the list is too small, or
- *         if the element at that position carries a NULL
- */
-/* *
- * Remove one element from the end of the list.
- *
- * @param[in] l
- * @return The removed element, or NULL if the list is empty.
- */
-/* *
- * Add new element to the end of the list, expanding the list as necessary.
- *
- * @param[in] l
- * @param[in] e
- * @return HTP_OK on success or HTP_ERROR on failure.
- *
- */
-/* *
- * Replace the element at the given index with the provided element.
- *
- * @param[in] l
- * @param[in] idx
- * @param[in] e
- *
- * @return HTP_OK if an element with the given index was replaced; HTP_ERROR
- *         if the desired index does not exist.
- */
-/* *
- * Returns the size of the list.
- *
- * @param[in] l
- * @return List size.
- */
 /* *
  * Remove one element from the beginning of the list.
  *

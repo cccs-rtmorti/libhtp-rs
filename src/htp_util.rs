@@ -30,149 +30,37 @@ extern "C" {
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
     #[no_mangle]
     fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    /* *
-     * Add new element to the end of the list, expanding the list as necessary.
-     *
-     * @param[in] l
-     * @param[in] e
-     * @return HTP_OK on success or HTP_ERROR on failure.
-     *
-     */
     #[no_mangle]
-    fn htp_list_array_push(l: *mut htp_list_array_t, e: *mut libc::c_void) -> htp_status_t;
-    /* *
-     * Append as many bytes from the source to destination bstring. The
-     * destination storage will not be expanded if there is not enough space in it
-     * already to accommodate all of the data.
-     *
-     * @param[in] b
-     * @param[in] cstr
-     * @return The destination bstring.
-     */
+    fn htp_list_array_push(
+        l: *mut crate::src::htp_list::htp_list_array_t,
+        e: *mut libc::c_void,
+    ) -> htp_status_t;
     #[no_mangle]
     fn bstr_add_c_noex(b: *mut bstr, cstr: *const libc::c_char) -> *mut bstr;
-    /* *
-     * Append as many bytes from the source bstring to destination bstring. The
-     * destination storage will not be expanded if there is not enough space in it
-     * already to accommodate all of the data.
-     *
-     * @param[in] bdestination
-     * @param[in] bsource
-     * @return The destination bstring.
-     */
     #[no_mangle]
     fn bstr_add_noex(bdestination: *mut bstr, bsource: *const bstr) -> *mut bstr;
-    /* *
-     * Adjust bstring length. You will need to use this method whenever
-     * you work directly with the string contents, and end up changing
-     * its length by direct structure manipulation.
-     *
-     * @param[in] b
-     * @param[in] newlen
-     */
     #[no_mangle]
     fn bstr_adjust_len(b: *mut bstr, newlen: size_t);
-    /* *
-     * Allocate a zero-length bstring, reserving space for at least size bytes.
-     *
-     * @param[in] size
-     * @return New string instance
-     */
     #[no_mangle]
     fn bstr_alloc(size: size_t) -> *mut bstr;
-    /* *
-     * Return the byte at the given position, counting from the end of the string (e.g.,
-     * byte at position 0 is the last byte in the string.)
-     *
-     * @param[in] b
-     * @param[in] pos
-     * @return The byte at the given location, or -1 if the position is out of range.
-     */
     #[no_mangle]
     fn bstr_char_at_end(b: *const bstr, pos: size_t) -> libc::c_int;
-    /* *
-     * Remove the last byte from bstring, assuming it contains at least one byte. This
-     * function will not reduce the storage that backs the string, only the amount
-     * of data used.
-     *
-     * @param[in] b
-     */
     #[no_mangle]
     fn bstr_chop(b: *mut bstr);
-    /* *
-     * Case-sensitive comparison of a bstring and a NUL-terminated string.
-     *
-     * @param[in] b
-     * @param[in] cstr
-     * @return Zero on string match, 1 if b is greater than cstr, and -1 if cstr is
-     *         greater than b.
-     */
     #[no_mangle]
     fn bstr_cmp_c(b: *const bstr, cstr: *const libc::c_char) -> libc::c_int;
-    /* *
-     * Create a new bstring by copying the provided bstring.
-     *
-     * @param[in] b
-     * @return New bstring, or NULL if memory allocation failed.
-     */
     #[no_mangle]
     fn bstr_dup(b: *const bstr) -> *mut bstr;
-    /* *
-     * Create a new bstring by copying a part of the provided bstring.
-     *
-     * @param[in] b
-     * @param[in] offset
-     * @param[in] len
-     * @return New bstring, or NULL if memory allocation failed.
-     */
     #[no_mangle]
     fn bstr_dup_ex(b: *const bstr, offset: size_t, len: size_t) -> *mut bstr;
-    /* *
-     * Create a copy of the provided bstring, then convert it to lowercase.
-     *
-     * @param[in] b
-     * @return New bstring, or NULL if memory allocation failed
-     */
     #[no_mangle]
     fn bstr_dup_lower(b: *const bstr) -> *mut bstr;
-    /* *
-     * Create a new bstring by copying the provided memory region.
-     *
-     * @param[in] data
-     * @param[in] len
-     * @return New bstring, or NULL if memory allocation failed
-     */
     #[no_mangle]
     fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    /* *
-     * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
-     * input.
-     *
-     * @param[in] b
-     */
     #[no_mangle]
     fn bstr_free(b: *mut bstr);
-    /* *
-     * Convert bstring to lowercase. This function converts the supplied string,
-     * it does not create a new string.
-     *
-     * @param[in] b
-     * @return The same bstring received on input
-     */
     #[no_mangle]
     fn bstr_to_lowercase(b: *mut bstr) -> *mut bstr;
-    /* *
-     * Convert contents of a memory region to a positive integer.
-     *
-     * @param[in] data
-     * @param[in] len
-     * @param[in] base The desired number base.
-     * @param[in] lastlen Points to the first unused byte in the region
-     * @return If the conversion was successful, this function returns the
-     *         number. When the conversion fails, -1 will be returned when not
-     *         one valid digit was found, and -2 will be returned if an overflow
-     *         occurred.
-     */
     #[no_mangle]
     fn bstr_util_mem_to_pint(
         data: *const libc::c_void,
@@ -180,27 +68,13 @@ extern "C" {
         base: libc::c_int,
         lastlen: *mut size_t,
     ) -> int64_t;
-    /* *
-     * Removes whitespace from the beginning and the end of a memory region. The data
-     * itself is not modified; this function only adjusts the provided pointers.
-     *
-     * @param[in,out] data
-     * @param[in,out] len
-     */
     #[no_mangle]
     fn bstr_util_mem_trim(data: *mut *mut libc::c_uchar, len: *mut size_t);
-    /* *
-     * Runs all the callbacks associated with a given hook. Only stops if
-     * one of the callbacks returns an error (HTP_ERROR) or stop (HTP_STOP).
-     *
-     * @param[in] hook
-     * @param[in] user_data
-     * @return HTP_OK if at least one hook ran successfully, HTP_STOP if there was
-     *         no error but processing should stop, and HTP_ERROR or any other value
-     *         less than zero on error.
-     */
     #[no_mangle]
-    fn htp_hook_run_all(hook: *mut htp_hook_t, user_data: *mut libc::c_void) -> htp_status_t;
+    fn htp_hook_run_all(
+        hook: *mut crate::src::htp_hooks::htp_hook_t,
+        user_data: *mut libc::c_void,
+    ) -> htp_status_t;
     #[no_mangle]
     fn htp_utf8_decode_allow_overlong(
         state: *mut uint32_t,
@@ -208,57 +82,104 @@ extern "C" {
         byte: uint32_t,
     ) -> uint32_t;
     #[no_mangle]
-    fn htp_connp_REQ_IDLE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_IDLE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_LINE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_LINE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_PROTOCOL(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_PROTOCOL(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_HEADERS(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_HEADERS(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_CONNECT_CHECK(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_CONNECT_CHECK(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_CONNECT_WAIT_RESPONSE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_CONNECT_WAIT_RESPONSE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_BODY_DETERMINE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_BODY_DETERMINE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_BODY_IDENTITY(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_BODY_IDENTITY(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_BODY_CHUNKED_LENGTH(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_BODY_CHUNKED_LENGTH(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_BODY_CHUNKED_DATA(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_BODY_CHUNKED_DATA(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_BODY_CHUNKED_DATA_END(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_BODY_CHUNKED_DATA_END(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_FINALIZE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_FINALIZE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_IDLE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_IDLE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_LINE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_LINE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_HEADERS(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_HEADERS(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_BODY_DETERMINE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_BODY_DETERMINE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_BODY_IDENTITY_CL_KNOWN(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_BODY_IDENTITY_CL_KNOWN(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_BODY_CHUNKED_LENGTH(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_BODY_CHUNKED_LENGTH(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_BODY_CHUNKED_DATA(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_BODY_CHUNKED_DATA(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_BODY_CHUNKED_DATA_END(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_BODY_CHUNKED_DATA_END(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_connp_RES_FINALIZE(connp: *mut htp_connp_t) -> htp_status_t;
+    fn htp_connp_RES_FINALIZE(
+        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    ) -> htp_status_t;
     #[no_mangle]
     fn strlcat(dst: *mut libc::c_char, src: *const libc::c_char, size: size_t) -> size_t;
 }
 pub type __builtin_va_list = [__va_list_tag; 1];
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct __va_list_tag {
     pub gp_offset: libc::c_uint,
     pub fp_offset: libc::c_uint,
@@ -296,8 +217,9 @@ pub type uint16_t = __uint16_t;
 pub type uint32_t = __uint32_t;
 pub type uint64_t = __uint64_t;
 pub type va_list = __builtin_va_list;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct _IO_FILE {
     pub _flags: libc::c_int,
     pub _IO_read_ptr: *mut libc::c_char,
@@ -330,228 +252,18 @@ pub struct _IO_FILE {
     pub _unused2: [libc::c_char; 20],
 }
 pub type _IO_lock_t = ();
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct _IO_marker {
     pub _next: *mut _IO_marker,
     pub _sbuf: *mut _IO_FILE,
     pub _pos: libc::c_int,
 }
 pub type FILE = _IO_FILE;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct timeval {
-    pub tv_sec: __time_t,
-    pub tv_usec: __suseconds_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
 pub type htp_status_t = libc::c_int;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-// Path-specific decoding options.
-/* * Convert backslash characters to slashes. */
-/* * Convert to lowercase. */
-/* * Compress slash characters. */
-/* * Should we URL-decode encoded path segment separators? */
-/* * Should we decode '+' characters to spaces? */
-/* * Reaction to encoded path separators. */
-// Special characters options.
-/* * Controls how raw NUL bytes are handled. */
-/* * Determines server response to a raw NUL byte in the path. */
-/* * Reaction to control characters. */
-// URL encoding options.
-/* * Should we decode %u-encoded characters? */
-/* * Reaction to %u encoding. */
-/* * Handling of invalid URL encodings. */
-/* * Reaction to invalid URL encoding. */
-/* * Controls how encoded NUL bytes are handled. */
-/* * How are we expected to react to an encoded NUL byte? */
-// UTF-8 options.
-/* * Controls how invalid UTF-8 characters are handled. */
-/* * Convert UTF-8 characters into bytes using best-fit mapping. */
-// Best-fit mapping options.
-/* * The best-fit map to use to decode %u-encoded characters. */
-/* * The replacement byte used when there is no best-fit mapping. */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_cfg_t {
-    pub field_limit_hard: size_t,
-    pub field_limit_soft: size_t,
-    pub log_level: htp_log_level_t,
-    pub tx_auto_destroy: libc::c_int,
-    pub server_personality: htp_server_personality_t,
-    pub parse_request_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub parse_response_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub process_request_header: Option<
-        unsafe extern "C" fn(_: *mut htp_connp_t, _: *mut libc::c_uchar, _: size_t) -> libc::c_int,
-    >,
-    pub process_response_header: Option<
-        unsafe extern "C" fn(_: *mut htp_connp_t, _: *mut libc::c_uchar, _: size_t) -> libc::c_int,
-    >,
-    pub parameter_processor: Option<unsafe extern "C" fn(_: *mut htp_param_t) -> libc::c_int>,
-    pub decoder_cfgs: [htp_decoder_cfg_t; 3],
-    pub generate_request_uri_normalized: libc::c_int,
-    pub response_decompression_enabled: libc::c_int,
-    pub request_encoding: *mut libc::c_char,
-    pub internal_encoding: *mut libc::c_char,
-    pub parse_request_cookies: libc::c_int,
-    pub parse_request_auth: libc::c_int,
-    pub extract_request_files: libc::c_int,
-    pub extract_request_files_limit: libc::c_int,
-    pub tmpdir: *mut libc::c_char,
-    pub hook_request_start: *mut htp_hook_t,
-    pub hook_request_line: *mut htp_hook_t,
-    pub hook_request_uri_normalize: *mut htp_hook_t,
-    pub hook_request_header_data: *mut htp_hook_t,
-    pub hook_request_headers: *mut htp_hook_t,
-    pub hook_request_body_data: *mut htp_hook_t,
-    pub hook_request_file_data: *mut htp_hook_t,
-    pub hook_request_trailer_data: *mut htp_hook_t,
-    pub hook_request_trailer: *mut htp_hook_t,
-    pub hook_request_complete: *mut htp_hook_t,
-    pub hook_response_start: *mut htp_hook_t,
-    pub hook_response_line: *mut htp_hook_t,
-    pub hook_response_header_data: *mut htp_hook_t,
-    pub hook_response_headers: *mut htp_hook_t,
-    pub hook_response_body_data: *mut htp_hook_t,
-    pub hook_response_trailer_data: *mut htp_hook_t,
-    pub hook_response_trailer: *mut htp_hook_t,
-    pub hook_response_complete: *mut htp_hook_t,
-    pub hook_transaction_complete: *mut htp_hook_t,
-    pub hook_log: *mut htp_hook_t,
-    pub user_data: *mut libc::c_void,
-    pub requestline_leading_whitespace_unwanted: htp_unwanted_t,
-    pub response_decompression_layer_limit: libc::c_int,
-    pub lzma_memlimit: size_t,
-    pub compression_bomb_limit: int32_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
-
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Decoder contexts.
- */
-/* * Default settings. Settings applied to this context are propagated to all other contexts. */
-/* * Urlencoded decoder settings. */
-/* * URL path decoder settings. */
-/* *
- * Enumerates the possible server personalities.
- */
-/* *
- * Minimal personality that performs at little work as possible. All optional
- * features are disabled. This personality is a good starting point for customization.
- */
-/* * A generic personality that aims to work reasonably well for all server types. */
-/* * The IDS personality tries to perform as much decoding as possible. */
-/* * Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0. */
-/* * Mimics the behavior of IIS 5.0, as shipped with Windows 2000. */
-/* * Mimics the behavior of IIS 5.1, as shipped with Windows XP Professional. */
-/* * Mimics the behavior of IIS 6.0, as shipped with Windows 2003. */
-/* * Mimics the behavior of IIS 7.0, as shipped with Windows 2008. */
-/* Mimics the behavior of IIS 7.5, as shipped with Windows 7. */
-/* Mimics the behavior of Apache 2.x. */
 /* *
  * Enumerates the ways in which servers respond to malformed data.
  */
@@ -562,79 +274,7 @@ pub const HTP_UNWANTED_404: htp_unwanted_t = 404;
 pub const HTP_UNWANTED_400: htp_unwanted_t = 400;
 /* * Ignores problem. */
 pub const HTP_UNWANTED_IGNORE: htp_unwanted_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_hook_t {
-    pub callbacks: *mut htp_list_array_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_list_array_t {
-    pub first: size_t,
-    pub last: size_t,
-    pub max_size: size_t,
-    pub current_size: size_t,
-    pub elements: *mut *mut libc::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_decoder_cfg_t {
-    pub backslash_convert_slashes: libc::c_int,
-    pub convert_lowercase: libc::c_int,
-    pub path_separators_compress: libc::c_int,
-    pub path_separators_decode: libc::c_int,
-    pub plusspace_decode: libc::c_int,
-    pub path_separators_encoded_unwanted: htp_unwanted_t,
-    pub nul_raw_terminates: libc::c_int,
-    pub nul_raw_unwanted: htp_unwanted_t,
-    pub control_chars_unwanted: htp_unwanted_t,
-    pub u_encoding_decode: libc::c_int,
-    pub u_encoding_unwanted: htp_unwanted_t,
-    pub url_encoding_invalid_handling: htp_url_encoding_handling_t,
-    pub url_encoding_invalid_unwanted: htp_unwanted_t,
-    pub nul_encoded_terminates: libc::c_int,
-    pub nul_encoded_unwanted: htp_unwanted_t,
-    pub utf8_invalid_unwanted: htp_unwanted_t,
-    pub utf8_convert_bestfit: libc::c_int,
-    pub bestfit_map: *mut libc::c_uchar,
-    pub bestfit_replacement_byte: libc::c_uchar,
-}
 /* *
  * Enumerates the possible approaches to handling invalid URL-encodings.
  */
@@ -645,108 +285,7 @@ pub const HTP_URL_DECODE_PROCESS_INVALID: htp_url_encoding_handling_t = 2;
 pub const HTP_URL_DECODE_REMOVE_PERCENT: htp_url_encoding_handling_t = 1;
 /* * Ignore invalid URL encodings and leave the % in the data. */
 pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
-/* *
- * Represents a single request parameter.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_param_t {
-    pub name: *mut bstr,
-    pub value: *mut bstr,
-    pub source: htp_data_source_t,
-    pub parser_id: htp_parser_id_t,
-    pub parser_data: *mut libc::c_void,
-}
-// Below are all htp_status_t return codes used by LibHTP. Enum is not
-// used here to allow applications to define their own codes.
-/* *
- * The lowest htp_status_t value LibHTP will use internally.
- */
-/* * General-purpose error code. */
-/* *
- * No processing or work was done. This is typically used by callbacks
- * to indicate that they were not interested in doing any work in the
- * given context.
- */
-/* * Returned by a function when its work was successfully completed. */
-/* *
- * Returned when processing a connection stream, after consuming all
- * provided data. The caller should call again with more data.
- */
-/* *
- * Returned when processing a connection stream, after encountering
- * a situation where processing needs to continue on the alternate
- * stream (e.g., the inbound parser needs to observe some outbound
- * data). The data provided was not completely consumed. On the next
- * invocation the caller should supply only the data that has not
- * been processed already. Use htp_connp_req_data_consumed() and
- * htp_connp_res_data_consumed() to determine how much of the most
- * recent data chunk was consumed.
- */
-/* *
- * Used by callbacks to indicate that the processing should stop. For example,
- * returning HTP_STOP from a connection callback indicates that LibHTP should
- * stop following that particular connection.
- */
-/* *
- * Same as HTP_DATA, but indicates that any non-consumed part of the
- * data chunk should be preserved (buffered) for later.
- */
-/* *
- * The highest htp_status_t value LibHTP will use internally.
- */
-/* *
- * Enumerates the possible values for authentication type.
- */
-/* *
- * This is the default value that is used before
- * the presence of authentication is determined (e.g.,
- * before request headers are seen).
- */
-/* * No authentication. */
-/* * HTTP Basic authentication used. */
-/* * HTTP Digest authentication used. */
-/* * Unrecognized authentication method. */
-/* *
- * This is the default value, which is used until the presence
- * of content encoding is determined (e.g., before request headers
- * are seen.
- */
-/* * No compression. */
-/* * Gzip compression. */
-/* * Deflate compression. */
-/* * LZMA compression. */
-/* *
- * Enumerates the possible request and response body codings.
- */
-/* * Body coding not determined yet. */
-/* * No body. */
-/* * Identity coding is used, which means that the body was sent as is. */
-/* * Chunked encoding. */
-/* * We could not recognize the encoding. */
-// Various flag bits. Even though we have a flag field in several places
-// (header, transaction, connection), these fields are all in the same namespace
-// because we may want to set the same flag in several locations. For example, we
-// may set HTP_FIELD_FOLDED on the actual folded header, but also on the transaction
-// that contains the header. Both uses are useful.
-// Connection flags are 8 bits wide.
-// All other flags are 64 bits wide.
-/* At least one valid UTF-8 character and no invalid ones. */
-/* Range U+FF00 - U+FFEF detected. */
-/* Host in the URI. */
-/* Host in the Host header. */
-/* Range U+FF00 - U+FFEF detected. */
-// Logging-related constants.
-/* *
- * Enumerates all log levels.
- */
-/* *
- * HTTP methods.
- */
-/* *
- * Used by default, until the method is determined (e.g., before
- * the request line is processed.
- */
+
 // A collection of unique parser IDs.
 pub type htp_parser_id_t = libc::c_uint;
 /* * multipart/form-data parser. */
@@ -766,296 +305,32 @@ pub const HTP_SOURCE_COOKIE: htp_data_source_t = 2;
 pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
 /* * Embedded in the URL. */
 pub const HTP_SOURCE_URL: htp_data_source_t = 0;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
+pub type bstr = crate::src::bstr::bstr_t;
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-pub type bstr = bstr_t;
-// Data structures
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bstr_t {
-    pub len: size_t,
-    pub size: size_t,
-    pub realptr: *mut libc::c_uchar,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
-
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Connection parser structure.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_connp_t {
-    pub cfg: *mut htp_cfg_t,
-    pub conn: *mut htp_conn_t,
-    pub user_data: *const libc::c_void,
-    pub last_error: *mut htp_log_t,
-    pub in_status: htp_stream_state_t,
-    pub out_status: htp_stream_state_t,
-    pub out_data_other_at_tx_end: libc::c_uint,
-    pub in_timestamp: htp_time_t,
-    pub in_current_data: *mut libc::c_uchar,
-    pub in_current_len: int64_t,
-    pub in_current_read_offset: int64_t,
-    pub in_current_consume_offset: int64_t,
-    pub in_current_receiver_offset: int64_t,
-    pub in_chunk_count: size_t,
-    pub in_chunk_request_index: size_t,
-    pub in_stream_offset: int64_t,
-    pub in_next_byte: libc::c_int,
-    pub in_buf: *mut libc::c_uchar,
-    pub in_buf_size: size_t,
-    pub in_header: *mut bstr,
-    pub in_tx: *mut htp_tx_t,
-    pub in_content_length: int64_t,
-    pub in_body_data_left: int64_t,
-    pub in_chunked_length: int64_t,
-    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub in_data_receiver_hook: *mut htp_hook_t,
-    pub out_next_tx_index: size_t,
-    pub out_timestamp: htp_time_t,
-    pub out_current_data: *mut libc::c_uchar,
-    pub out_current_len: int64_t,
-    pub out_current_read_offset: int64_t,
-    pub out_current_consume_offset: int64_t,
-    pub out_current_receiver_offset: int64_t,
-    pub out_stream_offset: int64_t,
-    pub out_next_byte: libc::c_int,
-    pub out_buf: *mut libc::c_uchar,
-    pub out_buf_size: size_t,
-    pub out_header: *mut bstr,
-    pub out_tx: *mut htp_tx_t,
-    pub out_content_length: int64_t,
-    pub out_body_data_left: int64_t,
-    pub out_chunked_length: int64_t,
-    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub out_data_receiver_hook: *mut htp_hook_t,
-    pub out_decompressor: *mut htp_decompressor_t,
-    pub put_file: *mut htp_file_t,
-}
 /* *
  * Used to represent files that are seen during the processing of HTTP traffic. Most
  * commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
  * request bodies can be treated as files.
  */
-#[derive(Copy, Clone)]
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_file_t {
+    /** Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT. */
     pub source: htp_file_source_t,
+    /** File name, as provided (e.g., in the Content-Disposition multipart part header. */
     pub filename: *mut bstr,
+    /** File length. */
     pub len: int64_t,
+    /** The unique filename in which this file is stored on the filesystem, when applicable.*/
     pub tmpname: *mut libc::c_char,
+    /** The file descriptor used for external storage, or -1 if unused. */
     pub fd: libc::c_int,
 }
+
 pub type htp_file_source_t = libc::c_uint;
 pub const HTP_FILE_PUT: htp_file_source_t = 2;
 pub const HTP_FILE_MULTIPART: htp_file_source_t = 1;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_decompressor_t {
-    pub decompress: Option<
-        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut htp_tx_data_t) -> htp_status_t,
-    >,
-    pub callback: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> htp_status_t>,
-    pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
-    pub next: *mut htp_decompressor_t,
-}
-/* *
- * This structure is used to pass transaction data (for example
- * request and response body buffers) to callbacks.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_tx_data_t {
-    pub tx: *mut htp_tx_t,
-    pub data: *const libc::c_uchar,
-    pub len: size_t,
-    pub is_last: libc::c_int,
-}
-/* *
- * Represents a single HTTP transaction, which is a combination of a request and a response.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_tx_t {
-    pub connp: *mut htp_connp_t,
-    pub conn: *mut htp_conn_t,
-    pub cfg: *mut htp_cfg_t,
-    pub is_config_shared: libc::c_int,
-    pub user_data: *mut libc::c_void,
-    pub request_ignored_lines: libc::c_uint,
-    pub request_line: *mut bstr,
-    pub request_method: *mut bstr,
-    pub request_method_number: htp_method_t,
-    pub request_uri: *mut bstr,
-    pub request_protocol: *mut bstr,
-    pub request_protocol_number: libc::c_int,
-    pub is_protocol_0_9: libc::c_int,
-    pub parsed_uri: *mut htp_uri_t,
-    pub parsed_uri_raw: *mut htp_uri_t,
-    pub request_message_len: int64_t,
-    pub request_entity_len: int64_t,
-    pub request_headers: *mut htp_table_t,
-    pub request_transfer_coding: htp_transfer_coding_t,
-    pub request_content_encoding: htp_content_encoding_t,
-    pub request_content_type: *mut bstr,
-    pub request_content_length: int64_t,
-    pub hook_request_body_data: *mut htp_hook_t,
-    pub hook_response_body_data: *mut htp_hook_t,
-    pub request_urlenp_query: *mut htp_urlenp_t,
-    pub request_urlenp_body: *mut htp_urlenp_t,
-    pub request_mpartp: *mut htp_mpartp_t,
-    pub request_params: *mut htp_table_t,
-    pub request_cookies: *mut htp_table_t,
-    pub request_auth_type: htp_auth_type_t,
-    pub request_auth_username: *mut bstr,
-    pub request_auth_password: *mut bstr,
-    pub request_hostname: *mut bstr,
-    pub request_port_number: libc::c_int,
-    pub response_ignored_lines: libc::c_uint,
-    pub response_line: *mut bstr,
-    pub response_protocol: *mut bstr,
-    pub response_protocol_number: libc::c_int,
-    pub response_status: *mut bstr,
-    pub response_status_number: libc::c_int,
-    pub response_status_expected_number: libc::c_int,
-    pub response_message: *mut bstr,
-    pub seen_100continue: libc::c_int,
-    pub response_headers: *mut htp_table_t,
-    pub response_message_len: int64_t,
-    pub response_entity_len: int64_t,
-    pub response_content_length: int64_t,
-    pub response_transfer_coding: htp_transfer_coding_t,
-    pub response_content_encoding: htp_content_encoding_t,
-    pub response_content_encoding_processing: htp_content_encoding_t,
-    pub response_content_type: *mut bstr,
-    pub flags: uint64_t,
-    pub request_progress: htp_tx_req_progress_t,
-    pub response_progress: htp_tx_res_progress_t,
-    pub index: size_t,
-    pub req_header_repetitions: uint16_t,
-    pub res_header_repetitions: uint16_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/*
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Enumerate possible data handling strategies in hybrid parsing
- * mode. The two possibilities are to make copies of all data and
- * use bstr instances to wrap already available data.
- */
-/* *
- * Make copies of all data. This strategy should be used when
- * the supplied buffers are transient and will go away after
- * the invoked function returns.
- */
-/* *
- * Reuse buffers, without a change of ownership. We assume the
- * buffers will continue to be available until the transaction
- * is deleted by the container.
- */
 /* *
  * Possible states of a progressing transaction. Internally, progress will change
  * to the next state when the processing activities associated with that state
@@ -1088,52 +363,7 @@ pub const HTP_CODING_CHUNKED: htp_transfer_coding_t = 3;
 pub const HTP_CODING_IDENTITY: htp_transfer_coding_t = 2;
 pub const HTP_CODING_NO_BODY: htp_transfer_coding_t = 1;
 pub const HTP_CODING_UNKNOWN: htp_transfer_coding_t = 0;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* * This is the default value, used only until the first element is added. */
-/* * Keys are copied.*/
-/* * Keys are adopted and freed when the table is destroyed. */
-/* * Keys are only referenced; the caller is still responsible for freeing them after the table is destroyed. */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_table_t {
-    pub list: htp_list_array_t,
-    pub alloc_type: htp_table_alloc_t,
-}
 pub type htp_table_alloc_t = libc::c_uint;
 pub const HTP_TABLE_KEYS_REFERENCED: htp_table_alloc_t = 3;
 pub const HTP_TABLE_KEYS_ADOPTED: htp_table_alloc_t = 2;
@@ -1145,94 +375,13 @@ pub const HTP_AUTH_DIGEST: htp_auth_type_t = 3;
 pub const HTP_AUTH_BASIC: htp_auth_type_t = 2;
 pub const HTP_AUTH_NONE: htp_auth_type_t = 1;
 pub const HTP_AUTH_UNKNOWN: htp_auth_type_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_mpartp_t {
-    pub multipart: htp_multipart_t,
-    pub cfg: *mut htp_cfg_t,
-    pub extract_files: libc::c_int,
-    pub extract_limit: libc::c_int,
-    pub extract_dir: *mut libc::c_char,
-    pub file_count: libc::c_int,
-    pub handle_data: Option<
-        unsafe extern "C" fn(
-            _: *mut htp_mpartp_t,
-            _: *const libc::c_uchar,
-            _: size_t,
-            _: libc::c_int,
-        ) -> libc::c_int,
-    >,
-    pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t) -> libc::c_int>,
-    pub parser_state: htp_multipart_state_t,
-    pub boundary_match_pos: size_t,
-    pub current_part: *mut htp_multipart_part_t,
-    pub current_part_mode: htp_part_mode_t,
-    pub boundary_pieces: *mut bstr_builder_t,
-    pub part_header_pieces: *mut bstr_builder_t,
-    pub pending_header_line: *mut bstr,
-    pub part_data_pieces: *mut bstr_builder_t,
-    pub boundary_candidate_pos: size_t,
-    pub cr_aside: libc::c_int,
-    pub gave_up_data: libc::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bstr_builder_t {
-    pub pieces: *mut htp_list_array_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
 pub type htp_part_mode_t = libc::c_uint;
 /* * When in data mode, the parser is consuming part data. */
 pub const MODE_DATA: htp_part_mode_t = 1;
 /* * When in line mode, the parser is handling part headers. */
 pub const MODE_LINE: htp_part_mode_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_multipart_part_t {
-    pub parser: *mut htp_mpartp_t,
-    pub type_0: htp_multipart_type_t,
-    pub len: size_t,
-    pub name: *mut bstr,
-    pub value: *mut bstr,
-    pub content_type: *mut bstr,
-    pub headers: *mut htp_table_t,
-    pub file: *mut htp_file_t,
-}
+
 pub type htp_multipart_type_t = libc::c_uint;
 pub const MULTIPART_PART_EPILOGUE: htp_multipart_type_t = 4;
 pub const MULTIPART_PART_PREAMBLE: htp_multipart_type_t = 3;
@@ -1254,49 +403,39 @@ pub const STATE_BOUNDARY: htp_multipart_state_t = 2;
 pub const STATE_DATA: htp_multipart_state_t = 1;
 /* * Initial state, after the parser has been created but before the boundary initialized. */
 pub const STATE_INIT: htp_multipart_state_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_multipart_t {
-    pub boundary: *mut libc::c_char,
-    pub boundary_len: size_t,
-    pub boundary_count: libc::c_int,
-    pub parts: *mut htp_list_array_t,
-    pub flags: uint64_t,
-}
-// The MIME type that triggers the parser. Must be lowercase.
-/* *
- * This is the main URLENCODED parser structure. It is used to store
- * parser configuration, temporary parsing data, as well as the parameters.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_urlenp_t {
-    pub tx: *mut htp_tx_t,
-    pub argument_separator: libc::c_uchar,
-    pub decode_url_encoding: libc::c_int,
-    pub params: *mut htp_table_t,
-    pub _state: libc::c_int,
-    pub _complete: libc::c_int,
-    pub _name: *mut bstr,
-    pub _bb: *mut bstr_builder_t,
-}
+
 /* *
  * URI structure. Each of the fields provides access to a single
  * URI element. Where an element is not present in a URI, the
  * corresponding field will be set to NULL or -1, depending on the
  * field type.
  */
-#[derive(Copy, Clone)]
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_uri_t {
+    /** Scheme, e.g., "http". */
     pub scheme: *mut bstr,
+    /** Username. */
     pub username: *mut bstr,
+    /** Password. */
     pub password: *mut bstr,
+    /** Hostname. */
     pub hostname: *mut bstr,
+    /** Port, as string. */
     pub port: *mut bstr,
+    /**
+     * Port, as number. This field will contain HTP_PORT_NONE if there was
+     * no port information in the URI and HTP_PORT_INVALID if the port information
+     * was invalid (e.g., it's not a number or it falls out of range.
+     */
     pub port_number: libc::c_int,
+    /** The path part of this URI. */
     pub path: *mut bstr,
+    /** Query string. */
     pub query: *mut bstr,
+    /**
+     * Fragment identifier. This field will rarely be available in a server-side
+     * setting, but it's not impossible to see it. */
     pub fragment: *mut bstr,
 }
 pub type htp_method_t = libc::c_uint;
@@ -1329,61 +468,8 @@ pub const HTP_M_PUT: htp_method_t = 3;
 pub const HTP_M_GET: htp_method_t = 2;
 pub const HTP_M_HEAD: htp_method_t = 1;
 pub const HTP_M_UNKNOWN: htp_method_t = 0;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Represents a single TCP connection.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_conn_t {
-    pub client_addr: *mut libc::c_char,
-    pub client_port: libc::c_int,
-    pub server_addr: *mut libc::c_char,
-    pub server_port: libc::c_int,
-    pub transactions: *mut htp_list_array_t,
-    pub messages: *mut htp_list_array_t,
-    pub flags: uint8_t,
-    pub open_timestamp: htp_time_t,
-    pub close_timestamp: htp_time_t,
-    pub in_data_counter: int64_t,
-    pub out_data_counter: int64_t,
-}
-pub type htp_time_t = timeval;
+pub type htp_time_t = crate::src::htp_connection_parser::timeval;
 /* *
  * Enumerates all stream states. Each connection has two streams, one
  * inbound and one outbound. Their states are tracked separately.
@@ -1397,18 +483,26 @@ pub const HTP_STREAM_ERROR: htp_stream_state_t = 3;
 pub const HTP_STREAM_CLOSED: htp_stream_state_t = 2;
 pub const HTP_STREAM_OPEN: htp_stream_state_t = 1;
 pub const HTP_STREAM_NEW: htp_stream_state_t = 0;
+
 /* *
  * Represents a single log entry.
  */
-#[derive(Copy, Clone)]
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_log_t {
-    pub connp: *mut htp_connp_t,
-    pub tx: *mut htp_tx_t,
+    /** The connection parser associated with this log message. */
+    pub connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    /** The transaction associated with this log message, if any. */
+    pub tx: *mut crate::src::htp_transaction::htp_tx_t,
+    /** Log message. */
     pub msg: *const libc::c_char,
+    /** Message level. */
     pub level: htp_log_level_t,
+    /** Message code. */
     pub code: libc::c_int,
+    /** File in which the code that emitted the message resides. */
     pub file: *const libc::c_char,
+    /** Line number on which the code that emitted the message resides. */
     pub line: libc::c_uint,
 }
 pub type htp_log_level_t = libc::c_uint;
@@ -1430,56 +524,25 @@ pub const HTP_SERVER_IIS_4_0: htp_server_personality_t = 3;
 pub const HTP_SERVER_IDS: htp_server_personality_t = 2;
 pub const HTP_SERVER_GENERIC: htp_server_personality_t = 1;
 pub const HTP_SERVER_MINIMAL: htp_server_personality_t = 0;
+
 /* *
  * Represents a chunk of file data.
  */
-#[derive(Copy, Clone)]
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_file_data_t {
+    /** File information. */
     pub file: *mut htp_file_t,
+    /** Pointer to the data buffer. */
     pub data: *const libc::c_uchar,
+    /** Buffer length. */
     pub len: size_t,
 }
 pub type htp_decoder_ctx_t = libc::c_uint;
 pub const HTP_DECODER_URL_PATH: htp_decoder_ctx_t = 2;
 pub const HTP_DECODER_URLENCODED: htp_decoder_ctx_t = 1;
 pub const HTP_DECODER_DEFAULTS: htp_decoder_ctx_t = 0;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
 /* *
  * Is character a linear white space character?
  *
@@ -1494,6 +557,7 @@ pub unsafe extern "C" fn htp_is_lws(mut c: libc::c_int) -> libc::c_int {
         return 0 as libc::c_int;
     };
 }
+
 /* *
  * Is character a separator character?
  *
@@ -1513,6 +577,7 @@ pub unsafe extern "C" fn htp_is_separator(mut c: libc::c_int) -> libc::c_int {
         _ => return 0 as libc::c_int,
     };
 }
+
 /* *
  * Is character a text character?
  *
@@ -1529,6 +594,7 @@ pub unsafe extern "C" fn htp_is_text(mut c: libc::c_int) -> libc::c_int {
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Is character a token character?
  *
@@ -1547,6 +613,7 @@ pub unsafe extern "C" fn htp_is_token(mut c: libc::c_int) -> libc::c_int {
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Remove all line terminators (LF, CR or CRLF) from
  * the end of the line provided as input.
@@ -1592,6 +659,7 @@ pub unsafe extern "C" fn htp_chomp(
     }
     return r;
 }
+
 /* *
  * Is character a white space character?
  *
@@ -1605,6 +673,7 @@ pub unsafe extern "C" fn htp_is_space(mut c: libc::c_int) -> libc::c_int {
         _ => return 0 as libc::c_int,
     };
 }
+
 /* *
  * Converts request method, given as a string, into a number.
  *
@@ -1724,6 +793,7 @@ pub unsafe extern "C" fn htp_convert_method_to_number(mut method: *mut bstr) -> 
     }
     return HTP_M_UNKNOWN as libc::c_int;
 }
+
 /* *
  * Is the given line empty?
  *
@@ -1745,6 +815,7 @@ pub unsafe extern "C" fn htp_is_line_empty(
     }
     return 0 as libc::c_int;
 }
+
 /* *
  * Does line consist entirely of whitespace characters?
  *
@@ -1771,6 +842,7 @@ pub unsafe extern "C" fn htp_is_line_whitespace(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses Content-Length string (positive decimal number).
  * White space is allowed before and after the number.
@@ -1781,7 +853,7 @@ pub unsafe extern "C" fn htp_is_line_whitespace(
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_content_length(
     mut b: *mut bstr,
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
 ) -> int64_t {
     let mut len: size_t = (*b).len;
     let mut data: *mut libc::c_uchar = if (*b).realptr.is_null() {
@@ -1838,6 +910,7 @@ pub unsafe extern "C" fn htp_parse_content_length(
     }
     return r;
 }
+
 /* *
  * Parses chunk length (positive hexadecimal number). White space is allowed before
  * and after the number. An error will be returned if the chunk length is greater than
@@ -1898,6 +971,7 @@ pub unsafe extern "C" fn htp_parse_chunked_length(
     }
     return chunk_len;
 }
+
 /* *
  * A somewhat forgiving parser for a positive integer in a given base.
  * Only LWS is allowed before and after the number.
@@ -1945,6 +1019,7 @@ pub unsafe extern "C" fn htp_parse_positive_integer_whitespace(
     }
     return r;
 }
+
 /* *
  * Records one log message.
  *
@@ -1957,7 +1032,7 @@ pub unsafe extern "C" fn htp_parse_positive_integer_whitespace(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_log(
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
     mut file: *const libc::c_char,
     mut line: libc::c_int,
     mut level: htp_log_level_t,
@@ -2014,6 +1089,7 @@ pub unsafe extern "C" fn htp_log(
     /* coverity[check_return] */
     htp_hook_run_all((*(*connp).cfg).hook_log, log as *mut libc::c_void);
 }
+
 /* *
  * Determines if the given line is a continuation (of some previous line).
  *
@@ -2039,6 +1115,7 @@ pub unsafe extern "C" fn htp_is_folding_char(mut c: libc::c_int) -> libc::c_int 
         return 0 as libc::c_int;
     };
 }
+
 /* *
  * Determines if the given line is a request terminator.
  *
@@ -2049,7 +1126,7 @@ pub unsafe extern "C" fn htp_is_folding_char(mut c: libc::c_int) -> libc::c_int 
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_is_line_terminator(
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
 ) -> libc::c_int {
@@ -2083,7 +1160,7 @@ pub unsafe extern "C" fn htp_connp_is_line_terminator(
     }
     return 0 as libc::c_int;
 }
-// Only space is terminator if terminator does not follow right away
+
 /* *
  * Determines if the given line can be ignored when it appears before a request.
  *
@@ -2094,12 +1171,13 @@ pub unsafe extern "C" fn htp_connp_is_line_terminator(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_is_line_ignorable(
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
 ) -> libc::c_int {
     return htp_connp_is_line_terminator(connp, data, len);
 }
+
 unsafe extern "C" fn htp_parse_port(
     mut data: *mut libc::c_uchar,
     mut len: size_t,
@@ -2129,6 +1207,7 @@ unsafe extern "C" fn htp_parse_port(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses an authority string, which consists of a hostname with an optional port number; username
  * and password are not allowed and will not be handled.
@@ -2281,6 +1360,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses hostport provided in the URI.
  *
@@ -2291,7 +1371,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_uri_hostport(
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
     mut hostport: *mut bstr,
     mut uri: *mut htp_uri_t,
 ) -> libc::c_int {
@@ -2318,6 +1398,7 @@ pub unsafe extern "C" fn htp_parse_uri_hostport(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses hostport provided in the Host header.
  *
@@ -2352,6 +1433,7 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses request URI, making no attempt to validate the contents.
  *
@@ -2652,6 +1734,7 @@ pub unsafe extern "C" fn htp_parse_uri(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Convert two input bytes, pointed to by the pointer parameter,
  * into a single byte by assuming the input consists of hexadecimal
@@ -2680,6 +1763,7 @@ unsafe extern "C" fn x2c(mut what: *mut libc::c_uchar) -> libc::c_uchar {
         }) as libc::c_uchar;
     return digit;
 }
+
 /* *
  * Convert a Unicode codepoint into a single-byte, using best-fit
  * mapping (as specified in the provided configuration structure).
@@ -2689,7 +1773,7 @@ unsafe extern "C" fn x2c(mut what: *mut libc::c_uchar) -> libc::c_uchar {
  * @return converted single byte
  */
 unsafe extern "C" fn bestfit_codepoint(
-    mut cfg: *mut htp_cfg_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut codepoint: uint32_t,
 ) -> uint8_t {
@@ -2718,6 +1802,7 @@ unsafe extern "C" fn bestfit_codepoint(
         p = p.offset(3 as libc::c_int as isize)
     }
 }
+
 /* *
  * Decode a UTF-8 encoded path. Overlong characters will be decoded, invalid
  * characters will be left as-is. Best-fit mapping will be used to convert
@@ -2729,8 +1814,8 @@ unsafe extern "C" fn bestfit_codepoint(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
-    mut cfg: *mut htp_cfg_t,
-    mut tx: *mut htp_tx_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut path: *mut bstr,
 ) {
     if path.is_null() {
@@ -2855,6 +1940,7 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
     // we're doing in-place decoding.
     bstr_adjust_len(path, wpos);
 }
+
 /* *
  * Validate a path that is quite possibly UTF-8 encoded.
  *
@@ -2862,7 +1948,10 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
  * @param[in] path
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_utf8_validate_path(mut tx: *mut htp_tx_t, mut path: *mut bstr) {
+pub unsafe extern "C" fn htp_utf8_validate_path(
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
+    mut path: *mut bstr,
+) {
     let mut data: *mut libc::c_uchar = if (*path).realptr.is_null() {
         (path as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
     } else {
@@ -2946,6 +2035,7 @@ pub unsafe extern "C" fn htp_utf8_validate_path(mut tx: *mut htp_tx_t, mut path:
         (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x100000 as libc::c_ulonglong) as uint64_t
     };
 }
+
 /* *
  * Decode a %u-encoded character, using best-fit mapping as necessary. Path version.
  *
@@ -2955,8 +2045,8 @@ pub unsafe extern "C" fn htp_utf8_validate_path(mut tx: *mut htp_tx_t, mut path:
  * @return decoded byte
  */
 unsafe extern "C" fn decode_u_encoding_path(
-    mut cfg: *mut htp_cfg_t,
-    mut tx: *mut htp_tx_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut data: *mut libc::c_uchar,
 ) -> libc::c_int {
     let mut c1: libc::c_uint = x2c(data) as libc::c_uint;
@@ -3011,6 +2101,7 @@ unsafe extern "C" fn decode_u_encoding_path(
     }
     return r;
 }
+
 /* *
  * Decode a %u-encoded character, using best-fit mapping as necessary. Params version.
  *
@@ -3020,7 +2111,7 @@ unsafe extern "C" fn decode_u_encoding_path(
  * @return decoded byte
  */
 unsafe extern "C" fn decode_u_encoding_params(
-    mut cfg: *mut htp_cfg_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut data: *mut libc::c_uchar,
     mut flags: *mut uint64_t,
@@ -3059,6 +2150,7 @@ unsafe extern "C" fn decode_u_encoding_params(
     }
     return r;
 }
+
 /* *
  * Decode a request path according to the settings in the
  * provided configuration structure.
@@ -3069,7 +2161,7 @@ unsafe extern "C" fn decode_u_encoding_params(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_decode_path_inplace(
-    mut tx: *mut htp_tx_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut path: *mut bstr,
 ) -> libc::c_int {
     if path.is_null() {
@@ -3084,7 +2176,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
         return -(1 as libc::c_int);
     }
     let mut len: size_t = (*path).len;
-    let mut cfg: *mut htp_cfg_t = (*tx).cfg;
+    let mut cfg: *mut crate::src::htp_config::htp_cfg_t = (*tx).cfg;
     let mut rpos: size_t = 0 as libc::c_int as size_t;
     let mut wpos: size_t = 0 as libc::c_int as size_t;
     let mut previous_was_separator: libc::c_int = 0 as libc::c_int;
@@ -3612,9 +2704,10 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
     bstr_adjust_len(path, wpos);
     return 1 as libc::c_int;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
-    mut tx: *mut htp_tx_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut input: *mut bstr,
 ) -> htp_status_t {
     let mut flags: uint64_t = 0 as libc::c_int as uint64_t;
@@ -3636,9 +2729,10 @@ pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
     }
     return rc;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
-    mut tx: *mut htp_tx_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut input: *mut bstr,
 ) -> htp_status_t {
     return htp_urldecode_inplace_ex(
@@ -3649,9 +2743,21 @@ pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
         &mut (*tx).response_status_expected_number,
     );
 }
+
+/**
+ * Performs in-place decoding of the input string, according to the configuration specified
+ * by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
+ *
+ * @param[in] cfg
+ * @param[in] ctx
+ * @param[in] input
+ * @param[out] flags
+ *
+ * @return HTP_OK on success, HTP_ERROR on failure.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace(
-    mut cfg: *mut htp_cfg_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut input: *mut bstr,
     mut flags: *mut uint64_t,
@@ -3659,9 +2765,24 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     let mut expected_status_code: libc::c_int = 0 as libc::c_int;
     return htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code);
 }
+
+/**
+ * Performs in-place decoding of the input string, according to the configuration specified
+ * by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set. If something in the
+ * input would cause a particular server to respond with an error, the appropriate status
+ * code will be set.
+ *
+ * @param[in] cfg
+ * @param[in] ctx
+ * @param[in] input
+ * @param[out] flags
+ * @param[out] expected_status_code 0 by default, or status code as necessary
+ *
+ * @return HTP_OK on success, HTP_ERROR on failure.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace_ex(
-    mut cfg: *mut htp_cfg_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut input: *mut bstr,
     mut flags: *mut uint64_t,
@@ -4141,6 +3262,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
     bstr_adjust_len(input, wpos);
     return 1 as libc::c_int;
 }
+
 /* *
  * Normalize a previously-parsed request URI.
  *
@@ -4151,7 +3273,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_normalize_parsed_uri(
-    mut tx: *mut htp_tx_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut incomplete: *mut htp_uri_t,
     mut normalized: *mut htp_uri_t,
 ) -> libc::c_int {
@@ -4262,6 +3384,7 @@ pub unsafe extern "C" fn htp_normalize_parsed_uri(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Normalize request hostname. Convert all characters to lowercase and
  * remove trailing dots from the end, if present.
@@ -4281,6 +3404,7 @@ pub unsafe extern "C" fn htp_normalize_hostname_inplace(mut hostname: *mut bstr)
     }
     return hostname;
 }
+
 /* *
  * Normalize URL path. This function implements the remove dot segments algorithm
  * specified in RFC 3986, section 5.2.4.
@@ -4436,52 +3560,7 @@ pub unsafe extern "C" fn htp_normalize_uri_path_inplace(mut s: *mut bstr) {
     }
     bstr_adjust_len(s, wpos);
 }
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-// 1048576 is 1 Mbyte
-//deflate max ratio is about 1000
-// Parser states, in the order in which they are
-// used as a single transaction is processed.
-// Parsing functions
-// Private transaction functions
-// Utility functions
-/* *
- *
- */
 #[no_mangle]
 pub unsafe extern "C" fn fprint_bstr(
     mut stream: *mut FILE,
@@ -4511,9 +3590,7 @@ pub unsafe extern "C" fn fprint_bstr(
         (*b).len,
     );
 }
-/* *
- *
- */
+
 #[no_mangle]
 pub unsafe extern "C" fn fprint_raw_data(
     mut stream: *mut FILE,
@@ -4523,9 +3600,7 @@ pub unsafe extern "C" fn fprint_raw_data(
 ) {
     fprint_raw_data_ex(stream, name, data, 0 as libc::c_int as size_t, len);
 }
-/* *
- *
- */
+
 #[no_mangle]
 pub unsafe extern "C" fn fprint_raw_data_ex(
     mut stream: *mut FILE,
@@ -4651,40 +3726,60 @@ pub unsafe extern "C" fn fprint_raw_data_ex(
     }
     fprintf(stream, b"\n\x00" as *const u8 as *const libc::c_char);
 }
-/* *
- *
- */
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_in_state_as_string(
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
 ) -> *mut libc::c_char {
     if connp.is_null() {
         return b"NULL\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).in_state
-        == Some(htp_connp_REQ_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_REQ_IDLE
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"REQ_IDLE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).in_state
-        == Some(htp_connp_REQ_LINE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_REQ_LINE
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"REQ_LINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).in_state
-        == Some(htp_connp_REQ_PROTOCOL as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_REQ_PROTOCOL
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"REQ_PROTOCOL\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).in_state
-        == Some(htp_connp_REQ_HEADERS as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_REQ_HEADERS
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"REQ_HEADERS\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).in_state
         == Some(
             htp_connp_REQ_CONNECT_CHECK
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_CONNECT_CHECK\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -4692,7 +3787,9 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_connp_REQ_CONNECT_WAIT_RESPONSE
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_CONNECT_WAIT_RESPONSE\x00" as *const u8 as *const libc::c_char
@@ -4701,7 +3798,9 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_connp_REQ_BODY_DETERMINE
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_BODY_DETERMINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -4709,7 +3808,9 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_connp_REQ_BODY_IDENTITY
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_BODY_IDENTITY\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -4717,7 +3818,9 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_connp_REQ_BODY_CHUNKED_LENGTH
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_BODY_CHUNKED_LENGTH\x00" as *const u8 as *const libc::c_char
@@ -4726,7 +3829,9 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_connp_REQ_BODY_CHUNKED_DATA
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_BODY_CHUNKED_DATA\x00" as *const u8 as *const libc::c_char
@@ -4735,21 +3840,30 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_connp_REQ_BODY_CHUNKED_DATA_END
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_BODY_CHUNKED_DATA_END\x00" as *const u8 as *const libc::c_char
             as *mut libc::c_char;
     }
     if (*connp).in_state
-        == Some(htp_connp_REQ_FINALIZE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_REQ_FINALIZE
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"REQ_FINALIZE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).in_state
         == Some(
             htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"REQ_IGNORE_DATA_AFTER_HTTP_0_9\x00" as *const u8 as *const libc::c_char
@@ -4757,35 +3871,50 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     }
     return b"UNKNOWN\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
-/* *
- *
- */
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_out_state_as_string(
-    mut connp: *mut htp_connp_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
 ) -> *mut libc::c_char {
     if connp.is_null() {
         return b"NULL\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).out_state
-        == Some(htp_connp_RES_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_RES_IDLE
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"RES_IDLE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).out_state
-        == Some(htp_connp_RES_LINE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_RES_LINE
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"RES_LINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).out_state
-        == Some(htp_connp_RES_HEADERS as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_RES_HEADERS
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"RES_HEADERS\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     if (*connp).out_state
         == Some(
             htp_connp_RES_BODY_DETERMINE
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"RES_BODY_DETERMINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -4793,7 +3922,9 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_connp_RES_BODY_IDENTITY_CL_KNOWN
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"RES_BODY_IDENTITY_CL_KNOWN\x00" as *const u8 as *const libc::c_char
@@ -4802,7 +3933,9 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"RES_BODY_IDENTITY_STREAM_CLOSE\x00" as *const u8 as *const libc::c_char
@@ -4811,7 +3944,9 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_connp_RES_BODY_CHUNKED_LENGTH
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"RES_BODY_CHUNKED_LENGTH\x00" as *const u8 as *const libc::c_char
@@ -4820,7 +3955,9 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_connp_RES_BODY_CHUNKED_DATA
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"RES_BODY_CHUNKED_DATA\x00" as *const u8 as *const libc::c_char
@@ -4829,25 +3966,30 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_connp_RES_BODY_CHUNKED_DATA_END
-                as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
         )
     {
         return b"RES_BODY_CHUNKED_DATA_END\x00" as *const u8 as *const libc::c_char
             as *mut libc::c_char;
     }
     if (*connp).out_state
-        == Some(htp_connp_RES_FINALIZE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t)
+        == Some(
+            htp_connp_RES_FINALIZE
+                as unsafe extern "C" fn(
+                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                ) -> htp_status_t,
+        )
     {
         return b"RES_BODY_FINALIZE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
     }
     return b"UNKNOWN\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
-/* *
- *
- */
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_progress_as_string(
-    mut tx: *mut htp_tx_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
 ) -> *mut libc::c_char {
     if tx.is_null() {
         return b"NULL\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -4863,12 +4005,10 @@ pub unsafe extern "C" fn htp_tx_request_progress_as_string(
     }
     return b"INVALID\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
-/* *
- *
- */
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_progress_as_string(
-    mut tx: *mut htp_tx_t,
+    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
 ) -> *mut libc::c_char {
     if tx.is_null() {
         return b"NULL\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -4884,6 +4024,7 @@ pub unsafe extern "C" fn htp_tx_response_progress_as_string(
     }
     return b"INVALID\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_unparse_uri_noencode(mut uri: *mut htp_uri_t) -> *mut bstr {
     if uri.is_null() {
@@ -4984,6 +4125,7 @@ pub unsafe extern "C" fn htp_unparse_uri_noencode(mut uri: *mut htp_uri_t) -> *m
     }
     return r;
 }
+
 /* *
  * Determine if the information provided on the response line
  * is good enough. Browsers are lax when it comes to response
@@ -5044,6 +4186,7 @@ pub unsafe extern "C" fn htp_treat_response_line_as_body(
     }
     return 0 as libc::c_int;
 }
+
 /* *
  * Run the REQUEST_BODY_DATA hook.
  *
@@ -5052,8 +4195,8 @@ pub unsafe extern "C" fn htp_treat_response_line_as_body(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_req_run_hook_body_data(
-    mut connp: *mut htp_connp_t,
-    mut d: *mut htp_tx_data_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    mut d: *mut crate::src::htp_transaction::htp_tx_data_t,
 ) -> htp_status_t {
     // Do not invoke callbacks with an empty data chunk
     if !(*d).data.is_null() && (*d).len == 0 as libc::c_int as libc::c_ulong {
@@ -5101,6 +4244,7 @@ pub unsafe extern "C" fn htp_req_run_hook_body_data(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Run the RESPONSE_BODY_DATA hook.
  *
@@ -5109,8 +4253,8 @@ pub unsafe extern "C" fn htp_req_run_hook_body_data(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_res_run_hook_body_data(
-    mut connp: *mut htp_connp_t,
-    mut d: *mut htp_tx_data_t,
+    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    mut d: *mut crate::src::htp_transaction::htp_tx_data_t,
 ) -> htp_status_t {
     // Do not invoke callbacks with an empty data chunk.
     if !(*d).data.is_null() && (*d).len == 0 as libc::c_int as libc::c_ulong {
@@ -5134,6 +4278,7 @@ pub unsafe extern "C" fn htp_res_run_hook_body_data(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses the provided memory region, extracting the double-quoted string.
  *
@@ -5228,6 +4373,7 @@ pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
     }
     return 1 as libc::c_int;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_ct_header(
     mut header: *mut bstr,
@@ -5263,6 +4409,7 @@ pub unsafe extern "C" fn htp_parse_ct_header(
     bstr_to_lowercase(*ct);
     return 1 as libc::c_int;
 }
+
 /* *
  * Implements relaxed (not strictly RFC) hostname validation.
  *
@@ -5319,6 +4466,12 @@ pub unsafe extern "C" fn htp_validate_hostname(mut hostname: *mut bstr) -> libc:
     }
     return 1 as libc::c_int;
 }
+
+/**
+ * Frees all data contained in the uri, and then the uri itself.
+ * 
+ * @param[in] uri
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_free(mut uri: *mut htp_uri_t) {
     if uri.is_null() {
@@ -5334,6 +4487,12 @@ pub unsafe extern "C" fn htp_uri_free(mut uri: *mut htp_uri_t) {
     bstr_free((*uri).fragment);
     free(uri as *mut libc::c_void);
 }
+
+/**
+ * Allocates and initializes a new htp_uri_t structure.
+ *
+ * @return New structure, or NULL on memory allocation failure.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_alloc() -> *mut htp_uri_t {
     let mut u: *mut htp_uri_t = calloc(
@@ -5346,56 +4505,7 @@ pub unsafe extern "C" fn htp_uri_alloc() -> *mut htp_uri_t {
     (*u).port_number = -(1 as libc::c_int);
     return u;
 }
-// Validate label length.
-// No more data after label.
-// How many dots are there?
-/* *
- * Frees all data contained in the uri, and then the uri itself.
- *
- * @param[in] uri
- */
-/* *
- * Allocates and initializes a new htp_uri_t structure.
- *
- * @return New structure, or NULL on memory allocation failure.
- */
-/* *
- * Creates a new log entry and stores it with the connection. The file and line
- * parameters are typically auto-generated using the HTP_LOG_MARK macro.
-*
- * @param[in] connp
- * @param[in] file
- * @param[in] line
- * @param[in] level
- * @param[in] code
- * @param[in] fmt
- * @param[in] ...
- */
-/* *
- * Performs in-place decoding of the input string, according to the configuration specified
- * by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] input
- * @param[out] flags
- *
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-/* *
- * Performs in-place decoding of the input string, according to the configuration specified
- * by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set. If something in the
- * input would cause a particular server to respond with an error, the appropriate status
- * code will be set.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] input
- * @param[out] flags
- * @param[out] expected_status_code 0 by default, or status code as necessary
- *
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
+
 /* *
  * Returns the LibHTP version string.
  *

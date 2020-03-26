@@ -32,324 +32,99 @@ extern "C" {
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
     #[no_mangle]
     fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    // Functions
-    /* *
-     * Create new array-backed list.
-     *
-     * @param[in] size
-     * @return Newly created list.
-     */
     #[no_mangle]
-    fn htp_list_array_create(size: size_t) -> *mut htp_list_array_t;
-    /* *
-     * Free the memory occupied by this list. This function assumes
-     * the elements held by the list were freed beforehand.
-     *
-     * @param[in] l
-     */
+    fn htp_list_array_create(size: size_t) -> *mut crate::src::htp_list::htp_list_array_t;
     #[no_mangle]
-    fn htp_list_array_destroy(l: *mut htp_list_array_t);
-    /* *
-     * Find the element at the given index.
-     *
-     * @param[in] l
-     * @param[in] idx
-     * @return the desired element, or NULL if the list is too small, or
-     *         if the element at that position carries a NULL
-     */
+    fn htp_list_array_destroy(l: *mut crate::src::htp_list::htp_list_array_t);
     #[no_mangle]
-    fn htp_list_array_get(l: *const htp_list_array_t, idx: size_t) -> *mut libc::c_void;
-    /* *
-     * Add new element to the end of the list, expanding the list as necessary.
-     *
-     * @param[in] l
-     * @param[in] e
-     * @return HTP_OK on success or HTP_ERROR on failure.
-     *
-     */
+    fn htp_list_array_get(
+        l: *const crate::src::htp_list::htp_list_array_t,
+        idx: size_t,
+    ) -> *mut libc::c_void;
     #[no_mangle]
-    fn htp_list_array_push(l: *mut htp_list_array_t, e: *mut libc::c_void) -> htp_status_t;
-    /* *
-     * Returns the size of the list.
-     *
-     * @param[in] l
-     * @return List size.
-     */
+    fn htp_list_array_push(
+        l: *mut crate::src::htp_list::htp_list_array_t,
+        e: *mut libc::c_void,
+    ) -> htp_status_t;
     #[no_mangle]
-    fn htp_list_array_size(l: *const htp_list_array_t) -> size_t;
-    /* *
-     * Adds one new piece, defined with the supplied pointer and
-     * length, to the builder. This function will make a copy of the
-     * provided data region.
-     *
-     * @param[in] bb
-     * @param[in] data
-     * @param[in] len
-     * @return @return HTP_OK on success, HTP_ERROR on failure.
-     */
+    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
     #[no_mangle]
     fn bstr_builder_append_mem(
-        bb: *mut bstr_builder_t,
+        bb: *mut crate::src::bstr_builder::bstr_builder_t,
         data: *const libc::c_void,
         len: size_t,
     ) -> htp_status_t;
-    /* *
-     * Clears this string builder, destroying all existing pieces. You may
-     * want to clear a builder once you've either read all the pieces and
-     * done something with them, or after you've converted the builder into
-     * a single string.
-     *
-     * @param[in] bb
-     */
     #[no_mangle]
-    fn bstr_builder_clear(bb: *mut bstr_builder_t);
-    /* *
-     * Creates a new string builder.
-     *
-     * @return New string builder, or NULL on error.
-     */
+    fn bstr_builder_clear(bb: *mut crate::src::bstr_builder::bstr_builder_t);
     #[no_mangle]
-    fn bstr_builder_create() -> *mut bstr_builder_t;
-    /* *
-     * Destroys an existing string builder, also destroying all
-     * the pieces stored within.
-     *
-     * @param[in] bb
-     */
+    fn bstr_builder_create() -> *mut crate::src::bstr_builder::bstr_builder_t;
     #[no_mangle]
-    fn bstr_builder_destroy(bb: *mut bstr_builder_t);
-    /* *
-     * Returns the size (the number of pieces) currently in a string builder.
-     *
-     * @param[in] bb
-     * @return size
-     */
+    fn bstr_builder_destroy(bb: *mut crate::src::bstr_builder::bstr_builder_t);
     #[no_mangle]
-    fn bstr_builder_size(bb: *const bstr_builder_t) -> size_t;
-    /* *
-     * Creates a single string out of all the pieces held in a
-     * string builder. This method will not destroy any of the pieces.
-     *
-     * @param[in] bb
-     * @return New string, or NULL on error.
-     */
+    fn bstr_builder_size(bb: *const crate::src::bstr_builder::bstr_builder_t) -> size_t;
     #[no_mangle]
-    fn bstr_builder_to_str(bb: *const bstr_builder_t) -> *mut bstr;
-    /* *
-     * Append a memory region to destination, growing destination if necessary. If
-     * the string is expanded, the pointer will change. You must replace the
-     * original destination pointer with the returned one. Destination is not
-     * changed on memory allocation failure.
-     *
-     * @param[in] b
-     * @param[in] data
-     * @param[in] len
-     * @return Updated bstring, or NULL on memory allocation failure.
-     */
+    fn bstr_builder_to_str(bb: *const crate::src::bstr_builder::bstr_builder_t) -> *mut bstr;
     #[no_mangle]
     fn bstr_add_mem(b: *mut bstr, data: *const libc::c_void, len: size_t) -> *mut bstr;
-    /* *
-     * Append as many bytes from the source to destination bstring. The
-     * destination storage will not be expanded if there is not enough space in it
-     * already to accommodate all of the data.
-     *
-     * @param[in] b
-     * @param[in] data
-     * @param[in] len
-     * @return The destination bstring.
-     */
     #[no_mangle]
     fn bstr_add_mem_noex(b: *mut bstr, data: *const libc::c_void, len: size_t) -> *mut bstr;
-    /* *
-     * Append as many bytes from the source bstring to destination bstring. The
-     * destination storage will not be expanded if there is not enough space in it
-     * already to accommodate all of the data.
-     *
-     * @param[in] bdestination
-     * @param[in] bsource
-     * @return The destination bstring.
-     */
     #[no_mangle]
     fn bstr_add_noex(bdestination: *mut bstr, bsource: *const bstr) -> *mut bstr;
-    /* *
-     * Adjust bstring length. You will need to use this method whenever
-     * you work directly with the string contents, and end up changing
-     * its length by direct structure manipulation.
-     *
-     * @param[in] b
-     * @param[in] newlen
-     */
     #[no_mangle]
     fn bstr_adjust_len(b: *mut bstr, newlen: size_t);
-    /* *
-     * Checks whether bstring begins with NUL-terminated string. Case sensitive.
-     *
-     * @param[in] bhaystack
-     * @param[in] cneedle
-     * @return 1 if true, otherwise 0.
-     */
     #[no_mangle]
     fn bstr_begins_with_c(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    /* *
-     * Case-insensitive comparison of a bstring with a NUL-terminated string.
-     *
-     * @param[in] b
-     * @param[in] cstr
-     * @return Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
-     */
     #[no_mangle]
     fn bstr_cmp_c_nocase(b: *const bstr, cstr: *const libc::c_char) -> libc::c_int;
-    /* *
-     * Create a new bstring by copying the provided memory region.
-     *
-     * @param[in] data
-     * @param[in] len
-     * @return New bstring, or NULL if memory allocation failed
-     */
     #[no_mangle]
     fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    /* *
-     * Expand internal bstring storage to support at least newsize bytes. The storage
-     * is not expanded if the current size is equal or greater to newsize. Because
-     * realloc is used underneath, the old pointer to bstring may no longer be valid
-     * after this function completes successfully.
-     *
-     * @param[in] b
-     * @param[in] newsize
-     * @return Updated string instance, or NULL if memory allocation failed or if
-     *         attempt was made to "expand" the bstring to a smaller size.
-     */
     #[no_mangle]
     fn bstr_expand(b: *mut bstr, newsize: size_t) -> *mut bstr;
-    /* *
-     * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
-     * input.
-     *
-     * @param[in] b
-     */
     #[no_mangle]
     fn bstr_free(b: *mut bstr);
-    /* *
-     * Find the needle in the haystack, with the needle being a NUL-terminated
-     * string.
-     *
-     * @param[in] bhaystack
-     * @param[in] cneedle
-     * @return Position of the match, or -1 if the needle could not be found.
-     */
     #[no_mangle]
     fn bstr_index_of_c(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    /* *
-     * Find the needle in the haystack, with the needle being a NUL-terminated
-     * string. Ignore case differences.
-     *
-     * @param[in] bhaystack
-     * @param[in] cneedle
-     * @return Position of the match, or -1 if the needle could not be found.
-     */
     #[no_mangle]
     fn bstr_index_of_c_nocase(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    /* *
-     * Searches a memory block for the given NUL-terminated string. Case insensitive.
-     *
-     * @param[in] data
-     * @param[in] len
-     * @param[in] cstr
-     * @return Index of the first location of the needle on success, or -1 if the needle was not found.
-     */
     #[no_mangle]
     fn bstr_util_mem_index_of_c_nocase(
         data: *const libc::c_void,
         len: size_t,
         cstr: *const libc::c_char,
     ) -> libc::c_int;
-    /* *
-     * Runs all the callbacks associated with a given hook. Only stops if
-     * one of the callbacks returns an error (HTP_ERROR) or stop (HTP_STOP).
-     *
-     * @param[in] hook
-     * @param[in] user_data
-     * @return HTP_OK if at least one hook ran successfully, HTP_STOP if there was
-     *         no error but processing should stop, and HTP_ERROR or any other value
-     *         less than zero on error.
-     */
     #[no_mangle]
-    fn htp_hook_run_all(hook: *mut htp_hook_t, user_data: *mut libc::c_void) -> htp_status_t;
-    /* *
-     * Add a new element to the table. The key will be copied, and the copy
-     * managed by the table. The table keeps a pointer to the element. It is the
-     * callers responsibility to ensure the pointer remains valid.
-     *
-     * @param[in] table
-     * @param[in] key
-     * @param[in] element
-     * @return HTP_OK on success, HTP_ERROR on failure.
-     */
+    fn htp_hook_run_all(
+        hook: *mut crate::src::htp_hooks::htp_hook_t,
+        user_data: *mut libc::c_void,
+    ) -> htp_status_t;
     #[no_mangle]
     fn htp_table_add(
-        table: *mut htp_table_t,
+        table: *mut crate::src::htp_table::htp_table_t,
         key: *const bstr,
         element: *const libc::c_void,
     ) -> htp_status_t;
-    /* *
-     * Create a new table structure. The table will grow automatically as needed,
-     * but you are required to provide a starting size.
-     *
-     * @param[in] size The starting size.
-     * @return Newly created table instance, or NULL on failure.
-     */
     #[no_mangle]
-    fn htp_table_create(size: size_t) -> *mut htp_table_t;
-    /* *
-     * Destroy a table. This function handles the keys according to the active
-     * allocation strategy. If the elements need freeing, you need to free them
-     * before invoking this function. After the table has been destroyed,
-     * the pointer is set to NULL.
-     *
-     * @param[in]   table
-     */
+    fn htp_table_create(size: size_t) -> *mut crate::src::htp_table::htp_table_t;
     #[no_mangle]
-    fn htp_table_destroy(table: *mut htp_table_t);
-    /* *
-     * Retrieve the first element that matches the given bstr key.
-     *
-     * @param[in] table
-     * @param[in] key
-     * @return Matched element, or NULL if no elements match the key.
-     */
+    fn htp_table_destroy(table: *mut crate::src::htp_table::htp_table_t);
     #[no_mangle]
-    fn htp_table_get(table: *const htp_table_t, key: *const bstr) -> *mut libc::c_void;
-    /* *
-     * Retrieve the first element that matches the given NUL-terminated key.
-     *
-     * @param[in] table
-     * @param[in] ckey
-     * @return Matched element, or NULL if no elements match the key.
-     */
+    fn htp_table_get(
+        table: *const crate::src::htp_table::htp_table_t,
+        key: *const bstr,
+    ) -> *mut libc::c_void;
     #[no_mangle]
-    fn htp_table_get_c(table: *const htp_table_t, ckey: *const libc::c_char) -> *mut libc::c_void;
-    /* *
-     * Retrieve key and element at the given index.
-     *
-     * @param[in] table
-     * @param[in] idx
-     * @param[in,out] key Pointer in which the key will be returned. Can be NULL.
-     * @return HTP_OK on success, HTP_ERROR on failure.
-     */
+    fn htp_table_get_c(
+        table: *const crate::src::htp_table::htp_table_t,
+        ckey: *const libc::c_char,
+    ) -> *mut libc::c_void;
     #[no_mangle]
     fn htp_table_get_index(
-        table: *const htp_table_t,
+        table: *const crate::src::htp_table::htp_table_t,
         idx: size_t,
         key: *mut *mut bstr,
     ) -> *mut libc::c_void;
-    /* *
-     * Return the size of the table.
-     *
-     * @param[in] table
-     * @return table size
-     */
     #[no_mangle]
-    fn htp_table_size(table: *const htp_table_t) -> size_t;
+    fn htp_table_size(table: *const crate::src::htp_table::htp_table_t) -> size_t;
     #[no_mangle]
     fn htp_is_token(c: libc::c_int) -> libc::c_int;
     #[no_mangle]
@@ -389,220 +164,9 @@ pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 pub type ssize_t = __ssize_t;
 pub type mode_t = __mode_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct timeval {
-    pub tv_sec: __time_t,
-    pub tv_usec: __suseconds_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
 pub type htp_status_t = libc::c_int;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-// Path-specific decoding options.
-/* * Convert backslash characters to slashes. */
-/* * Convert to lowercase. */
-/* * Compress slash characters. */
-/* * Should we URL-decode encoded path segment separators? */
-/* * Should we decode '+' characters to spaces? */
-/* * Reaction to encoded path separators. */
-// Special characters options.
-/* * Controls how raw NUL bytes are handled. */
-/* * Determines server response to a raw NUL byte in the path. */
-/* * Reaction to control characters. */
-// URL encoding options.
-/* * Should we decode %u-encoded characters? */
-/* * Reaction to %u encoding. */
-/* * Handling of invalid URL encodings. */
-/* * Reaction to invalid URL encoding. */
-/* * Controls how encoded NUL bytes are handled. */
-/* * How are we expected to react to an encoded NUL byte? */
-// UTF-8 options.
-/* * Controls how invalid UTF-8 characters are handled. */
-/* * Convert UTF-8 characters into bytes using best-fit mapping. */
-// Best-fit mapping options.
-/* * The best-fit map to use to decode %u-encoded characters. */
-/* * The replacement byte used when there is no best-fit mapping. */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_cfg_t {
-    pub field_limit_hard: size_t,
-    pub field_limit_soft: size_t,
-    pub log_level: htp_log_level_t,
-    pub tx_auto_destroy: libc::c_int,
-    pub server_personality: htp_server_personality_t,
-    pub parse_request_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub parse_response_line: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub process_request_header: Option<
-        unsafe extern "C" fn(_: *mut htp_connp_t, _: *mut libc::c_uchar, _: size_t) -> libc::c_int,
-    >,
-    pub process_response_header: Option<
-        unsafe extern "C" fn(_: *mut htp_connp_t, _: *mut libc::c_uchar, _: size_t) -> libc::c_int,
-    >,
-    pub parameter_processor: Option<unsafe extern "C" fn(_: *mut htp_param_t) -> libc::c_int>,
-    pub decoder_cfgs: [htp_decoder_cfg_t; 3],
-    pub generate_request_uri_normalized: libc::c_int,
-    pub response_decompression_enabled: libc::c_int,
-    pub request_encoding: *mut libc::c_char,
-    pub internal_encoding: *mut libc::c_char,
-    pub parse_request_cookies: libc::c_int,
-    pub parse_request_auth: libc::c_int,
-    pub extract_request_files: libc::c_int,
-    pub extract_request_files_limit: libc::c_int,
-    pub tmpdir: *mut libc::c_char,
-    pub hook_request_start: *mut htp_hook_t,
-    pub hook_request_line: *mut htp_hook_t,
-    pub hook_request_uri_normalize: *mut htp_hook_t,
-    pub hook_request_header_data: *mut htp_hook_t,
-    pub hook_request_headers: *mut htp_hook_t,
-    pub hook_request_body_data: *mut htp_hook_t,
-    pub hook_request_file_data: *mut htp_hook_t,
-    pub hook_request_trailer_data: *mut htp_hook_t,
-    pub hook_request_trailer: *mut htp_hook_t,
-    pub hook_request_complete: *mut htp_hook_t,
-    pub hook_response_start: *mut htp_hook_t,
-    pub hook_response_line: *mut htp_hook_t,
-    pub hook_response_header_data: *mut htp_hook_t,
-    pub hook_response_headers: *mut htp_hook_t,
-    pub hook_response_body_data: *mut htp_hook_t,
-    pub hook_response_trailer_data: *mut htp_hook_t,
-    pub hook_response_trailer: *mut htp_hook_t,
-    pub hook_response_complete: *mut htp_hook_t,
-    pub hook_transaction_complete: *mut htp_hook_t,
-    pub hook_log: *mut htp_hook_t,
-    pub user_data: *mut libc::c_void,
-    pub requestline_leading_whitespace_unwanted: htp_unwanted_t,
-    pub response_decompression_layer_limit: libc::c_int,
-    pub lzma_memlimit: size_t,
-    pub compression_bomb_limit: int32_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
-
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Decoder contexts.
- */
-/* * Default settings. Settings applied to this context are propagated to all other contexts. */
-/* * Urlencoded decoder settings. */
-/* * URL path decoder settings. */
-/* *
- * Enumerates the possible server personalities.
- */
-/* *
- * Minimal personality that performs at little work as possible. All optional
- * features are disabled. This personality is a good starting point for customization.
- */
-/* * A generic personality that aims to work reasonably well for all server types. */
-/* * The IDS personality tries to perform as much decoding as possible. */
-/* * Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0. */
-/* * Mimics the behavior of IIS 5.0, as shipped with Windows 2000. */
-/* * Mimics the behavior of IIS 5.1, as shipped with Windows XP Professional. */
-/* * Mimics the behavior of IIS 6.0, as shipped with Windows 2003. */
-/* * Mimics the behavior of IIS 7.0, as shipped with Windows 2008. */
-/* Mimics the behavior of IIS 7.5, as shipped with Windows 7. */
-/* Mimics the behavior of Apache 2.x. */
 /* *
  * Enumerates the ways in which servers respond to malformed data.
  */
@@ -613,79 +177,7 @@ pub const HTP_UNWANTED_404: htp_unwanted_t = 404;
 pub const HTP_UNWANTED_400: htp_unwanted_t = 400;
 /* * Ignores problem. */
 pub const HTP_UNWANTED_IGNORE: htp_unwanted_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_hook_t {
-    pub callbacks: *mut htp_list_array_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_list_array_t {
-    pub first: size_t,
-    pub last: size_t,
-    pub max_size: size_t,
-    pub current_size: size_t,
-    pub elements: *mut *mut libc::c_void,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_decoder_cfg_t {
-    pub backslash_convert_slashes: libc::c_int,
-    pub convert_lowercase: libc::c_int,
-    pub path_separators_compress: libc::c_int,
-    pub path_separators_decode: libc::c_int,
-    pub plusspace_decode: libc::c_int,
-    pub path_separators_encoded_unwanted: htp_unwanted_t,
-    pub nul_raw_terminates: libc::c_int,
-    pub nul_raw_unwanted: htp_unwanted_t,
-    pub control_chars_unwanted: htp_unwanted_t,
-    pub u_encoding_decode: libc::c_int,
-    pub u_encoding_unwanted: htp_unwanted_t,
-    pub url_encoding_invalid_handling: htp_url_encoding_handling_t,
-    pub url_encoding_invalid_unwanted: htp_unwanted_t,
-    pub nul_encoded_terminates: libc::c_int,
-    pub nul_encoded_unwanted: htp_unwanted_t,
-    pub utf8_invalid_unwanted: htp_unwanted_t,
-    pub utf8_convert_bestfit: libc::c_int,
-    pub bestfit_map: *mut libc::c_uchar,
-    pub bestfit_replacement_byte: libc::c_uchar,
-}
 /* *
  * Enumerates the possible approaches to handling invalid URL-encodings.
  */
@@ -696,105 +188,7 @@ pub const HTP_URL_DECODE_PROCESS_INVALID: htp_url_encoding_handling_t = 2;
 pub const HTP_URL_DECODE_REMOVE_PERCENT: htp_url_encoding_handling_t = 1;
 /* * Ignore invalid URL encodings and leave the % in the data. */
 pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_param_t {
-    pub name: *mut bstr,
-    pub value: *mut bstr,
-    pub source: htp_data_source_t,
-    pub parser_id: htp_parser_id_t,
-    pub parser_data: *mut libc::c_void,
-}
-// Below are all htp_status_t return codes used by LibHTP. Enum is not
-// used here to allow applications to define their own codes.
-/* *
- * The lowest htp_status_t value LibHTP will use internally.
- */
-/* * General-purpose error code. */
-/* *
- * No processing or work was done. This is typically used by callbacks
- * to indicate that they were not interested in doing any work in the
- * given context.
- */
-/* * Returned by a function when its work was successfully completed. */
-/* *
- * Returned when processing a connection stream, after consuming all
- * provided data. The caller should call again with more data.
- */
-/* *
- * Returned when processing a connection stream, after encountering
- * a situation where processing needs to continue on the alternate
- * stream (e.g., the inbound parser needs to observe some outbound
- * data). The data provided was not completely consumed. On the next
- * invocation the caller should supply only the data that has not
- * been processed already. Use htp_connp_req_data_consumed() and
- * htp_connp_res_data_consumed() to determine how much of the most
- * recent data chunk was consumed.
- */
-/* *
- * Used by callbacks to indicate that the processing should stop. For example,
- * returning HTP_STOP from a connection callback indicates that LibHTP should
- * stop following that particular connection.
- */
-/* *
- * Same as HTP_DATA, but indicates that any non-consumed part of the
- * data chunk should be preserved (buffered) for later.
- */
-/* *
- * The highest htp_status_t value LibHTP will use internally.
- */
-/* *
- * Enumerates the possible values for authentication type.
- */
-/* *
- * This is the default value that is used before
- * the presence of authentication is determined (e.g.,
- * before request headers are seen).
- */
-/* * No authentication. */
-/* * HTTP Basic authentication used. */
-/* * HTTP Digest authentication used. */
-/* * Unrecognized authentication method. */
-/* *
- * This is the default value, which is used until the presence
- * of content encoding is determined (e.g., before request headers
- * are seen.
- */
-/* * No compression. */
-/* * Gzip compression. */
-/* * Deflate compression. */
-/* * LZMA compression. */
-/* *
- * Enumerates the possible request and response body codings.
- */
-/* * Body coding not determined yet. */
-/* * No body. */
-/* * Identity coding is used, which means that the body was sent as is. */
-/* * Chunked encoding. */
-/* * We could not recognize the encoding. */
-// Various flag bits. Even though we have a flag field in several places
-// (header, transaction, connection), these fields are all in the same namespace
-// because we may want to set the same flag in several locations. For example, we
-// may set HTP_FIELD_FOLDED on the actual folded header, but also on the transaction
-// that contains the header. Both uses are useful.
-// Connection flags are 8 bits wide.
-// All other flags are 64 bits wide.
-/* At least one valid UTF-8 character and no invalid ones. */
-/* Range U+FF00 - U+FFEF detected. */
-/* Host in the URI. */
-/* Host in the Host header. */
-/* Range U+FF00 - U+FFEF detected. */
-// Logging-related constants.
-/* *
- * Enumerates all log levels.
- */
-/* *
- * HTTP methods.
- */
-/* *
- * Used by default, until the method is determined (e.g., before
- * the request line is processed.
- */
+
 // A collection of unique parser IDs.
 pub type htp_parser_id_t = libc::c_uint;
 /* * multipart/form-data parser. */
@@ -814,603 +208,12 @@ pub const HTP_SOURCE_COOKIE: htp_data_source_t = 2;
 pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
 /* * Embedded in the URL. */
 pub const HTP_SOURCE_URL: htp_data_source_t = 0;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
+pub type bstr = crate::src::bstr::bstr_t;
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-pub type bstr = bstr_t;
-// Data structures
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bstr_t {
-    pub len: size_t,
-    pub size: size_t,
-    pub realptr: *mut libc::c_uchar,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
-
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Connection parser structure.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_connp_t {
-    pub cfg: *mut htp_cfg_t,
-    pub conn: *mut htp_conn_t,
-    pub user_data: *const libc::c_void,
-    pub last_error: *mut htp_log_t,
-    pub in_status: htp_stream_state_t,
-    pub out_status: htp_stream_state_t,
-    pub out_data_other_at_tx_end: libc::c_uint,
-    pub in_timestamp: htp_time_t,
-    pub in_current_data: *mut libc::c_uchar,
-    pub in_current_len: int64_t,
-    pub in_current_read_offset: int64_t,
-    pub in_current_consume_offset: int64_t,
-    pub in_current_receiver_offset: int64_t,
-    pub in_chunk_count: size_t,
-    pub in_chunk_request_index: size_t,
-    pub in_stream_offset: int64_t,
-    pub in_next_byte: libc::c_int,
-    pub in_buf: *mut libc::c_uchar,
-    pub in_buf_size: size_t,
-    pub in_header: *mut bstr,
-    pub in_tx: *mut htp_tx_t,
-    pub in_content_length: int64_t,
-    pub in_body_data_left: int64_t,
-    pub in_chunked_length: int64_t,
-    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub in_data_receiver_hook: *mut htp_hook_t,
-    pub out_next_tx_index: size_t,
-    pub out_timestamp: htp_time_t,
-    pub out_current_data: *mut libc::c_uchar,
-    pub out_current_len: int64_t,
-    pub out_current_read_offset: int64_t,
-    pub out_current_consume_offset: int64_t,
-    pub out_current_receiver_offset: int64_t,
-    pub out_stream_offset: int64_t,
-    pub out_next_byte: libc::c_int,
-    pub out_buf: *mut libc::c_uchar,
-    pub out_buf_size: size_t,
-    pub out_header: *mut bstr,
-    pub out_tx: *mut htp_tx_t,
-    pub out_content_length: int64_t,
-    pub out_body_data_left: int64_t,
-    pub out_chunked_length: int64_t,
-    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
-    pub out_data_receiver_hook: *mut htp_hook_t,
-    pub out_decompressor: *mut htp_decompressor_t,
-    pub put_file: *mut htp_file_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_file_t {
-    pub source: htp_file_source_t,
-    pub filename: *mut bstr,
-    pub len: int64_t,
-    pub tmpname: *mut libc::c_char,
-    pub fd: libc::c_int,
-}
 pub type htp_file_source_t = libc::c_uint;
 pub const HTP_FILE_PUT: htp_file_source_t = 2;
 pub const HTP_FILE_MULTIPART: htp_file_source_t = 1;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_decompressor_t {
-    pub decompress: Option<
-        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut htp_tx_data_t) -> htp_status_t,
-    >,
-    pub callback: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> htp_status_t>,
-    pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
-    pub next: *mut htp_decompressor_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Represents a single TCP connection.
- */
-/* * Client IP address. */
-/* * Client port. */
-/* * Server IP address. */
-/* * Server port. */
-/* *
- * Transactions carried out on this connection. The list may contain
- * NULL elements when some of the transactions are deleted (and then
- * removed from a connection by calling htp_conn_remove_tx().
- */
-/* * Log messages associated with this connection. */
-/* * Parsing flags: HTP_CONN_PIPELINED. */
-/* * When was this connection opened? Can be NULL. */
-/* * When was this connection closed? Can be NULL. */
-/* * Inbound data counter. */
-/* * Outbound data counter. */
-/* *
- * Used to represent files that are seen during the processing of HTTP traffic. Most
- * commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
- * request bodies can be treated as files.
- */
-/* * Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT. */
-/* * File name, as provided (e.g., in the Content-Disposition multipart part header. */
-/* * File length. */
-/* * The unique filename in which this file is stored on the filesystem, when applicable.*/
-/* * The file descriptor used for external storage, or -1 if unused. */
-/* *
- * Represents a chunk of file data.
- */
-/* * File information. */
-/* * Pointer to the data buffer. */
-/* * Buffer length. */
-/* *
- * Represents a single log entry.
- */
-/* * The connection parser associated with this log message. */
-/* * The transaction associated with this log message, if any. */
-/* * Log message. */
-/* * Message level. */
-/* * Message code. */
-/* * File in which the code that emitted the message resides. */
-/* * Line number on which the code that emitted the message resides. */
-/* *
- * Represents a single request or response header.
- */
-/* * Header name. */
-/* * Header value. */
-/* * Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED. */
-/* *
- * Represents a single request parameter.
- */
-/* * Parameter name. */
-/* * Parameter value. */
-/* * Source of the parameter, for example HTP_SOURCE_QUERY_STRING. */
-/* * Type of the data structure referenced below. */
-/* *
- * Pointer to the parser data structure that contains
- * complete information about the parameter. Can be NULL.
- */
-/* *
- * Represents a single HTTP transaction, which is a combination of a request and a response.
- */
-/* * The connection parser associated with this transaction. */
-/* * The connection to which this transaction belongs. */
-/* * The configuration structure associated with this transaction. */
-/* *
- * Is the configuration structure shared with other transactions or connections? If
- * this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
- */
-/* * The user data associated with this transaction. */
-// Request fields
-/* * Contains a count of how many empty lines were skipped before the request line. */
-/* * The first line of this request. */
-/* * Request method. */
-/* * Request method, as number. Available only if we were able to recognize the request method. */
-/* *
- * Request URI, raw, as given to us on the request line. This field can take different forms,
- * for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
- * string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
- * URI elements. Can be NULL if the request line contains only a request method (which is
- * an extreme case of HTTP/0.9, but passes in practice.
- */
-/* * Request protocol, as text. Can be NULL if no protocol was specified. */
-/* *
- * Protocol version as a number. Multiply the high version number by 100, then add the low
- * version number. You should prefer to work the pre-defined HTP_PROTOCOL_* constants.
- */
-/* *
- * Is this request using HTTP/0.9? We need a separate field for this purpose because
- * the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
- * example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
- * as HTTP/0.9.
- */
-/* *
- * This structure holds the individual components parsed out of the request URI, with
- * appropriate normalization and transformation applied, per configuration. No information
- * is added. In extreme cases when no URI is provided on the request line, all fields
- * will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
- * htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
- */
-/* *
- * This structure holds the individual components parsed out of the request URI, but
- * without any modification. The purpose of this field is to allow you to look at the data as it
- * was supplied on the request line. Fields can be NULL, depending on what data was supplied.
- * The port_number field is always -1.
- */
-/* HTTP 1.1 RFC
- *
- * 4.3 Message Body
- *
- * The message-body (if any) of an HTTP message is used to carry the
- * entity-body associated with the request or response. The message-body
- * differs from the entity-body only when a transfer-coding has been
- * applied, as indicated by the Transfer-Encoding header field (section
- * 14.41).
- *
- *     message-body = entity-body
- *                  | <entity-body encoded as per Transfer-Encoding>
- */
-/* *
- * The length of the request message-body. In most cases, this value
- * will be the same as request_entity_len. The values will be different
- * if request compression or chunking were applied. In that case,
- * request_message_len contains the length of the request body as it
- * has been seen over TCP; request_entity_len contains length after
- * de-chunking and decompression.
- */
-/* *
- * The length of the request entity-body. In most cases, this value
- * will be the same as request_message_len. The values will be different
- * if request compression or chunking were applied. In that case,
- * request_message_len contains the length of the request body as it
- * has been seen over TCP; request_entity_len contains length after
- * de-chunking and decompression.
- */
-/* * Parsed request headers. */
-/* *
- * Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
- * determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
- * and HTP_CODING_UNRECOGNIZED.
- */
-/* * Request body compression. */
-/* *
- * This field contain the request content type when that information is
- * available in request headers. The contents of the field will be converted
- * to lowercase and any parameters (e.g., character set information) removed.
- */
-/* *
- * Contains the value specified in the Content-Length header. The value of this
- * field will be -1 from the beginning of the transaction and until request
- * headers are processed. It will stay -1 if the C-L header was not provided,
- * or if the value in it cannot be parsed.
- */
-/* *
- * Transaction-specific REQUEST_BODY_DATA hook. Behaves as
- * the configuration hook with the same name.
- */
-/* *
- * Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
- * the configuration hook with the same name.
- */
-/* *
- * Query string URLENCODED parser. Available only
- * when the query string is not NULL and not empty.
- */
-/* *
- * Request body URLENCODED parser. Available only when the request body is in the
- * application/x-www-form-urlencoded format and the parser was configured to run.
- */
-/* *
- * Request body MULTIPART parser. Available only when the body is in the
- * multipart/form-data format and the parser was configured to run.
- */
-/* * Request parameters. */
-/* * Request cookies */
-/* * Authentication type used in the request. */
-/* * Authentication username. */
-/* * Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC. */
-/* *
- * Request hostname. Per the RFC, the hostname will be taken from the Host header
- * when available. If the host information is also available in the URI, it is used
- * instead of whatever might be in the Host header. Can be NULL. This field does
- * not contain port information.
- */
-/* *
- * Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
- * -1 by default.
- */
-// Response fields
-/* * How many empty lines did we ignore before reaching the status line? */
-/* * Response line. */
-/* * Response protocol, as text. Can be NULL. */
-/* *
- * Response protocol as number. Available only if we were able to parse the protocol version,
- * HTP_PROTOCOL_INVALID otherwise. HTP_PROTOCOL_UNKNOWN until parsing is attempted.
- */
-/* *
- * Response status code, as text. Starts as NULL and can remain NULL on
- * an invalid response that does not specify status code.
- */
-/* *
- * Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
- * otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
- */
-/* *
- * This field is set by the protocol decoder with it thinks that the
- * backend server will reject a request with a particular status code.
- */
-/* * The message associated with the response status code. Can be NULL. */
-/* * Have we seen the server respond with a 100 response? */
-/* * Parsed response headers. Contains instances of htp_header_t. */
-/* HTTP 1.1 RFC
- *
- * 4.3 Message Body
- *
- * The message-body (if any) of an HTTP message is used to carry the
- * entity-body associated with the request or response. The message-body
- * differs from the entity-body only when a transfer-coding has been
- * applied, as indicated by the Transfer-Encoding header field (section
- * 14.41).
- *
- *     message-body = entity-body
- *                  | <entity-body encoded as per Transfer-Encoding>
- */
-/* *
- * The length of the response message-body. In most cases, this value
- * will be the same as response_entity_len. The values will be different
- * if response compression or chunking were applied. In that case,
- * response_message_len contains the length of the response body as it
- * has been seen over TCP; response_entity_len contains the length after
- * de-chunking and decompression.
- */
-/* *
- * The length of the response entity-body. In most cases, this value
- * will be the same as response_message_len. The values will be different
- * if request compression or chunking were applied. In that case,
- * response_message_len contains the length of the response body as it
- * has been seen over TCP; response_entity_len contains length after
- * de-chunking and decompression.
- */
-/* *
- * Contains the value specified in the Content-Length header. The value of this
- * field will be -1 from the beginning of the transaction and until response
- * headers are processed. It will stay -1 if the C-L header was not provided,
- * or if the value in it cannot be parsed.
- */
-/* *
- * Response transfer coding, which indicates if there is a response body,
- * and how it is transported (e.g., as-is, or chunked).
- */
-/* *
- * Response body compression, which indicates if compression is used
- * for the response body. This field is an interpretation of the information
- * available in response headers.
- */
-/* *
- * Response body compression processing information, which is related to how
- * the library is going to process (or has processed) a response body. Changing
- * this field mid-processing can influence library actions. For example, setting
- * this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
- * decompression.
- */
-/* *
- * This field will contain the response content type when that information
- * is available in response headers. The contents of the field will be converted
- * to lowercase and any parameters (e.g., character set information) removed.
- */
-// Common fields
-/* *
- * Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
- * HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
- */
-/* * Request progress. */
-/* * Response progress. */
-/* * Transaction index on the connection. */
-/* * Total repetitions for headers in request. */
-/* * Total repetitions for headers in response. */
-/* *
- * This structure is used to pass transaction data (for example
- * request and response body buffers) to callbacks.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_tx_data_t {
-    pub tx: *mut htp_tx_t,
-    pub data: *const libc::c_uchar,
-    pub len: size_t,
-    pub is_last: libc::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_tx_t {
-    pub connp: *mut htp_connp_t,
-    pub conn: *mut htp_conn_t,
-    pub cfg: *mut htp_cfg_t,
-    pub is_config_shared: libc::c_int,
-    pub user_data: *mut libc::c_void,
-    pub request_ignored_lines: libc::c_uint,
-    pub request_line: *mut bstr,
-    pub request_method: *mut bstr,
-    pub request_method_number: htp_method_t,
-    pub request_uri: *mut bstr,
-    pub request_protocol: *mut bstr,
-    pub request_protocol_number: libc::c_int,
-    pub is_protocol_0_9: libc::c_int,
-    pub parsed_uri: *mut htp_uri_t,
-    pub parsed_uri_raw: *mut htp_uri_t,
-    pub request_message_len: int64_t,
-    pub request_entity_len: int64_t,
-    pub request_headers: *mut htp_table_t,
-    pub request_transfer_coding: htp_transfer_coding_t,
-    pub request_content_encoding: htp_content_encoding_t,
-    pub request_content_type: *mut bstr,
-    pub request_content_length: int64_t,
-    pub hook_request_body_data: *mut htp_hook_t,
-    pub hook_response_body_data: *mut htp_hook_t,
-    pub request_urlenp_query: *mut htp_urlenp_t,
-    pub request_urlenp_body: *mut htp_urlenp_t,
-    pub request_mpartp: *mut htp_mpartp_t,
-    pub request_params: *mut htp_table_t,
-    pub request_cookies: *mut htp_table_t,
-    pub request_auth_type: htp_auth_type_t,
-    pub request_auth_username: *mut bstr,
-    pub request_auth_password: *mut bstr,
-    pub request_hostname: *mut bstr,
-    pub request_port_number: libc::c_int,
-    pub response_ignored_lines: libc::c_uint,
-    pub response_line: *mut bstr,
-    pub response_protocol: *mut bstr,
-    pub response_protocol_number: libc::c_int,
-    pub response_status: *mut bstr,
-    pub response_status_number: libc::c_int,
-    pub response_status_expected_number: libc::c_int,
-    pub response_message: *mut bstr,
-    pub seen_100continue: libc::c_int,
-    pub response_headers: *mut htp_table_t,
-    pub response_message_len: int64_t,
-    pub response_entity_len: int64_t,
-    pub response_content_length: int64_t,
-    pub response_transfer_coding: htp_transfer_coding_t,
-    pub response_content_encoding: htp_content_encoding_t,
-    pub response_content_encoding_processing: htp_content_encoding_t,
-    pub response_content_type: *mut bstr,
-    pub flags: uint64_t,
-    pub request_progress: htp_tx_req_progress_t,
-    pub response_progress: htp_tx_res_progress_t,
-    pub index: size_t,
-    pub req_header_repetitions: uint16_t,
-    pub res_header_repetitions: uint16_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
-
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/*
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* *
- * Enumerate possible data handling strategies in hybrid parsing
- * mode. The two possibilities are to make copies of all data and
- * use bstr instances to wrap already available data.
- */
-/* *
- * Make copies of all data. This strategy should be used when
- * the supplied buffers are transient and will go away after
- * the invoked function returns.
- */
-/* *
- * Reuse buffers, without a change of ownership. We assume the
- * buffers will continue to be available until the transaction
- * is deleted by the container.
- */
 /* *
  * Possible states of a progressing transaction. Internally, progress will change
  * to the next state when the processing activities associated with that state
@@ -1443,52 +246,7 @@ pub const HTP_CODING_CHUNKED: htp_transfer_coding_t = 3;
 pub const HTP_CODING_IDENTITY: htp_transfer_coding_t = 2;
 pub const HTP_CODING_NO_BODY: htp_transfer_coding_t = 1;
 pub const HTP_CODING_UNKNOWN: htp_transfer_coding_t = 0;
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* * This is the default value, used only until the first element is added. */
-/* * Keys are copied.*/
-/* * Keys are adopted and freed when the table is destroyed. */
-/* * Keys are only referenced; the caller is still responsible for freeing them after the table is destroyed. */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_table_t {
-    pub list: htp_list_array_t,
-    pub alloc_type: htp_table_alloc_t,
-}
 pub type htp_table_alloc_t = libc::c_uint;
 pub const HTP_TABLE_KEYS_REFERENCED: htp_table_alloc_t = 3;
 pub const HTP_TABLE_KEYS_ADOPTED: htp_table_alloc_t = 2;
@@ -1500,15 +258,18 @@ pub const HTP_AUTH_DIGEST: htp_auth_type_t = 3;
 pub const HTP_AUTH_BASIC: htp_auth_type_t = 2;
 pub const HTP_AUTH_NONE: htp_auth_type_t = 1;
 pub const HTP_AUTH_UNKNOWN: htp_auth_type_t = 0;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_mpartp_t {
     pub multipart: htp_multipart_t,
-    pub cfg: *mut htp_cfg_t,
+    pub cfg: *mut crate::src::htp_config::htp_cfg_t,
     pub extract_files: libc::c_int,
     pub extract_limit: libc::c_int,
     pub extract_dir: *mut libc::c_char,
     pub file_count: libc::c_int,
+
+    // Parsing callbacks
     pub handle_data: Option<
         unsafe extern "C" fn(
             _: *mut htp_mpartp_t,
@@ -1518,37 +279,103 @@ pub struct htp_mpartp_t {
         ) -> libc::c_int,
     >,
     pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t) -> libc::c_int>,
+    // Internal parsing fields; move into a private structure
+    /**
+     * Parser state; one of MULTIPART_STATE_* constants.
+     */
     pub parser_state: htp_multipart_state_t,
+    /**
+     * Keeps track of the current position in the boundary matching progress.
+     * When this field reaches boundary_len, we have a boundary match.
+     */
     pub boundary_match_pos: size_t,
+    /**
+     * Pointer to the part that is currently being processed.
+     */
     pub current_part: *mut htp_multipart_part_t,
+    /**
+     * This parser consists of two layers: the outer layer is charged with
+     * finding parts, and the internal layer handles part data. There is an
+     * interesting interaction between the two parsers. Because the
+     * outer layer is seeing every line (it has to, in order to test for
+     * boundaries), it also effectively also splits input into lines. The
+     * inner parser deals with two areas: first is the headers, which are
+     * line based, followed by binary data. When parsing headers, the inner
+     * parser can reuse the lines identified by the outer parser. In this
+     * variable we keep the current parsing mode of the part, which helps
+     * us process input data more efficiently. The possible values are
+     * MULTIPART_MODE_LINE and MULTIPART_MODE_DATA.
+     */
     pub current_part_mode: htp_part_mode_t,
-    pub boundary_pieces: *mut bstr_builder_t,
-    pub part_header_pieces: *mut bstr_builder_t,
+    /**
+     * Used for buffering when a potential boundary is fragmented
+     * across many input data buffers. On a match, the data stored here is
+     * discarded. When there is no match, the buffer is processed as data
+     * (belonging to the currently active part).
+     */
+    pub boundary_pieces: *mut crate::src::bstr_builder::bstr_builder_t,
+    pub part_header_pieces: *mut crate::src::bstr_builder::bstr_builder_t,
     pub pending_header_line: *mut bstr,
-    pub part_data_pieces: *mut bstr_builder_t,
+    /**
+     * Stores text part pieces until the entire part is seen, at which
+     * point the pieces are assembled into a single buffer, and the
+     * builder cleared.
+     */
+    pub part_data_pieces: *mut crate::src::bstr_builder::bstr_builder_t,
+    /**
+     * The offset of the current boundary candidate, relative to the most
+     * recent data chunk (first unprocessed chunk of data).
+     */
     pub boundary_candidate_pos: size_t,
+    /**
+     * When we encounter a CR as the last byte in a buffer, we don't know
+     * if the byte is part of a CRLF combination. If it is, then the CR
+     * might be a part of a boundary. But if it is not, it's current
+     * part's data. Because we know how to handle everything before the
+     * CR, we do, and we use this flag to indicate that a CR byte is
+     * effectively being buffered. This is probably a case of premature
+     * optimization, but I am going to leave it in for now.
+     */
     pub cr_aside: libc::c_int,
+    /**
+     * When set, indicates that this parser no longer owns names and
+     * values of MULTIPART_PART_TEXT parts. It is used to avoid data
+     * duplication when the parser is used by LibHTP internally.
+     */
     pub gave_up_data: libc::c_int,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bstr_builder_t {
-    pub pieces: *mut htp_list_array_t,
-}
+
 pub type htp_part_mode_t = libc::c_uint;
 pub const MODE_DATA: htp_part_mode_t = 1;
 pub const MODE_LINE: htp_part_mode_t = 0;
-#[derive(Copy, Clone)]
+
+/**
+ * Holds information related to a part.
+ */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_multipart_part_t {
+    /** Pointer to the parser. */
     pub parser: *mut htp_mpartp_t,
+    /** Part type; see the MULTIPART_PART_* constants. */
     pub type_0: htp_multipart_type_t,
+    /** Raw part length (i.e., headers and data). */
     pub len: size_t,
+    /** Part name, from the Content-Disposition header. Can be NULL. */
     pub name: *mut bstr,
+    /**
+     * Part value; the contents depends on the type of the part:
+     * 1) NULL for files; 2) contains complete part contents for
+     * preamble and epilogue parts (they have no headers), and
+     * 3) data only (headers excluded) for text and unknown parts.
+     */
     pub value: *mut bstr,
+    /** Part content type, from the Content-Type header. Can be NULL. */
     pub content_type: *mut bstr,
-    pub headers: *mut htp_table_t,
-    pub file: *mut htp_file_t,
+    /** Part headers (htp_header_t instances), using header name as the key. */
+    pub headers: *mut crate::src::htp_table::htp_table_t,
+    /** File data, available only for MULTIPART_PART_FILE parts. */
+    pub file: *mut crate::src::htp_util::htp_file_t,
 }
 pub type htp_multipart_type_t = libc::c_uint;
 pub const MULTIPART_PART_EPILOGUE: htp_multipart_type_t = 4;
@@ -1564,51 +391,25 @@ pub const STATE_BOUNDARY_IS_LAST1: htp_multipart_state_t = 3;
 pub const STATE_BOUNDARY: htp_multipart_state_t = 2;
 pub const STATE_DATA: htp_multipart_state_t = 1;
 pub const STATE_INIT: htp_multipart_state_t = 0;
-#[derive(Copy, Clone)]
+
+/**
+ * Holds information related to a multipart body.
+ */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_multipart_t {
+    /** Multipart boundary. */
     pub boundary: *mut libc::c_char,
+    /** Boundary length. */
     pub boundary_len: size_t,
+    /** How many boundaries were there? */
     pub boundary_count: libc::c_int,
-    pub parts: *mut htp_list_array_t,
+    /** List of parts, in the order in which they appeared in the body. */
+    pub parts: *mut crate::src::htp_list::htp_list_array_t,
+    /** Parsing flags. */
     pub flags: uint64_t,
 }
-// The MIME type that triggers the parser. Must be lowercase.
-/* *
- * This is the main URLENCODED parser structure. It is used to store
- * parser configuration, temporary parsing data, as well as the parameters.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_urlenp_t {
-    pub tx: *mut htp_tx_t,
-    pub argument_separator: libc::c_uchar,
-    pub decode_url_encoding: libc::c_int,
-    pub params: *mut htp_table_t,
-    pub _state: libc::c_int,
-    pub _complete: libc::c_int,
-    pub _name: *mut bstr,
-    pub _bb: *mut bstr_builder_t,
-}
-/* *
- * URI structure. Each of the fields provides access to a single
- * URI element. Where an element is not present in a URI, the
- * corresponding field will be set to NULL or -1, depending on the
- * field type.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_uri_t {
-    pub scheme: *mut bstr,
-    pub username: *mut bstr,
-    pub password: *mut bstr,
-    pub hostname: *mut bstr,
-    pub port: *mut bstr,
-    pub port_number: libc::c_int,
-    pub path: *mut bstr,
-    pub query: *mut bstr,
-    pub fragment: *mut bstr,
-}
+
 pub type htp_method_t = libc::c_uint;
 pub const HTP_M_INVALID: htp_method_t = 28;
 pub const HTP_M_MERGE: htp_method_t = 27;
@@ -1639,22 +440,8 @@ pub const HTP_M_PUT: htp_method_t = 3;
 pub const HTP_M_GET: htp_method_t = 2;
 pub const HTP_M_HEAD: htp_method_t = 1;
 pub const HTP_M_UNKNOWN: htp_method_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_conn_t {
-    pub client_addr: *mut libc::c_char,
-    pub client_port: libc::c_int,
-    pub server_addr: *mut libc::c_char,
-    pub server_port: libc::c_int,
-    pub transactions: *mut htp_list_array_t,
-    pub messages: *mut htp_list_array_t,
-    pub flags: uint8_t,
-    pub open_timestamp: htp_time_t,
-    pub close_timestamp: htp_time_t,
-    pub in_data_counter: int64_t,
-    pub out_data_counter: int64_t,
-}
-pub type htp_time_t = timeval;
+
+pub type htp_time_t = crate::src::htp_connection_parser::timeval;
 /* *
  * Enumerates all stream states. Each connection has two streams, one
  * inbound and one outbound. Their states are tracked separately.
@@ -1668,17 +455,7 @@ pub const HTP_STREAM_ERROR: htp_stream_state_t = 3;
 pub const HTP_STREAM_CLOSED: htp_stream_state_t = 2;
 pub const HTP_STREAM_OPEN: htp_stream_state_t = 1;
 pub const HTP_STREAM_NEW: htp_stream_state_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_log_t {
-    pub connp: *mut htp_connp_t,
-    pub tx: *mut htp_tx_t,
-    pub msg: *const libc::c_char,
-    pub level: htp_log_level_t,
-    pub code: libc::c_int,
-    pub file: *const libc::c_char,
-    pub line: libc::c_uint,
-}
+
 pub type htp_log_level_t = libc::c_uint;
 pub const HTP_LOG_DEBUG2: htp_log_level_t = 6;
 pub const HTP_LOG_DEBUG: htp_log_level_t = 5;
@@ -1698,56 +475,7 @@ pub const HTP_SERVER_IIS_4_0: htp_server_personality_t = 3;
 pub const HTP_SERVER_IDS: htp_server_personality_t = 2;
 pub const HTP_SERVER_GENERIC: htp_server_personality_t = 1;
 pub const HTP_SERVER_MINIMAL: htp_server_personality_t = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_file_data_t {
-    pub file: *mut htp_file_t,
-    pub data: *const libc::c_uchar,
-    pub len: size_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct htp_header_t {
-    pub name: *mut bstr,
-    pub value: *mut bstr,
-    pub flags: uint64_t,
-}
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
 /* *
  * Determines the type of a Content-Disposition parameter.
  *
@@ -1782,12 +510,20 @@ unsafe extern "C" fn htp_mpartp_cd_param_type(
     }
     return 0 as libc::c_int;
 }
+
+/**
+ * Returns the multipart structure created by the parser.
+ *
+ * @param[in] parser
+ * @return The main multipart structure.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_get_multipart(
     mut parser: *mut htp_mpartp_t,
 ) -> *mut htp_multipart_t {
     return &mut (*parser).multipart;
 }
+
 /* *
  * Decodes a C-D header value. This is impossible to do correctly without a
  * parsing personality because most browsers are broken:
@@ -1832,6 +568,7 @@ unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr) 
         len.wrapping_sub(s.wrapping_offset_from(d) as libc::c_long as libc::c_ulong),
     );
 }
+
 /* *
  * Parses the Content-Disposition part header.
  *
@@ -1844,10 +581,11 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     mut part: *mut htp_multipart_part_t,
 ) -> htp_status_t {
     // Find the C-D header.
-    let mut h: *mut htp_header_t = htp_table_get_c(
+    let mut h: *mut crate::src::htp_transaction::htp_header_t = htp_table_get_c(
         (*part).headers,
         b"content-disposition\x00" as *const u8 as *const libc::c_char,
-    ) as *mut htp_header_t;
+    )
+        as *mut crate::src::htp_transaction::htp_header_t;
     if h.is_null() {
         (*(*part).parser).multipart.flags |= 0x2000 as libc::c_int as libc::c_ulong;
         return 0 as libc::c_int;
@@ -2028,8 +766,8 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                 }
                 (*part).file = calloc(
                     1 as libc::c_int as libc::c_ulong,
-                    ::std::mem::size_of::<htp_file_t>() as libc::c_ulong,
-                ) as *mut htp_file_t;
+                    ::std::mem::size_of::<crate::src::htp_util::htp_file_t>() as libc::c_ulong,
+                ) as *mut crate::src::htp_util::htp_file_t;
                 if (*part).file.is_null() {
                     return -(1 as libc::c_int);
                 }
@@ -2055,6 +793,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses the Content-Type part header, if present.
  *
@@ -2062,15 +801,17 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
  * @return HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
  */
 unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_t) -> htp_status_t {
-    let mut h: *mut htp_header_t = htp_table_get_c(
+    let mut h: *mut crate::src::htp_transaction::htp_header_t = htp_table_get_c(
         (*part).headers,
         b"content-type\x00" as *const u8 as *const libc::c_char,
-    ) as *mut htp_header_t;
+    )
+        as *mut crate::src::htp_transaction::htp_header_t;
     if h.is_null() {
         return 0 as libc::c_int;
     }
     return htp_parse_ct_header((*h).value, &mut (*part).content_type);
 }
+
 /* *
  * Processes part headers.
  *
@@ -2089,6 +830,7 @@ pub unsafe extern "C" fn htp_mpart_part_process_headers(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Parses one part header.
  *
@@ -2175,10 +917,11 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         i = i.wrapping_add(1)
     }
     // Now extract the name and the value.
-    let mut h: *mut htp_header_t = calloc(
+    let mut h: *mut crate::src::htp_transaction::htp_header_t = calloc(
         1 as libc::c_int as libc::c_ulong,
-        ::std::mem::size_of::<htp_header_t>() as libc::c_ulong,
-    ) as *mut htp_header_t;
+        ::std::mem::size_of::<crate::src::htp_transaction::htp_header_t>() as libc::c_ulong,
+    )
+        as *mut crate::src::htp_transaction::htp_header_t;
     if h.is_null() {
         return -(1 as libc::c_int);
     }
@@ -2211,8 +954,8 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         (*(*part).parser).multipart.flags |= 0x8000 as libc::c_int as libc::c_ulong
     }
     // Check if the header already exists.
-    let mut h_existing: *mut htp_header_t =
-        htp_table_get((*part).headers, (*h).name) as *mut htp_header_t;
+    let mut h_existing: *mut crate::src::htp_transaction::htp_header_t =
+        htp_table_get((*part).headers, (*h).name) as *mut crate::src::htp_transaction::htp_header_t;
     if !h_existing.is_null() {
         // Add to the existing header.
         let mut new_value: *mut bstr = bstr_expand(
@@ -2252,7 +995,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     }
     return 1 as libc::c_int;
 }
-// Add as a new header.
+
 /* *
  * Creates a new Multipart part.
  *
@@ -2280,6 +1023,7 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     bstr_builder_clear((*parser).part_header_pieces);
     return part;
 }
+
 /* *
  * Destroys a part.
  *
@@ -2301,7 +1045,7 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
             free((*(*part).file).tmpname as *mut libc::c_void);
         }
         free((*part).file as *mut libc::c_void);
-        (*part).file = 0 as *mut htp_file_t
+        (*part).file = 0 as *mut crate::src::htp_util::htp_file_t
     }
     if gave_up_data == 0
         || (*part).type_0 as libc::c_uint != MULTIPART_PART_TEXT as libc::c_int as libc::c_uint
@@ -2311,11 +1055,13 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
     }
     bstr_free((*part).content_type);
     if !(*part).headers.is_null() {
-        let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
+        let mut h: *mut crate::src::htp_transaction::htp_header_t =
+            0 as *mut crate::src::htp_transaction::htp_header_t;
         let mut i: size_t = 0 as libc::c_int as size_t;
         let mut n: size_t = htp_table_size((*part).headers);
         while i < n {
-            h = htp_table_get_index((*part).headers, i, 0 as *mut *mut bstr) as *mut htp_header_t;
+            h = htp_table_get_index((*part).headers, i, 0 as *mut *mut bstr)
+                as *mut crate::src::htp_transaction::htp_header_t;
             bstr_free((*h).name);
             bstr_free((*h).value);
             free(h as *mut libc::c_void);
@@ -2325,6 +1071,7 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
     }
     free(part as *mut libc::c_void);
 }
+
 /* *
  * Finalizes part processing.
  *
@@ -2384,6 +1131,7 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     }
     return 1 as libc::c_int;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     mut part: *mut htp_multipart_part_t,
@@ -2398,123 +1146,26 @@ pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     (*(*part).file).len =
         ((*(*part).file).len as libc::c_ulong).wrapping_add(len) as int64_t as int64_t;
     // Package data for the callbacks.
-    let mut file_data: htp_file_data_t = htp_file_data_t {
-        file: 0 as *mut htp_file_t,
-        data: 0 as *const libc::c_uchar,
-        len: 0,
-    };
+    let mut file_data: crate::src::htp_util::htp_file_data_t =
+        crate::src::htp_util::htp_file_data_t {
+            file: 0 as *mut crate::src::htp_util::htp_file_t,
+            data: 0 as *const libc::c_uchar,
+            len: 0,
+        };
     file_data.file = (*part).file;
     file_data.data = data;
     file_data.len = len;
     // Send data to callbacks
     let mut rc: htp_status_t = htp_hook_run_all(
         (*(*(*part).parser).cfg).hook_request_file_data,
-        &mut file_data as *mut htp_file_data_t as *mut libc::c_void,
+        &mut file_data as *mut crate::src::htp_util::htp_file_data_t as *mut libc::c_void,
     );
     if rc != 1 as libc::c_int {
         return rc;
     }
     return 1 as libc::c_int;
 }
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* * When in line mode, the parser is handling part headers. */
-/* * When in data mode, the parser is consuming part data. */
-/* * Initial state, after the parser has been created but before the boundary initialized. */
-/* * Processing data, waiting for a new line (which might indicate a new boundary). */
-/* * Testing a potential boundary. */
-/* * Checking the first byte after a boundary. */
-/* * Checking the second byte after a boundary. */
-/* * Consuming linear whitespace after a boundary. */
-/* * Used after a CR byte is detected in STATE_BOUNDARY_EAT_LWS. */
-// Parsing callbacks
-// Internal parsing fields; move into a private structure
-/* *
- * Parser state; one of MULTIPART_STATE_* constants.
- */
-/* *
- * Keeps track of the current position in the boundary matching progress.
- * When this field reaches boundary_len, we have a boundary match.
- */
-/* *
- * Pointer to the part that is currently being processed.
- */
-/* *
- * This parser consists of two layers: the outer layer is charged with
- * finding parts, and the internal layer handles part data. There is an
- * interesting interaction between the two parsers. Because the
- * outer layer is seeing every line (it has to, in order to test for
- * boundaries), it also effectively also splits input into lines. The
- * inner parser deals with two areas: first is the headers, which are
- * line based, followed by binary data. When parsing headers, the inner
- * parser can reuse the lines identified by the outer parser. In this
- * variable we keep the current parsing mode of the part, which helps
- * us process input data more efficiently. The possible values are
- * MULTIPART_MODE_LINE and MULTIPART_MODE_DATA.
- */
-/* *
- * Used for buffering when a potential boundary is fragmented
- * across many input data buffers. On a match, the data stored here is
- * discarded. When there is no match, the buffer is processed as data
- * (belonging to the currently active part).
- */
-/* *
- * Stores text part pieces until the entire part is seen, at which
- * point the pieces are assembled into a single buffer, and the
- * builder cleared.
- */
-/* *
- * The offset of the current boundary candidate, relative to the most
- * recent data chunk (first unprocessed chunk of data).
- */
-/* *
- * When we encounter a CR as the last byte in a buffer, we don't know
- * if the byte is part of a CRLF combination. If it is, then the CR
- * might be a part of a boundary. But if it is not, it's current
- * part's data. Because we know how to handle everything before the
- * CR, we do, and we use this flag to indicate that a CR byte is
- * effectively being buffered. This is probably a case of premature
- * optimization, but I am going to leave it in for now.
- */
-/* *
- * When set, indicates that this parser no longer owns names and
- * values of MULTIPART_PART_TEXT parts. It is used to avoid data
- * duplication when the parser is used by LibHTP internally.
- */
 /* *
  * Handles part data.
  *
@@ -2774,6 +1425,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
     }
     return 1 as libc::c_int;
 }
+
 /* *
  * Handles data, creating new parts as necessary.
  *
@@ -2817,6 +1469,7 @@ unsafe extern "C" fn htp_mpartp_handle_data(
     // Send data to the part.
     return htp_mpart_part_handle_data((*parser).current_part, data, len, is_line);
 }
+
 /* *
  * Handles a boundary event, which means that it will finalize a part if one exists.
  *
@@ -2835,6 +1488,7 @@ unsafe extern "C" fn htp_mpartp_handle_boundary(mut parser: *mut htp_mpartp_t) -
     }
     return 1 as libc::c_int;
 }
+
 unsafe extern "C" fn htp_mpartp_init_boundary(
     mut parser: *mut htp_mpartp_t,
     mut data: *mut libc::c_uchar,
@@ -2891,9 +1545,19 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
     (*parser).boundary_match_pos = 2 as libc::c_int as size_t;
     return 1 as libc::c_int;
 }
+
+/**
+ * Creates a new multipart/form-data parser. On a successful invocation,
+ * the ownership of the boundary parameter is transferred to the parser.
+ *
+ * @param[in] cfg
+ * @param[in] boundary
+ * @param[in] flags
+ * @return New parser instance, or NULL on memory allocation failure.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_create(
-    mut cfg: *mut htp_cfg_t,
+    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut boundary: *mut bstr,
     mut flags: uint64_t,
 ) -> *mut htp_mpartp_t {
@@ -2970,6 +1634,12 @@ pub unsafe extern "C" fn htp_mpartp_create(
     bstr_free(boundary);
     return parser;
 }
+
+/**
+ * Destroys the provided parser.
+ *
+ * @param[in] parser
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_destroy(mut parser: *mut htp_mpartp_t) {
     if parser.is_null() {
@@ -2996,6 +1666,7 @@ pub unsafe extern "C" fn htp_mpartp_destroy(mut parser: *mut htp_mpartp_t) {
     }
     free(parser as *mut libc::c_void);
 }
+
 /* *
  * Processes set-aside data.
  *
@@ -3171,6 +1842,13 @@ unsafe extern "C" fn htp_martp_process_aside(
     }
     return 1 as libc::c_int;
 }
+
+/**
+ * Finalize parsing.
+ *
+ * @param[in] parser
+ * @returns HTP_OK on success, HTP_ERROR on failure.
+ */
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> htp_status_t {
     if !(*parser).current_part.is_null() {
@@ -3190,23 +1868,6 @@ pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> h
     bstr_builder_clear((*parser).boundary_pieces);
     return 1 as libc::c_int;
 }
-/* *
- * Returns the multipart structure created by the parser.
- *
- * @param[in] parser
- * @return The main multipart structure.
- */
-/* *
- * Destroys the provided parser.
- *
- * @param[in] parser
- */
-/* *
- * Finalize parsing.
- *
- * @param[in] parser
- * @returns HTP_OK on success, HTP_ERROR on failure.
- */
 /* *
  * Parses a chunk of multipart/form-data data. This function should be called
  * as many times as necessary until all data has been consumed.
@@ -3519,6 +2180,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
     }
     return 1 as libc::c_int;
 }
+
 unsafe extern "C" fn htp_mpartp_validate_boundary(
     mut boundary: *mut bstr,
     mut flags: *mut uint64_t,
@@ -3588,6 +2250,7 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
         pos = pos.wrapping_add(1)
     }
 }
+
 unsafe extern "C" fn htp_mpartp_validate_content_type(
     mut content_type: *mut bstr,
     mut flags: *mut uint64_t,
@@ -3635,149 +2298,7 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
         *flags |= 0x200 as libc::c_int as libc::c_ulong
     };
 }
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-// Constants and enums.
-/* *
- * Seen a LF line in the payload. LF lines are not allowed, but
- * some clients do use them and some backends do accept them. Mixing
- * LF and CRLF lines within some payload might be unusual.
- */
-/* * Seen a CRLF line in the payload. This is normal and expected. */
-/* * Seen LWS after a boundary instance in the body. Unusual. */
-/* * Seen non-LWS content after a boundary instance in the body. Highly unusual. */
-/* *
- * Payload has a preamble part. Might not be that unusual.
- */
-/* *
- * Payload has an epilogue part. Unusual.
- */
-/* *
- * The last boundary was seen in the payload. Absence of the last boundary
- * may not break parsing with some (most?) backends, but it means that the payload
- * is not well formed. Can occur if the client gives up, or if the connection is
- * interrupted. Incomplete payloads should be blocked whenever possible.
- */
-/* *
- * There was a part after the last boundary. This is highly irregular
- * and indicative of evasion.
- */
-/* *
- * The payloads ends abruptly, without proper termination. Can occur if the client gives up,
- * or if the connection is interrupted. When this flag is raised, HTP_MULTIPART_PART_INCOMPLETE
- * will also be raised for the part that was only partially processed. (But the opposite may not
- * always be the case -- there are other ways in which a part can be left incomplete.)
- */
-/* * The boundary in the Content-Type header is invalid. */
-/* *
- * The boundary in the Content-Type header is unusual. This may mean that evasion
- * is attempted, but it could also mean that we have encountered a client that does
- * not do things in the way it should.
- */
-/* *
- * The boundary in the Content-Type header is quoted. This is very unusual,
- * and may be indicative of an evasion attempt.
- */
-/* * Header folding was used in part headers. Very unusual. */
-/* *
- * A part of unknown type was encountered, which probably means that the part is lacking
- * a Content-Disposition header, or that the header is invalid. Highly unusual.
- */
-/* * There was a repeated part header, possibly in an attempt to confuse the parser. Very unusual. */
-/* * Unknown part header encountered. */
-/* * Invalid part header encountered. */
-/* * Part type specified in the C-D header is neither MULTIPART_PART_TEXT nor MULTIPART_PART_FILE. */
-/* * Content-Disposition part header with multiple parameters with the same name. */
-/* * Unknown Content-Disposition parameter. */
-/* * Invalid Content-Disposition syntax. */
-/* *
- * There is an abruptly terminated part. This can happen when the payload itself is abruptly
- * terminated (in which case HTP_MULTIPART_INCOMPLETE) will be raised. However, it can also
- * happen when a boundary is seen before any part data.
- */
-/* * A NUL byte was seen in a part header area. */
-/* * A collection of flags that all indicate an invalid C-D header. */
-/* * A collection of flags that all indicate an invalid part. */
-/* * A collection of flags that all indicate an invalid Multipart payload. */
-/* * A collection of flags that all indicate an unusual Multipart payload. */
-/* * A collection of flags that all indicate an unusual Multipart payload, with a low sensitivity to irregularities. */
-/* * Unknown part. */
-/* * Text (parameter) part. */
-/* * File part. */
-/* * Free-text part before the first boundary. */
-/* * Free-text part after the last boundary. */
-// Structures
-/* *
- * Holds multipart parser configuration and state. Private.
- */
-/* *
- * Holds information related to a multipart body.
- */
-/* * Multipart boundary. */
-/* * Boundary length. */
-/* * How many boundaries were there? */
-/* * List of parts, in the order in which they appeared in the body. */
-/* * Parsing flags. */
-/* *
- * Holds information related to a part.
- */
-/* * Pointer to the parser. */
-/* * Part type; see the MULTIPART_PART_* constants. */
-/* * Raw part length (i.e., headers and data). */
-/* * Part name, from the Content-Disposition header. Can be NULL. */
-/* *
- * Part value; the contents depends on the type of the part:
- * 1) NULL for files; 2) contains complete part contents for
- * preamble and epilogue parts (they have no headers), and
- * 3) data only (headers excluded) for text and unknown parts.
- */
-/* * Part content type, from the Content-Type header. Can be NULL. */
-/* * Part headers (htp_header_t instances), using header name as the key. */
-/* * File data, available only for MULTIPART_PART_FILE parts. */
-// Functions
-/* *
- * Creates a new multipart/form-data parser. On a successful invocation,
- * the ownership of the boundary parameter is transferred to the parser.
- *
- * @param[in] cfg
- * @param[in] boundary
- * @param[in] flags
- * @return New parser instance, or NULL on memory allocation failure.
- */
 /* *
  * Looks for boundary in the supplied Content-Type request header. The extracted
  * boundary will be allocated on the heap.

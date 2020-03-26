@@ -1,3 +1,4 @@
+/* Adapted from the libb64 project (http://sourceforge.net/projects/libb64), which is in public domain. */
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -7,100 +8,22 @@ extern "C" {
     #[no_mangle]
     fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
 }
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-// Data structures
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct bstr_t {
-    pub len: size_t,
-    pub size: size_t,
-    pub realptr: *mut libc::c_uchar,
-}
 pub type size_t = libc::c_ulong;
-pub type bstr = bstr_t;
+pub type bstr = crate::src::bstr::bstr_t;
 pub type htp_base64_decodestep = libc::c_uint;
 pub const step_d: htp_base64_decodestep = 3;
 pub const step_c: htp_base64_decodestep = 2;
 pub const step_b: htp_base64_decodestep = 1;
 pub const step_a: htp_base64_decodestep = 0;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct htp_base64_decoder {
     pub step: htp_base64_decodestep,
     pub plainchar: libc::c_char,
 }
-/* **************************************************************************
-* Copyright (c) 2009-2010 Open Information Security Foundation
-* Copyright (c) 2010-2013 Qualys, Inc.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are
-* met:
-*
-* - Redistributions of source code must retain the above copyright
-*   notice, this list of conditions and the following disclaimer.
 
-* - Redistributions in binary form must reproduce the above copyright
-*   notice, this list of conditions and the following disclaimer in the
-*   documentation and/or other materials provided with the distribution.
-
-* - Neither the name of the Qualys, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-***************************************************************************/
-/* *
- * @file
- * @author Ivan Ristic <ivanr@webkreator.com>
- */
-/* Adapted from the libb64 project (http://sourceforge.net/projects/libb64), which is in public domain. */
 /* *
  * Decode single base64-encoded character.
  *
@@ -201,6 +124,7 @@ pub unsafe extern "C" fn htp_base64_decode_single(mut value_in: libc::c_schar) -
     }
     return decoding[value_in as libc::c_int as usize] as libc::c_int;
 }
+
 /* *
  * Initialize base64 decoder.
  *
@@ -211,6 +135,7 @@ pub unsafe extern "C" fn htp_base64_decoder_init(mut decoder: *mut htp_base64_de
     (*decoder).step = step_a;
     (*decoder).plainchar = 0 as libc::c_int as libc::c_char;
 }
+
 /* *
  * Feed the supplied memory range to the decoder.
  *
@@ -380,6 +305,7 @@ pub unsafe extern "C" fn htp_base64_decode(
     /* control should not reach here */
     return plainchar.wrapping_offset_from(plaintext_out) as libc::c_long as libc::c_int;
 }
+
 /* *
  * Base64-decode input, given as bstring.
  *
@@ -398,6 +324,7 @@ pub unsafe extern "C" fn htp_base64_decode_bstr(mut input: *mut bstr) -> *mut bs
         (*input).len,
     );
 }
+
 /* *
  * Base64-decode input, given as memory range.
  *

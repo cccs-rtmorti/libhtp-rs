@@ -11,23 +11,20 @@ pub type SRes = libc::c_int;
 pub type UInt32 = libc::c_uint;
 pub type Int64 = libc::c_longlong;
 pub type UInt64 = libc::c_ulonglong;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ISeqInStream {
     pub Read: Option<
         unsafe extern "C" fn(_: *const ISeqInStream, _: *mut libc::c_void, _: *mut size_t) -> SRes,
     >,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ISzAlloc {
-    pub Alloc: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void>,
-    pub Free: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()>,
-}
-pub type ISzAllocPtr = *const ISzAlloc;
+
+pub type ISzAllocPtr = *const crate::src::lzma::LzmaDec::ISzAlloc;
 pub type CLzRef = UInt32;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct _CMatchFinder {
     pub buffer: *mut Byte,
     pub pos: UInt32,
@@ -69,8 +66,9 @@ pub type Mf_GetPointerToCurrentPos_Func =
 pub type Mf_GetMatches_Func =
     Option<unsafe extern "C" fn(_: *mut libc::c_void, _: *mut UInt32) -> UInt32>;
 pub type Mf_Skip_Func = Option<unsafe extern "C" fn(_: *mut libc::c_void, _: UInt32) -> ()>;
-#[derive(Copy, Clone)]
+
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct _IMatchFinder {
     pub Init: Mf_Init_Func,
     pub GetNumAvailableBytes: Mf_GetNumAvailableBytes_Func,
