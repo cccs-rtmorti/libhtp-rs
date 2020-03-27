@@ -73,13 +73,6 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct timeval {
-    pub tv_sec: __time_t,
-    pub tv_usec: __suseconds_t,
-}
-
 pub type htp_status_t = libc::c_int;
 
 /* *
@@ -383,7 +376,7 @@ pub const HTP_M_GET: htp_method_t = 2;
 pub const HTP_M_HEAD: htp_method_t = 1;
 pub const HTP_M_UNKNOWN: htp_method_t = 0;
 
-pub type htp_time_t = timeval;
+pub type htp_time_t = libc::timeval;
 /* *
  * Enumerates all stream states. Each connection has two streams, one
  * inbound and one outbound. Their states are tracked separately.

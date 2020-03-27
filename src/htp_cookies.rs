@@ -187,7 +187,7 @@ pub const HTP_M_GET: htp_method_t = 2;
 pub const HTP_M_HEAD: htp_method_t = 1;
 pub const HTP_M_UNKNOWN: htp_method_t = 0;
 
-pub type htp_time_t = crate::src::htp_connection_parser::timeval;
+pub type htp_time_t = libc::timeval;
 /* *
  * Enumerates all stream states. Each connection has two streams, one
  * inbound and one outbound. Their states are tracked separately.

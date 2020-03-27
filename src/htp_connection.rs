@@ -216,7 +216,7 @@ pub struct htp_conn_t {
     /** Outbound data counter. */
     pub out_data_counter: int64_t,
 }
-pub type htp_time_t = crate::src::htp_connection_parser::timeval;
+pub type htp_time_t = libc::timeval;
 /* *
  * Enumerates all stream states. Each connection has two streams, one
  * inbound and one outbound. Their states are tracked separately.
