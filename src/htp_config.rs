@@ -96,7 +96,7 @@ pub struct htp_cfg_t {
      * Log level, which will be used when deciding whether to store or
      * ignore the messages issued by the parser.
      */
-    pub log_level: htp_log_level_t,
+    pub log_level: crate::src::htp_util::htp_log_level_t,
     /**
      * Whether to delete each transaction after the last hook is invoked. This
      * feature should be used when parsing traffic streams in real time.
@@ -281,17 +281,6 @@ pub struct htp_cfg_t {
     pub compression_bomb_limit: int32_t,
 }
 
-/* *
- * Enumerates the ways in which servers respond to malformed data.
- */
-pub type htp_unwanted_t = libc::c_uint;
-/* * Responds with HTTP 404 status code. */
-pub const HTP_UNWANTED_404: htp_unwanted_t = 404;
-/* * Responds with HTTP 400 status code. */
-pub const HTP_UNWANTED_400: htp_unwanted_t = 400;
-/* * Ignores problem. */
-pub const HTP_UNWANTED_IGNORE: htp_unwanted_t = 0;
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_decoder_cfg_t {
@@ -340,210 +329,79 @@ pub struct htp_decoder_cfg_t {
     pub bestfit_replacement_byte: libc::c_uchar,
 }
 
-/* *
- * Enumerates the possible approaches to handling invalid URL-encodings.
- */
-pub type htp_url_encoding_handling_t = libc::c_uint;
-/* * Decode invalid URL encodings. */
-pub const HTP_URL_DECODE_PROCESS_INVALID: htp_url_encoding_handling_t = 2;
-/* * Ignore invalid URL encodings, but remove the % from the data. */
-pub const HTP_URL_DECODE_REMOVE_PERCENT: htp_url_encoding_handling_t = 1;
-/* * Ignore invalid URL encodings and leave the % in the data. */
-pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
-
-// A collection of unique parser IDs.
-pub type htp_parser_id_t = libc::c_uint;
-/* * multipart/form-data parser. */
-pub const HTP_PARSER_MULTIPART: htp_parser_id_t = 1;
-/* * application/x-www-form-urlencoded parser. */
-pub const HTP_PARSER_URLENCODED: htp_parser_id_t = 0;
-// Protocol version constants; an enum cannot be
-// used here because we allow any properly-formatted protocol
-// version (e.g., 1.3), even those that do not actually exist.
-// A collection of possible data sources.
-pub type htp_data_source_t = libc::c_uint;
-/* * Transported in the request body. */
-pub const HTP_SOURCE_BODY: htp_data_source_t = 3;
-/* * Cookies. */
-pub const HTP_SOURCE_COOKIE: htp_data_source_t = 2;
-/* * Transported in the query string. */
-pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
-/* * Embedded in the URL. */
-pub const HTP_SOURCE_URL: htp_data_source_t = 0;
-
 pub type bstr = crate::src::bstr::bstr_t;
 
-pub type htp_file_source_t = libc::c_uint;
-pub const HTP_FILE_PUT: htp_file_source_t = 2;
-pub const HTP_FILE_MULTIPART: htp_file_source_t = 1;
-
-/* *
- * Possible states of a progressing transaction. Internally, progress will change
- * to the next state when the processing activities associated with that state
- * begin. For example, when we start to process request line bytes, the request
- * state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
- */
-pub type htp_tx_res_progress_t = libc::c_uint;
-pub const HTP_RESPONSE_COMPLETE: htp_tx_res_progress_t = 5;
-pub const HTP_RESPONSE_TRAILER: htp_tx_res_progress_t = 4;
-pub const HTP_RESPONSE_BODY: htp_tx_res_progress_t = 3;
-pub const HTP_RESPONSE_HEADERS: htp_tx_res_progress_t = 2;
-pub const HTP_RESPONSE_LINE: htp_tx_res_progress_t = 1;
-pub const HTP_RESPONSE_NOT_STARTED: htp_tx_res_progress_t = 0;
-pub type htp_tx_req_progress_t = libc::c_uint;
-pub const HTP_REQUEST_COMPLETE: htp_tx_req_progress_t = 5;
-pub const HTP_REQUEST_TRAILER: htp_tx_req_progress_t = 4;
-pub const HTP_REQUEST_BODY: htp_tx_req_progress_t = 3;
-pub const HTP_REQUEST_HEADERS: htp_tx_req_progress_t = 2;
-pub const HTP_REQUEST_LINE: htp_tx_req_progress_t = 1;
-pub const HTP_REQUEST_NOT_STARTED: htp_tx_req_progress_t = 0;
-pub type htp_content_encoding_t = libc::c_uint;
-/* * LZMA compression. */
-pub const HTP_COMPRESSION_LZMA: htp_content_encoding_t = 4;
-/* * Deflate compression. */
-pub const HTP_COMPRESSION_DEFLATE: htp_content_encoding_t = 3;
-/* * Gzip compression. */
-pub const HTP_COMPRESSION_GZIP: htp_content_encoding_t = 2;
-/* * No compression. */
-pub const HTP_COMPRESSION_NONE: htp_content_encoding_t = 1;
-/* *
- * This is the default value, which is used until the presence
- * of content encoding is determined (e.g., before request headers
- * are seen.
- */
-pub const HTP_COMPRESSION_UNKNOWN: htp_content_encoding_t = 0;
-/* *
- * Enumerates the possible request and response body codings.
- */
-pub type htp_transfer_coding_t = libc::c_uint;
-/* * We could not recognize the encoding. */
-pub const HTP_CODING_INVALID: htp_transfer_coding_t = 4;
-/* * Chunked encoding. */
-pub const HTP_CODING_CHUNKED: htp_transfer_coding_t = 3;
-/* * Identity coding is used, which means that the body was sent as is. */
-pub const HTP_CODING_IDENTITY: htp_transfer_coding_t = 2;
-/* * No body. */
-pub const HTP_CODING_NO_BODY: htp_transfer_coding_t = 1;
-/* * Body coding not determined yet. */
-pub const HTP_CODING_UNKNOWN: htp_transfer_coding_t = 0;
-
-pub type htp_table_alloc_t = libc::c_uint;
-/* * Keys are only referenced; the caller is still responsible for freeing them after the table is destroyed. */
-pub const HTP_TABLE_KEYS_REFERENCED: htp_table_alloc_t = 3;
-/* * Keys are adopted and freed when the table is destroyed. */
-pub const HTP_TABLE_KEYS_ADOPTED: htp_table_alloc_t = 2;
-/* * Keys are copied.*/
-pub const HTP_TABLE_KEYS_COPIED: htp_table_alloc_t = 1;
-/* * This is the default value, used only until the first element is added. */
-pub const HTP_TABLE_KEYS_ALLOC_UKNOWN: htp_table_alloc_t = 0;
-/* *
- * Enumerates the possible values for authentication type.
- */
-pub type htp_auth_type_t = libc::c_uint;
-/* * Unrecognized authentication method. */
-pub const HTP_AUTH_UNRECOGNIZED: htp_auth_type_t = 9;
-/* * HTTP Digest authentication used. */
-pub const HTP_AUTH_DIGEST: htp_auth_type_t = 3;
-/* * HTTP Basic authentication used. */
-pub const HTP_AUTH_BASIC: htp_auth_type_t = 2;
-/* * No authentication. */
-pub const HTP_AUTH_NONE: htp_auth_type_t = 1;
-/* *
- * This is the default value that is used before
- * the presence of authentication is determined (e.g.,
- * before request headers are seen).
- */
-pub const HTP_AUTH_UNKNOWN: htp_auth_type_t = 0;
-
-pub type htp_part_mode_t = libc::c_uint;
-pub const MODE_DATA: htp_part_mode_t = 1;
-pub const MODE_LINE: htp_part_mode_t = 0;
-
-pub type htp_multipart_type_t = libc::c_uint;
-pub const MULTIPART_PART_EPILOGUE: htp_multipart_type_t = 4;
-pub const MULTIPART_PART_PREAMBLE: htp_multipart_type_t = 3;
-pub const MULTIPART_PART_FILE: htp_multipart_type_t = 2;
-pub const MULTIPART_PART_TEXT: htp_multipart_type_t = 1;
-pub const MULTIPART_PART_UNKNOWN: htp_multipart_type_t = 0;
-pub type htp_multipart_state_t = libc::c_uint;
-pub const STATE_BOUNDARY_EAT_LWS_CR: htp_multipart_state_t = 6;
-pub const STATE_BOUNDARY_EAT_LWS: htp_multipart_state_t = 5;
-pub const STATE_BOUNDARY_IS_LAST2: htp_multipart_state_t = 4;
-pub const STATE_BOUNDARY_IS_LAST1: htp_multipart_state_t = 3;
-pub const STATE_BOUNDARY: htp_multipart_state_t = 2;
-pub const STATE_DATA: htp_multipart_state_t = 1;
-pub const STATE_INIT: htp_multipart_state_t = 0;
-
-pub type htp_method_t = libc::c_uint;
-pub const HTP_M_INVALID: htp_method_t = 28;
-pub const HTP_M_MERGE: htp_method_t = 27;
-pub const HTP_M_BASELINE_CONTROL: htp_method_t = 26;
-pub const HTP_M_MKACTIVITY: htp_method_t = 25;
-pub const HTP_M_MKWORKSPACE: htp_method_t = 24;
-pub const HTP_M_REPORT: htp_method_t = 23;
-pub const HTP_M_LABEL: htp_method_t = 22;
-pub const HTP_M_UPDATE: htp_method_t = 21;
-pub const HTP_M_CHECKIN: htp_method_t = 20;
-pub const HTP_M_UNCHECKOUT: htp_method_t = 19;
-pub const HTP_M_CHECKOUT: htp_method_t = 18;
-pub const HTP_M_VERSION_CONTROL: htp_method_t = 17;
-pub const HTP_M_UNLOCK: htp_method_t = 16;
-pub const HTP_M_LOCK: htp_method_t = 15;
-pub const HTP_M_MOVE: htp_method_t = 14;
-pub const HTP_M_COPY: htp_method_t = 13;
-pub const HTP_M_MKCOL: htp_method_t = 12;
-pub const HTP_M_PROPPATCH: htp_method_t = 11;
-pub const HTP_M_PROPFIND: htp_method_t = 10;
-pub const HTP_M_PATCH: htp_method_t = 9;
-pub const HTP_M_TRACE: htp_method_t = 8;
-pub const HTP_M_OPTIONS: htp_method_t = 7;
-pub const HTP_M_CONNECT: htp_method_t = 6;
-pub const HTP_M_DELETE: htp_method_t = 5;
-pub const HTP_M_POST: htp_method_t = 4;
-pub const HTP_M_PUT: htp_method_t = 3;
-pub const HTP_M_GET: htp_method_t = 2;
-pub const HTP_M_HEAD: htp_method_t = 1;
-pub const HTP_M_UNKNOWN: htp_method_t = 0;
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_decoder_ctx_t {
+    /** Default settings. Settings applied to this context are propagated to all other contexts. */
+    HTP_DECODER_DEFAULTS,
+    /** Urlencoded decoder settings. */
+    HTP_DECODER_URLENCODED,
+    /** URL path decoder settings. */
+    HTP_DECODER_URL_PATH,
+}
 
 pub type htp_time_t = libc::timeval;
 /* *
- * Enumerates all stream states. Each connection has two streams, one
- * inbound and one outbound. Their states are tracked separately.
+ * Enumerates the possible server personalities.
  */
-pub type htp_stream_state_t = libc::c_uint;
-pub const HTP_STREAM_DATA: htp_stream_state_t = 9;
-pub const HTP_STREAM_STOP: htp_stream_state_t = 6;
-pub const HTP_STREAM_DATA_OTHER: htp_stream_state_t = 5;
-pub const HTP_STREAM_TUNNEL: htp_stream_state_t = 4;
-pub const HTP_STREAM_ERROR: htp_stream_state_t = 3;
-pub const HTP_STREAM_CLOSED: htp_stream_state_t = 2;
-pub const HTP_STREAM_OPEN: htp_stream_state_t = 1;
-pub const HTP_STREAM_NEW: htp_stream_state_t = 0;
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_server_personality_t {
+    /* *
+     * Minimal personality that performs at little work as possible. All optional
+     * features are disabled. This personality is a good starting point for customization.
+     */
+    HTP_SERVER_MINIMAL,
+    /* * A generic personality that aims to work reasonably well for all server types. */
+    HTP_SERVER_GENERIC,
+    /* * The IDS personality tries to perform as much decoding as possible. */
+    HTP_SERVER_IDS,
+    /* * Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0. */
+    HTP_SERVER_IIS_4_0,
+    /* * Mimics the behavior of IIS 5.0, as shipped with Windows 2000. */
+    HTP_SERVER_IIS_5_0,
+    /* * Mimics the behavior of IIS 5.1, as shipped with Windows XP Professional. */
+    HTP_SERVER_IIS_5_1,
+    /* * Mimics the behavior of IIS 6.0, as shipped with Windows 2003. */
+    HTP_SERVER_IIS_6_0,
+    /* * Mimics the behavior of IIS 7.0, as shipped with Windows 2008. */
+    HTP_SERVER_IIS_7_0,
+    /* Mimics the behavior of IIS 7.5, as shipped with Windows 7. */
+    HTP_SERVER_IIS_7_5,
+    /* Mimics the behavior of Apache 2.x. */
+    HTP_SERVER_APACHE_2,
+}
 
-pub type htp_log_level_t = libc::c_uint;
-pub const HTP_LOG_DEBUG2: htp_log_level_t = 6;
-pub const HTP_LOG_DEBUG: htp_log_level_t = 5;
-pub const HTP_LOG_INFO: htp_log_level_t = 4;
-pub const HTP_LOG_NOTICE: htp_log_level_t = 3;
-pub const HTP_LOG_WARNING: htp_log_level_t = 2;
-pub const HTP_LOG_ERROR: htp_log_level_t = 1;
-pub const HTP_LOG_NONE: htp_log_level_t = 0;
-pub type htp_server_personality_t = libc::c_uint;
-pub const HTP_SERVER_APACHE_2: htp_server_personality_t = 9;
-pub const HTP_SERVER_IIS_7_5: htp_server_personality_t = 8;
-pub const HTP_SERVER_IIS_7_0: htp_server_personality_t = 7;
-pub const HTP_SERVER_IIS_6_0: htp_server_personality_t = 6;
-pub const HTP_SERVER_IIS_5_1: htp_server_personality_t = 5;
-pub const HTP_SERVER_IIS_5_0: htp_server_personality_t = 4;
-pub const HTP_SERVER_IIS_4_0: htp_server_personality_t = 3;
-pub const HTP_SERVER_IDS: htp_server_personality_t = 2;
-pub const HTP_SERVER_GENERIC: htp_server_personality_t = 1;
-pub const HTP_SERVER_MINIMAL: htp_server_personality_t = 0;
+/**
+ * Enumerates the ways in which servers respond to malformed data.
+ */
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_unwanted_t {
+    /** Ignores problem. */
+    HTP_UNWANTED_IGNORE,
+    /** Responds with HTTP 400 status code. */
+    HTP_UNWANTED_400 = 400,
+    /** Responds with HTTP 404 status code. */
+    HTP_UNWANTED_404 = 404,
+}
 
-pub type htp_decoder_ctx_t = libc::c_uint;
-pub const HTP_DECODER_URL_PATH: htp_decoder_ctx_t = 2;
-pub const HTP_DECODER_URLENCODED: htp_decoder_ctx_t = 1;
-pub const HTP_DECODER_DEFAULTS: htp_decoder_ctx_t = 0;
+/**
+ * Enumerates the possible approaches to handling invalid URL-encodings.
+ */
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_url_encoding_handling_t {
+    /** Ignore invalid URL encodings and leave the % in the data. */
+    HTP_URL_DECODE_PRESERVE_PERCENT,
+    /** Ignore invalid URL encodings, but remove the % from the data. */
+    HTP_URL_DECODE_REMOVE_PERCENT,
+    /** Decode invalid URL encodings. */
+    HTP_URL_DECODE_PROCESS_INVALID,
+}
+
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> libc::c_int>;
 /* *
  * This map is used by default for best-fit mapping from the Unicode
@@ -1743,7 +1601,7 @@ pub unsafe extern "C" fn htp_config_create() -> *mut htp_cfg_t {
     } // 2 layers seem fairly common
     (*cfg).field_limit_hard = 18000 as libc::c_int as size_t;
     (*cfg).field_limit_soft = 9000 as libc::c_int as size_t;
-    (*cfg).log_level = HTP_LOG_NOTICE;
+    (*cfg).log_level = crate::src::htp_util::htp_log_level_t::HTP_LOG_NOTICE;
     (*cfg).response_decompression_enabled = 1 as libc::c_int;
     (*cfg).parse_request_cookies = 1 as libc::c_int;
     (*cfg).parse_request_auth = 1 as libc::c_int;
@@ -1755,20 +1613,40 @@ pub unsafe extern "C" fn htp_config_create() -> *mut htp_cfg_t {
     // Default settings for URL-encoded data.
     htp_config_set_bestfit_map(
         cfg,
-        HTP_DECODER_DEFAULTS,
+        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
         bestfit_1252.as_mut_ptr() as *mut libc::c_void,
     );
-    htp_config_set_bestfit_replacement_byte(cfg, HTP_DECODER_DEFAULTS, '?' as i32);
+    htp_config_set_bestfit_replacement_byte(
+        cfg,
+        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+        '?' as i32,
+    );
     htp_config_set_url_encoding_invalid_handling(
         cfg,
-        HTP_DECODER_DEFAULTS,
-        HTP_URL_DECODE_PRESERVE_PERCENT,
+        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+        htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
     );
-    htp_config_set_nul_raw_terminates(cfg, HTP_DECODER_DEFAULTS, 0 as libc::c_int);
-    htp_config_set_nul_encoded_terminates(cfg, HTP_DECODER_DEFAULTS, 0 as libc::c_int);
-    htp_config_set_u_encoding_decode(cfg, HTP_DECODER_DEFAULTS, 0 as libc::c_int);
-    htp_config_set_plusspace_decode(cfg, HTP_DECODER_URLENCODED, 1 as libc::c_int);
-    htp_config_set_server_personality(cfg, HTP_SERVER_MINIMAL);
+    htp_config_set_nul_raw_terminates(
+        cfg,
+        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+        0 as libc::c_int,
+    );
+    htp_config_set_nul_encoded_terminates(
+        cfg,
+        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+        0 as libc::c_int,
+    );
+    htp_config_set_u_encoding_decode(
+        cfg,
+        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+        0 as libc::c_int,
+    );
+    htp_config_set_plusspace_decode(
+        cfg,
+        htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
+        1 as libc::c_int,
+    );
+    htp_config_set_server_personality(cfg, htp_server_personality_t::HTP_SERVER_MINIMAL);
     return cfg;
 }
 
@@ -2698,7 +2576,7 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_log_level(
     mut cfg: *mut htp_cfg_t,
-    mut log_level: htp_log_level_t,
+    mut log_level: crate::src::htp_util::htp_log_level_t,
 ) {
     if cfg.is_null() {
         return;
@@ -2832,9 +2710,21 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: size_t,
                     ) -> htp_status_t,
             );
-            htp_config_set_backslash_convert_slashes(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_compress(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
+            htp_config_set_backslash_convert_slashes(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_compress(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
         }
         2 => {
             (*cfg).parse_request_line = Some(
@@ -2865,16 +2755,40 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: size_t,
                     ) -> htp_status_t,
             );
-            htp_config_set_backslash_convert_slashes(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_compress(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_convert_lowercase(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_utf8_convert_bestfit(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_u_encoding_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
+            htp_config_set_backslash_convert_slashes(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_compress(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_convert_lowercase(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_utf8_convert_bestfit(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_u_encoding_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
             htp_config_set_requestline_leading_whitespace_unwanted(
                 cfg,
-                HTP_DECODER_DEFAULTS,
-                HTP_UNWANTED_IGNORE,
+                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                htp_unwanted_t::HTP_UNWANTED_IGNORE,
             );
         }
         9 => {
@@ -2906,25 +2820,45 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: size_t,
                     ) -> htp_status_t,
             );
-            htp_config_set_backslash_convert_slashes(cfg, HTP_DECODER_URL_PATH, 0 as libc::c_int);
-            htp_config_set_path_separators_decode(cfg, HTP_DECODER_URL_PATH, 0 as libc::c_int);
-            htp_config_set_path_separators_compress(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_u_encoding_decode(cfg, HTP_DECODER_URL_PATH, 0 as libc::c_int);
+            htp_config_set_backslash_convert_slashes(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                0 as libc::c_int,
+            );
+            htp_config_set_path_separators_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                0 as libc::c_int,
+            );
+            htp_config_set_path_separators_compress(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_u_encoding_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                0 as libc::c_int,
+            );
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
-                HTP_DECODER_URL_PATH,
-                HTP_URL_DECODE_PRESERVE_PERCENT,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
             );
             htp_config_set_url_encoding_invalid_unwanted(
                 cfg,
-                HTP_DECODER_URL_PATH,
-                HTP_UNWANTED_400,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_400,
             );
-            htp_config_set_control_chars_unwanted(cfg, HTP_DECODER_URL_PATH, HTP_UNWANTED_IGNORE);
+            htp_config_set_control_chars_unwanted(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            );
             htp_config_set_requestline_leading_whitespace_unwanted(
                 cfg,
-                HTP_DECODER_DEFAULTS,
-                HTP_UNWANTED_400,
+                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                htp_unwanted_t::HTP_UNWANTED_400,
             );
         }
         5 => {
@@ -2956,20 +2890,40 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: size_t,
                     ) -> htp_status_t,
             );
-            htp_config_set_backslash_convert_slashes(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_compress(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_u_encoding_decode(cfg, HTP_DECODER_URL_PATH, 0 as libc::c_int);
+            htp_config_set_backslash_convert_slashes(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_compress(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_u_encoding_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                0 as libc::c_int,
+            );
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
-                HTP_DECODER_URL_PATH,
-                HTP_URL_DECODE_PRESERVE_PERCENT,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
             );
-            htp_config_set_control_chars_unwanted(cfg, HTP_DECODER_URL_PATH, HTP_UNWANTED_IGNORE);
+            htp_config_set_control_chars_unwanted(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            );
             htp_config_set_requestline_leading_whitespace_unwanted(
                 cfg,
-                HTP_DECODER_DEFAULTS,
-                HTP_UNWANTED_IGNORE,
+                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                htp_unwanted_t::HTP_UNWANTED_IGNORE,
             );
         }
         6 => {
@@ -3001,21 +2955,45 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: size_t,
                     ) -> htp_status_t,
             );
-            htp_config_set_backslash_convert_slashes(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_compress(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_u_encoding_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
+            htp_config_set_backslash_convert_slashes(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_compress(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_u_encoding_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
-                HTP_DECODER_URL_PATH,
-                HTP_URL_DECODE_PRESERVE_PERCENT,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
             );
-            htp_config_set_u_encoding_unwanted(cfg, HTP_DECODER_URL_PATH, HTP_UNWANTED_400);
-            htp_config_set_control_chars_unwanted(cfg, HTP_DECODER_URL_PATH, HTP_UNWANTED_400);
+            htp_config_set_u_encoding_unwanted(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_400,
+            );
+            htp_config_set_control_chars_unwanted(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_400,
+            );
             htp_config_set_requestline_leading_whitespace_unwanted(
                 cfg,
-                HTP_DECODER_DEFAULTS,
-                HTP_UNWANTED_IGNORE,
+                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                htp_unwanted_t::HTP_UNWANTED_IGNORE,
             );
         }
         7 | 8 => {
@@ -3047,25 +3025,45 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: size_t,
                     ) -> htp_status_t,
             );
-            htp_config_set_backslash_convert_slashes(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_path_separators_compress(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
-            htp_config_set_u_encoding_decode(cfg, HTP_DECODER_URL_PATH, 1 as libc::c_int);
+            htp_config_set_backslash_convert_slashes(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_path_separators_compress(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
+            htp_config_set_u_encoding_decode(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                1 as libc::c_int,
+            );
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
-                HTP_DECODER_URL_PATH,
-                HTP_URL_DECODE_PRESERVE_PERCENT,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
             );
             htp_config_set_url_encoding_invalid_unwanted(
                 cfg,
-                HTP_DECODER_URL_PATH,
-                HTP_UNWANTED_400,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_400,
             );
-            htp_config_set_control_chars_unwanted(cfg, HTP_DECODER_URL_PATH, HTP_UNWANTED_400);
+            htp_config_set_control_chars_unwanted(
+                cfg,
+                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                htp_unwanted_t::HTP_UNWANTED_400,
+            );
             htp_config_set_requestline_leading_whitespace_unwanted(
                 cfg,
-                HTP_DECODER_DEFAULTS,
-                HTP_UNWANTED_IGNORE,
+                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                htp_unwanted_t::HTP_UNWANTED_IGNORE,
             );
         }
         _ => return -(1 as libc::c_int),
@@ -3157,7 +3155,7 @@ pub unsafe extern "C" fn htp_config_set_bestfit_map(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].bestfit_map = map as *mut libc::c_uchar;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].bestfit_map = map as *mut libc::c_uchar;
@@ -3185,7 +3183,7 @@ pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte = b as libc::c_uchar;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].bestfit_replacement_byte = b as libc::c_uchar;
@@ -3211,7 +3209,7 @@ pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling = handling;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].url_encoding_invalid_handling = handling;
@@ -3237,7 +3235,7 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
@@ -3265,7 +3263,7 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
@@ -3292,7 +3290,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].u_encoding_decode = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].u_encoding_decode = convert_to_0_or_1(enabled);
@@ -3304,7 +3302,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
 /**
  * Configures whether backslash characters are treated as path segment separators. They
  * are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
- * such as "/one\two/three" will be converted to "/one/two/three". Implemented only for HTP_DECODER_URL_PATH.
+ * such as "/one\two/three" will be converted to "/one/two/three". Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3320,7 +3318,7 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
@@ -3334,7 +3332,7 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
  * this by default, but IIS does. If enabled, a path such as "/one%2ftwo" will be normalized
  * to "/one/two". If the backslash_separators option is also enabled, encoded backslash
  * characters will be converted too (and subsequently normalized to forward slashes). Implemented
- * only for HTP_DECODER_URL_PATH.
+ * only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3350,7 +3348,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].path_separators_decode = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].path_separators_decode = convert_to_0_or_1(enabled);
@@ -3364,7 +3362,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
  * such as "/one//two" will be normalized to "/one/two". Backslash conversion and path segment separator
  * decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
  * will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
- * HTP_DECODER_URL_PATH.
+ * htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3380,7 +3378,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_compress(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].path_separators_compress = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].path_separators_compress = convert_to_0_or_1(enabled);
@@ -3408,7 +3406,7 @@ pub unsafe extern "C" fn htp_config_set_plusspace_decode(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].plusspace_decode = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].plusspace_decode = convert_to_0_or_1(enabled);
@@ -3419,8 +3417,8 @@ pub unsafe extern "C" fn htp_config_set_plusspace_decode(
 
 /**
  * Configures whether input data will be converted to lowercase. Useful when set on the
- * HTP_DECODER_URL_PATH context, in order to handle servers with case-insensitive filesystems.
- * Implemented only for HTP_DECODER_URL_PATH.
+ * htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with case-insensitive filesystems.
+ * Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3436,7 +3434,7 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].convert_lowercase = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].convert_lowercase = convert_to_0_or_1(enabled);
@@ -3447,7 +3445,7 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
 
 /**
  * Controls whether the data should be treated as UTF-8 and converted to a single-byte
- * stream using best-fit mapping. Implemented only for HTP_DECODER_URL_PATH.
+ * stream using best-fit mapping. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3463,7 +3461,7 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
@@ -3489,7 +3487,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
@@ -3515,7 +3513,7 @@ pub unsafe extern "C" fn htp_config_set_control_chars_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
@@ -3541,7 +3539,7 @@ pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].url_encoding_invalid_unwanted = unwanted;
@@ -3567,7 +3565,7 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].nul_encoded_unwanted = unwanted;
@@ -3595,7 +3593,7 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].nul_raw_unwanted = unwanted;
@@ -3605,7 +3603,7 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_unwanted(
 }
 
 /**
- * Configures reaction to encoded path separator characters (e.g., %2f). Implemented only for HTP_DECODER_URL_PATH.
+ * Configures reaction to encoded path separator characters (e.g., %2f). Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3621,7 +3619,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_encoded_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].path_separators_encoded_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].path_separators_encoded_unwanted = unwanted;
@@ -3633,7 +3631,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_encoded_unwanted(
 /**
  * Configures how the server reacts to invalid UTF-8 characters. This setting does
  * not affect path normalization; it only controls what response status will be expect for
- * a request that contains invalid UTF-8 characters. Implemented only for HTP_DECODER_URL_PATH.
+ * a request that contains invalid UTF-8 characters. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
  *
  * @param[in] cfg
  * @param[in] ctx
@@ -3649,7 +3647,7 @@ pub unsafe extern "C" fn htp_config_set_utf8_invalid_unwanted(
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].utf8_invalid_unwanted = unwanted;
-    if ctx as libc::c_uint == HTP_DECODER_DEFAULTS as libc::c_int as libc::c_uint {
+    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].utf8_invalid_unwanted = unwanted;

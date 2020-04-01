@@ -44,6 +44,19 @@ pub type htp_status_t = libc::c_int;
 pub type bstr = crate::src::bstr::bstr_t;
 
 #[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+enum htp_table_alloc_t {
+    /** This is the default value, used only until the first element is added. */
+    HTP_TABLE_KEYS_ALLOC_UKNOWN,
+    /** Keys are copied.*/
+    HTP_TABLE_KEYS_COPIED,
+    /** Keys are adopted and freed when the table is destroyed. */
+    HTP_TABLE_KEYS_ADOPTED,
+    /** Keys are only referenced; the caller is still responsible for freeing them after the table is destroyed. */
+    HTP_TABLE_KEYS_REFERENCED,
+}
+
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_table_t {
     /** Table key and value pairs are stored in this list; name first, then value. */
@@ -52,17 +65,8 @@ pub struct htp_table_t {
      * Key management strategy. Initially set to HTP_TABLE_KEYS_ALLOC_UKNOWN. The
      * actual strategy is determined by the first allocation.
      */
-    pub alloc_type: htp_table_alloc_t,
+    alloc_type: htp_table_alloc_t,
 }
-pub type htp_table_alloc_t = libc::c_uint;
-/** Keys are only referenced; the caller is still responsible for freeing them after the table is destroyed. */
-pub const HTP_TABLE_KEYS_REFERENCED: htp_table_alloc_t = 3;
-/** Keys are adopted and freed when the table is destroyed. */
-pub const HTP_TABLE_KEYS_ADOPTED: htp_table_alloc_t = 2;
-/** Keys are copied.*/
-pub const HTP_TABLE_KEYS_COPIED: htp_table_alloc_t = 1;
-/** This is the default value, used only until the first element is added. */
-pub const HTP_TABLE_KEYS_ALLOC_UKNOWN: htp_table_alloc_t = 0;
 
 unsafe extern "C" fn _htp_table_add(
     mut table: *mut htp_table_t,
@@ -102,13 +106,9 @@ pub unsafe extern "C" fn htp_table_add(
     }
     // Keep track of how keys are allocated, and
     // ensure that all invocations are consistent.
-    if (*table).alloc_type as libc::c_uint
-        == HTP_TABLE_KEYS_ALLOC_UKNOWN as libc::c_int as libc::c_uint
-    {
-        (*table).alloc_type = HTP_TABLE_KEYS_COPIED
-    } else if (*table).alloc_type as libc::c_uint
-        != HTP_TABLE_KEYS_COPIED as libc::c_int as libc::c_uint
-    {
+    if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN {
+        (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_COPIED
+    } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_COPIED {
         return -(1 as libc::c_int);
     }
     let mut dupkey: *mut bstr = bstr_dup(key);
@@ -145,13 +145,9 @@ pub unsafe extern "C" fn htp_table_addn(
     }
     // Keep track of how keys are allocated, and
     // ensure that all invocations are consistent.
-    if (*table).alloc_type as libc::c_uint
-        == HTP_TABLE_KEYS_ALLOC_UKNOWN as libc::c_int as libc::c_uint
-    {
-        (*table).alloc_type = HTP_TABLE_KEYS_ADOPTED
-    } else if (*table).alloc_type as libc::c_uint
-        != HTP_TABLE_KEYS_ADOPTED as libc::c_int as libc::c_uint
-    {
+    if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN {
+        (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_ADOPTED
+    } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_ADOPTED {
         return -(1 as libc::c_int);
     }
     return _htp_table_add(table, key, element);
@@ -179,13 +175,9 @@ pub unsafe extern "C" fn htp_table_addk(
     }
     // Keep track of how keys are allocated, and
     // ensure that all invocations are consistent.
-    if (*table).alloc_type as libc::c_uint
-        == HTP_TABLE_KEYS_ALLOC_UKNOWN as libc::c_int as libc::c_uint
-    {
-        (*table).alloc_type = HTP_TABLE_KEYS_REFERENCED
-    } else if (*table).alloc_type as libc::c_uint
-        != HTP_TABLE_KEYS_REFERENCED as libc::c_int as libc::c_uint
-    {
+    if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN {
+        (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_REFERENCED
+    } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_REFERENCED {
         return -(1 as libc::c_int);
     }
     return _htp_table_add(table, key, element);
@@ -204,9 +196,8 @@ pub unsafe extern "C" fn htp_table_clear(mut table: *mut htp_table_t) {
         return;
     }
     // Free the table keys, but only if we're managing them.
-    if (*table).alloc_type as libc::c_uint == HTP_TABLE_KEYS_COPIED as libc::c_int as libc::c_uint
-        || (*table).alloc_type as libc::c_uint
-            == HTP_TABLE_KEYS_ADOPTED as libc::c_int as libc::c_uint
+    if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_COPIED
+        || (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ADOPTED
     {
         let mut key: *mut bstr = 0 as *mut bstr;
         let mut i: size_t = 0 as libc::c_int as size_t;
@@ -256,7 +247,7 @@ pub unsafe extern "C" fn htp_table_create(mut size: size_t) -> *mut htp_table_t 
     if table.is_null() {
         return 0 as *mut htp_table_t;
     }
-    (*table).alloc_type = HTP_TABLE_KEYS_ALLOC_UKNOWN;
+    (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN;
     // Use a list behind the scenes.
     if htp_list_array_init(
         &mut (*table).list,
@@ -301,7 +292,7 @@ pub unsafe extern "C" fn htp_table_destroy_ex(mut table: *mut htp_table_t) {
     }
     // Change allocation strategy in order to
     // prevent the keys from being freed.
-    (*table).alloc_type = HTP_TABLE_KEYS_REFERENCED;
+    (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_REFERENCED;
     htp_table_destroy(table);
 }
 

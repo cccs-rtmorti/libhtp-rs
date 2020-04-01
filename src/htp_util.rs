@@ -263,49 +263,14 @@ pub struct _IO_marker {
 pub type FILE = _IO_FILE;
 
 pub type htp_status_t = libc::c_int;
-
-/* *
- * Enumerates the ways in which servers respond to malformed data.
- */
-pub type htp_unwanted_t = libc::c_uint;
-/* * Responds with HTTP 404 status code. */
-pub const HTP_UNWANTED_404: htp_unwanted_t = 404;
-/* * Responds with HTTP 400 status code. */
-pub const HTP_UNWANTED_400: htp_unwanted_t = 400;
-/* * Ignores problem. */
-pub const HTP_UNWANTED_IGNORE: htp_unwanted_t = 0;
-
-/* *
- * Enumerates the possible approaches to handling invalid URL-encodings.
- */
-pub type htp_url_encoding_handling_t = libc::c_uint;
-/* * Decode invalid URL encodings. */
-pub const HTP_URL_DECODE_PROCESS_INVALID: htp_url_encoding_handling_t = 2;
-/* * Ignore invalid URL encodings, but remove the % from the data. */
-pub const HTP_URL_DECODE_REMOVE_PERCENT: htp_url_encoding_handling_t = 1;
-/* * Ignore invalid URL encodings and leave the % in the data. */
-pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
-
-// A collection of unique parser IDs.
-pub type htp_parser_id_t = libc::c_uint;
-/* * multipart/form-data parser. */
-pub const HTP_PARSER_MULTIPART: htp_parser_id_t = 1;
-/* * application/x-www-form-urlencoded parser. */
-pub const HTP_PARSER_URLENCODED: htp_parser_id_t = 0;
-// Protocol version constants; an enum cannot be
-// used here because we allow any properly-formatted protocol
-// version (e.g., 1.3), even those that do not actually exist.
-// A collection of possible data sources.
-pub type htp_data_source_t = libc::c_uint;
-/* * Transported in the request body. */
-pub const HTP_SOURCE_BODY: htp_data_source_t = 3;
-/* * Cookies. */
-pub const HTP_SOURCE_COOKIE: htp_data_source_t = 2;
-/* * Transported in the query string. */
-pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
-/* * Embedded in the URL. */
-pub const HTP_SOURCE_URL: htp_data_source_t = 0;
 pub type bstr = crate::src::bstr::bstr_t;
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub enum htp_file_source_t {
+    HTP_FILE_MULTIPART = 1,
+    HTP_FILE_PUT = 2,
+}
 
 /* *
  * Used to represent files that are seen during the processing of HTTP traffic. Most
@@ -326,83 +291,6 @@ pub struct htp_file_t {
     /** The file descriptor used for external storage, or -1 if unused. */
     pub fd: libc::c_int,
 }
-
-pub type htp_file_source_t = libc::c_uint;
-pub const HTP_FILE_PUT: htp_file_source_t = 2;
-pub const HTP_FILE_MULTIPART: htp_file_source_t = 1;
-
-/* *
- * Possible states of a progressing transaction. Internally, progress will change
- * to the next state when the processing activities associated with that state
- * begin. For example, when we start to process request line bytes, the request
- * state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
- */
-pub type htp_tx_res_progress_t = libc::c_uint;
-pub const HTP_RESPONSE_COMPLETE: htp_tx_res_progress_t = 5;
-pub const HTP_RESPONSE_TRAILER: htp_tx_res_progress_t = 4;
-pub const HTP_RESPONSE_BODY: htp_tx_res_progress_t = 3;
-pub const HTP_RESPONSE_HEADERS: htp_tx_res_progress_t = 2;
-pub const HTP_RESPONSE_LINE: htp_tx_res_progress_t = 1;
-pub const HTP_RESPONSE_NOT_STARTED: htp_tx_res_progress_t = 0;
-pub type htp_tx_req_progress_t = libc::c_uint;
-pub const HTP_REQUEST_COMPLETE: htp_tx_req_progress_t = 5;
-pub const HTP_REQUEST_TRAILER: htp_tx_req_progress_t = 4;
-pub const HTP_REQUEST_BODY: htp_tx_req_progress_t = 3;
-pub const HTP_REQUEST_HEADERS: htp_tx_req_progress_t = 2;
-pub const HTP_REQUEST_LINE: htp_tx_req_progress_t = 1;
-pub const HTP_REQUEST_NOT_STARTED: htp_tx_req_progress_t = 0;
-pub type htp_content_encoding_t = libc::c_uint;
-pub const HTP_COMPRESSION_LZMA: htp_content_encoding_t = 4;
-pub const HTP_COMPRESSION_DEFLATE: htp_content_encoding_t = 3;
-pub const HTP_COMPRESSION_GZIP: htp_content_encoding_t = 2;
-pub const HTP_COMPRESSION_NONE: htp_content_encoding_t = 1;
-pub const HTP_COMPRESSION_UNKNOWN: htp_content_encoding_t = 0;
-pub type htp_transfer_coding_t = libc::c_uint;
-pub const HTP_CODING_INVALID: htp_transfer_coding_t = 4;
-pub const HTP_CODING_CHUNKED: htp_transfer_coding_t = 3;
-pub const HTP_CODING_IDENTITY: htp_transfer_coding_t = 2;
-pub const HTP_CODING_NO_BODY: htp_transfer_coding_t = 1;
-pub const HTP_CODING_UNKNOWN: htp_transfer_coding_t = 0;
-
-pub type htp_table_alloc_t = libc::c_uint;
-pub const HTP_TABLE_KEYS_REFERENCED: htp_table_alloc_t = 3;
-pub const HTP_TABLE_KEYS_ADOPTED: htp_table_alloc_t = 2;
-pub const HTP_TABLE_KEYS_COPIED: htp_table_alloc_t = 1;
-pub const HTP_TABLE_KEYS_ALLOC_UKNOWN: htp_table_alloc_t = 0;
-pub type htp_auth_type_t = libc::c_uint;
-pub const HTP_AUTH_UNRECOGNIZED: htp_auth_type_t = 9;
-pub const HTP_AUTH_DIGEST: htp_auth_type_t = 3;
-pub const HTP_AUTH_BASIC: htp_auth_type_t = 2;
-pub const HTP_AUTH_NONE: htp_auth_type_t = 1;
-pub const HTP_AUTH_UNKNOWN: htp_auth_type_t = 0;
-
-pub type htp_part_mode_t = libc::c_uint;
-/* * When in data mode, the parser is consuming part data. */
-pub const MODE_DATA: htp_part_mode_t = 1;
-/* * When in line mode, the parser is handling part headers. */
-pub const MODE_LINE: htp_part_mode_t = 0;
-
-pub type htp_multipart_type_t = libc::c_uint;
-pub const MULTIPART_PART_EPILOGUE: htp_multipart_type_t = 4;
-pub const MULTIPART_PART_PREAMBLE: htp_multipart_type_t = 3;
-pub const MULTIPART_PART_FILE: htp_multipart_type_t = 2;
-pub const MULTIPART_PART_TEXT: htp_multipart_type_t = 1;
-pub const MULTIPART_PART_UNKNOWN: htp_multipart_type_t = 0;
-pub type htp_multipart_state_t = libc::c_uint;
-/* * Used after a CR byte is detected in STATE_BOUNDARY_EAT_LWS. */
-pub const STATE_BOUNDARY_EAT_LWS_CR: htp_multipart_state_t = 6;
-/* * Consuming linear whitespace after a boundary. */
-pub const STATE_BOUNDARY_EAT_LWS: htp_multipart_state_t = 5;
-/* * Checking the second byte after a boundary. */
-pub const STATE_BOUNDARY_IS_LAST2: htp_multipart_state_t = 4;
-/* * Checking the first byte after a boundary. */
-pub const STATE_BOUNDARY_IS_LAST1: htp_multipart_state_t = 3;
-/* * Testing a potential boundary. */
-pub const STATE_BOUNDARY: htp_multipart_state_t = 2;
-/* * Processing data, waiting for a new line (which might indicate a new boundary). */
-pub const STATE_DATA: htp_multipart_state_t = 1;
-/* * Initial state, after the parser has been created but before the boundary initialized. */
-pub const STATE_INIT: htp_multipart_state_t = 0;
 
 /* *
  * URI structure. Each of the fields provides access to a single
@@ -438,51 +326,23 @@ pub struct htp_uri_t {
      * setting, but it's not impossible to see it. */
     pub fragment: *mut bstr,
 }
-pub type htp_method_t = libc::c_uint;
-pub const HTP_M_INVALID: htp_method_t = 28;
-pub const HTP_M_MERGE: htp_method_t = 27;
-pub const HTP_M_BASELINE_CONTROL: htp_method_t = 26;
-pub const HTP_M_MKACTIVITY: htp_method_t = 25;
-pub const HTP_M_MKWORKSPACE: htp_method_t = 24;
-pub const HTP_M_REPORT: htp_method_t = 23;
-pub const HTP_M_LABEL: htp_method_t = 22;
-pub const HTP_M_UPDATE: htp_method_t = 21;
-pub const HTP_M_CHECKIN: htp_method_t = 20;
-pub const HTP_M_UNCHECKOUT: htp_method_t = 19;
-pub const HTP_M_CHECKOUT: htp_method_t = 18;
-pub const HTP_M_VERSION_CONTROL: htp_method_t = 17;
-pub const HTP_M_UNLOCK: htp_method_t = 16;
-pub const HTP_M_LOCK: htp_method_t = 15;
-pub const HTP_M_MOVE: htp_method_t = 14;
-pub const HTP_M_COPY: htp_method_t = 13;
-pub const HTP_M_MKCOL: htp_method_t = 12;
-pub const HTP_M_PROPPATCH: htp_method_t = 11;
-pub const HTP_M_PROPFIND: htp_method_t = 10;
-pub const HTP_M_PATCH: htp_method_t = 9;
-pub const HTP_M_TRACE: htp_method_t = 8;
-pub const HTP_M_OPTIONS: htp_method_t = 7;
-pub const HTP_M_CONNECT: htp_method_t = 6;
-pub const HTP_M_DELETE: htp_method_t = 5;
-pub const HTP_M_POST: htp_method_t = 4;
-pub const HTP_M_PUT: htp_method_t = 3;
-pub const HTP_M_GET: htp_method_t = 2;
-pub const HTP_M_HEAD: htp_method_t = 1;
-pub const HTP_M_UNKNOWN: htp_method_t = 0;
 
 pub type htp_time_t = libc::timeval;
-/* *
- * Enumerates all stream states. Each connection has two streams, one
- * inbound and one outbound. Their states are tracked separately.
+
+/**
+ * Enumerates all log levels.
  */
-pub type htp_stream_state_t = libc::c_uint;
-pub const HTP_STREAM_DATA: htp_stream_state_t = 9;
-pub const HTP_STREAM_STOP: htp_stream_state_t = 6;
-pub const HTP_STREAM_DATA_OTHER: htp_stream_state_t = 5;
-pub const HTP_STREAM_TUNNEL: htp_stream_state_t = 4;
-pub const HTP_STREAM_ERROR: htp_stream_state_t = 3;
-pub const HTP_STREAM_CLOSED: htp_stream_state_t = 2;
-pub const HTP_STREAM_OPEN: htp_stream_state_t = 1;
-pub const HTP_STREAM_NEW: htp_stream_state_t = 0;
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_log_level_t {
+    HTP_LOG_NONE,
+    HTP_LOG_ERROR,
+    HTP_LOG_WARNING,
+    HTP_LOG_NOTICE,
+    HTP_LOG_INFO,
+    HTP_LOG_DEBUG,
+    HTP_LOG_DEBUG2,
+}
 
 /* *
  * Represents a single log entry.
@@ -505,25 +365,6 @@ pub struct htp_log_t {
     /** Line number on which the code that emitted the message resides. */
     pub line: libc::c_uint,
 }
-pub type htp_log_level_t = libc::c_uint;
-pub const HTP_LOG_DEBUG2: htp_log_level_t = 6;
-pub const HTP_LOG_DEBUG: htp_log_level_t = 5;
-pub const HTP_LOG_INFO: htp_log_level_t = 4;
-pub const HTP_LOG_NOTICE: htp_log_level_t = 3;
-pub const HTP_LOG_WARNING: htp_log_level_t = 2;
-pub const HTP_LOG_ERROR: htp_log_level_t = 1;
-pub const HTP_LOG_NONE: htp_log_level_t = 0;
-pub type htp_server_personality_t = libc::c_uint;
-pub const HTP_SERVER_APACHE_2: htp_server_personality_t = 9;
-pub const HTP_SERVER_IIS_7_5: htp_server_personality_t = 8;
-pub const HTP_SERVER_IIS_7_0: htp_server_personality_t = 7;
-pub const HTP_SERVER_IIS_6_0: htp_server_personality_t = 6;
-pub const HTP_SERVER_IIS_5_1: htp_server_personality_t = 5;
-pub const HTP_SERVER_IIS_5_0: htp_server_personality_t = 4;
-pub const HTP_SERVER_IIS_4_0: htp_server_personality_t = 3;
-pub const HTP_SERVER_IDS: htp_server_personality_t = 2;
-pub const HTP_SERVER_GENERIC: htp_server_personality_t = 1;
-pub const HTP_SERVER_MINIMAL: htp_server_personality_t = 0;
 
 /* *
  * Represents a chunk of file data.
@@ -538,10 +379,6 @@ pub struct htp_file_data_t {
     /** Buffer length. */
     pub len: size_t,
 }
-pub type htp_decoder_ctx_t = libc::c_uint;
-pub const HTP_DECODER_URL_PATH: htp_decoder_ctx_t = 2;
-pub const HTP_DECODER_URLENCODED: htp_decoder_ctx_t = 1;
-pub const HTP_DECODER_DEFAULTS: htp_decoder_ctx_t = 0;
 
 /* *
  * Is character a linear white space character?
@@ -683,115 +520,115 @@ pub unsafe extern "C" fn htp_is_space(mut c: libc::c_int) -> libc::c_int {
 #[no_mangle]
 pub unsafe extern "C" fn htp_convert_method_to_number(mut method: *mut bstr) -> libc::c_int {
     if method.is_null() {
-        return HTP_M_UNKNOWN as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_int;
     }
     // TODO Optimize using parallel matching, or something similar.
     if bstr_cmp_c(method, b"GET\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_GET as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_GET as libc::c_int;
     }
     if bstr_cmp_c(method, b"PUT\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_PUT as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_PUT as libc::c_int;
     }
     if bstr_cmp_c(method, b"POST\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_POST as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_POST as libc::c_int;
     }
     if bstr_cmp_c(method, b"DELETE\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_DELETE as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_DELETE as libc::c_int;
     }
     if bstr_cmp_c(method, b"CONNECT\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_CONNECT as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_CONNECT as libc::c_int;
     }
     if bstr_cmp_c(method, b"OPTIONS\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_OPTIONS as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_OPTIONS as libc::c_int;
     }
     if bstr_cmp_c(method, b"TRACE\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_TRACE as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_TRACE as libc::c_int;
     }
     if bstr_cmp_c(method, b"PATCH\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_PATCH as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_PATCH as libc::c_int;
     }
     if bstr_cmp_c(method, b"PROPFIND\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_PROPFIND as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_PROPFIND as libc::c_int;
     }
     if bstr_cmp_c(method, b"PROPPATCH\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int
     {
-        return HTP_M_PROPPATCH as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_PROPPATCH as libc::c_int;
     }
     if bstr_cmp_c(method, b"MKCOL\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_MKCOL as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_MKCOL as libc::c_int;
     }
     if bstr_cmp_c(method, b"COPY\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_COPY as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_COPY as libc::c_int;
     }
     if bstr_cmp_c(method, b"MOVE\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_MOVE as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_MOVE as libc::c_int;
     }
     if bstr_cmp_c(method, b"LOCK\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_LOCK as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_LOCK as libc::c_int;
     }
     if bstr_cmp_c(method, b"UNLOCK\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_UNLOCK as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_UNLOCK as libc::c_int;
     }
     if bstr_cmp_c(
         method,
         b"VERSION-CONTROL\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int
     {
-        return HTP_M_VERSION_CONTROL as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_VERSION_CONTROL as libc::c_int;
     }
     if bstr_cmp_c(method, b"CHECKOUT\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_CHECKOUT as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_CHECKOUT as libc::c_int;
     }
     if bstr_cmp_c(
         method,
         b"UNCHECKOUT\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int
     {
-        return HTP_M_UNCHECKOUT as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_UNCHECKOUT as libc::c_int;
     }
     if bstr_cmp_c(method, b"CHECKIN\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_CHECKIN as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_CHECKIN as libc::c_int;
     }
     if bstr_cmp_c(method, b"UPDATE\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_UPDATE as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_UPDATE as libc::c_int;
     }
     if bstr_cmp_c(method, b"LABEL\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_LABEL as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_LABEL as libc::c_int;
     }
     if bstr_cmp_c(method, b"REPORT\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_REPORT as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_REPORT as libc::c_int;
     }
     if bstr_cmp_c(
         method,
         b"MKWORKSPACE\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int
     {
-        return HTP_M_MKWORKSPACE as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_MKWORKSPACE as libc::c_int;
     }
     if bstr_cmp_c(
         method,
         b"MKACTIVITY\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int
     {
-        return HTP_M_MKACTIVITY as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_MKACTIVITY as libc::c_int;
     }
     if bstr_cmp_c(
         method,
         b"BASELINE-CONTROL\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int
     {
-        return HTP_M_BASELINE_CONTROL as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_BASELINE_CONTROL as libc::c_int;
     }
     if bstr_cmp_c(method, b"MERGE\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_MERGE as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_MERGE as libc::c_int;
     }
     if bstr_cmp_c(method, b"INVALID\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_INVALID as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_INVALID as libc::c_int;
     }
     if bstr_cmp_c(method, b"HEAD\x00" as *const u8 as *const libc::c_char) == 0 as libc::c_int {
-        return HTP_M_HEAD as libc::c_int;
+        return crate::src::htp_request::htp_method_t::HTP_M_HEAD as libc::c_int;
     }
-    return HTP_M_UNKNOWN as libc::c_int;
+    return crate::src::htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_int;
 }
 
 /* *
@@ -879,7 +716,7 @@ pub unsafe extern "C" fn htp_parse_content_length(
                 connp,
                 b"htp_util.c\x00" as *const u8 as *const libc::c_char,
                 267 as libc::c_int,
-                HTP_LOG_WARNING,
+                htp_log_level_t::HTP_LOG_WARNING,
                 0 as libc::c_int,
                 b"C-L value with extra data in the beginnning\x00" as *const u8
                     as *const libc::c_char,
@@ -903,7 +740,7 @@ pub unsafe extern "C" fn htp_parse_content_length(
             connp,
             b"htp_util.c\x00" as *const u8 as *const libc::c_char,
             278 as libc::c_int,
-            HTP_LOG_WARNING,
+            htp_log_level_t::HTP_LOG_WARNING,
             0 as libc::c_int,
             b"C-L value with extra data in the end\x00" as *const u8 as *const libc::c_char,
         );
@@ -1083,7 +920,7 @@ pub unsafe extern "C" fn htp_log(
     (*log).code = code;
     (*log).msg = strdup(buf.as_mut_ptr());
     htp_list_array_push((*(*connp).conn).messages, log as *mut libc::c_void);
-    if level as libc::c_uint == HTP_LOG_ERROR as libc::c_int as libc::c_uint {
+    if level == htp_log_level_t::HTP_LOG_ERROR {
         (*connp).last_error = log
     }
     /* coverity[check_return] */
@@ -1774,7 +1611,7 @@ unsafe extern "C" fn x2c(mut what: *mut libc::c_uchar) -> libc::c_uchar {
  */
 unsafe extern "C" fn bestfit_codepoint(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
+    mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut codepoint: uint32_t,
 ) -> uint8_t {
     // Is it a single-byte codepoint?
@@ -1888,8 +1725,11 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
                     // Use best-fit mapping to convert to a single byte.
                     let fresh1 = wpos;
                     wpos = wpos.wrapping_add(1);
-                    *data.offset(fresh1 as isize) =
-                        bestfit_codepoint(cfg, HTP_DECODER_URL_PATH, codepoint)
+                    *data.offset(fresh1 as isize) = bestfit_codepoint(
+                        cfg,
+                        crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                        codepoint,
+                    )
                 }
                 // Advance over the consumed byte and reset the byte counter.
                 rpos = rpos.wrapping_add(1);
@@ -1900,19 +1740,21 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
                 (*tx).flags =
                     ((*tx).flags as libc::c_ulonglong | 0x200000 as libc::c_ulonglong) as uint64_t;
                 // Is the server expected to respond with 400?
-                if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                    .utf8_invalid_unwanted as libc::c_uint
-                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                if (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                    .utf8_invalid_unwanted
+                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
-                    (*tx).response_status_expected_number =
-                        (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                            .utf8_invalid_unwanted as libc::c_int
+                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
+                        [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                        .utf8_invalid_unwanted
+                        as libc::c_int
                 }
                 // Output the replacement byte, replacing one or more invalid bytes.
                 let fresh2 = wpos;
                 wpos = wpos.wrapping_add(1);
                 *data.offset(fresh2 as isize) = (*cfg).decoder_cfgs
-                    [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .bestfit_replacement_byte;
                 // If the invalid byte was first in a sequence, consume it. Otherwise,
                 // assume it's the starting byte of the next character.
@@ -2051,7 +1893,8 @@ unsafe extern "C" fn decode_u_encoding_path(
 ) -> libc::c_int {
     let mut c1: libc::c_uint = x2c(data) as libc::c_uint;
     let mut c2: libc::c_uint = x2c(data.offset(2 as libc::c_int as isize)) as libc::c_uint;
-    let mut r: libc::c_int = (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+    let mut r: libc::c_int = (*cfg).decoder_cfgs
+        [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
         .bestfit_replacement_byte as libc::c_int;
     if c1 == 0 as libc::c_int as libc::c_uint {
         r = c2 as libc::c_int;
@@ -2062,17 +1905,20 @@ unsafe extern "C" fn decode_u_encoding_path(
             (*tx).flags =
                 ((*tx).flags as libc::c_ulonglong | 0x800000 as libc::c_ulonglong) as uint64_t
         }
-        if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize].u_encoding_unwanted
-            as libc::c_uint
-            != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+        if (*cfg).decoder_cfgs
+            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+            .u_encoding_unwanted
+            != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
         {
-            (*tx).response_status_expected_number =
-                (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                    .u_encoding_unwanted as libc::c_int
+            (*tx).response_status_expected_number = (*cfg).decoder_cfgs
+                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                .u_encoding_unwanted
+                as libc::c_int
         }
         // Use best-fit mapping
-        let mut p: *mut libc::c_uchar =
-            (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize].bestfit_map;
+        let mut p: *mut libc::c_uchar = (*cfg).decoder_cfgs
+            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+            .bestfit_map;
         // TODO Optimize lookup.
         // Have we reached the end of the map?
         while !(*p.offset(0 as libc::c_int as isize) as libc::c_int == 0 as libc::c_int
@@ -2092,7 +1938,8 @@ unsafe extern "C" fn decode_u_encoding_path(
     }
     // Check for encoded path separators
     if r == '/' as i32
-        || (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+        || (*cfg).decoder_cfgs
+            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .backslash_convert_slashes
             != 0
             && r == '\\' as i32
@@ -2112,7 +1959,7 @@ unsafe extern "C" fn decode_u_encoding_path(
  */
 unsafe extern "C" fn decode_u_encoding_params(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
+    mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut data: *mut libc::c_uchar,
     mut flags: *mut uint64_t,
 ) -> libc::c_int {
@@ -2187,7 +2034,8 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
         if c == '%' as i32 {
             if rpos.wrapping_add(2 as libc::c_int as libc::c_ulong) < len {
                 let mut handled: libc::c_int = 0 as libc::c_int;
-                if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                if (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .u_encoding_decode
                     != 0
                 {
@@ -2201,12 +2049,15 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             == 'U' as i32
                     {
                         handled = 1 as libc::c_int;
-                        if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                            .u_encoding_unwanted as libc::c_uint
-                            != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                        if (*cfg).decoder_cfgs
+                            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                as usize]
+                            .u_encoding_unwanted
+                            != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                         {
                             (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .u_encoding_unwanted
                                 as libc::c_int
                         }
@@ -2260,13 +2111,11 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                                         | 0x4000 as libc::c_ulonglong)
                                         as uint64_t;
                                     if (*cfg).decoder_cfgs
-                                        [HTP_DECODER_URL_PATH as libc::c_int as usize]
-                                        .nul_encoded_unwanted
-                                        as libc::c_uint
-                                        != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                                        [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                                        .nul_encoded_unwanted != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                                     {
                                         (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                            [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                                             .nul_encoded_unwanted
                                             as libc::c_int
                                     }
@@ -2276,18 +2125,20 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                                 (*tx).flags = ((*tx).flags as libc::c_ulonglong
                                     | 0x10000 as libc::c_ulonglong)
                                     as uint64_t;
-                                if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                if (*cfg).decoder_cfgs
+                                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                        as usize]
                                     .url_encoding_invalid_unwanted
-                                    as libc::c_uint
-                                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                                 {
                                     (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                        [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                        [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                                         .url_encoding_invalid_unwanted
                                         as libc::c_int
                                 }
                                 match (*cfg).decoder_cfgs
-                                    [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                        as usize]
                                     .url_encoding_invalid_handling
                                     as libc::c_uint
                                 {
@@ -2377,17 +2228,21 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             (*tx).flags = ((*tx).flags as libc::c_ulonglong
                                 | 0x10000 as libc::c_ulonglong)
                                 as uint64_t;
-                            if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                            if (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .url_encoding_invalid_unwanted
-                                as libc::c_uint
-                                != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                                != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                             {
                                 (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                    [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                        as usize]
                                     .url_encoding_invalid_unwanted
                                     as libc::c_int
                             }
-                            match (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                            match (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .url_encoding_invalid_handling
                                 as libc::c_uint
                             {
@@ -2461,16 +2316,21 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             (*tx).flags = ((*tx).flags as libc::c_ulonglong
                                 | 0x4000 as libc::c_ulonglong)
                                 as uint64_t;
-                            if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                                .nul_encoded_unwanted as libc::c_uint
-                                != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                            if (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
+                                .nul_encoded_unwanted
+                                != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                             {
                                 (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                    [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                        as usize]
                                     .nul_encoded_unwanted
                                     as libc::c_int
                             }
-                            if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                            if (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .nul_encoded_terminates
                                 != 0
                             {
@@ -2479,7 +2339,9 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             }
                         }
                         if c == '/' as i32
-                            || (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                            || (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .backslash_convert_slashes
                                 != 0
                                 && c == '\\' as i32
@@ -2487,17 +2349,21 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             (*tx).flags = ((*tx).flags as libc::c_ulonglong
                                 | 0x80000 as libc::c_ulonglong)
                                 as uint64_t;
-                            if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                            if (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .path_separators_encoded_unwanted
-                                as libc::c_uint
-                                != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                                != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                             {
                                 (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                    [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                        as usize]
                                     .path_separators_encoded_unwanted
                                     as libc::c_int
                             }
-                            if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                            if (*cfg).decoder_cfgs
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .path_separators_decode
                                 != 0
                             {
@@ -2521,17 +2387,21 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                         (*tx).flags = ((*tx).flags as libc::c_ulonglong
                             | 0x10000 as libc::c_ulonglong)
                             as uint64_t;
-                        if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                        if (*cfg).decoder_cfgs
+                            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                as usize]
                             .url_encoding_invalid_unwanted
-                            as libc::c_uint
-                            != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                            != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                         {
                             (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                [HTP_DECODER_URL_PATH as libc::c_int as usize]
+                                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                    as usize]
                                 .url_encoding_invalid_unwanted
                                 as libc::c_int
                         }
-                        match (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                        match (*cfg).decoder_cfgs
+                            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
+                                as usize]
                             .url_encoding_invalid_handling
                             as libc::c_uint
                         {
@@ -2566,15 +2436,18 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                 // Invalid URL encoding (not enough data)
                 (*tx).flags =
                     ((*tx).flags as libc::c_ulonglong | 0x10000 as libc::c_ulonglong) as uint64_t;
-                if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                    .url_encoding_invalid_unwanted as libc::c_uint
-                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                if (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                    .url_encoding_invalid_unwanted
+                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
-                    (*tx).response_status_expected_number =
-                        (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                            .url_encoding_invalid_unwanted as libc::c_int
+                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
+                        [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                        .url_encoding_invalid_unwanted
+                        as libc::c_int
                 }
-                match (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                match (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .url_encoding_invalid_handling as libc::c_uint
                 {
                     1 => {
@@ -2627,15 +2500,18 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
             // One non-encoded character
             // Is it a NUL byte?
             if c == 0 as libc::c_int {
-                if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                    .nul_raw_unwanted as libc::c_uint
-                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                if (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                    .nul_raw_unwanted
+                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
-                    (*tx).response_status_expected_number =
-                        (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                            .nul_raw_unwanted as libc::c_int
+                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
+                        [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                        .nul_raw_unwanted
+                        as libc::c_int
                 }
-                if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+                if (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .nul_raw_terminates
                     != 0
                 {
@@ -2654,31 +2530,38 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
         // Place the character into output
         // Check for control characters
         if c < 0x20 as libc::c_int {
-            if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                .control_chars_unwanted as libc::c_uint
-                != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+            if (*cfg).decoder_cfgs
+                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                .control_chars_unwanted
+                != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
             {
-                (*tx).response_status_expected_number =
-                    (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
-                        .control_chars_unwanted as libc::c_int
+                (*tx).response_status_expected_number = (*cfg).decoder_cfgs
+                    [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                    .control_chars_unwanted
+                    as libc::c_int
             }
         }
         // Convert backslashes to forward slashes, if necessary
         if c == '\\' as i32
-            && (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+            && (*cfg).decoder_cfgs
+                [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                 .backslash_convert_slashes
                 != 0
         {
             c = '/' as i32
         }
         // Lowercase characters, if necessary
-        if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize].convert_lowercase != 0
+        if (*cfg).decoder_cfgs
+            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+            .convert_lowercase
+            != 0
         {
             c = tolower(c)
         }
         // If we're compressing separators then we need
         // to track if the previous character was a separator
-        if (*cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+        if (*cfg).decoder_cfgs
+            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .path_separators_compress
             != 0
         {
@@ -2713,7 +2596,7 @@ pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
     let mut flags: uint64_t = 0 as libc::c_int as uint64_t;
     let mut rc: htp_status_t = htp_urldecode_inplace_ex(
         (*tx).cfg,
-        HTP_DECODER_URL_PATH,
+        crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
         input,
         &mut flags,
         &mut (*tx).response_status_expected_number,
@@ -2737,7 +2620,7 @@ pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
 ) -> htp_status_t {
     return htp_urldecode_inplace_ex(
         (*tx).cfg,
-        HTP_DECODER_URLENCODED,
+        crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
         input,
         &mut (*tx).flags,
         &mut (*tx).response_status_expected_number,
@@ -2758,7 +2641,7 @@ pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
+    mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr,
     mut flags: *mut uint64_t,
 ) -> htp_status_t {
@@ -2783,7 +2666,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace_ex(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
+    mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr,
     mut flags: *mut uint64_t,
     mut expected_status_code: *mut libc::c_int,
@@ -2823,8 +2706,8 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                             == 'U' as i32
                     {
                         handled = 1 as libc::c_int;
-                        if (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted as libc::c_uint
-                            != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                        if (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted
+                            != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                         {
                             *expected_status_code =
                                 (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted as libc::c_int
@@ -2882,8 +2765,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                                     | 0x10000000 as libc::c_ulonglong)
                                     as uint64_t;
                                 if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                                    as libc::c_uint
-                                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                                 {
                                     *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
                                         .url_encoding_invalid_unwanted
@@ -2981,8 +2863,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                             *flags = (*flags as libc::c_ulonglong | 0x10000000 as libc::c_ulonglong)
                                 as uint64_t;
                             if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                                as libc::c_uint
-                                != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                                != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                             {
                                 *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
                                     .url_encoding_invalid_unwanted
@@ -3067,8 +2948,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                         *flags = (*flags as libc::c_ulonglong | 0x10000000 as libc::c_ulonglong)
                             as uint64_t;
                         if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                            as libc::c_uint
-                            != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                            != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                         {
                             *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
                                 .url_encoding_invalid_unwanted
@@ -3153,8 +3033,8 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                 // Invalid encoding; not enough data (at least 2 bytes required).
                 *flags =
                     (*flags as libc::c_ulonglong | 0x10000000 as libc::c_ulonglong) as uint64_t;
-                if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted as libc::c_uint
-                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
+                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
                     *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
                         .url_encoding_invalid_unwanted
@@ -3210,8 +3090,8 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
             }
             // Did we get an encoded NUL byte?
             if c == 0 as libc::c_int {
-                if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted as libc::c_uint
-                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted
+                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
                     *expected_status_code =
                         (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted as libc::c_int
@@ -3239,8 +3119,8 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
             // One non-encoded byte.
             // Did we get a raw NUL byte?
             if c == 0 as libc::c_int {
-                if (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted as libc::c_uint
-                    != HTP_UNWANTED_IGNORE as libc::c_int as libc::c_uint
+                if (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted
+                    != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
                     *expected_status_code =
                         (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted as libc::c_int
@@ -3354,7 +3234,8 @@ pub unsafe extern "C" fn htp_normalize_parsed_uri(
         // compress separators and convert backslashes.
         htp_decode_path_inplace(tx, (*normalized).path);
         // Handle UTF-8 in the path.
-        if (*(*tx).cfg).decoder_cfgs[HTP_DECODER_URL_PATH as libc::c_int as usize]
+        if (*(*tx).cfg).decoder_cfgs
+            [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .utf8_convert_bestfit
             != 0
         {
@@ -4469,7 +4350,7 @@ pub unsafe extern "C" fn htp_validate_hostname(mut hostname: *mut bstr) -> libc:
 
 /**
  * Frees all data contained in the uri, and then the uri itself.
- * 
+ *
  * @param[in] uri
  */
 #[no_mangle]

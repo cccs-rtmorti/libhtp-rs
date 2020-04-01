@@ -166,98 +166,7 @@ pub type ssize_t = __ssize_t;
 pub type mode_t = __mode_t;
 
 pub type htp_status_t = libc::c_int;
-
-/* *
- * Enumerates the ways in which servers respond to malformed data.
- */
-pub type htp_unwanted_t = libc::c_uint;
-/* * Responds with HTTP 404 status code. */
-pub const HTP_UNWANTED_404: htp_unwanted_t = 404;
-/* * Responds with HTTP 400 status code. */
-pub const HTP_UNWANTED_400: htp_unwanted_t = 400;
-/* * Ignores problem. */
-pub const HTP_UNWANTED_IGNORE: htp_unwanted_t = 0;
-
-/* *
- * Enumerates the possible approaches to handling invalid URL-encodings.
- */
-pub type htp_url_encoding_handling_t = libc::c_uint;
-/* * Decode invalid URL encodings. */
-pub const HTP_URL_DECODE_PROCESS_INVALID: htp_url_encoding_handling_t = 2;
-/* * Ignore invalid URL encodings, but remove the % from the data. */
-pub const HTP_URL_DECODE_REMOVE_PERCENT: htp_url_encoding_handling_t = 1;
-/* * Ignore invalid URL encodings and leave the % in the data. */
-pub const HTP_URL_DECODE_PRESERVE_PERCENT: htp_url_encoding_handling_t = 0;
-
-// A collection of unique parser IDs.
-pub type htp_parser_id_t = libc::c_uint;
-/* * multipart/form-data parser. */
-pub const HTP_PARSER_MULTIPART: htp_parser_id_t = 1;
-/* * application/x-www-form-urlencoded parser. */
-pub const HTP_PARSER_URLENCODED: htp_parser_id_t = 0;
-// Protocol version constants; an enum cannot be
-// used here because we allow any properly-formatted protocol
-// version (e.g., 1.3), even those that do not actually exist.
-// A collection of possible data sources.
-pub type htp_data_source_t = libc::c_uint;
-/* * Transported in the request body. */
-pub const HTP_SOURCE_BODY: htp_data_source_t = 3;
-/* * Cookies. */
-pub const HTP_SOURCE_COOKIE: htp_data_source_t = 2;
-/* * Transported in the query string. */
-pub const HTP_SOURCE_QUERY_STRING: htp_data_source_t = 1;
-/* * Embedded in the URL. */
-pub const HTP_SOURCE_URL: htp_data_source_t = 0;
 pub type bstr = crate::src::bstr::bstr_t;
-
-pub type htp_file_source_t = libc::c_uint;
-pub const HTP_FILE_PUT: htp_file_source_t = 2;
-pub const HTP_FILE_MULTIPART: htp_file_source_t = 1;
-
-/* *
- * Possible states of a progressing transaction. Internally, progress will change
- * to the next state when the processing activities associated with that state
- * begin. For example, when we start to process request line bytes, the request
- * state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
- */
-pub type htp_tx_res_progress_t = libc::c_uint;
-pub const HTP_RESPONSE_COMPLETE: htp_tx_res_progress_t = 5;
-pub const HTP_RESPONSE_TRAILER: htp_tx_res_progress_t = 4;
-pub const HTP_RESPONSE_BODY: htp_tx_res_progress_t = 3;
-pub const HTP_RESPONSE_HEADERS: htp_tx_res_progress_t = 2;
-pub const HTP_RESPONSE_LINE: htp_tx_res_progress_t = 1;
-pub const HTP_RESPONSE_NOT_STARTED: htp_tx_res_progress_t = 0;
-pub type htp_tx_req_progress_t = libc::c_uint;
-pub const HTP_REQUEST_COMPLETE: htp_tx_req_progress_t = 5;
-pub const HTP_REQUEST_TRAILER: htp_tx_req_progress_t = 4;
-pub const HTP_REQUEST_BODY: htp_tx_req_progress_t = 3;
-pub const HTP_REQUEST_HEADERS: htp_tx_req_progress_t = 2;
-pub const HTP_REQUEST_LINE: htp_tx_req_progress_t = 1;
-pub const HTP_REQUEST_NOT_STARTED: htp_tx_req_progress_t = 0;
-pub type htp_content_encoding_t = libc::c_uint;
-pub const HTP_COMPRESSION_LZMA: htp_content_encoding_t = 4;
-pub const HTP_COMPRESSION_DEFLATE: htp_content_encoding_t = 3;
-pub const HTP_COMPRESSION_GZIP: htp_content_encoding_t = 2;
-pub const HTP_COMPRESSION_NONE: htp_content_encoding_t = 1;
-pub const HTP_COMPRESSION_UNKNOWN: htp_content_encoding_t = 0;
-pub type htp_transfer_coding_t = libc::c_uint;
-pub const HTP_CODING_INVALID: htp_transfer_coding_t = 4;
-pub const HTP_CODING_CHUNKED: htp_transfer_coding_t = 3;
-pub const HTP_CODING_IDENTITY: htp_transfer_coding_t = 2;
-pub const HTP_CODING_NO_BODY: htp_transfer_coding_t = 1;
-pub const HTP_CODING_UNKNOWN: htp_transfer_coding_t = 0;
-
-pub type htp_table_alloc_t = libc::c_uint;
-pub const HTP_TABLE_KEYS_REFERENCED: htp_table_alloc_t = 3;
-pub const HTP_TABLE_KEYS_ADOPTED: htp_table_alloc_t = 2;
-pub const HTP_TABLE_KEYS_COPIED: htp_table_alloc_t = 1;
-pub const HTP_TABLE_KEYS_ALLOC_UKNOWN: htp_table_alloc_t = 0;
-pub type htp_auth_type_t = libc::c_uint;
-pub const HTP_AUTH_UNRECOGNIZED: htp_auth_type_t = 9;
-pub const HTP_AUTH_DIGEST: htp_auth_type_t = 3;
-pub const HTP_AUTH_BASIC: htp_auth_type_t = 2;
-pub const HTP_AUTH_NONE: htp_auth_type_t = 1;
-pub const HTP_AUTH_UNKNOWN: htp_auth_type_t = 0;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -283,7 +192,7 @@ pub struct htp_mpartp_t {
     /**
      * Parser state; one of MULTIPART_STATE_* constants.
      */
-    pub parser_state: htp_multipart_state_t,
+    parser_state: htp_multipart_state_t,
     /**
      * Keeps track of the current position in the boundary matching progress.
      * When this field reaches boundary_len, we have a boundary match.
@@ -306,7 +215,7 @@ pub struct htp_mpartp_t {
      * us process input data more efficiently. The possible values are
      * MULTIPART_MODE_LINE and MULTIPART_MODE_DATA.
      */
-    pub current_part_mode: htp_part_mode_t,
+    current_part_mode: htp_part_mode_t,
     /**
      * Used for buffering when a potential boundary is fragmented
      * across many input data buffers. On a match, the data stored here is
@@ -345,10 +254,6 @@ pub struct htp_mpartp_t {
     pub gave_up_data: libc::c_int,
 }
 
-pub type htp_part_mode_t = libc::c_uint;
-pub const MODE_DATA: htp_part_mode_t = 1;
-pub const MODE_LINE: htp_part_mode_t = 0;
-
 /**
  * Holds information related to a part.
  */
@@ -377,20 +282,49 @@ pub struct htp_multipart_part_t {
     /** File data, available only for MULTIPART_PART_FILE parts. */
     pub file: *mut crate::src::htp_util::htp_file_t,
 }
-pub type htp_multipart_type_t = libc::c_uint;
-pub const MULTIPART_PART_EPILOGUE: htp_multipart_type_t = 4;
-pub const MULTIPART_PART_PREAMBLE: htp_multipart_type_t = 3;
-pub const MULTIPART_PART_FILE: htp_multipart_type_t = 2;
-pub const MULTIPART_PART_TEXT: htp_multipart_type_t = 1;
-pub const MULTIPART_PART_UNKNOWN: htp_multipart_type_t = 0;
-pub type htp_multipart_state_t = libc::c_uint;
-pub const STATE_BOUNDARY_EAT_LWS_CR: htp_multipart_state_t = 6;
-pub const STATE_BOUNDARY_EAT_LWS: htp_multipart_state_t = 5;
-pub const STATE_BOUNDARY_IS_LAST2: htp_multipart_state_t = 4;
-pub const STATE_BOUNDARY_IS_LAST1: htp_multipart_state_t = 3;
-pub const STATE_BOUNDARY: htp_multipart_state_t = 2;
-pub const STATE_DATA: htp_multipart_state_t = 1;
-pub const STATE_INIT: htp_multipart_state_t = 0;
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+enum htp_part_mode_t {
+    /** When in line mode, the parser is handling part headers. */
+    MODE_LINE,
+    /** When in data mode, the parser is consuming part data. */
+    MODE_DATA,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+enum htp_multipart_state_t {
+    /** Initial state, after the parser has been created but before the boundary initialized. */
+    STATE_INIT,
+    /** Processing data, waiting for a new line (which might indicate a new boundary). */
+    STATE_DATA,
+    /** Testing a potential boundary. */
+    STATE_BOUNDARY,
+    /** Checking the first byte after a boundary. */
+    STATE_BOUNDARY_IS_LAST1,
+    /** Checking the second byte after a boundary. */
+    STATE_BOUNDARY_IS_LAST2,
+    /** Consuming linear whitespace after a boundary. */
+    STATE_BOUNDARY_EAT_LWS,
+    /** Used after a CR byte is detected in htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS. */
+    STATE_BOUNDARY_EAT_LWS_CR,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_multipart_type_t {
+    /** Unknown part. */
+    MULTIPART_PART_UNKNOWN,
+    /** Text (parameter) part. */
+    MULTIPART_PART_TEXT,
+    /** File part. */
+    MULTIPART_PART_FILE,
+    /** Free-text part before the first boundary. */
+    MULTIPART_PART_PREAMBLE,
+    /** Free-text part after the last boundary. */
+    MULTIPART_PART_EPILOGUE,
+}
 
 /**
  * Holds information related to a multipart body.
@@ -410,72 +344,7 @@ pub struct htp_multipart_t {
     pub flags: uint64_t,
 }
 
-pub type htp_method_t = libc::c_uint;
-pub const HTP_M_INVALID: htp_method_t = 28;
-pub const HTP_M_MERGE: htp_method_t = 27;
-pub const HTP_M_BASELINE_CONTROL: htp_method_t = 26;
-pub const HTP_M_MKACTIVITY: htp_method_t = 25;
-pub const HTP_M_MKWORKSPACE: htp_method_t = 24;
-pub const HTP_M_REPORT: htp_method_t = 23;
-pub const HTP_M_LABEL: htp_method_t = 22;
-pub const HTP_M_UPDATE: htp_method_t = 21;
-pub const HTP_M_CHECKIN: htp_method_t = 20;
-pub const HTP_M_UNCHECKOUT: htp_method_t = 19;
-pub const HTP_M_CHECKOUT: htp_method_t = 18;
-pub const HTP_M_VERSION_CONTROL: htp_method_t = 17;
-pub const HTP_M_UNLOCK: htp_method_t = 16;
-pub const HTP_M_LOCK: htp_method_t = 15;
-pub const HTP_M_MOVE: htp_method_t = 14;
-pub const HTP_M_COPY: htp_method_t = 13;
-pub const HTP_M_MKCOL: htp_method_t = 12;
-pub const HTP_M_PROPPATCH: htp_method_t = 11;
-pub const HTP_M_PROPFIND: htp_method_t = 10;
-pub const HTP_M_PATCH: htp_method_t = 9;
-pub const HTP_M_TRACE: htp_method_t = 8;
-pub const HTP_M_OPTIONS: htp_method_t = 7;
-pub const HTP_M_CONNECT: htp_method_t = 6;
-pub const HTP_M_DELETE: htp_method_t = 5;
-pub const HTP_M_POST: htp_method_t = 4;
-pub const HTP_M_PUT: htp_method_t = 3;
-pub const HTP_M_GET: htp_method_t = 2;
-pub const HTP_M_HEAD: htp_method_t = 1;
-pub const HTP_M_UNKNOWN: htp_method_t = 0;
-
 pub type htp_time_t = libc::timeval;
-/* *
- * Enumerates all stream states. Each connection has two streams, one
- * inbound and one outbound. Their states are tracked separately.
- */
-pub type htp_stream_state_t = libc::c_uint;
-pub const HTP_STREAM_DATA: htp_stream_state_t = 9;
-pub const HTP_STREAM_STOP: htp_stream_state_t = 6;
-pub const HTP_STREAM_DATA_OTHER: htp_stream_state_t = 5;
-pub const HTP_STREAM_TUNNEL: htp_stream_state_t = 4;
-pub const HTP_STREAM_ERROR: htp_stream_state_t = 3;
-pub const HTP_STREAM_CLOSED: htp_stream_state_t = 2;
-pub const HTP_STREAM_OPEN: htp_stream_state_t = 1;
-pub const HTP_STREAM_NEW: htp_stream_state_t = 0;
-
-pub type htp_log_level_t = libc::c_uint;
-pub const HTP_LOG_DEBUG2: htp_log_level_t = 6;
-pub const HTP_LOG_DEBUG: htp_log_level_t = 5;
-pub const HTP_LOG_INFO: htp_log_level_t = 4;
-pub const HTP_LOG_NOTICE: htp_log_level_t = 3;
-pub const HTP_LOG_WARNING: htp_log_level_t = 2;
-pub const HTP_LOG_ERROR: htp_log_level_t = 1;
-pub const HTP_LOG_NONE: htp_log_level_t = 0;
-pub type htp_server_personality_t = libc::c_uint;
-pub const HTP_SERVER_APACHE_2: htp_server_personality_t = 9;
-pub const HTP_SERVER_IIS_7_5: htp_server_personality_t = 8;
-pub const HTP_SERVER_IIS_7_0: htp_server_personality_t = 7;
-pub const HTP_SERVER_IIS_6_0: htp_server_personality_t = 6;
-pub const HTP_SERVER_IIS_5_1: htp_server_personality_t = 5;
-pub const HTP_SERVER_IIS_5_0: htp_server_personality_t = 4;
-pub const HTP_SERVER_IIS_4_0: htp_server_personality_t = 3;
-pub const HTP_SERVER_IDS: htp_server_personality_t = 2;
-pub const HTP_SERVER_GENERIC: htp_server_personality_t = 1;
-pub const HTP_SERVER_MINIMAL: htp_server_personality_t = 0;
-
 /* *
  * Determines the type of a Content-Disposition parameter.
  *
@@ -772,7 +641,8 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                     return -(1 as libc::c_int);
                 }
                 (*(*part).file).fd = -(1 as libc::c_int);
-                (*(*part).file).source = HTP_FILE_MULTIPART;
+                (*(*part).file).source =
+                    crate::src::htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
                 (*(*part).file).filename = bstr_dup_mem(
                     data.offset(start as isize) as *const libc::c_void,
                     pos.wrapping_sub(start)
@@ -1047,9 +917,7 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
         free((*part).file as *mut libc::c_void);
         (*part).file = 0 as *mut crate::src::htp_util::htp_file_t
     }
-    if gave_up_data == 0
-        || (*part).type_0 as libc::c_uint != MULTIPART_PART_TEXT as libc::c_int as libc::c_uint
-    {
+    if gave_up_data == 0 || (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_TEXT {
         bstr_free((*part).name);
         bstr_free((*part).value);
     }
@@ -1084,9 +952,10 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
 ) -> htp_status_t {
     // Determine if this part is the epilogue.
     if (*(*part).parser).multipart.flags & 0x40 as libc::c_int as libc::c_ulong != 0 {
-        if (*part).type_0 as libc::c_uint == MULTIPART_PART_UNKNOWN as libc::c_int as libc::c_uint {
+        if (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
             // Assume that the unknown part after the last boundary is the epilogue.
-            (*(*(*part).parser).current_part).type_0 = MULTIPART_PART_EPILOGUE;
+            (*(*(*part).parser).current_part).type_0 =
+                htp_multipart_type_t::MULTIPART_PART_EPILOGUE;
             // But if we've already seen a part we thought was the epilogue,
             // raise HTP_MULTIPART_PART_UNKNOWN. Multiple epilogues are not allowed.
             if (*(*part).parser).multipart.flags & 0x20 as libc::c_int as libc::c_ulong != 0 {
@@ -1099,20 +968,18 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     }
     // Sanity checks.
     // Have we seen complete part headers? If we have not, that means that the part ended prematurely.
-    if (*(*(*part).parser).current_part).type_0 as libc::c_uint
-        != MULTIPART_PART_EPILOGUE as libc::c_int as libc::c_uint
-        && (*(*part).parser).current_part_mode as libc::c_uint
-            != MODE_DATA as libc::c_int as libc::c_uint
+    if (*(*(*part).parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE
+        && (*(*part).parser).current_part_mode != htp_part_mode_t::MODE_DATA
     {
         (*(*part).parser).multipart.flags |= 0x200000 as libc::c_int as libc::c_ulong
     }
     // Have we been able to determine the part type? If not, this means
     // that the part did not contain the C-D header.
-    if (*part).type_0 as libc::c_uint == MULTIPART_PART_UNKNOWN as libc::c_int as libc::c_uint {
+    if (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
         (*(*part).parser).multipart.flags |= 0x2000 as libc::c_int as libc::c_ulong
     }
     // Finalize part value.
-    if (*part).type_0 as libc::c_uint == MULTIPART_PART_FILE as libc::c_int as libc::c_uint {
+    if (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_FILE {
         // Notify callbacks about the end of the file.
         htp_mpartp_run_request_file_data_hook(
             part,
@@ -1189,7 +1056,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
     // will keep all its data in the part_data_pieces structure. If it ends up not being the
     // epilogue, this structure will be cleared.
     if (*(*part).parser).multipart.flags & 0x40 as libc::c_int as libc::c_ulong != 0
-        && (*part).type_0 as libc::c_uint == MULTIPART_PART_UNKNOWN as libc::c_int as libc::c_uint
+        && (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN
     {
         bstr_builder_append_mem(
             (*(*part).parser).part_data_pieces,
@@ -1197,9 +1064,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
             len,
         );
     }
-    if (*(*part).parser).current_part_mode as libc::c_uint
-        == MODE_LINE as libc::c_int as libc::c_uint
-    {
+    if (*(*part).parser).current_part_mode == htp_part_mode_t::MODE_LINE {
         // Line mode.
         if is_line != 0 {
             // End of the line.
@@ -1274,11 +1139,11 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     bstr_free(line);
                     return -(1 as libc::c_int);
                 }
-                (*(*part).parser).current_part_mode = MODE_DATA;
+                (*(*part).parser).current_part_mode = htp_part_mode_t::MODE_DATA;
                 bstr_builder_clear((*(*part).parser).part_header_pieces);
                 if !(*part).file.is_null() {
                     // Changing part type because we have a filename.
-                    (*part).type_0 = MULTIPART_PART_FILE;
+                    (*part).type_0 = htp_multipart_type_t::MULTIPART_PART_FILE;
                     if (*(*part).parser).extract_files != 0
                         && (*(*part).parser).file_count < (*(*part).parser).extract_limit
                     {
@@ -1322,7 +1187,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     }
                 } else if !(*part).name.is_null() {
                     // Changing part type because we have a name.
-                    (*part).type_0 = MULTIPART_PART_TEXT;
+                    (*part).type_0 = htp_multipart_type_t::MULTIPART_PART_TEXT;
                     bstr_builder_clear((*(*part).parser).part_data_pieces);
                 }
             } else if (*(*part).parser).pending_header_line.is_null() {
@@ -1453,12 +1318,12 @@ unsafe extern "C" fn htp_mpartp_handle_data(
         }
         if (*parser).multipart.boundary_count == 0 as libc::c_int {
             // We haven't seen a boundary yet, so this must be the preamble part.
-            (*(*parser).current_part).type_0 = MULTIPART_PART_PREAMBLE;
+            (*(*parser).current_part).type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE;
             (*parser).multipart.flags |= 0x10 as libc::c_int as libc::c_ulong;
-            (*parser).current_part_mode = MODE_DATA
+            (*parser).current_part_mode = htp_part_mode_t::MODE_DATA
         } else {
             // Part after preamble.
-            (*parser).current_part_mode = MODE_LINE
+            (*parser).current_part_mode = htp_part_mode_t::MODE_LINE
         }
         // Add part to the list.
         htp_list_array_push(
@@ -1484,7 +1349,7 @@ unsafe extern "C" fn htp_mpartp_handle_boundary(mut parser: *mut htp_mpartp_t) -
         // We're done with this part
         (*parser).current_part = 0 as *mut htp_multipart_part_t;
         // Revert to line mode
-        (*parser).current_part_mode = MODE_LINE
+        (*parser).current_part_mode = htp_part_mode_t::MODE_LINE
     }
     return 1 as libc::c_int;
 }
@@ -1541,7 +1406,7 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
     // CRLF, and our starting state expects that. If we encounter non-boundary data, the
     // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
     // to boundary matching. Thus, we handle all the possibilities.
-    (*parser).parser_state = STATE_BOUNDARY;
+    (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY;
     (*parser).boundary_match_pos = 2 as libc::c_int as size_t;
     return 1 as libc::c_int;
 }
@@ -1593,7 +1458,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
         return 0 as *mut htp_mpartp_t;
     }
     (*parser).multipart.flags = flags;
-    (*parser).parser_state = STATE_INIT;
+    (*parser).parser_state = htp_multipart_state_t::STATE_INIT;
     (*parser).extract_files = (*cfg).extract_request_files;
     (*parser).extract_dir = (*cfg).tmpdir;
     if (*cfg).extract_request_files_limit >= 0 as libc::c_int {
@@ -1689,9 +1554,7 @@ unsafe extern "C" fn htp_martp_process_aside(
     // when we are in line mode, we need to split the first data chunk, processing the first
     // part as line and the second part as data.
     // Do we need to do any chunk splitting?
-    if matched != 0
-        || (*parser).current_part_mode as libc::c_uint == MODE_LINE as libc::c_int as libc::c_uint
-    {
+    if matched != 0 || (*parser).current_part_mode == htp_part_mode_t::MODE_LINE {
         // Line mode or boundary match
         // Process the CR byte, if set aside.
         if matched == 0 && (*parser).cr_aside != 0 {
@@ -1859,9 +1722,7 @@ pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> h
             return -(1 as libc::c_int);
         }
         // It is OK to end abruptly in the epilogue part, but not in any other.
-        if (*(*parser).current_part).type_0 as libc::c_uint
-            != MULTIPART_PART_EPILOGUE as libc::c_int as libc::c_uint
-        {
+        if (*(*parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
             (*parser).multipart.flags |= 0x100 as libc::c_int as libc::c_ulong
         }
     }
@@ -1947,7 +1808,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                                         pos.wrapping_sub(startpos);
                                     (*parser).boundary_match_pos =
                                         2 as libc::c_int as size_t;
-                                    (*parser).parser_state = STATE_BOUNDARY;
+                                    (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY;
                                     continue 'c_11171 ;
                                 } else {
                                     // This is not a new line; advance over the
@@ -1968,7 +1829,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                             data_return_pos = pos; // After LF; position of the first dash.
                             (*parser).boundary_candidate_pos = pos.wrapping_sub(startpos);
                             (*parser).boundary_match_pos = 2 as libc::c_int as size_t;
-                            (*parser).parser_state = STATE_BOUNDARY;
+                            (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY;
                             continue 'c_11171;
                         } else {
                             // Take one byte from input
@@ -2015,9 +1876,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                             // Process stored (buffered) data.
                             htp_martp_process_aside(parser, 0 as libc::c_int);
                             // Return back where data parsing left off.
-                            if (*parser).current_part_mode as libc::c_uint
-                                == MODE_LINE as libc::c_int as libc::c_uint
-                            {
+                            if (*parser).current_part_mode == htp_part_mode_t::MODE_LINE {
                                 // In line mode, we process the line.
                                 (*parser).handle_data.expect("non-null function pointer")(
                                     parser,
@@ -2030,7 +1889,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                                 // In data mode, we go back where we left off.
                                 pos = data_return_pos
                             }
-                            (*parser).parser_state = STATE_DATA;
+                            (*parser).parser_state = htp_multipart_state_t::STATE_DATA;
                             continue 'c_11171;
                         } else {
                             // Consume one matched boundary byte
@@ -2089,7 +1948,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                                 parser
                             );
                             // We now need to check if this is the last boundary in the payload
-                            (*parser).parser_state = STATE_BOUNDARY_IS_LAST2;
+                            (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2;
                             continue 'c_11171;
                         }
                     }
@@ -2109,12 +1968,12 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                     if *data.offset(pos as isize) as libc::c_int == '-' as i32 {
                         // Found one dash, now go to check the next position.
                         pos = pos.wrapping_add(1);
-                        (*parser).parser_state = STATE_BOUNDARY_IS_LAST1
+                        (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1
                     } else {
                         // This is not the last boundary. Change state but
                         // do not advance the position, allowing the next
                         // state to process the byte.
-                        (*parser).parser_state = STATE_BOUNDARY_EAT_LWS
+                        (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     }
                     break;
                 }
@@ -2125,13 +1984,13 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                         // This is indeed the last boundary in the payload.
                         pos = pos.wrapping_add(1);
                         (*parser).multipart.flags |= 0x40 as libc::c_int as libc::c_ulong;
-                        (*parser).parser_state = STATE_BOUNDARY_EAT_LWS
+                        (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     } else {
                         // The second character is not a dash, and so this is not
                         // the final boundary. Raise the flag for the first dash,
                         // and change state to consume the rest of the boundary line.
                         (*parser).multipart.flags |= 0x8 as libc::c_int as libc::c_ulong;
-                        (*parser).parser_state = STATE_BOUNDARY_EAT_LWS
+                        (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     }
                     break;
                 }
@@ -2139,13 +1998,13 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                     if *data.offset(pos as isize) as libc::c_int == '\r' as i32 {
                         // CR byte, which could indicate a CRLF line ending.
                         pos = pos.wrapping_add(1);
-                        (*parser).parser_state = STATE_BOUNDARY_EAT_LWS_CR
+                        (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS_CR
                     } else if *data.offset(pos as isize) as libc::c_int == '\n' as i32 {
                         // LF line ending; we're done with boundary processing; data bytes follow.
                         pos = pos.wrapping_add(1);
                         startpos = pos;
                         (*parser).multipart.flags |= 0x1 as libc::c_int as libc::c_ulong;
-                        (*parser).parser_state = STATE_DATA
+                        (*parser).parser_state = htp_multipart_state_t::STATE_DATA
                     } else if htp_is_lws(*data.offset(pos as isize) as libc::c_int) != 0 {
                         // Linear white space is allowed here.
                         (*parser).multipart.flags |= 0x4 as libc::c_int as libc::c_ulong;
@@ -2163,11 +2022,11 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                         pos = pos.wrapping_add(1);
                         startpos = pos;
                         (*parser).multipart.flags |= 0x2 as libc::c_int as libc::c_ulong;
-                        (*parser).parser_state = STATE_DATA
+                        (*parser).parser_state = htp_multipart_state_t::STATE_DATA
                     } else {
                         // Not a line ending; start again, but do not process this byte.
                         (*parser).multipart.flags |= 0x8 as libc::c_int as libc::c_ulong;
-                        (*parser).parser_state = STATE_BOUNDARY_EAT_LWS
+                        (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     }
                     break;
                 }
