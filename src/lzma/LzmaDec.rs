@@ -55,20 +55,33 @@ pub struct CLzmaDec {
     pub tempBufSize: libc::c_uint,
     pub tempBuf: [Byte; 20],
 }
-pub type ELzmaFinishMode = libc::c_uint;
-pub const LZMA_FINISH_END: ELzmaFinishMode = 1;
-pub const LZMA_FINISH_ANY: ELzmaFinishMode = 0;
-pub type ELzmaStatus = libc::c_uint;
-pub const LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK: ELzmaStatus = 4;
-pub const LZMA_STATUS_NEEDS_MORE_INPUT: ELzmaStatus = 3;
-pub const LZMA_STATUS_NOT_FINISHED: ELzmaStatus = 2;
-pub const LZMA_STATUS_FINISHED_WITH_MARK: ELzmaStatus = 1;
-pub const LZMA_STATUS_NOT_SPECIFIED: ELzmaStatus = 0;
-pub const DUMMY_MATCH: ELzmaDummy = 2;
-pub type ELzmaDummy = libc::c_uint;
-pub const DUMMY_REP: ELzmaDummy = 3;
-pub const DUMMY_LIT: ELzmaDummy = 1;
-pub const DUMMY_ERROR: ELzmaDummy = 0;
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub enum ELzmaFinishMode {
+    LZMA_FINISH_ANY,
+    LZMA_FINISH_END,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub enum ELzmaStatus {
+    LZMA_STATUS_NOT_SPECIFIED,
+    LZMA_STATUS_FINISHED_WITH_MARK,
+    LZMA_STATUS_NOT_FINISHED,
+    LZMA_STATUS_NEEDS_MORE_INPUT,
+    LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+enum ELzmaDummy {
+    DUMMY_ERROR,
+    DUMMY_LIT,
+    DUMMY_MATCH,
+    DUMMY_REP,
+}
+
 /*
 p->remainLen : shows status of LZMA decoder:
     < kMatchSpecLenStart : normal remain
@@ -1819,7 +1832,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
     let mut bufLimit: *const Byte = buf.offset(inSize as isize);
     let mut probs: *const CLzmaProb = (*p).probs_1664;
     let mut state: libc::c_uint = (*p).state;
-    let mut res: ELzmaDummy = DUMMY_ERROR;
+    let mut res: ELzmaDummy = ELzmaDummy::DUMMY_ERROR;
     let mut prob: *const CLzmaProb = 0 as *const CLzmaProb;
     let mut bound: UInt32 = 0;
     let mut ttt: libc::c_uint = 0;
@@ -1844,7 +1857,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
     ttt = *prob as libc::c_uint;
     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
         if buf >= bufLimit {
-            return DUMMY_ERROR;
+            return ELzmaDummy::DUMMY_ERROR;
         }
         range <<= 8 as libc::c_int;
         let fresh46 = buf;
@@ -1906,7 +1919,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                 ttt = *prob.offset(symbol as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     if buf >= bufLimit {
-                        return DUMMY_ERROR;
+                        return ELzmaDummy::DUMMY_ERROR;
                     }
                     range <<= 8 as libc::c_int;
                     let fresh47 = buf;
@@ -1952,7 +1965,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                 ttt = *probLit as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     if buf >= bufLimit {
-                        return DUMMY_ERROR;
+                        return ELzmaDummy::DUMMY_ERROR;
                     }
                     range <<= 8 as libc::c_int;
                     let fresh48 = buf;
@@ -1976,7 +1989,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                 }
             }
         }
-        res = DUMMY_LIT
+        res = ELzmaDummy::DUMMY_LIT
     } else {
         let mut len: libc::c_uint = 0;
         range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
@@ -2001,7 +2014,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
         ttt = *prob as libc::c_uint;
         if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
             if buf >= bufLimit {
-                return DUMMY_ERROR;
+                return ELzmaDummy::DUMMY_ERROR;
             }
             range <<= 8 as libc::c_int;
             let fresh49 = buf;
@@ -2021,11 +2034,11 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                             * (((1 as libc::c_int) << 4 as libc::c_int) << 3 as libc::c_int)
                         + ((1 as libc::c_int) << 8 as libc::c_int))) as isize,
             );
-            res = DUMMY_MATCH
+            res = ELzmaDummy::DUMMY_MATCH
         } else {
             range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
             code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
-            res = DUMMY_REP;
+            res = ELzmaDummy::DUMMY_REP;
             prob = probs
                 .offset(
                     (-(1664 as libc::c_int)
@@ -2047,7 +2060,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
             ttt = *prob as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                 if buf >= bufLimit {
-                    return DUMMY_ERROR;
+                    return ELzmaDummy::DUMMY_ERROR;
                 }
                 range <<= 8 as libc::c_int;
                 let fresh50 = buf;
@@ -2067,7 +2080,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                 ttt = *prob as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     if buf >= bufLimit {
-                        return DUMMY_ERROR;
+                        return ELzmaDummy::DUMMY_ERROR;
                     }
                     range <<= 8 as libc::c_int;
                     let fresh51 = buf;
@@ -2079,14 +2092,14 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                     range = bound;
                     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                         if buf >= bufLimit {
-                            return DUMMY_ERROR;
+                            return ELzmaDummy::DUMMY_ERROR;
                         }
                         range <<= 8 as libc::c_int;
                         let fresh52 = buf;
                         buf = buf.offset(1);
                         code = code << 8 as libc::c_int | *fresh52 as libc::c_uint
                     }
-                    return DUMMY_REP;
+                    return ELzmaDummy::DUMMY_REP;
                 } else {
                     range = (range as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32;
                     code = (code as libc::c_uint).wrapping_sub(bound) as UInt32 as UInt32
@@ -2118,7 +2131,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                 ttt = *prob as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     if buf >= bufLimit {
-                        return DUMMY_ERROR;
+                        return ELzmaDummy::DUMMY_ERROR;
                     }
                     range <<= 8 as libc::c_int;
                     let fresh53 = buf;
@@ -2156,7 +2169,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                     ttt = *prob as libc::c_uint;
                     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                         if buf >= bufLimit {
-                            return DUMMY_ERROR;
+                            return ELzmaDummy::DUMMY_ERROR;
                         }
                         range <<= 8 as libc::c_int;
                         let fresh54 = buf;
@@ -2185,7 +2198,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
         ttt = *probLen as libc::c_uint;
         if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
             if buf >= bufLimit {
-                return DUMMY_ERROR;
+                return ELzmaDummy::DUMMY_ERROR;
             }
             range <<= 8 as libc::c_int;
             let fresh55 = buf;
@@ -2208,7 +2221,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
             ttt = *probLen as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                 if buf >= bufLimit {
-                    return DUMMY_ERROR;
+                    return ELzmaDummy::DUMMY_ERROR;
                 }
                 range <<= 8 as libc::c_int;
                 let fresh56 = buf;
@@ -2243,7 +2256,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
             ttt = *probLen.offset(len as isize) as libc::c_uint;
             if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                 if buf >= bufLimit {
-                    return DUMMY_ERROR;
+                    return ELzmaDummy::DUMMY_ERROR;
                 }
                 range <<= 8 as libc::c_int;
                 let fresh57 = buf;
@@ -2301,7 +2314,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                 ttt = *prob.offset(posSlot as isize) as libc::c_uint;
                 if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                     if buf >= bufLimit {
-                        return DUMMY_ERROR;
+                        return ELzmaDummy::DUMMY_ERROR;
                     }
                     range <<= 8 as libc::c_int;
                     let fresh58 = buf;
@@ -2340,7 +2353,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                     loop {
                         if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                             if buf >= bufLimit {
-                                return DUMMY_ERROR;
+                                return ELzmaDummy::DUMMY_ERROR;
                             }
                             range <<= 8 as libc::c_int;
                             let fresh59 = buf;
@@ -2384,7 +2397,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
                     ttt = *prob.offset(i as isize) as libc::c_uint;
                     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
                         if buf >= bufLimit {
-                            return DUMMY_ERROR;
+                            return ELzmaDummy::DUMMY_ERROR;
                         }
                         range <<= 8 as libc::c_int;
                         let fresh60 = buf;
@@ -2412,7 +2425,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
     }
     if range < (1 as libc::c_int as UInt32) << 24 as libc::c_int {
         if buf >= bufLimit {
-            return DUMMY_ERROR;
+            return ELzmaDummy::DUMMY_ERROR;
         }
         range <<= 8 as libc::c_int;
         let fresh61 = buf;
@@ -2463,7 +2476,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
 ) -> SRes {
     let mut inSize: SizeT = *srcLen;
     *srcLen = 0 as libc::c_int as SizeT;
-    *status = LZMA_STATUS_NOT_SPECIFIED;
+    *status = ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
     if (*p).remainLen
         > (2 as libc::c_int
             + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
@@ -2486,7 +2499,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
             return 1 as libc::c_int;
         }
         if (*p).tempBufSize < 5 as libc::c_int as libc::c_uint {
-            *status = LZMA_STATUS_NEEDS_MORE_INPUT;
+            *status = ELzmaStatus::LZMA_STATUS_NEEDS_MORE_INPUT;
             return 0 as libc::c_int;
         }
         (*p).code = ((*p).tempBuf[1 as libc::c_int as usize] as UInt32) << 24 as libc::c_int
@@ -2551,15 +2564,17 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
             if (*p).remainLen == 0 as libc::c_int as libc::c_uint
                 && (*p).code == 0 as libc::c_int as libc::c_uint
             {
-                *status = LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK;
+                *status = ELzmaStatus::LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK;
                 return 0 as libc::c_int;
             }
-            if finishMode as libc::c_uint == LZMA_FINISH_ANY as libc::c_int as libc::c_uint {
-                *status = LZMA_STATUS_NOT_FINISHED;
+            if finishMode as libc::c_uint
+                == ELzmaFinishMode::LZMA_FINISH_ANY as libc::c_int as libc::c_uint
+            {
+                *status = ELzmaStatus::LZMA_STATUS_NOT_FINISHED;
                 return 0 as libc::c_int;
             }
             if (*p).remainLen != 0 as libc::c_int as libc::c_uint {
-                *status = LZMA_STATUS_NOT_FINISHED;
+                *status = ELzmaStatus::LZMA_STATUS_NOT_FINISHED;
                 return 1 as libc::c_int;
             }
             checkEndMarkNow = 1 as libc::c_int
@@ -2569,7 +2584,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
             let mut bufLimit: *const Byte = 0 as *const Byte;
             if inSize < 20 as libc::c_int as libc::c_ulong || checkEndMarkNow != 0 {
                 let mut dummyRes: libc::c_int = LzmaDec_TryDummy(p, src, inSize) as libc::c_int;
-                if dummyRes == DUMMY_ERROR as libc::c_int {
+                if dummyRes == ELzmaDummy::DUMMY_ERROR as libc::c_int {
                     memcpy(
                         (*p).tempBuf.as_mut_ptr() as *mut libc::c_void,
                         src as *const libc::c_void,
@@ -2577,11 +2592,11 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
                     );
                     (*p).tempBufSize = inSize as libc::c_uint;
                     *srcLen = (*srcLen as libc::c_ulong).wrapping_add(inSize) as SizeT as SizeT;
-                    *status = LZMA_STATUS_NEEDS_MORE_INPUT;
+                    *status = ELzmaStatus::LZMA_STATUS_NEEDS_MORE_INPUT;
                     return 0 as libc::c_int;
                 }
-                if checkEndMarkNow != 0 && dummyRes != DUMMY_MATCH as libc::c_int {
-                    *status = LZMA_STATUS_NOT_FINISHED;
+                if checkEndMarkNow != 0 && dummyRes != ELzmaDummy::DUMMY_MATCH as libc::c_int {
+                    *status = ELzmaStatus::LZMA_STATUS_NOT_FINISHED;
                     return 1 as libc::c_int;
                 }
                 bufLimit = src
@@ -2612,14 +2627,14 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
             if rem < 20 as libc::c_int as libc::c_uint || checkEndMarkNow != 0 {
                 let mut dummyRes_0: libc::c_int =
                     LzmaDec_TryDummy(p, (*p).tempBuf.as_mut_ptr(), rem as SizeT) as libc::c_int;
-                if dummyRes_0 == DUMMY_ERROR as libc::c_int {
+                if dummyRes_0 == ELzmaDummy::DUMMY_ERROR as libc::c_int {
                     *srcLen = (*srcLen as libc::c_ulong).wrapping_add(lookAhead as SizeT) as SizeT
                         as SizeT;
-                    *status = LZMA_STATUS_NEEDS_MORE_INPUT;
+                    *status = ELzmaStatus::LZMA_STATUS_NEEDS_MORE_INPUT;
                     return 0 as libc::c_int;
                 }
-                if checkEndMarkNow != 0 && dummyRes_0 != DUMMY_MATCH as libc::c_int {
-                    *status = LZMA_STATUS_NOT_FINISHED;
+                if checkEndMarkNow != 0 && dummyRes_0 != ELzmaDummy::DUMMY_MATCH as libc::c_int {
+                    *status = ELzmaStatus::LZMA_STATUS_NOT_FINISHED;
                     return 1 as libc::c_int;
                 }
             }
@@ -2646,7 +2661,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
     if (*p).code != 0 as libc::c_int as libc::c_uint {
         return 1 as libc::c_int;
     }
-    *status = LZMA_STATUS_FINISHED_WITH_MARK;
+    *status = ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK;
     return 0 as libc::c_int;
 }
 #[no_mangle]
@@ -2668,7 +2683,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
         let mut inSizeCur: SizeT = inSize;
         let mut outSizeCur: SizeT = 0;
         let mut dicPos: SizeT = 0;
-        let mut curFinishMode: ELzmaFinishMode = LZMA_FINISH_ANY;
+        let mut curFinishMode = ELzmaFinishMode::LZMA_FINISH_ANY;
         let mut res: SRes = 0;
         if (*p).dicPos == (*p).dicBufSize {
             if (*p).dicBufSize < (*p).prop.dicSize as libc::c_ulong {
@@ -2696,7 +2711,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
         dicPos = (*p).dicPos;
         if outSize > (*p).dicBufSize.wrapping_sub(dicPos) {
             outSizeCur = (*p).dicBufSize;
-            curFinishMode = LZMA_FINISH_ANY
+            curFinishMode = ELzmaFinishMode::LZMA_FINISH_ANY
         } else {
             outSizeCur = dicPos.wrapping_add(outSize);
             curFinishMode = finishMode
@@ -3064,7 +3079,7 @@ pub unsafe extern "C" fn LzmaDecode(
     let mut inSize: SizeT = *srcLen;
     *srcLen = 0 as libc::c_int as SizeT;
     *destLen = *srcLen;
-    *status = LZMA_STATUS_NOT_SPECIFIED;
+    *status = ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
     if inSize < 5 as libc::c_int as libc::c_ulong {
         return 6 as libc::c_int;
     }
@@ -3089,7 +3104,8 @@ pub unsafe extern "C" fn LzmaDecode(
     );
     *destLen = p.dicPos;
     if res == 0 as libc::c_int
-        && *status as libc::c_uint == LZMA_STATUS_NEEDS_MORE_INPUT as libc::c_int as libc::c_uint
+        && *status as libc::c_uint
+            == ELzmaStatus::LZMA_STATUS_NEEDS_MORE_INPUT as libc::c_int as libc::c_uint
     {
         res = 6 as libc::c_int
     }

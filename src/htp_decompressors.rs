@@ -23,28 +23,6 @@ extern "C" {
         stream_size: libc::c_int,
     ) -> libc::c_int;
     #[no_mangle]
-    fn LzmaDec_Init(p: *mut crate::src::lzma::LzmaDec::CLzmaDec);
-    #[no_mangle]
-    fn LzmaDec_Allocate(
-        p: *mut crate::src::lzma::LzmaDec::CLzmaDec,
-        props: *const Byte,
-        propsSize: libc::c_uint,
-        alloc: ISzAllocPtr,
-    ) -> SRes;
-    #[no_mangle]
-    fn LzmaDec_Free(p: *mut crate::src::lzma::LzmaDec::CLzmaDec, alloc: ISzAllocPtr);
-    #[no_mangle]
-    fn LzmaDec_DecodeToBuf(
-        p: *mut crate::src::lzma::LzmaDec::CLzmaDec,
-        dest: *mut Byte,
-        destLen: *mut SizeT,
-        src: *const Byte,
-        srcLen: *mut SizeT,
-        finishMode: ELzmaFinishMode,
-        status: *mut ELzmaStatus,
-        memlimit: SizeT,
-    ) -> SRes;
-    #[no_mangle]
     fn htp_log(
         connp: *mut crate::src::htp_connection_parser::htp_connp_t,
         file: *const libc::c_char,
@@ -144,50 +122,6 @@ pub type UInt16 = libc::c_ushort;
 pub type UInt32 = libc::c_uint;
 pub type SizeT = size_t;
 
-pub type ISzAllocPtr = *const crate::src::lzma::LzmaDec::ISzAlloc;
-/* LzmaDec.h -- LZMA Decoder
-2018-04-21 : Igor Pavlov : Public domain */
-/* #define _LZMA_PROB32 */
-/* _LZMA_PROB32 can increase the speed on some CPUs,
-but memory usage for CLzmaDec::probs will be doubled in that case */
-pub type CLzmaProb = UInt16;
-
-pub type CLzmaProps = crate::src::lzma::LzmaDec::_CLzmaProps;
-
-/* There are two types of LZMA streams:
-- Stream with end mark. That end mark adds about 6 bytes to compressed size.
-- Stream without end mark. You must know exact uncompressed size to decompress such stream. */
-pub type ELzmaFinishMode = libc::c_uint;
-/* block must be finished at the end */
-/* finish at any point */
-pub const LZMA_FINISH_END: ELzmaFinishMode = 1;
-pub const LZMA_FINISH_ANY: ELzmaFinishMode = 0;
-/* ELzmaFinishMode has meaning only if the decoding reaches output limit !!!
-
-You must use LZMA_FINISH_END, when you know that current output buffer
-covers last bytes of block. In other cases you must use LZMA_FINISH_ANY.
-
-If LZMA decoder sees end marker before reaching output limit, it returns SZ_OK,
-and output value of destLen will be less than output buffer size limit.
-You can check status result also.
-
-You can use multiple checks to test data integrity after full decompression:
-  1) Check Result and "status" variable.
-  2) Check that output(destLen) = uncompressedSize, if you know real uncompressedSize.
-  3) Check that output(srcLen) = compressedSize, if you know real compressedSize.
-     You must use correct finish mode in that case. */
-pub type ELzmaStatus = libc::c_uint;
-/* there is probability that stream was finished without end mark */
-/* you must provide more input bytes */
-pub const LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK: ELzmaStatus = 4;
-/* stream was not finished */
-pub const LZMA_STATUS_NEEDS_MORE_INPUT: ELzmaStatus = 3;
-/* stream was finished with end mark. */
-pub const LZMA_STATUS_NOT_FINISHED: ELzmaStatus = 2;
-/* use main error code instead */
-pub const LZMA_STATUS_FINISHED_WITH_MARK: ELzmaStatus = 1;
-pub const LZMA_STATUS_NOT_SPECIFIED: ELzmaStatus = 0;
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_decompressor_gzip_t {
@@ -202,19 +136,35 @@ pub struct htp_decompressor_gzip_t {
     pub buffer: *mut libc::c_uchar,
     pub crc: libc::c_ulong,
 }
-unsafe extern "C" fn SzAlloc(mut _p: ISzAllocPtr, mut size: size_t) -> *mut libc::c_void {
+unsafe extern "C" fn SzAlloc(
+    mut _p: crate::src::lzma::LzmaDec::ISzAllocPtr,
+    mut size: size_t,
+) -> *mut libc::c_void {
     return malloc(size);
 }
-unsafe extern "C" fn SzFree(mut _p: ISzAllocPtr, mut address: *mut libc::c_void) {
+unsafe extern "C" fn SzFree(
+    mut _p: crate::src::lzma::LzmaDec::ISzAllocPtr,
+    mut address: *mut libc::c_void,
+) {
     free(address);
 }
 #[no_mangle]
 pub static mut lzma_Alloc: crate::src::lzma::LzmaDec::ISzAlloc = {
     let mut init = crate::src::lzma::LzmaDec::ISzAlloc {
         Alloc: Some(
-            SzAlloc as unsafe extern "C" fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void,
+            SzAlloc
+                as unsafe extern "C" fn(
+                    _: crate::src::lzma::LzmaDec::ISzAllocPtr,
+                    _: size_t,
+                ) -> *mut libc::c_void,
         ),
-        Free: Some(SzFree as unsafe extern "C" fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()),
+        Free: Some(
+            SzFree
+                as unsafe extern "C" fn(
+                    _: crate::src::lzma::LzmaDec::ISzAllocPtr,
+                    _: *mut libc::c_void,
+                ) -> (),
+        ),
     };
     init
 };
@@ -365,7 +315,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
  */
 unsafe extern "C" fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
     if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA as libc::c_int {
-        LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
+        crate::src::lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
         (*drec).zlib_initialized = 0 as libc::c_int
     } else if (*drec).zlib_initialized != 0 {
         inflateEnd(&mut (*drec).stream);
@@ -518,7 +468,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         as uint8_t
                 }
                 if (*drec).header_len as libc::c_int == 5 as libc::c_int + 8 as libc::c_int {
-                    rc = LzmaDec_Allocate(
+                    rc = crate::src::lzma::LzmaDec::LzmaDec_Allocate(
                         &mut (*drec).state,
                         (*drec).header.as_mut_ptr(),
                         5 as libc::c_int as libc::c_uint,
@@ -527,21 +477,22 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     if rc != 0 as libc::c_int {
                         return rc;
                     }
-                    LzmaDec_Init(&mut (*drec).state);
+                    crate::src::lzma::LzmaDec::LzmaDec_Init(&mut (*drec).state);
                     // hacky to get to next step end retry allocate in case of failure
                     (*drec).header_len = (*drec).header_len.wrapping_add(1)
                 }
                 if (*drec).header_len as libc::c_int > 5 as libc::c_int + 8 as libc::c_int {
                     let mut inprocessed: size_t = (*drec).stream.avail_in as size_t;
                     let mut outprocessed: size_t = (*drec).stream.avail_out as size_t;
-                    let mut status: ELzmaStatus = LZMA_STATUS_NOT_SPECIFIED;
-                    rc = LzmaDec_DecodeToBuf(
+                    let mut status =
+                        crate::src::lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
+                    rc = crate::src::lzma::LzmaDec::LzmaDec_DecodeToBuf(
                         &mut (*drec).state,
                         (*drec).stream.next_out,
                         &mut outprocessed,
                         (*drec).stream.next_in,
                         &mut inprocessed,
-                        LZMA_FINISH_ANY,
+                        crate::src::lzma::LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
                         &mut status,
                         (*(*(*d).tx).cfg).lzma_memlimit,
                     );
@@ -558,7 +509,9 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         0 => {
                             rc = 0 as libc::c_int;
                             if status as libc::c_uint
-                                == LZMA_STATUS_FINISHED_WITH_MARK as libc::c_int as libc::c_uint
+                                == crate::src::lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK
+                                    as libc::c_int
+                                    as libc::c_uint
                             {
                                 rc = 1 as libc::c_int
                             }
@@ -665,7 +618,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 if (*drec).zlib_initialized
                     == htp_content_encoding_t::HTP_COMPRESSION_LZMA as libc::c_int
                 {
-                    LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
+                    crate::src::lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
                     // so as to clean zlib ressources after restart
                     (*drec).zlib_initialized =
                         htp_content_encoding_t::HTP_COMPRESSION_NONE as libc::c_int
@@ -782,7 +735,7 @@ pub unsafe extern "C" fn htp_gzip_decompressor_create(
         4 => {
             if (*(*connp).cfg).lzma_memlimit > 0 as libc::c_int as libc::c_ulong {
                 (*drec).state.dic = 0 as *mut Byte;
-                (*drec).state.probs = 0 as *mut CLzmaProb
+                (*drec).state.probs = 0 as *mut crate::src::lzma::LzmaDec::CLzmaProb
             } else {
                 htp_log(
                     connp,
