@@ -56,6 +56,47 @@ pub type bstr = bstr_t;
 pub type int64_t = __int64_t;
 
 /**
+ * This function was a macro in libhtp
+ * #define bstr_len(X) ((*(X)).len)
+ */
+#[no_mangle]
+pub unsafe extern "C" fn bstr_len(mut x: *mut bstr) -> size_t {
+    (*x).len
+}
+
+/**
+ * This function was a macro in libhtp
+ * #define bstr_size(X) ((*(X)).size)
+ */
+#[no_mangle]
+pub unsafe extern "C" fn bstr_size(mut x: *mut bstr) -> size_t {
+    (*x).size
+}
+
+/**
+ * This function was a macro in libhtp
+ * #define bstr_ptr(X) ( ((*(X)).realptr == NULL) ? ((unsigned char *)(X) + sizeof(bstr)) : (unsigned char *)(*(X)).realptr )
+ */
+#[no_mangle]
+pub unsafe extern "C" fn bstr_ptr(mut x: *mut bstr) -> *mut libc::c_uchar {
+    if (*x).realptr.is_null() {
+        // bstr optimizes small strings to be 'after this structure'
+        x.offset(std::mem::size_of::<bstr>() as isize) as *mut libc::c_uchar
+    } else {
+        (*x).realptr
+    }
+}
+
+/**
+ * This function was a macro in libhtp
+ * #define bstr_realptr(X) ((*(X)).realptr)
+ */
+#[no_mangle]
+pub unsafe extern "C" fn bstr_realptr(mut x: *mut bstr) -> *mut libc::c_uchar {
+    (*x).realptr
+}
+
+/**
  * Allocate a zero-length bstring, reserving space for at least size bytes.
  *
  * @param[in] size
