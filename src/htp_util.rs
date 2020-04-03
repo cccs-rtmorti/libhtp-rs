@@ -63,7 +63,7 @@ extern "C" {
     #[no_mangle]
     fn tolower(_: libc::c_int) -> libc::c_int;
     #[no_mangle]
-    fn fprintf(_: *mut FILE, _: *const libc::c_char, _: ...) -> libc::c_int;
+    fn fprintf(_: *mut libc::FILE, _: *const libc::c_char, _: ...) -> libc::c_int;
     #[no_mangle]
     fn snprintf(
         _: *mut libc::c_char,
@@ -276,50 +276,6 @@ pub type uint16_t = __uint16_t;
 pub type uint32_t = __uint32_t;
 pub type uint64_t = __uint64_t;
 pub type va_list = __builtin_va_list;
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct _IO_FILE {
-    pub _flags: libc::c_int,
-    pub _IO_read_ptr: *mut libc::c_char,
-    pub _IO_read_end: *mut libc::c_char,
-    pub _IO_read_base: *mut libc::c_char,
-    pub _IO_write_base: *mut libc::c_char,
-    pub _IO_write_ptr: *mut libc::c_char,
-    pub _IO_write_end: *mut libc::c_char,
-    pub _IO_buf_base: *mut libc::c_char,
-    pub _IO_buf_end: *mut libc::c_char,
-    pub _IO_save_base: *mut libc::c_char,
-    pub _IO_backup_base: *mut libc::c_char,
-    pub _IO_save_end: *mut libc::c_char,
-    pub _markers: *mut _IO_marker,
-    pub _chain: *mut _IO_FILE,
-    pub _fileno: libc::c_int,
-    pub _flags2: libc::c_int,
-    pub _old_offset: __off_t,
-    pub _cur_column: libc::c_ushort,
-    pub _vtable_offset: libc::c_schar,
-    pub _shortbuf: [libc::c_char; 1],
-    pub _lock: *mut libc::c_void,
-    pub _offset: __off64_t,
-    pub __pad1: *mut libc::c_void,
-    pub __pad2: *mut libc::c_void,
-    pub __pad3: *mut libc::c_void,
-    pub __pad4: *mut libc::c_void,
-    pub __pad5: size_t,
-    pub _mode: libc::c_int,
-    pub _unused2: [libc::c_char; 20],
-}
-pub type _IO_lock_t = ();
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct _IO_marker {
-    pub _next: *mut _IO_marker,
-    pub _sbuf: *mut _IO_FILE,
-    pub _pos: libc::c_int,
-}
-pub type FILE = _IO_FILE;
 
 pub type htp_status_t = libc::c_int;
 pub type bstr = crate::src::bstr::bstr_t;
@@ -3458,7 +3414,7 @@ pub unsafe extern "C" fn htp_normalize_uri_path_inplace(mut s: *mut bstr) {
 
 #[no_mangle]
 pub unsafe extern "C" fn fprint_bstr(
-    mut stream: *mut FILE,
+    mut stream: *mut libc::FILE,
     mut name: *const libc::c_char,
     mut b: *mut bstr,
 ) {
@@ -3488,7 +3444,7 @@ pub unsafe extern "C" fn fprint_bstr(
 
 #[no_mangle]
 pub unsafe extern "C" fn fprint_raw_data(
-    mut stream: *mut FILE,
+    mut stream: *mut libc::FILE,
     mut name: *const libc::c_char,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -3498,7 +3454,7 @@ pub unsafe extern "C" fn fprint_raw_data(
 
 #[no_mangle]
 pub unsafe extern "C" fn fprint_raw_data_ex(
-    mut stream: *mut FILE,
+    mut stream: *mut libc::FILE,
     mut name: *const libc::c_char,
     mut _data: *const libc::c_void,
     mut offset: size_t,
