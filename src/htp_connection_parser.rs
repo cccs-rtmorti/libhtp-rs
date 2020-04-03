@@ -1,3 +1,7 @@
+use crate::{
+    bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_list, htp_request,
+    htp_response, htp_transaction, htp_util,
+};
 use ::libc;
 
 extern "C" {
@@ -5,60 +9,6 @@ extern "C" {
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
-    #[no_mangle]
-    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
-    #[no_mangle]
-    fn htp_connp_res_data(
-        connp: *mut htp_connp_t,
-        timestamp: *const htp_time_t,
-        data: *const libc::c_void,
-        len: size_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_connp_req_data(
-        connp: *mut htp_connp_t,
-        timestamp: *const htp_time_t,
-        data: *const libc::c_void,
-        len: size_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_conn_close(
-        conn: *mut crate::src::htp_connection::htp_conn_t,
-        timestamp: *const htp_time_t,
-    );
-    #[no_mangle]
-    fn htp_connp_RES_IDLE(connp: *mut htp_connp_t) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_REQ_IDLE(connp: *mut htp_connp_t) -> htp_status_t;
-    #[no_mangle]
-    fn htp_conn_create() -> *mut crate::src::htp_connection::htp_conn_t;
-    #[no_mangle]
-    fn htp_connp_destroy_decompressors(connp: *mut htp_connp_t);
-    #[no_mangle]
-    fn htp_conn_destroy(conn: *mut crate::src::htp_connection::htp_conn_t);
-    #[no_mangle]
-    fn htp_conn_open(
-        conn: *mut crate::src::htp_connection::htp_conn_t,
-        remote_addr: *const libc::c_char,
-        remote_port: libc::c_int,
-        local_addr: *const libc::c_char,
-        local_port: libc::c_int,
-        timestamp: *const htp_time_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_log(
-        connp: *mut htp_connp_t,
-        file: *const libc::c_char,
-        line: libc::c_int,
-        level: crate::src::htp_util::htp_log_level_t,
-        code: libc::c_int,
-        fmt: *const libc::c_char,
-        _: ...
-    );
-    #[no_mangle]
-    fn htp_tx_create(connp: *mut htp_connp_t) -> *mut crate::src::htp_transaction::htp_tx_t;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -75,8 +25,6 @@ pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
 pub type htp_status_t = libc::c_int;
-
-pub type bstr = crate::src::bstr::bstr_t;
 
 /**
  * Enumerates all stream states. Each connection has two streams, one
@@ -100,9 +48,9 @@ pub enum htp_stream_state_t {
 pub struct htp_connp_t {
     // General fields
     /** Current parser configuration structure. */
-    pub cfg: *mut crate::src::htp_config::htp_cfg_t,
+    pub cfg: *mut htp_config::htp_cfg_t,
     /** The connection structure associated with this parser. */
-    pub conn: *mut crate::src::htp_connection::htp_conn_t,
+    pub conn: *mut htp_connection::htp_conn_t,
     /** Opaque user data associated with this parser. */
     pub user_data: *const libc::c_void,
     /**
@@ -110,7 +58,7 @@ pub struct htp_connp_t {
      * that the value in this field will only be valid immediately after an error condition,
      * but it is not guaranteed to remain valid if the parser is invoked again.
      */
-    pub last_error: *mut crate::src::htp_util::htp_log_t,
+    pub last_error: *mut htp_util::htp_log_t,
     // Request parser fields
     /** Parser inbound status. Starts as HTP_OK, but may turn into HTP_ERROR. */
     pub in_status: htp_stream_state_t,
@@ -163,9 +111,9 @@ pub struct htp_connp_t {
      * Stores the current value of a folded request header. Such headers span
      * multiple lines, and are processed only when all data is available.
      */
-    pub in_header: *mut bstr,
+    pub in_header: *mut bstr::bstr_t,
     /** Ongoing inbound transaction. */
-    pub in_tx: *mut crate::src::htp_transaction::htp_tx_t,
+    pub in_tx: *mut htp_transaction::htp_tx_t,
     /**
      * The request body length declared in a valid request header. The key here
      * is "valid". This field will not be populated if the request contains both
@@ -188,7 +136,7 @@ pub struct htp_connp_t {
     /** Previous request parser state. Used to detect state changes. */
     pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
     /** The hook that should be receiving raw connection data. */
-    pub in_data_receiver_hook: *mut crate::src::htp_hooks::htp_hook_t,
+    pub in_data_receiver_hook: *mut htp_hooks::htp_hook_t,
 
     /**
      * Response counter, incremented with every new response. This field is
@@ -227,9 +175,9 @@ pub struct htp_connp_t {
      * Stores the current value of a folded response header. Such headers span
      * multiple lines, and are processed only when all data is available.
      */
-    pub out_header: *mut bstr,
+    pub out_header: *mut bstr::bstr_t,
     /** Ongoing outbound transaction */
-    pub out_tx: *mut crate::src::htp_transaction::htp_tx_t,
+    pub out_tx: *mut htp_transaction::htp_tx_t,
     /**
      * The length of the current response body as presented in the
      * Content-Length response header.
@@ -247,11 +195,11 @@ pub struct htp_connp_t {
     /** Previous response parser state. */
     pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
     /** The hook that should be receiving raw connection data. */
-    pub out_data_receiver_hook: *mut crate::src::htp_hooks::htp_hook_t,
+    pub out_data_receiver_hook: *mut htp_hooks::htp_hook_t,
     /** Response decompressor used to decompress response body data. */
-    pub out_decompressor: *mut crate::src::htp_decompressors::htp_decompressor_t,
+    pub out_decompressor: *mut htp_decompressors::htp_decompressor_t,
     /** On a PUT request, this field contains additional file data. */
-    pub put_file: *mut crate::src::htp_util::htp_file_t,
+    pub put_file: *mut htp_util::htp_file_t,
 }
 
 pub type htp_time_t = libc::timeval;
@@ -263,7 +211,7 @@ pub type htp_time_t = libc::timeval;
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_clear_error(mut connp: *mut htp_connp_t) {
-    (*connp).last_error = 0 as *mut crate::src::htp_util::htp_log_t;
+    (*connp).last_error = 0 as *mut htp_util::htp_log_t;
 }
 
 /**
@@ -286,7 +234,7 @@ pub unsafe extern "C" fn htp_connp_req_close(
     }
     // Call the parsers one last time, which will allow them
     // to process the events that depend on stream closure
-    htp_connp_req_data(
+    htp_request::htp_connp_req_data(
         connp,
         timestamp,
         0 as *const libc::c_void,
@@ -309,7 +257,7 @@ pub unsafe extern "C" fn htp_connp_close(
         return;
     }
     // Close the underlying connection.
-    htp_conn_close((*connp).conn, timestamp);
+    htp_connection::htp_conn_close((*connp).conn, timestamp);
     // Update internal flags
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_ERROR {
         (*connp).in_status = htp_stream_state_t::HTP_STREAM_CLOSED
@@ -319,13 +267,13 @@ pub unsafe extern "C" fn htp_connp_close(
     }
     // Call the parsers one last time, which will allow them
     // to process the events that depend on stream closure
-    htp_connp_req_data(
+    htp_request::htp_connp_req_data(
         connp,
         timestamp,
         0 as *const libc::c_void,
         0 as libc::c_int as size_t,
     );
-    htp_connp_res_data(
+    htp_response::htp_connp_res_data(
         connp,
         timestamp,
         0 as *const libc::c_void,
@@ -344,9 +292,7 @@ pub unsafe extern "C" fn htp_connp_close(
  * @return New connection parser instance, or NULL on error.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_create(
-    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
-) -> *mut htp_connp_t {
+pub unsafe extern "C" fn htp_connp_create(mut cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
     let mut connp: *mut htp_connp_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_connp_t>() as libc::c_ulong,
@@ -357,18 +303,22 @@ pub unsafe extern "C" fn htp_connp_create(
     // Use the supplied configuration structure
     (*connp).cfg = cfg;
     // Create a new connection.
-    (*connp).conn = htp_conn_create();
+    (*connp).conn = htp_connection::htp_conn_create();
     if (*connp).conn.is_null() {
         free(connp as *mut libc::c_void);
         return 0 as *mut htp_connp_t;
     }
     // Request parsing
-    (*connp).in_state =
-        Some(htp_connp_REQ_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t);
+    (*connp).in_state = Some(
+        htp_request::htp_connp_REQ_IDLE
+            as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+    );
     (*connp).in_status = htp_stream_state_t::HTP_STREAM_NEW;
     // Response parsing
-    (*connp).out_state =
-        Some(htp_connp_RES_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t);
+    (*connp).out_state = Some(
+        htp_response::htp_connp_RES_IDLE
+            as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+    );
     (*connp).out_status = htp_stream_state_t::HTP_STREAM_NEW;
     return connp;
 }
@@ -390,18 +340,18 @@ pub unsafe extern "C" fn htp_connp_destroy(mut connp: *mut htp_connp_t) {
     if !(*connp).out_buf.is_null() {
         free((*connp).out_buf as *mut libc::c_void);
     }
-    htp_connp_destroy_decompressors(connp);
+    htp_transaction::htp_connp_destroy_decompressors(connp);
     if !(*connp).put_file.is_null() {
-        bstr_free((*(*connp).put_file).filename);
+        bstr::bstr_free((*(*connp).put_file).filename);
         free((*connp).put_file as *mut libc::c_void);
     }
     if !(*connp).in_header.is_null() {
-        bstr_free((*connp).in_header);
-        (*connp).in_header = 0 as *mut bstr
+        bstr::bstr_free((*connp).in_header);
+        (*connp).in_header = 0 as *mut bstr::bstr_t
     }
     if !(*connp).out_header.is_null() {
-        bstr_free((*connp).out_header);
-        (*connp).out_header = 0 as *mut bstr
+        bstr::bstr_free((*connp).out_header);
+        (*connp).out_header = 0 as *mut bstr::bstr_t
     }
     free(connp as *mut libc::c_void);
 }
@@ -418,8 +368,8 @@ pub unsafe extern "C" fn htp_connp_destroy_all(mut connp: *mut htp_connp_t) {
         return;
     }
     // Destroy connection
-    htp_conn_destroy((*connp).conn);
-    (*connp).conn = 0 as *mut crate::src::htp_connection::htp_conn_t;
+    htp_connection::htp_conn_destroy((*connp).conn);
+    (*connp).conn = 0 as *mut htp_connection::htp_conn_t;
     // Destroy everything else
     htp_connp_destroy(connp);
 }
@@ -433,9 +383,9 @@ pub unsafe extern "C" fn htp_connp_destroy_all(mut connp: *mut htp_connp_t) {
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_connection(
     mut connp: *const htp_connp_t,
-) -> *mut crate::src::htp_connection::htp_conn_t {
+) -> *mut htp_connection::htp_conn_t {
     if connp.is_null() {
-        return 0 as *mut crate::src::htp_connection::htp_conn_t;
+        return 0 as *mut htp_connection::htp_conn_t;
     }
     return (*connp).conn;
 }
@@ -451,9 +401,9 @@ pub unsafe extern "C" fn htp_connp_get_connection(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_in_tx(
     mut connp: *const htp_connp_t,
-) -> *mut crate::src::htp_transaction::htp_tx_t {
+) -> *mut htp_transaction::htp_tx_t {
     if connp.is_null() {
-        return 0 as *mut crate::src::htp_transaction::htp_tx_t;
+        return 0 as *mut htp_transaction::htp_tx_t;
     }
     return (*connp).in_tx;
 }
@@ -464,15 +414,15 @@ pub unsafe extern "C" fn htp_connp_get_in_tx(
  * but it is not guaranteed to remain valid if the parser is invoked again.
  *
  * @param[in] connp
- * @return A pointer to an htp_log_t instance if there is an error, or NULL
+ * @return A pointer to an htp_util::htp_log_t instance if there is an error, or NULL
  *         if there isn't.
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_last_error(
     mut connp: *const htp_connp_t,
-) -> *mut crate::src::htp_util::htp_log_t {
+) -> *mut htp_util::htp_log_t {
     if connp.is_null() {
-        return 0 as *mut crate::src::htp_util::htp_log_t;
+        return 0 as *mut htp_util::htp_log_t;
     }
     return (*connp).last_error;
 }
@@ -488,9 +438,9 @@ pub unsafe extern "C" fn htp_connp_get_last_error(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_out_tx(
     mut connp: *const htp_connp_t,
-) -> *mut crate::src::htp_transaction::htp_tx_t {
+) -> *mut htp_transaction::htp_tx_t {
     if connp.is_null() {
-        return 0 as *mut crate::src::htp_transaction::htp_tx_t;
+        return 0 as *mut htp_transaction::htp_tx_t;
     }
     return (*connp).out_tx;
 }
@@ -552,17 +502,17 @@ pub unsafe extern "C" fn htp_connp_open(
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_NEW
         || (*connp).out_status != htp_stream_state_t::HTP_STREAM_NEW
     {
-        htp_log(
+        htp_util::htp_log(
             connp,
             b"htp_connection_parser.c\x00" as *const u8 as *const libc::c_char,
             181 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_ERROR,
+            htp_util::htp_log_level_t::HTP_LOG_ERROR,
             0 as libc::c_int,
             b"Connection is already open\x00" as *const u8 as *const libc::c_char,
         );
         return;
     }
-    if htp_conn_open(
+    if htp_connection::htp_conn_open(
         (*connp).conn,
         client_addr,
         client_port,
@@ -603,17 +553,17 @@ pub unsafe extern "C" fn htp_connp_set_user_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_tx_create(
     mut connp: *mut htp_connp_t,
-) -> *mut crate::src::htp_transaction::htp_tx_t {
+) -> *mut htp_transaction::htp_tx_t {
     if connp.is_null() {
-        return 0 as *mut crate::src::htp_transaction::htp_tx_t;
+        return 0 as *mut htp_transaction::htp_tx_t;
     }
     // Detect pipelining.
-    if htp_list_array_size((*(*connp).conn).transactions) > (*connp).out_next_tx_index {
-        (*(*connp).conn).flags |= crate::src::htp_util::ConnectionFlags::HTP_CONN_PIPELINED
+    if htp_list::htp_list_array_size((*(*connp).conn).transactions) > (*connp).out_next_tx_index {
+        (*(*connp).conn).flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
     }
-    let mut tx: *mut crate::src::htp_transaction::htp_tx_t = htp_tx_create(connp);
+    let mut tx: *mut htp_transaction::htp_tx_t = htp_transaction::htp_tx_create(connp);
     if tx.is_null() {
-        return 0 as *mut crate::src::htp_transaction::htp_tx_t;
+        return 0 as *mut htp_transaction::htp_tx_t;
     }
     (*connp).in_tx = tx;
     htp_connp_in_reset(connp);
@@ -629,15 +579,15 @@ pub unsafe extern "C" fn htp_connp_tx_create(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_tx_remove(
     mut connp: *mut htp_connp_t,
-    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
+    mut tx: *mut htp_transaction::htp_tx_t,
 ) {
     if connp.is_null() {
         return;
     }
     if (*connp).in_tx == tx {
-        (*connp).in_tx = 0 as *mut crate::src::htp_transaction::htp_tx_t
+        (*connp).in_tx = 0 as *mut htp_transaction::htp_tx_t
     }
     if (*connp).out_tx == tx {
-        (*connp).out_tx = 0 as *mut crate::src::htp_transaction::htp_tx_t
+        (*connp).out_tx = 0 as *mut htp_transaction::htp_tx_t
     };
 }

@@ -1,4 +1,9 @@
+use crate::{
+    htp_connection_parser, htp_content_handlers, htp_hooks, htp_request_apache_2_2,
+    htp_request_generic, htp_response_generic, htp_transaction, htp_util,
+};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
@@ -8,59 +13,6 @@ extern "C" {
     fn free(__ptr: *mut libc::c_void);
     #[no_mangle]
     fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_process_response_header_generic(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        data: *mut libc::c_uchar,
-        len: size_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_parse_response_line_generic(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_process_request_header_generic(
-        _: *mut crate::src::htp_connection_parser::htp_connp_t,
-        data: *mut libc::c_uchar,
-        len: size_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_parse_request_line_generic(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_process_request_header_apache_2_2(
-        _: *mut crate::src::htp_connection_parser::htp_connp_t,
-        data: *mut libc::c_uchar,
-        len: size_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_parse_request_line_apache_2_2(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_hook_destroy(hook: *mut crate::src::htp_hooks::htp_hook_t);
-    #[no_mangle]
-    fn htp_hook_copy(
-        hook: *const crate::src::htp_hooks::htp_hook_t,
-    ) -> *mut crate::src::htp_hooks::htp_hook_t;
-    #[no_mangle]
-    fn htp_hook_register(
-        hook: *mut *mut crate::src::htp_hooks::htp_hook_t,
-        callback_fn: htp_callback_fn_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_ch_multipart_callback_request_headers(
-        tx: *mut crate::src::htp_transaction::htp_tx_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_ch_urlencoded_callback_request_headers(
-        tx: *mut crate::src::htp_transaction::htp_tx_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_ch_urlencoded_callback_request_line(
-        tx: *mut crate::src::htp_transaction::htp_tx_t,
-    ) -> htp_status_t;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -96,7 +48,7 @@ pub struct htp_cfg_t {
      * Log level, which will be used when deciding whether to store or
      * ignore the messages issued by the parser.
      */
-    pub log_level: crate::src::htp_util::htp_log_level_t,
+    pub log_level: htp_util::htp_log_level_t,
     /**
      * Whether to delete each transaction after the last hook is invoked. This
      * feature should be used when parsing traffic streams in real time.
@@ -107,17 +59,15 @@ pub struct htp_cfg_t {
      */
     pub server_personality: htp_server_personality_t,
     /** The function used for request line parsing. Depends on the personality. */
-    pub parse_request_line: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_connection_parser::htp_connp_t) -> libc::c_int,
-    >,
+    pub parse_request_line:
+        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> libc::c_int>,
     /** The function used for response line parsing. Depends on the personality. */
-    pub parse_response_line: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_connection_parser::htp_connp_t) -> libc::c_int,
-    >,
+    pub parse_response_line:
+        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> libc::c_int>,
     /** The function used for request header parsing. Depends on the personality. */
     pub process_request_header: Option<
         unsafe extern "C" fn(
-            _: *mut crate::src::htp_connection_parser::htp_connp_t,
+            _: *mut htp_connection_parser::htp_connp_t,
             _: *mut libc::c_uchar,
             _: size_t,
         ) -> libc::c_int,
@@ -125,15 +75,14 @@ pub struct htp_cfg_t {
     /** The function used for response header parsing. Depends on the personality. */
     pub process_response_header: Option<
         unsafe extern "C" fn(
-            _: *mut crate::src::htp_connection_parser::htp_connp_t,
+            _: *mut htp_connection_parser::htp_connp_t,
             _: *mut libc::c_uchar,
             _: size_t,
         ) -> libc::c_int,
     >,
     /** The function to use to transform parameters after parsing. */
-    pub parameter_processor: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_param_t) -> libc::c_int,
-    >,
+    pub parameter_processor:
+        Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> libc::c_int>,
     /** Decoder configuration array, one per context. */
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
     /** Whether to generate the request_uri_normalized field. */
@@ -159,26 +108,26 @@ pub struct htp_cfg_t {
      * request. Because in HTTP a transaction always starts with a request, this hook
      * doubles as a transaction start hook.
      */
-    pub hook_request_start: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_start: *mut htp_hooks::htp_hook_t,
     /**
      * Request line hook, invoked after a request line has been parsed.
      */
-    pub hook_request_line: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_line: *mut htp_hooks::htp_hook_t,
     /**
      * Request URI normalization hook, for overriding default normalization of URI.
      */
-    pub hook_request_uri_normalize: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_uri_normalize: *mut htp_hooks::htp_hook_t,
     /**
      * Receives raw request header data, starting immediately after the request line,
      * including all headers as they are seen on the TCP connection, and including the
      * terminating empty line. Not available on genuine HTTP/0.9 requests (because
      * they don't use headers).
      */
-    pub hook_request_header_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_header_data: *mut htp_hooks::htp_hook_t,
     /**
      * Request headers hook, invoked after all request headers are seen.
      */
-    pub hook_request_headers: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_headers: *mut htp_hooks::htp_hook_t,
     /**
      * Request body data hook, invoked every time body data is available. Each
      * invocation will provide a htp_tx_data_t instance. Chunked data
@@ -186,47 +135,47 @@ pub struct htp_cfg_t {
      * is not currently implemented. At the end of the request body
      * there will be a call with the data pointer set to NULL.
      */
-    pub hook_request_body_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_body_data: *mut htp_hooks::htp_hook_t,
     /**
      * Request file data hook, which is invoked whenever request file data is
      * available. Currently used only by the Multipart parser.
      */
-    pub hook_request_file_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_file_data: *mut htp_hooks::htp_hook_t,
     /**
      * Receives raw request trailer data, which can be available on requests that have
      * chunked bodies. The data starts immediately after the zero-length chunk
      * and includes the terminating empty line.
      */
-    pub hook_request_trailer_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_trailer_data: *mut htp_hooks::htp_hook_t,
     /**
      * Request trailer hook, invoked after all trailer headers are seen,
      * and if they are seen (not invoked otherwise).
      */
-    pub hook_request_trailer: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_trailer: *mut htp_hooks::htp_hook_t,
     /**
      * Request hook, invoked after a complete request is seen.
      */
-    pub hook_request_complete: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_complete: *mut htp_hooks::htp_hook_t,
     /**
      * Response startup hook, invoked when a response transaction is found and
      * processing started.
      */
-    pub hook_response_start: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_start: *mut htp_hooks::htp_hook_t,
     /**
      * Response line hook, invoked after a response line has been parsed.
      */
-    pub hook_response_line: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_line: *mut htp_hooks::htp_hook_t,
     /**
      * Receives raw response header data, starting immediately after the status line
      * and including all headers as they are seen on the TCP connection, and including the
      * terminating empty line. Not available on genuine HTTP/0.9 responses (because
      * they don't have response headers).
      */
-    pub hook_response_header_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_header_data: *mut htp_hooks::htp_hook_t,
     /**
      * Response headers book, invoked after all response headers have been seen.
      */
-    pub hook_response_headers: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_headers: *mut htp_hooks::htp_hook_t,
     /**
      * Response body data hook, invoked every time body data is available. Each
      * invocation will provide a htp_tx_data_t instance. Chunked data
@@ -235,34 +184,34 @@ pub struct htp_cfg_t {
      * in configuration. At the end of the response body there will be a call
      * with the data pointer set to NULL.
      */
-    pub hook_response_body_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_body_data: *mut htp_hooks::htp_hook_t,
     /**
      * Receives raw response trailer data, which can be available on responses that have
      * chunked bodies. The data starts immediately after the zero-length chunk
      * and includes the terminating empty line.
      */
-    pub hook_response_trailer_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_trailer_data: *mut htp_hooks::htp_hook_t,
     /**
      * Response trailer hook, invoked after all trailer headers have been processed,
      * and only if the trailer exists.
      */
-    pub hook_response_trailer: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_trailer: *mut htp_hooks::htp_hook_t,
     /**
      * Response hook, invoked after a response has been seen. Because sometimes servers
      * respond before receiving complete requests, a response_complete callback may be
      * invoked prior to a request_complete callback.
      */
-    pub hook_response_complete: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_complete: *mut htp_hooks::htp_hook_t,
     /**
      * Transaction complete hook, which is invoked once the entire transaction is
      * considered complete (request and response are both complete). This is always
      * the last hook to be invoked.
      */
-    pub hook_transaction_complete: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_transaction_complete: *mut htp_hooks::htp_hook_t,
     /**
      * Log hook, invoked every time the library wants to log.
      */
-    pub hook_log: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_log: *mut htp_hooks::htp_hook_t,
     /**
      * Opaque user data associated with this configuration structure.
      */
@@ -328,8 +277,6 @@ pub struct htp_decoder_cfg_t {
     /** The replacement byte used when there is no best-fit mapping. */
     pub bestfit_replacement_byte: libc::c_uchar,
 }
-
-pub type bstr = crate::src::bstr::bstr_t;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -1601,7 +1548,7 @@ pub unsafe extern "C" fn htp_config_create() -> *mut htp_cfg_t {
     } // 2 layers seem fairly common
     (*cfg).field_limit_hard = 18000 as libc::c_int as size_t;
     (*cfg).field_limit_soft = 9000 as libc::c_int as size_t;
-    (*cfg).log_level = crate::src::htp_util::htp_log_level_t::HTP_LOG_NOTICE;
+    (*cfg).log_level = htp_util::htp_log_level_t::HTP_LOG_NOTICE;
     (*cfg).response_decompression_enabled = 1 as libc::c_int;
     (*cfg).parse_request_cookies = 1 as libc::c_int;
     (*cfg).parse_request_auth = 1 as libc::c_int;
@@ -1680,140 +1627,146 @@ pub unsafe extern "C" fn htp_config_copy(mut cfg: *mut htp_cfg_t) -> *mut htp_cf
     );
     // Now create copies of the hooks' structures.
     if !(*cfg).hook_request_start.is_null() {
-        (*copy).hook_request_start = htp_hook_copy((*cfg).hook_request_start);
+        (*copy).hook_request_start = htp_hooks::htp_hook_copy((*cfg).hook_request_start);
         if (*copy).hook_request_start.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_line.is_null() {
-        (*copy).hook_request_line = htp_hook_copy((*cfg).hook_request_line);
+        (*copy).hook_request_line = htp_hooks::htp_hook_copy((*cfg).hook_request_line);
         if (*copy).hook_request_line.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_uri_normalize.is_null() {
-        (*copy).hook_request_uri_normalize = htp_hook_copy((*cfg).hook_request_uri_normalize);
+        (*copy).hook_request_uri_normalize =
+            htp_hooks::htp_hook_copy((*cfg).hook_request_uri_normalize);
         if (*copy).hook_request_uri_normalize.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_header_data.is_null() {
-        (*copy).hook_request_header_data = htp_hook_copy((*cfg).hook_request_header_data);
+        (*copy).hook_request_header_data =
+            htp_hooks::htp_hook_copy((*cfg).hook_request_header_data);
         if (*copy).hook_request_header_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_headers.is_null() {
-        (*copy).hook_request_headers = htp_hook_copy((*cfg).hook_request_headers);
+        (*copy).hook_request_headers = htp_hooks::htp_hook_copy((*cfg).hook_request_headers);
         if (*copy).hook_request_headers.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_body_data.is_null() {
-        (*copy).hook_request_body_data = htp_hook_copy((*cfg).hook_request_body_data);
+        (*copy).hook_request_body_data = htp_hooks::htp_hook_copy((*cfg).hook_request_body_data);
         if (*copy).hook_request_body_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_file_data.is_null() {
-        (*copy).hook_request_file_data = htp_hook_copy((*cfg).hook_request_file_data);
+        (*copy).hook_request_file_data = htp_hooks::htp_hook_copy((*cfg).hook_request_file_data);
         if (*copy).hook_request_file_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_trailer.is_null() {
-        (*copy).hook_request_trailer = htp_hook_copy((*cfg).hook_request_trailer);
+        (*copy).hook_request_trailer = htp_hooks::htp_hook_copy((*cfg).hook_request_trailer);
         if (*copy).hook_request_trailer.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_trailer_data.is_null() {
-        (*copy).hook_request_trailer_data = htp_hook_copy((*cfg).hook_request_trailer_data);
+        (*copy).hook_request_trailer_data =
+            htp_hooks::htp_hook_copy((*cfg).hook_request_trailer_data);
         if (*copy).hook_request_trailer_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_request_complete.is_null() {
-        (*copy).hook_request_complete = htp_hook_copy((*cfg).hook_request_complete);
+        (*copy).hook_request_complete = htp_hooks::htp_hook_copy((*cfg).hook_request_complete);
         if (*copy).hook_request_complete.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_start.is_null() {
-        (*copy).hook_response_start = htp_hook_copy((*cfg).hook_response_start);
+        (*copy).hook_response_start = htp_hooks::htp_hook_copy((*cfg).hook_response_start);
         if (*copy).hook_response_start.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_line.is_null() {
-        (*copy).hook_response_line = htp_hook_copy((*cfg).hook_response_line);
+        (*copy).hook_response_line = htp_hooks::htp_hook_copy((*cfg).hook_response_line);
         if (*copy).hook_response_line.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_header_data.is_null() {
-        (*copy).hook_response_header_data = htp_hook_copy((*cfg).hook_response_header_data);
+        (*copy).hook_response_header_data =
+            htp_hooks::htp_hook_copy((*cfg).hook_response_header_data);
         if (*copy).hook_response_header_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_headers.is_null() {
-        (*copy).hook_response_headers = htp_hook_copy((*cfg).hook_response_headers);
+        (*copy).hook_response_headers = htp_hooks::htp_hook_copy((*cfg).hook_response_headers);
         if (*copy).hook_response_headers.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_body_data.is_null() {
-        (*copy).hook_response_body_data = htp_hook_copy((*cfg).hook_response_body_data);
+        (*copy).hook_response_body_data = htp_hooks::htp_hook_copy((*cfg).hook_response_body_data);
         if (*copy).hook_response_body_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_trailer.is_null() {
-        (*copy).hook_response_trailer = htp_hook_copy((*cfg).hook_response_trailer);
+        (*copy).hook_response_trailer = htp_hooks::htp_hook_copy((*cfg).hook_response_trailer);
         if (*copy).hook_response_trailer.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_trailer_data.is_null() {
-        (*copy).hook_response_trailer_data = htp_hook_copy((*cfg).hook_response_trailer_data);
+        (*copy).hook_response_trailer_data =
+            htp_hooks::htp_hook_copy((*cfg).hook_response_trailer_data);
         if (*copy).hook_response_trailer_data.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_response_complete.is_null() {
-        (*copy).hook_response_complete = htp_hook_copy((*cfg).hook_response_complete);
+        (*copy).hook_response_complete = htp_hooks::htp_hook_copy((*cfg).hook_response_complete);
         if (*copy).hook_response_complete.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_transaction_complete.is_null() {
-        (*copy).hook_transaction_complete = htp_hook_copy((*cfg).hook_transaction_complete);
+        (*copy).hook_transaction_complete =
+            htp_hooks::htp_hook_copy((*cfg).hook_transaction_complete);
         if (*copy).hook_transaction_complete.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
         }
     }
     if !(*cfg).hook_log.is_null() {
-        (*copy).hook_log = htp_hook_copy((*cfg).hook_log);
+        (*copy).hook_log = htp_hooks::htp_hook_copy((*cfg).hook_log);
         if (*copy).hook_log.is_null() {
             htp_config_destroy(copy);
             return 0 as *mut htp_cfg_t;
@@ -1832,26 +1785,26 @@ pub unsafe extern "C" fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_destroy((*cfg).hook_request_start);
-    htp_hook_destroy((*cfg).hook_request_line);
-    htp_hook_destroy((*cfg).hook_request_uri_normalize);
-    htp_hook_destroy((*cfg).hook_request_header_data);
-    htp_hook_destroy((*cfg).hook_request_headers);
-    htp_hook_destroy((*cfg).hook_request_body_data);
-    htp_hook_destroy((*cfg).hook_request_file_data);
-    htp_hook_destroy((*cfg).hook_request_trailer);
-    htp_hook_destroy((*cfg).hook_request_trailer_data);
-    htp_hook_destroy((*cfg).hook_request_complete);
-    htp_hook_destroy((*cfg).hook_response_start);
-    htp_hook_destroy((*cfg).hook_response_line);
-    htp_hook_destroy((*cfg).hook_response_header_data);
-    htp_hook_destroy((*cfg).hook_response_headers);
-    htp_hook_destroy((*cfg).hook_response_body_data);
-    htp_hook_destroy((*cfg).hook_response_trailer);
-    htp_hook_destroy((*cfg).hook_response_trailer_data);
-    htp_hook_destroy((*cfg).hook_response_complete);
-    htp_hook_destroy((*cfg).hook_transaction_complete);
-    htp_hook_destroy((*cfg).hook_log);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_start);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_line);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_uri_normalize);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_header_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_headers);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_body_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_file_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_trailer);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_trailer_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_request_complete);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_start);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_line);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_header_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_headers);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_body_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_trailer);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_trailer_data);
+    htp_hooks::htp_hook_destroy((*cfg).hook_response_complete);
+    htp_hooks::htp_hook_destroy((*cfg).hook_transaction_complete);
+    htp_hooks::htp_hook_destroy((*cfg).hook_log);
     free(cfg as *mut libc::c_void);
 }
 
@@ -1879,17 +1832,15 @@ pub unsafe extern "C" fn htp_config_get_user_data(mut cfg: *mut htp_cfg_t) -> *m
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_log(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_util::htp_log_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_log,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut crate::src::htp_util::htp_log_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1909,10 +1860,8 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(mut cfg: *mut htp_
     htp_config_register_request_headers(
         cfg,
         Some(
-            htp_ch_multipart_callback_request_headers
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_t,
-                ) -> htp_status_t,
+            htp_content_handlers::htp_ch_multipart_callback_request_headers
+                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> htp_status_t,
         ),
     );
 }
@@ -1926,19 +1875,15 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(mut cfg: *mut htp_
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_complete(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_complete,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1954,20 +1899,16 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
 pub unsafe extern "C" fn htp_config_register_request_body_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> libc::c_int,
+        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
     >,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_body_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_data_t,
-                ) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1982,19 +1923,15 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_file_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_util::htp_file_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_file_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_util::htp_file_data_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2009,19 +1946,15 @@ pub unsafe extern "C" fn htp_config_register_request_file_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_uri_normalize,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2037,20 +1970,16 @@ pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
 pub unsafe extern "C" fn htp_config_register_request_header_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> libc::c_int,
+        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
     >,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_header_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_data_t,
-                ) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2065,19 +1994,15 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_headers(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_headers,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2092,19 +2017,15 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_line(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_line,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2120,19 +2041,15 @@ pub unsafe extern "C" fn htp_config_register_request_line(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_start(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_start,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2147,19 +2064,15 @@ pub unsafe extern "C" fn htp_config_register_request_start(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_trailer,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2175,20 +2088,16 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
 pub unsafe extern "C" fn htp_config_register_request_trailer_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> libc::c_int,
+        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
     >,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_trailer_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_data_t,
-                ) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2204,20 +2113,16 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
 pub unsafe extern "C" fn htp_config_register_response_body_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> libc::c_int,
+        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
     >,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_body_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_data_t,
-                ) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2232,19 +2137,15 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_complete(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_complete,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2260,20 +2161,16 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
 pub unsafe extern "C" fn htp_config_register_response_header_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> libc::c_int,
+        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
     >,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_header_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_data_t,
-                ) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2288,19 +2185,15 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_headers(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_headers,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2315,19 +2208,15 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_line(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_line,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2342,19 +2231,15 @@ pub unsafe extern "C" fn htp_config_register_response_line(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_start(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_start,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2369,19 +2254,15 @@ pub unsafe extern "C" fn htp_config_register_response_start(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_trailer,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2397,20 +2278,16 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
 pub unsafe extern "C" fn htp_config_register_response_trailer_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> libc::c_int,
+        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
     >,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_trailer_data,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_data_t,
-                ) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2425,19 +2302,15 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_transaction_complete(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
 ) {
     if cfg.is_null() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*cfg).hook_transaction_complete,
         ::std::mem::transmute::<
-            Option<
-                unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_t) -> libc::c_int,
-            >,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2457,19 +2330,15 @@ pub unsafe extern "C" fn htp_config_register_urlencoded_parser(mut cfg: *mut htp
     htp_config_register_request_line(
         cfg,
         Some(
-            htp_ch_urlencoded_callback_request_line
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_t,
-                ) -> htp_status_t,
+            htp_content_handlers::htp_ch_urlencoded_callback_request_line
+                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> htp_status_t,
         ),
     );
     htp_config_register_request_headers(
         cfg,
         Some(
-            htp_ch_urlencoded_callback_request_headers
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_transaction::htp_tx_t,
-                ) -> htp_status_t,
+            htp_content_handlers::htp_ch_urlencoded_callback_request_headers
+                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> htp_status_t,
         ),
     );
 }
@@ -2576,7 +2445,7 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_log_level(
     mut cfg: *mut htp_cfg_t,
-    mut log_level: crate::src::htp_util::htp_log_level_t,
+    mut log_level: htp_util::htp_log_level_t,
 ) {
     if cfg.is_null() {
         return;
@@ -2653,29 +2522,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
     match personality as libc::c_uint {
         0 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_generic
+                htp_request_generic::htp_parse_request_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_generic
+                htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
@@ -2683,29 +2552,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         }
         1 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_generic
+                htp_request_generic::htp_parse_request_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_generic
+                htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
@@ -2728,29 +2597,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         }
         2 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_generic
+                htp_request_generic::htp_parse_request_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_generic
+                htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
@@ -2793,29 +2662,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         }
         9 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_apache_2_2
+                htp_request_apache_2_2::htp_parse_request_line_apache_2_2
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_apache_2_2
+                htp_request_apache_2_2::htp_process_request_header_apache_2_2
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
@@ -2863,29 +2732,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         }
         5 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_generic
+                htp_request_generic::htp_parse_request_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_generic
+                htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
@@ -2928,29 +2797,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         }
         6 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_generic
+                htp_request_generic::htp_parse_request_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_generic
+                htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
@@ -2998,29 +2867,29 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         }
         7 | 8 => {
             (*cfg).parse_request_line = Some(
-                htp_parse_request_line_generic
+                htp_request_generic::htp_parse_request_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_request_header = Some(
-                htp_process_request_header_generic
+                htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,
             );
             (*cfg).parse_response_line = Some(
-                htp_parse_response_line_generic
+                htp_response_generic::htp_parse_response_line_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             );
             (*cfg).process_response_header = Some(
-                htp_process_response_header_generic
+                htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
                     ) -> htp_status_t,

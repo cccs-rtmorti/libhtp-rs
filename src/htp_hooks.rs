@@ -1,25 +1,11 @@
+use crate::htp_list;
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
-    #[no_mangle]
-    fn htp_list_array_create(size: size_t) -> *mut crate::src::htp_list::htp_list_array_t;
-    #[no_mangle]
-    fn htp_list_array_destroy(l: *mut crate::src::htp_list::htp_list_array_t);
-    #[no_mangle]
-    fn htp_list_array_get(
-        l: *const crate::src::htp_list::htp_list_array_t,
-        idx: size_t,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_list_array_push(
-        l: *mut crate::src::htp_list::htp_list_array_t,
-        e: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
 }
 pub type size_t = libc::c_ulong;
 pub type htp_status_t = libc::c_int;
@@ -27,7 +13,7 @@ pub type htp_status_t = libc::c_int;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_hook_t {
-    pub callbacks: *mut crate::src::htp_list::htp_list_array_t,
+    pub callbacks: *mut htp_list::htp_list_array_t,
 }
 
 #[repr(C)]
@@ -56,10 +42,10 @@ pub unsafe extern "C" fn htp_hook_copy(mut hook: *const htp_hook_t) -> *mut htp_
         return 0 as *mut htp_hook_t;
     }
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size((*hook).callbacks);
+    let mut n: size_t = htp_list::htp_list_array_size((*hook).callbacks);
     while i < n {
         let mut callback: *mut htp_callback_t =
-            htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
+            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
         if htp_hook_register(&mut copy, (*callback).fn_0) != 1 as libc::c_int {
             htp_hook_destroy(copy);
             return 0 as *mut htp_hook_t;
@@ -83,7 +69,7 @@ pub unsafe extern "C" fn htp_hook_create() -> *mut htp_hook_t {
     if hook.is_null() {
         return 0 as *mut htp_hook_t;
     }
-    (*hook).callbacks = htp_list_array_create(4 as libc::c_int as size_t);
+    (*hook).callbacks = htp_list::htp_list_array_create(4 as libc::c_int as size_t);
     if (*hook).callbacks.is_null() {
         free(hook as *mut libc::c_void);
         return 0 as *mut htp_hook_t;
@@ -103,12 +89,15 @@ pub unsafe extern "C" fn htp_hook_destroy(mut hook: *mut htp_hook_t) {
         return;
     }
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size((*hook).callbacks);
+    let mut n: size_t = htp_list::htp_list_array_size((*hook).callbacks);
     while i < n {
-        free(htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t as *mut libc::c_void);
+        free(
+            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t
+                as *mut libc::c_void,
+        );
         i = i.wrapping_add(1)
     }
-    htp_list_array_destroy((*hook).callbacks);
+    htp_list::htp_list_array_destroy((*hook).callbacks);
     free(hook as *mut libc::c_void);
 }
 
@@ -146,7 +135,9 @@ pub unsafe extern "C" fn htp_hook_register(
         }
     }
     // Add callback
-    if htp_list_array_push((**hook).callbacks, callback as *mut libc::c_void) != 1 as libc::c_int {
+    if htp_list::htp_list_array_push((**hook).callbacks, callback as *mut libc::c_void)
+        != 1 as libc::c_int
+    {
         if hook_created != 0 {
             free(*hook as *mut libc::c_void);
         }
@@ -176,10 +167,10 @@ pub unsafe extern "C" fn htp_hook_run_all(
     }
     // Loop through the registered callbacks, giving each a chance to run.
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size((*hook).callbacks);
+    let mut n: size_t = htp_list::htp_list_array_size((*hook).callbacks);
     while i < n {
         let mut callback: *mut htp_callback_t =
-            htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
+            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
         let mut rc: htp_status_t = (*callback).fn_0.expect("non-null function pointer")(user_data);
         // A hook can return HTP_OK to say that it did some work,
         // or HTP_DECLINED to say that it did no work. Anything else
@@ -210,10 +201,10 @@ pub unsafe extern "C" fn htp_hook_run_one(
         return 0 as libc::c_int;
     }
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size((*hook).callbacks);
+    let mut n: size_t = htp_list::htp_list_array_size((*hook).callbacks);
     while i < n {
         let mut callback: *mut htp_callback_t =
-            htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
+            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
         let mut rc: htp_status_t = (*callback).fn_0.expect("non-null function pointer")(user_data);
         // A hook can return HTP_DECLINED to say that it did no work,
         // and we'll ignore that. If we see HTP_OK or anything else,

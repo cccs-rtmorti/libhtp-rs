@@ -1,38 +1,9 @@
+use crate::{bstr, htp_base64, htp_connection_parser, htp_table, htp_transaction, htp_util};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
-    fn bstr_begins_with_c_nocase(
-        bhaystack: *const bstr,
-        cneedle: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_dup_ex(b: *const bstr, offset: size_t, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
-    #[no_mangle]
-    fn bstr_index_of_c(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn htp_base64_decode_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn htp_table_get_c(
-        table: *const crate::src::htp_table::htp_table_t,
-        ckey: *const libc::c_char,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_parse_positive_integer_whitespace(
-        data: *mut libc::c_uchar,
-        len: size_t,
-        base: libc::c_int,
-    ) -> int64_t;
-    #[no_mangle]
-    fn htp_extract_quoted_string_as_bstr(
-        data: *mut libc::c_uchar,
-        len: size_t,
-        out: *mut *mut bstr,
-        endoffset: *mut size_t,
-    ) -> htp_status_t;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -62,7 +33,6 @@ pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
 pub type htp_status_t = libc::c_int;
-pub type bstr = crate::src::bstr::bstr_t;
 
 pub type htp_time_t = libc::timeval;
 
@@ -75,7 +45,7 @@ pub type htp_time_t = libc::timeval;
  * @return Protocol version or PROTOCOL_UNKNOWN.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr) -> libc::c_int {
+pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr::bstr_t) -> libc::c_int {
     if protocol.is_null() {
         return -(2 as libc::c_int);
     }
@@ -87,7 +57,7 @@ pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr) -> libc::c_
     if (*protocol).len == 8 as libc::c_int as libc::c_ulong {
         let mut ptr: *mut libc::c_uchar = if (*protocol).realptr.is_null() {
             (protocol as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
         } else {
             (*protocol).realptr
         };
@@ -124,11 +94,11 @@ pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr) -> libc::c_
  * @return Status code on success, or HTP_STATUS_INVALID on error.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr) -> libc::c_int {
-    let mut r: int64_t = htp_parse_positive_integer_whitespace(
+pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr::bstr) -> libc::c_int {
+    let mut r: int64_t = htp_util::htp_parse_positive_integer_whitespace(
         if (*status).realptr.is_null() {
             (status as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
         } else {
             (*status).realptr
         },
@@ -150,11 +120,11 @@ pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr) -> libc::c_int 
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_authorization_digest(
-    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    mut auth_header: *mut crate::src::htp_transaction::htp_header_t,
+    mut connp: *mut htp_connection_parser::htp_connp_t,
+    mut auth_header: *mut htp_transaction::htp_header_t,
 ) -> libc::c_int {
     // Extract the username
-    let mut i: libc::c_int = bstr_index_of_c(
+    let mut i: libc::c_int = bstr::bstr_index_of_c(
         (*auth_header).value,
         b"username=\x00" as *const u8 as *const libc::c_char,
     );
@@ -163,7 +133,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     }
     let mut data: *mut libc::c_uchar = if (*(*auth_header).value).realptr.is_null() {
         ((*auth_header).value as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*(*auth_header).value).realptr
     };
@@ -184,7 +154,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
         return 0 as libc::c_int;
     }
-    return htp_extract_quoted_string_as_bstr(
+    return htp_util::htp_extract_quoted_string_as_bstr(
         data.offset(pos as isize),
         len.wrapping_sub(pos),
         &mut (*(*connp).in_tx).request_auth_username,
@@ -200,12 +170,12 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_authorization_basic(
-    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    mut auth_header: *mut crate::src::htp_transaction::htp_header_t,
+    mut connp: *mut htp_connection_parser::htp_connp_t,
+    mut auth_header: *mut htp_transaction::htp_header_t,
 ) -> libc::c_int {
     let mut data: *mut libc::c_uchar = if (*(*auth_header).value).realptr.is_null() {
         ((*auth_header).value as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*(*auth_header).value).realptr
     };
@@ -224,7 +194,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
         return 0 as libc::c_int;
     }
     // Decode base64-encoded data
-    let mut decoded: *mut bstr = htp_base64_decode_mem(
+    let mut decoded: *mut bstr::bstr = htp_base64::htp_base64_decode_mem(
         data.offset(pos as isize) as *const libc::c_void,
         len.wrapping_sub(pos),
     );
@@ -232,18 +202,19 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
         return -(1 as libc::c_int);
     }
     // Now extract the username and password
-    let mut i: libc::c_int = bstr_index_of_c(decoded, b":\x00" as *const u8 as *const libc::c_char);
+    let mut i: libc::c_int =
+        bstr::bstr_index_of_c(decoded, b":\x00" as *const u8 as *const libc::c_char);
     if i == -(1 as libc::c_int) {
-        bstr_free(decoded);
+        bstr::bstr_free(decoded);
         return 0 as libc::c_int;
     }
     (*(*connp).in_tx).request_auth_username =
-        bstr_dup_ex(decoded, 0 as libc::c_int as size_t, i as size_t);
+        bstr::bstr_dup_ex(decoded, 0 as libc::c_int as size_t, i as size_t);
     if (*(*connp).in_tx).request_auth_username.is_null() {
-        bstr_free(decoded);
+        bstr::bstr_free(decoded);
         return -(1 as libc::c_int);
     }
-    (*(*connp).in_tx).request_auth_password = bstr_dup_ex(
+    (*(*connp).in_tx).request_auth_password = bstr::bstr_dup_ex(
         decoded,
         (i + 1 as libc::c_int) as size_t,
         (*decoded)
@@ -252,11 +223,11 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
             .wrapping_sub(1 as libc::c_int as libc::c_ulong),
     );
     if (*(*connp).in_tx).request_auth_password.is_null() {
-        bstr_free(decoded);
-        bstr_free((*(*connp).in_tx).request_auth_username);
+        bstr::bstr_free(decoded);
+        bstr::bstr_free((*(*connp).in_tx).request_auth_username);
         return -(1 as libc::c_int);
     }
-    bstr_free(decoded);
+    bstr::bstr_free(decoded);
     return 1 as libc::c_int;
 }
 
@@ -267,42 +238,39 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_authorization(
-    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> libc::c_int {
-    let mut auth_header: *mut crate::src::htp_transaction::htp_header_t = htp_table_get_c(
+    let mut auth_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*(*connp).in_tx).request_headers,
         b"authorization\x00" as *const u8 as *const libc::c_char,
     )
-        as *mut crate::src::htp_transaction::htp_header_t;
+        as *mut htp_transaction::htp_header_t;
     if auth_header.is_null() {
-        (*(*connp).in_tx).request_auth_type =
-            crate::src::htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
+        (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
         return 1 as libc::c_int;
     }
     // TODO Need a flag to raise when failing to parse authentication headers.
-    if bstr_begins_with_c_nocase(
+    if bstr::bstr_begins_with_c_nocase(
         (*auth_header).value,
         b"basic\x00" as *const u8 as *const libc::c_char,
     ) != 0
     {
         // Basic authentication
-        (*(*connp).in_tx).request_auth_type =
-            crate::src::htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
+        (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
         return htp_parse_authorization_basic(connp, auth_header);
     } else {
-        if bstr_begins_with_c_nocase(
+        if bstr::bstr_begins_with_c_nocase(
             (*auth_header).value,
             b"digest\x00" as *const u8 as *const libc::c_char,
         ) != 0
         {
             // Digest authentication
-            (*(*connp).in_tx).request_auth_type =
-                crate::src::htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
+            (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
             return htp_parse_authorization_digest(connp, auth_header);
         } else {
             // Unrecognized authentication method
             (*(*connp).in_tx).request_auth_type =
-                crate::src::htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
+                htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
         }
     }
     return 1 as libc::c_int;

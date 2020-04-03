@@ -1,16 +1,16 @@
 /* Adapted from the libb64 project (http://sourceforge.net/projects/libb64), which is in public domain. */
 use ::libc;
+
+use crate::bstr;
+
 extern "C" {
     #[no_mangle]
     fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
-    #[no_mangle]
-    fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
 }
 
 pub type size_t = libc::c_ulong;
-pub type bstr = crate::src::bstr::bstr_t;
 pub type htp_base64_decodestep = libc::c_uint;
 pub const step_d: htp_base64_decodestep = 3;
 pub const step_c: htp_base64_decodestep = 2;
@@ -313,11 +313,11 @@ pub unsafe extern "C" fn htp_base64_decode(
  * @return new base64-decoded bstring
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_base64_decode_bstr(mut input: *mut bstr) -> *mut bstr {
+pub unsafe extern "C" fn htp_base64_decode_bstr(mut input: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
     return htp_base64_decode_mem(
         if (*input).realptr.is_null() {
             (input as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
         } else {
             (*input).realptr
         } as *const libc::c_void,
@@ -336,16 +336,16 @@ pub unsafe extern "C" fn htp_base64_decode_bstr(mut input: *mut bstr) -> *mut bs
 pub unsafe extern "C" fn htp_base64_decode_mem(
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> *mut bstr {
+) -> *mut bstr::bstr_t {
     let mut decoder: htp_base64_decoder = htp_base64_decoder {
         step: step_a,
         plainchar: 0,
     };
-    let mut r: *mut bstr = 0 as *mut bstr;
+    let mut r: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     htp_base64_decoder_init(&mut decoder);
     let mut tmpstr: *mut libc::c_uchar = malloc(len) as *mut libc::c_uchar;
     if tmpstr.is_null() {
-        return 0 as *mut bstr;
+        return 0 as *mut bstr::bstr_t;
     }
     let mut resulting_len: libc::c_int = htp_base64_decode(
         &mut decoder,
@@ -355,7 +355,7 @@ pub unsafe extern "C" fn htp_base64_decode_mem(
         len as libc::c_int,
     );
     if resulting_len > 0 as libc::c_int {
-        r = bstr_dup_mem(tmpstr as *const libc::c_void, resulting_len as size_t)
+        r = bstr::bstr_dup_mem(tmpstr as *const libc::c_void, resulting_len as size_t)
     }
     free(tmpstr as *mut libc::c_void);
     return r;

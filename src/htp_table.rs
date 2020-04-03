@@ -1,47 +1,14 @@
+use crate::{bstr, htp_list};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
-    #[no_mangle]
-    fn htp_list_array_init(
-        l: *mut crate::src::htp_list::htp_list_array_t,
-        size: size_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_list_array_clear(l: *mut crate::src::htp_list::htp_list_array_t);
-    #[no_mangle]
-    fn htp_list_array_release(l: *mut crate::src::htp_list::htp_list_array_t);
-    #[no_mangle]
-    fn htp_list_array_get(
-        l: *const crate::src::htp_list::htp_list_array_t,
-        idx: size_t,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_list_array_pop(l: *mut crate::src::htp_list::htp_list_array_t) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_list_array_push(
-        l: *mut crate::src::htp_list::htp_list_array_t,
-        e: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
-    #[no_mangle]
-    fn bstr_cmp_c_nocasenorzero(b: *const bstr, cstr: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_cmp_mem_nocase(b: *const bstr, data: *const libc::c_void, len: size_t) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_cmp_nocase(b1: *const bstr, b2: *const bstr) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_dup(b: *const bstr) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
 }
 pub type size_t = libc::c_ulong;
 pub type htp_status_t = libc::c_int;
-
-pub type bstr = crate::src::bstr::bstr_t;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -60,7 +27,7 @@ enum htp_table_alloc_t {
 #[derive(Copy, Clone)]
 pub struct htp_table_t {
     /** Table key and value pairs are stored in this list; name first, then value. */
-    pub list: crate::src::htp_list::htp_list_array_t,
+    pub list: htp_list::htp_list_array_t,
     /**
      * Key management strategy. Initially set to HTP_TABLE_KEYS_ALLOC_UKNOWN. The
      * actual strategy is determined by the first allocation.
@@ -70,16 +37,20 @@ pub struct htp_table_t {
 
 unsafe extern "C" fn _htp_table_add(
     mut table: *mut htp_table_t,
-    mut key: *const bstr,
+    mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
 ) -> htp_status_t {
     // Add key.
-    if htp_list_array_push(&mut (*table).list, key as *mut libc::c_void) != 1 as libc::c_int {
+    if htp_list::htp_list_array_push(&mut (*table).list, key as *mut libc::c_void)
+        != 1 as libc::c_int
+    {
         return -(1 as libc::c_int);
     }
     // Add element.
-    if htp_list_array_push(&mut (*table).list, element as *mut libc::c_void) != 1 as libc::c_int {
-        htp_list_array_pop(&mut (*table).list);
+    if htp_list::htp_list_array_push(&mut (*table).list, element as *mut libc::c_void)
+        != 1 as libc::c_int
+    {
+        htp_list::htp_list_array_pop(&mut (*table).list);
         return -(1 as libc::c_int);
     }
     return 1 as libc::c_int;
@@ -98,7 +69,7 @@ unsafe extern "C" fn _htp_table_add(
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_add(
     mut table: *mut htp_table_t,
-    mut key: *const bstr,
+    mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
 ) -> htp_status_t {
     if table.is_null() || key.is_null() {
@@ -111,12 +82,12 @@ pub unsafe extern "C" fn htp_table_add(
     } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_COPIED {
         return -(1 as libc::c_int);
     }
-    let mut dupkey: *mut bstr = bstr_dup(key);
+    let mut dupkey: *mut bstr::bstr = bstr::bstr_dup(key);
     if dupkey.is_null() {
         return -(1 as libc::c_int);
     }
     if _htp_table_add(table, dupkey, element) != 1 as libc::c_int {
-        bstr_free(dupkey);
+        bstr::bstr_free(dupkey);
         return -(1 as libc::c_int);
     }
     return 1 as libc::c_int;
@@ -137,7 +108,7 @@ pub unsafe extern "C" fn htp_table_add(
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_addn(
     mut table: *mut htp_table_t,
-    mut key: *const bstr,
+    mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
 ) -> htp_status_t {
     if table.is_null() || key.is_null() {
@@ -167,7 +138,7 @@ pub unsafe extern "C" fn htp_table_addn(
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_addk(
     mut table: *mut htp_table_t,
-    mut key: *const bstr,
+    mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
 ) -> htp_status_t {
     if table.is_null() || key.is_null() {
@@ -199,17 +170,17 @@ pub unsafe extern "C" fn htp_table_clear(mut table: *mut htp_table_t) {
     if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_COPIED
         || (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ADOPTED
     {
-        let mut key: *mut bstr = 0 as *mut bstr;
+        let mut key: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_list_array_size(&mut (*table).list);
+        let mut n: size_t = htp_list::htp_list_array_size(&mut (*table).list);
         while i < n {
-            key = htp_list_array_get(&mut (*table).list, i) as *mut bstr;
-            bstr_free(key);
+            key = htp_list::htp_list_array_get(&mut (*table).list, i) as *mut bstr::bstr;
+            bstr::bstr_free(key);
             i = (i as libc::c_ulong).wrapping_add(2 as libc::c_int as libc::c_ulong) as size_t
                 as size_t
         }
     }
-    htp_list_array_clear(&mut (*table).list);
+    htp_list::htp_list_array_clear(&mut (*table).list);
 }
 
 /**
@@ -225,7 +196,7 @@ pub unsafe extern "C" fn htp_table_clear_ex(mut table: *mut htp_table_t) {
         return;
     }
     // This function does not free table keys.
-    htp_list_array_clear(&mut (*table).list);
+    htp_list::htp_list_array_clear(&mut (*table).list);
 }
 
 /**
@@ -249,7 +220,7 @@ pub unsafe extern "C" fn htp_table_create(mut size: size_t) -> *mut htp_table_t 
     }
     (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN;
     // Use a list behind the scenes.
-    if htp_list_array_init(
+    if htp_list::htp_list_array_init(
         &mut (*table).list,
         size.wrapping_mul(2 as libc::c_int as libc::c_ulong),
     ) == -(1 as libc::c_int)
@@ -274,7 +245,7 @@ pub unsafe extern "C" fn htp_table_destroy(mut table: *mut htp_table_t) {
         return;
     }
     htp_table_clear(table);
-    htp_list_array_release(&mut (*table).list);
+    htp_list::htp_list_array_release(&mut (*table).list);
     free(table as *mut libc::c_void);
 }
 
@@ -297,7 +268,7 @@ pub unsafe extern "C" fn htp_table_destroy_ex(mut table: *mut htp_table_t) {
 }
 
 /**
- * Retrieve the first element that matches the given bstr key.
+ * Retrieve the first element that matches the given bstr::bstr_t key.
  *
  * @param[in] table
  * @param[in] key
@@ -306,7 +277,7 @@ pub unsafe extern "C" fn htp_table_destroy_ex(mut table: *mut htp_table_t) {
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_get(
     mut table: *const htp_table_t,
-    mut key: *const bstr,
+    mut key: *const bstr::bstr_t,
 ) -> *mut libc::c_void {
     if table.is_null() || key.is_null() {
         return 0 as *mut libc::c_void;
@@ -314,14 +285,15 @@ pub unsafe extern "C" fn htp_table_get(
     // Iterate through the list, comparing
     // keys with the parameter, return data if found.
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size(&(*table).list);
+    let mut n: size_t = htp_list::htp_list_array_size(&(*table).list);
     while i < n {
-        let mut key_candidate: *mut bstr = htp_list_array_get(&(*table).list, i) as *mut bstr;
-        let mut element: *mut libc::c_void = htp_list_array_get(
+        let mut key_candidate: *mut bstr::bstr =
+            htp_list::htp_list_array_get(&(*table).list, i) as *mut bstr::bstr;
+        let mut element: *mut libc::c_void = htp_list::htp_list_array_get(
             &(*table).list,
             i.wrapping_add(1 as libc::c_int as libc::c_ulong),
         );
-        if bstr_cmp_nocase(key_candidate, key) == 0 as libc::c_int {
+        if bstr::bstr_cmp_nocase(key_candidate, key) == 0 as libc::c_int {
             return element;
         }
         i = (i as libc::c_ulong).wrapping_add(2 as libc::c_int as libc::c_ulong) as size_t as size_t
@@ -347,14 +319,15 @@ pub unsafe extern "C" fn htp_table_get_c(
     // Iterate through the list, comparing
     // keys with the parameter, return data if found.
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size(&(*table).list);
+    let mut n: size_t = htp_list::htp_list_array_size(&(*table).list);
     while i < n {
-        let mut key_candidate: *mut bstr = htp_list_array_get(&(*table).list, i) as *mut bstr;
-        let mut element: *mut libc::c_void = htp_list_array_get(
+        let mut key_candidate: *mut bstr::bstr =
+            htp_list::htp_list_array_get(&(*table).list, i) as *mut bstr::bstr;
+        let mut element: *mut libc::c_void = htp_list::htp_list_array_get(
             &(*table).list,
             i.wrapping_add(1 as libc::c_int as libc::c_ulong),
         );
-        if bstr_cmp_c_nocasenorzero(key_candidate, ckey) == 0 as libc::c_int {
+        if bstr::bstr_cmp_c_nocasenorzero(key_candidate, ckey) == 0 as libc::c_int {
             return element;
         }
         i = (i as libc::c_ulong).wrapping_add(2 as libc::c_int as libc::c_ulong) as size_t as size_t
@@ -374,21 +347,21 @@ pub unsafe extern "C" fn htp_table_get_c(
 pub unsafe extern "C" fn htp_table_get_index(
     mut table: *const htp_table_t,
     mut idx: size_t,
-    mut key: *mut *mut bstr,
+    mut key: *mut *mut bstr::bstr_t,
 ) -> *mut libc::c_void {
     if table.is_null() {
         return 0 as *mut libc::c_void;
     }
-    if idx >= htp_list_array_size(&(*table).list) {
+    if idx >= htp_list::htp_list_array_size(&(*table).list) {
         return 0 as *mut libc::c_void;
     }
     if !key.is_null() {
-        *key = htp_list_array_get(
+        *key = htp_list::htp_list_array_get(
             &(*table).list,
             idx.wrapping_mul(2 as libc::c_int as libc::c_ulong),
-        ) as *mut bstr
+        ) as *mut bstr::bstr_t
     }
-    return htp_list_array_get(
+    return htp_list::htp_list_array_get(
         &(*table).list,
         idx.wrapping_mul(2 as libc::c_int as libc::c_ulong)
             .wrapping_add(1 as libc::c_int as libc::c_ulong),
@@ -415,14 +388,15 @@ pub unsafe extern "C" fn htp_table_get_mem(
     // Iterate through the list, comparing
     // keys with the parameter, return data if found.
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list_array_size(&(*table).list);
+    let mut n: size_t = htp_list::htp_list_array_size(&(*table).list);
     while i < n {
-        let mut key_candidate: *mut bstr = htp_list_array_get(&(*table).list, i) as *mut bstr;
-        let mut element: *mut libc::c_void = htp_list_array_get(
+        let mut key_candidate: *mut bstr::bstr =
+            htp_list::htp_list_array_get(&(*table).list, i) as *mut bstr::bstr;
+        let mut element: *mut libc::c_void = htp_list::htp_list_array_get(
             &(*table).list,
             i.wrapping_add(1 as libc::c_int as libc::c_ulong),
         );
-        if bstr_cmp_mem_nocase(key_candidate, key, key_len) == 0 as libc::c_int {
+        if bstr::bstr_cmp_mem_nocase(key_candidate, key, key_len) == 0 as libc::c_int {
             return element;
         }
         i = (i as libc::c_ulong).wrapping_add(2 as libc::c_int as libc::c_ulong) as size_t as size_t
@@ -441,5 +415,6 @@ pub unsafe extern "C" fn htp_table_size(mut table: *const htp_table_t) -> size_t
     if table.is_null() {
         return 0 as libc::c_int as size_t;
     }
-    return htp_list_array_size(&(*table).list).wrapping_div(2 as libc::c_int as libc::c_ulong);
+    return htp_list::htp_list_array_size(&(*table).list)
+        .wrapping_div(2 as libc::c_int as libc::c_ulong);
 }

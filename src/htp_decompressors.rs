@@ -1,3 +1,4 @@
+use crate::{htp_connection_parser, htp_transaction, htp_util, lzma};
 use ::libc;
 extern "C" {
     pub type internal_state;
@@ -22,16 +23,6 @@ extern "C" {
         version: *const libc::c_char,
         stream_size: libc::c_int,
     ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_log(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        file: *const libc::c_char,
-        line: libc::c_int,
-        level: crate::src::htp_util::htp_log_level_t,
-        code: libc::c_int,
-        fmt: *const libc::c_char,
-        _: ...
-    );
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -48,7 +39,6 @@ pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
 pub type htp_status_t = libc::c_int;
-pub type bstr = crate::src::bstr::bstr_t;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -75,12 +65,11 @@ pub struct htp_decompressor_t {
     pub decompress: Option<
         unsafe extern "C" fn(
             _: *mut htp_decompressor_t,
-            _: *mut crate::src::htp_transaction::htp_tx_data_t,
+            _: *mut htp_transaction::htp_tx_data_t,
         ) -> htp_status_t,
     >,
-    pub callback: Option<
-        unsafe extern "C" fn(_: *mut crate::src::htp_transaction::htp_tx_data_t) -> htp_status_t,
-    >,
+    pub callback:
+        Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> htp_status_t>,
     pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
 }
@@ -132,38 +121,32 @@ pub struct htp_decompressor_gzip_t {
     pub stream: z_stream,
     pub header: [uint8_t; 13],
     pub header_len: uint8_t,
-    pub state: crate::src::lzma::LzmaDec::CLzmaDec,
+    pub state: lzma::LzmaDec::CLzmaDec,
     pub buffer: *mut libc::c_uchar,
     pub crc: libc::c_ulong,
 }
 unsafe extern "C" fn SzAlloc(
-    mut _p: crate::src::lzma::LzmaDec::ISzAllocPtr,
+    mut _p: lzma::LzmaDec::ISzAllocPtr,
     mut size: size_t,
 ) -> *mut libc::c_void {
     return malloc(size);
 }
-unsafe extern "C" fn SzFree(
-    mut _p: crate::src::lzma::LzmaDec::ISzAllocPtr,
-    mut address: *mut libc::c_void,
-) {
+unsafe extern "C" fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, mut address: *mut libc::c_void) {
     free(address);
 }
 #[no_mangle]
-pub static mut lzma_Alloc: crate::src::lzma::LzmaDec::ISzAlloc = {
-    let mut init = crate::src::lzma::LzmaDec::ISzAlloc {
+pub static mut lzma_Alloc: lzma::LzmaDec::ISzAlloc = {
+    let mut init = lzma::LzmaDec::ISzAlloc {
         Alloc: Some(
             SzAlloc
                 as unsafe extern "C" fn(
-                    _: crate::src::lzma::LzmaDec::ISzAllocPtr,
+                    _: lzma::LzmaDec::ISzAllocPtr,
                     _: size_t,
                 ) -> *mut libc::c_void,
         ),
         Free: Some(
             SzFree
-                as unsafe extern "C" fn(
-                    _: crate::src::lzma::LzmaDec::ISzAllocPtr,
-                    _: *mut libc::c_void,
-                ) -> (),
+                as unsafe extern "C" fn(_: lzma::LzmaDec::ISzAllocPtr, _: *mut libc::c_void) -> (),
         ),
     };
     init
@@ -315,7 +298,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
  */
 unsafe extern "C" fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
     if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA as libc::c_int {
-        crate::src::lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
+        lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
         (*drec).zlib_initialized = 0 as libc::c_int
     } else if (*drec).zlib_initialized != 0 {
         inflateEnd(&mut (*drec).stream);
@@ -333,20 +316,19 @@ unsafe extern "C" fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_g
  */
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
-    mut d: *mut crate::src::htp_transaction::htp_tx_data_t,
+    mut d: *mut htp_transaction::htp_tx_data_t,
 ) -> htp_status_t {
     let mut consumed: size_t = 0 as libc::c_int as size_t;
     let mut rc: libc::c_int = 0 as libc::c_int;
     let mut callback_rc: htp_status_t = 0;
     // Pass-through the NULL chunk, which indicates the end of the stream.
     if (*drec).passthrough != 0 {
-        let mut d2: crate::src::htp_transaction::htp_tx_data_t =
-            crate::src::htp_transaction::htp_tx_data_t {
-                tx: 0 as *mut crate::src::htp_transaction::htp_tx_t,
-                data: 0 as *const libc::c_uchar,
-                len: 0,
-                is_last: 0,
-            };
+        let mut d2: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
+            tx: 0 as *mut htp_transaction::htp_tx_t,
+            data: 0 as *const libc::c_uchar,
+            len: 0,
+            is_last: 0,
+        };
         d2.tx = (*d).tx;
         d2.data = (*d).data;
         d2.len = (*d).len;
@@ -359,13 +341,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     }
     if (*d).data.is_null() {
         // Prepare data for callback.
-        let mut dout: crate::src::htp_transaction::htp_tx_data_t =
-            crate::src::htp_transaction::htp_tx_data_t {
-                tx: 0 as *mut crate::src::htp_transaction::htp_tx_t,
-                data: 0 as *const libc::c_uchar,
-                len: 0,
-                is_last: 0,
-            };
+        let mut dout: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
+            tx: 0 as *mut htp_transaction::htp_tx_t,
+            data: 0 as *const libc::c_uchar,
+            len: 0,
+            is_last: 0,
+        };
         dout.tx = (*d).tx;
         // This is last call, so output uncompressed data so far
         dout.len =
@@ -395,11 +376,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     // we'll be restarting the compressor
     {
         if consumed > (*d).len {
-            htp_log(
+            htp_util::htp_log(
                 (*(*d).tx).connp,
                 b"htp_decompressors.c\x00" as *const u8 as *const libc::c_char,
                 235 as libc::c_int,
-                crate::src::htp_util::htp_log_level_t::HTP_LOG_ERROR,
+                htp_util::htp_log_level_t::HTP_LOG_ERROR,
                 0 as libc::c_int,
                 b"GZip decompressor: consumed > d->len\x00" as *const u8 as *const libc::c_char,
             );
@@ -413,13 +394,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             if (*drec).stream.avail_out == 0 as libc::c_int as libc::c_uint {
                 (*drec).crc = crc32((*drec).crc, (*drec).buffer, 8192 as libc::c_int as uInt);
                 // Prepare data for callback.
-                let mut d2_0: crate::src::htp_transaction::htp_tx_data_t =
-                    crate::src::htp_transaction::htp_tx_data_t {
-                        tx: 0 as *mut crate::src::htp_transaction::htp_tx_t,
-                        data: 0 as *const libc::c_uchar,
-                        len: 0,
-                        is_last: 0,
-                    };
+                let mut d2_0: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
+                    tx: 0 as *mut htp_transaction::htp_tx_t,
+                    data: 0 as *const libc::c_uchar,
+                    len: 0,
+                    is_last: 0,
+                };
                 d2_0.tx = (*d).tx;
                 d2_0.data = (*drec).buffer;
                 d2_0.len = 8192 as libc::c_int as size_t;
@@ -468,7 +448,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         as uint8_t
                 }
                 if (*drec).header_len as libc::c_int == 5 as libc::c_int + 8 as libc::c_int {
-                    rc = crate::src::lzma::LzmaDec::LzmaDec_Allocate(
+                    rc = lzma::LzmaDec::LzmaDec_Allocate(
                         &mut (*drec).state,
                         (*drec).header.as_mut_ptr(),
                         5 as libc::c_int as libc::c_uint,
@@ -477,22 +457,21 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     if rc != 0 as libc::c_int {
                         return rc;
                     }
-                    crate::src::lzma::LzmaDec::LzmaDec_Init(&mut (*drec).state);
+                    lzma::LzmaDec::LzmaDec_Init(&mut (*drec).state);
                     // hacky to get to next step end retry allocate in case of failure
                     (*drec).header_len = (*drec).header_len.wrapping_add(1)
                 }
                 if (*drec).header_len as libc::c_int > 5 as libc::c_int + 8 as libc::c_int {
                     let mut inprocessed: size_t = (*drec).stream.avail_in as size_t;
                     let mut outprocessed: size_t = (*drec).stream.avail_out as size_t;
-                    let mut status =
-                        crate::src::lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
-                    rc = crate::src::lzma::LzmaDec::LzmaDec_DecodeToBuf(
+                    let mut status = lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
+                    rc = lzma::LzmaDec::LzmaDec_DecodeToBuf(
                         &mut (*drec).state,
                         (*drec).stream.next_out,
                         &mut outprocessed,
                         (*drec).stream.next_in,
                         &mut inprocessed,
-                        crate::src::lzma::LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
+                        lzma::LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
                         &mut status,
                         (*(*(*d).tx).cfg).lzma_memlimit,
                     );
@@ -509,7 +488,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         0 => {
                             rc = 0 as libc::c_int;
                             if status as libc::c_uint
-                                == crate::src::lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK
+                                == lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK
                                     as libc::c_int
                                     as libc::c_uint
                             {
@@ -518,11 +497,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                             current_block_82 = 17019156190352891614;
                         }
                         2 => {
-                            htp_log(
+                            htp_util::htp_log(
                                 (*(*d).tx).connp,
                                 b"htp_decompressors.c\x00" as *const u8 as *const libc::c_char,
                                 306 as libc::c_int,
-                                crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                                htp_util::htp_log_level_t::HTP_LOG_WARNING,
                                 0 as libc::c_int,
                                 b"LZMA decompressor: memory limit reached\x00" as *const u8
                                     as *const libc::c_char,
@@ -552,11 +531,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 if rc == -(3 as libc::c_int) {
                     // There is data even if there is an error
                     // So use this data and log a warning
-                    htp_log(
+                    htp_util::htp_log(
                         (*(*d).tx).connp,
                         b"htp_decompressors.c\x00" as *const u8 as *const libc::c_char,
                         322 as libc::c_int,
-                        crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                        htp_util::htp_log_level_t::HTP_LOG_WARNING,
                         0 as libc::c_int,
                         b"GZip decompressor: inflate failed with %d\x00" as *const u8
                             as *const libc::c_char,
@@ -572,13 +551,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     as size_t;
                 // Update CRC
                 // Prepare data for the callback.
-                let mut d2_1: crate::src::htp_transaction::htp_tx_data_t =
-                    crate::src::htp_transaction::htp_tx_data_t {
-                        tx: 0 as *mut crate::src::htp_transaction::htp_tx_t,
-                        data: 0 as *const libc::c_uchar,
-                        len: 0,
-                        is_last: 0,
-                    };
+                let mut d2_1: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
+                    tx: 0 as *mut htp_transaction::htp_tx_t,
+                    data: 0 as *const libc::c_uchar,
+                    len: 0,
+                    is_last: 0,
+                };
                 d2_1.tx = (*d).tx;
                 d2_1.data = (*drec).buffer;
                 d2_1.len = len;
@@ -605,11 +583,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 if !(rc != 0 as libc::c_int) {
                     continue;
                 }
-                htp_log(
+                htp_util::htp_log(
                     (*(*d).tx).connp,
                     b"htp_decompressors.c\x00" as *const u8 as *const libc::c_char,
                     356 as libc::c_int,
-                    crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
                     0 as libc::c_int,
                     b"GZip decompressor: inflate failed with %d\x00" as *const u8
                         as *const libc::c_char,
@@ -618,7 +596,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 if (*drec).zlib_initialized
                     == htp_content_encoding_t::HTP_COMPRESSION_LZMA as libc::c_int
                 {
-                    crate::src::lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
+                    lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
                     // so as to clean zlib ressources after restart
                     (*drec).zlib_initialized =
                         htp_content_encoding_t::HTP_COMPRESSION_NONE as libc::c_int
@@ -635,13 +613,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 // all our inflate attempts have failed, simply
                 // pass the raw data on to the callback in case
                 // it's not compressed at all
-                let mut d2_2: crate::src::htp_transaction::htp_tx_data_t =
-                    crate::src::htp_transaction::htp_tx_data_t {
-                        tx: 0 as *mut crate::src::htp_transaction::htp_tx_t,
-                        data: 0 as *const libc::c_uchar,
-                        len: 0,
-                        is_last: 0,
-                    };
+                let mut d2_2: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
+                    tx: 0 as *mut htp_transaction::htp_tx_t,
+                    data: 0 as *const libc::c_uchar,
+                    len: 0,
+                    is_last: 0,
+                };
                 d2_2.tx = (*d).tx;
                 d2_2.data = (*d).data;
                 d2_2.len = (*d).len;
@@ -686,7 +663,7 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(mut drec: *mut htp_decompress
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_gzip_decompressor_create(
-    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    mut connp: *mut htp_connection_parser::htp_connp_t,
     mut format: htp_content_encoding_t,
 ) -> *mut htp_decompressor_t {
     let mut drec: *mut htp_decompressor_gzip_t = calloc(
@@ -700,20 +677,20 @@ pub unsafe extern "C" fn htp_gzip_decompressor_create(
         Option<
             unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
-                _: *mut crate::src::htp_transaction::htp_tx_data_t,
+                _: *mut htp_transaction::htp_tx_data_t,
             ) -> htp_status_t,
         >,
         Option<
             unsafe extern "C" fn(
                 _: *mut htp_decompressor_t,
-                _: *mut crate::src::htp_transaction::htp_tx_data_t,
+                _: *mut htp_transaction::htp_tx_data_t,
             ) -> libc::c_int,
         >,
     >(Some(
         htp_gzip_decompressor_decompress
             as unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
-                _: *mut crate::src::htp_transaction::htp_tx_data_t,
+                _: *mut htp_transaction::htp_tx_data_t,
             ) -> htp_status_t,
     ));
     (*drec).super_0.destroy = ::std::mem::transmute::<
@@ -735,13 +712,13 @@ pub unsafe extern "C" fn htp_gzip_decompressor_create(
         4 => {
             if (*(*connp).cfg).lzma_memlimit > 0 as libc::c_int as libc::c_ulong {
                 (*drec).state.dic = 0 as *mut Byte;
-                (*drec).state.probs = 0 as *mut crate::src::lzma::LzmaDec::CLzmaProb
+                (*drec).state.probs = 0 as *mut lzma::LzmaDec::CLzmaProb
             } else {
-                htp_log(
+                htp_util::htp_log(
                     connp,
                     b"htp_decompressors.c\x00" as *const u8 as *const libc::c_char,
                     445 as libc::c_int,
-                    crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
                     0 as libc::c_int,
                     b"LZMA decompression disabled\x00" as *const u8 as *const libc::c_char,
                 );
@@ -774,11 +751,11 @@ pub unsafe extern "C" fn htp_gzip_decompressor_create(
         }
     }
     if rc != 0 as libc::c_int {
-        htp_log(
+        htp_util::htp_log(
             connp,
             b"htp_decompressors.c\x00" as *const u8 as *const libc::c_char,
             465 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_ERROR,
+            htp_util::htp_log_level_t::HTP_LOG_ERROR,
             0 as libc::c_int,
             b"GZip decompressor: inflateInit2 failed with code %d\x00" as *const u8
                 as *const libc::c_char,

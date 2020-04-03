@@ -1,6 +1,10 @@
-use crate::src::htp_util::Flags;
-use ::bitflags;
+use crate::htp_util::Flags;
+use crate::{
+    bstr, bstr_builder, htp_config, htp_hooks, htp_list, htp_table, htp_transaction, htp_util,
+};
+
 use ::libc;
+use bitflags;
 
 bitflags::bitflags! {
     #[repr(C)]
@@ -131,107 +135,6 @@ extern "C" {
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
     #[no_mangle]
     fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn htp_list_array_create(size: size_t) -> *mut crate::src::htp_list::htp_list_array_t;
-    #[no_mangle]
-    fn htp_list_array_destroy(l: *mut crate::src::htp_list::htp_list_array_t);
-    #[no_mangle]
-    fn htp_list_array_get(
-        l: *const crate::src::htp_list::htp_list_array_t,
-        idx: size_t,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_list_array_push(
-        l: *mut crate::src::htp_list::htp_list_array_t,
-        e: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
-    #[no_mangle]
-    fn bstr_builder_append_mem(
-        bb: *mut crate::src::bstr_builder::bstr_builder_t,
-        data: *const libc::c_void,
-        len: size_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn bstr_builder_clear(bb: *mut crate::src::bstr_builder::bstr_builder_t);
-    #[no_mangle]
-    fn bstr_builder_create() -> *mut crate::src::bstr_builder::bstr_builder_t;
-    #[no_mangle]
-    fn bstr_builder_destroy(bb: *mut crate::src::bstr_builder::bstr_builder_t);
-    #[no_mangle]
-    fn bstr_builder_size(bb: *const crate::src::bstr_builder::bstr_builder_t) -> size_t;
-    #[no_mangle]
-    fn bstr_builder_to_str(bb: *const crate::src::bstr_builder::bstr_builder_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_add_mem(b: *mut bstr, data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_add_mem_noex(b: *mut bstr, data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_add_noex(bdestination: *mut bstr, bsource: *const bstr) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_adjust_len(b: *mut bstr, newlen: size_t);
-    #[no_mangle]
-    fn bstr_begins_with_c(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_cmp_c_nocase(b: *const bstr, cstr: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_expand(b: *mut bstr, newsize: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
-    #[no_mangle]
-    fn bstr_index_of_c(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_index_of_c_nocase(bhaystack: *const bstr, cneedle: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_util_mem_index_of_c_nocase(
-        data: *const libc::c_void,
-        len: size_t,
-        cstr: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_hook_run_all(
-        hook: *mut crate::src::htp_hooks::htp_hook_t,
-        user_data: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_table_add(
-        table: *mut crate::src::htp_table::htp_table_t,
-        key: *const bstr,
-        element: *const libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_table_create(size: size_t) -> *mut crate::src::htp_table::htp_table_t;
-    #[no_mangle]
-    fn htp_table_destroy(table: *mut crate::src::htp_table::htp_table_t);
-    #[no_mangle]
-    fn htp_table_get(
-        table: *const crate::src::htp_table::htp_table_t,
-        key: *const bstr,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_get_c(
-        table: *const crate::src::htp_table::htp_table_t,
-        ckey: *const libc::c_char,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_get_index(
-        table: *const crate::src::htp_table::htp_table_t,
-        idx: size_t,
-        key: *mut *mut bstr,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_size(table: *const crate::src::htp_table::htp_table_t) -> size_t;
-    #[no_mangle]
-    fn htp_is_token(c: libc::c_int) -> libc::c_int;
-    #[no_mangle]
-    fn htp_is_lws(c: libc::c_int) -> libc::c_int;
-    #[no_mangle]
-    fn htp_is_space(c: libc::c_int) -> libc::c_int;
-    #[no_mangle]
-    fn htp_parse_ct_header(header: *mut bstr, ct: *mut *mut bstr) -> htp_status_t;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -265,13 +168,12 @@ pub type ssize_t = __ssize_t;
 pub type mode_t = __mode_t;
 
 pub type htp_status_t = libc::c_int;
-pub type bstr = crate::src::bstr::bstr_t;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_mpartp_t {
     pub multipart: htp_multipart_t,
-    pub cfg: *mut crate::src::htp_config::htp_cfg_t,
+    pub cfg: *mut htp_config::htp_cfg_t,
     pub extract_files: libc::c_int,
     pub extract_limit: libc::c_int,
     pub extract_dir: *mut libc::c_char,
@@ -321,15 +223,15 @@ pub struct htp_mpartp_t {
      * discarded. When there is no match, the buffer is processed as data
      * (belonging to the currently active part).
      */
-    pub boundary_pieces: *mut crate::src::bstr_builder::bstr_builder_t,
-    pub part_header_pieces: *mut crate::src::bstr_builder::bstr_builder_t,
-    pub pending_header_line: *mut bstr,
+    pub boundary_pieces: *mut bstr_builder::bstr_builder_t,
+    pub part_header_pieces: *mut bstr_builder::bstr_builder_t,
+    pub pending_header_line: *mut bstr::bstr_t,
     /**
      * Stores text part pieces until the entire part is seen, at which
      * point the pieces are assembled into a single buffer, and the
      * builder cleared.
      */
-    pub part_data_pieces: *mut crate::src::bstr_builder::bstr_builder_t,
+    pub part_data_pieces: *mut bstr_builder::bstr_builder_t,
     /**
      * The offset of the current boundary candidate, relative to the most
      * recent data chunk (first unprocessed chunk of data).
@@ -366,20 +268,20 @@ pub struct htp_multipart_part_t {
     /** Raw part length (i.e., headers and data). */
     pub len: size_t,
     /** Part name, from the Content-Disposition header. Can be NULL. */
-    pub name: *mut bstr,
+    pub name: *mut bstr::bstr_t,
     /**
      * Part value; the contents depends on the type of the part:
      * 1) NULL for files; 2) contains complete part contents for
      * preamble and epilogue parts (they have no headers), and
      * 3) data only (headers excluded) for text and unknown parts.
      */
-    pub value: *mut bstr,
+    pub value: *mut bstr::bstr_t,
     /** Part content type, from the Content-Type header. Can be NULL. */
-    pub content_type: *mut bstr,
+    pub content_type: *mut bstr::bstr_t,
     /** Part headers (htp_header_t instances), using header name as the key. */
-    pub headers: *mut crate::src::htp_table::htp_table_t,
+    pub headers: *mut htp_table::htp_table_t,
     /** File data, available only for MULTIPART_PART_FILE parts. */
-    pub file: *mut crate::src::htp_util::htp_file_t,
+    pub file: *mut htp_util::htp_file_t,
 }
 
 #[repr(C)]
@@ -438,7 +340,7 @@ pub struct htp_multipart_t {
     /** How many boundaries were there? */
     pub boundary_count: libc::c_int,
     /** List of parts, in the order in which they appeared in the body. */
-    pub parts: *mut crate::src::htp_list::htp_list_array_t,
+    pub parts: *mut htp_list::htp_list_array_t,
     /** Parsing flags. */
     pub flags: MultipartFlags,
 }
@@ -501,14 +403,16 @@ pub unsafe extern "C" fn htp_mpartp_get_multipart(
  *  - Opera encodes " as \" and \ as \\.
  * @param[in] b
  */
-unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr) {
+unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr::bstr_t) {
     let mut s: *mut libc::c_uchar = if (*b).realptr.is_null() {
-        (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+        (b as *mut libc::c_uchar)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*b).realptr
     };
     let mut d: *mut libc::c_uchar = if (*b).realptr.is_null() {
-        (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+        (b as *mut libc::c_uchar)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*b).realptr
     };
@@ -531,7 +435,7 @@ unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr) 
         *fresh1 = *fresh0;
         pos = pos.wrapping_add(1)
     }
-    bstr_adjust_len(
+    bstr::bstr_adjust_len(
         b,
         len.wrapping_sub(s.wrapping_offset_from(d) as libc::c_long as libc::c_ulong),
     );
@@ -549,17 +453,16 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     mut part: *mut htp_multipart_part_t,
 ) -> htp_status_t {
     // Find the C-D header.
-    let mut h: *mut crate::src::htp_transaction::htp_header_t = htp_table_get_c(
+    let mut h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*part).headers,
         b"content-disposition\x00" as *const u8 as *const libc::c_char,
-    )
-        as *mut crate::src::htp_transaction::htp_header_t;
+    ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
         return 0 as libc::c_int;
     }
     // Require "form-data" at the beginning of the header.
-    if bstr_index_of_c(
+    if bstr::bstr_index_of_c(
         (*h).value,
         b"form-data\x00" as *const u8 as *const libc::c_char,
     ) != 0 as libc::c_int
@@ -570,7 +473,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     // The parsing starts here.
     let mut data: *mut libc::c_uchar = if (*(*h).value).realptr.is_null() {
         ((*h).value as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*(*h).value).realptr
     }; // Start after "form-data"
@@ -718,7 +621,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                         MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
                     return 0 as libc::c_int;
                 }
-                (*part).name = bstr_dup_mem(
+                (*part).name = bstr::bstr_dup_mem(
                     data.offset(start as isize) as *const libc::c_void,
                     pos.wrapping_sub(start)
                         .wrapping_sub(1 as libc::c_int as libc::c_ulong),
@@ -737,15 +640,14 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                 }
                 (*part).file = calloc(
                     1 as libc::c_int as libc::c_ulong,
-                    ::std::mem::size_of::<crate::src::htp_util::htp_file_t>() as libc::c_ulong,
-                ) as *mut crate::src::htp_util::htp_file_t;
+                    ::std::mem::size_of::<htp_util::htp_file_t>() as libc::c_ulong,
+                ) as *mut htp_util::htp_file_t;
                 if (*part).file.is_null() {
                     return -(1 as libc::c_int);
                 }
                 (*(*part).file).fd = -(1 as libc::c_int);
-                (*(*part).file).source =
-                    crate::src::htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
-                (*(*part).file).filename = bstr_dup_mem(
+                (*(*part).file).source = htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
+                (*(*part).file).filename = bstr::bstr_dup_mem(
                     data.offset(start as isize) as *const libc::c_void,
                     pos.wrapping_sub(start)
                         .wrapping_sub(1 as libc::c_int as libc::c_ulong),
@@ -773,15 +675,14 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
  * @return HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
  */
 unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_t) -> htp_status_t {
-    let mut h: *mut crate::src::htp_transaction::htp_header_t = htp_table_get_c(
+    let mut h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*part).headers,
         b"content-type\x00" as *const u8 as *const libc::c_char,
-    )
-        as *mut crate::src::htp_transaction::htp_header_t;
+    ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
         return 0 as libc::c_int;
     }
-    return htp_parse_ct_header((*h).value, &mut (*part).content_type);
+    return htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type);
 }
 
 /* *
@@ -829,7 +730,9 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     name_start = 0 as libc::c_int as size_t;
     // Look for the starting position of the name first.
     let mut colon_pos: size_t = 0 as libc::c_int as size_t;
-    while colon_pos < len && htp_is_space(*data.offset(colon_pos as isize) as libc::c_int) != 0 {
+    while colon_pos < len
+        && htp_util::htp_is_space(*data.offset(colon_pos as isize) as libc::c_int) != 0
+    {
         colon_pos = colon_pos.wrapping_add(1)
     }
     if colon_pos != 0 as libc::c_int as libc::c_ulong {
@@ -855,7 +758,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     // Ignore LWS after header name.
     let mut prev: size_t = name_end;
     if prev > name_start
-        && htp_is_lws(
+        && htp_util::htp_is_lws(
             *data.offset(prev.wrapping_sub(1 as libc::c_int as libc::c_ulong) as isize)
                 as libc::c_int,
         ) != 0
@@ -869,7 +772,9 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     // Header value.
     value_start = colon_pos.wrapping_add(1 as libc::c_int as libc::c_ulong);
     // Ignore LWS before value.
-    while value_start < len && htp_is_lws(*data.offset(value_start as isize) as libc::c_int) != 0 {
+    while value_start < len
+        && htp_util::htp_is_lws(*data.offset(value_start as isize) as libc::c_int) != 0
+    {
         value_start = value_start.wrapping_add(1)
     }
     if value_start == len {
@@ -882,22 +787,21 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     // Check that the header name is a token.
     let mut i: size_t = name_start;
     while i < name_end {
-        if htp_is_token(*data.offset(i as isize) as libc::c_int) == 0 {
+        if htp_util::htp_is_token(*data.offset(i as isize) as libc::c_int) == 0 {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
             return 0 as libc::c_int;
         }
         i = i.wrapping_add(1)
     }
     // Now extract the name and the value.
-    let mut h: *mut crate::src::htp_transaction::htp_header_t = calloc(
+    let mut h: *mut htp_transaction::htp_header_t = calloc(
         1 as libc::c_int as libc::c_ulong,
-        ::std::mem::size_of::<crate::src::htp_transaction::htp_header_t>() as libc::c_ulong,
-    )
-        as *mut crate::src::htp_transaction::htp_header_t;
+        ::std::mem::size_of::<htp_transaction::htp_header_t>() as libc::c_ulong,
+    ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
         return -(1 as libc::c_int);
     }
-    (*h).name = bstr_dup_mem(
+    (*h).name = bstr::bstr_dup_mem(
         data.offset(name_start as isize) as *const libc::c_void,
         name_end.wrapping_sub(name_start),
     );
@@ -905,20 +809,20 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
-    (*h).value = bstr_dup_mem(
+    (*h).value = bstr::bstr_dup_mem(
         data.offset(value_start as isize) as *const libc::c_void,
         value_end.wrapping_sub(value_start),
     );
     if (*h).value.is_null() {
-        bstr_free((*h).name);
+        bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
-    if bstr_cmp_c_nocase(
+    if bstr::bstr_cmp_c_nocase(
         (*h).name,
         b"content-disposition\x00" as *const u8 as *const libc::c_char,
     ) != 0 as libc::c_int
-        && bstr_cmp_c_nocase(
+        && bstr::bstr_cmp_c_nocase(
             (*h).name,
             b"content-type\x00" as *const u8 as *const libc::c_char,
         ) != 0 as libc::c_int
@@ -926,11 +830,11 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
     }
     // Check if the header already exists.
-    let mut h_existing: *mut crate::src::htp_transaction::htp_header_t =
-        htp_table_get((*part).headers, (*h).name) as *mut crate::src::htp_transaction::htp_header_t;
+    let mut h_existing: *mut htp_transaction::htp_header_t =
+        htp_table::htp_table_get((*part).headers, (*h).name) as *mut htp_transaction::htp_header_t;
     if !h_existing.is_null() {
         // Add to the existing header.
-        let mut new_value: *mut bstr = bstr_expand(
+        let mut new_value: *mut bstr::bstr = bstr::bstr_expand(
             (*h_existing).value,
             (*(*h_existing).value)
                 .len
@@ -938,32 +842,32 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
                 .wrapping_add((*(*h).value).len),
         );
         if new_value.is_null() {
-            bstr_free((*h).name);
-            bstr_free((*h).value);
+            bstr::bstr_free((*h).name);
+            bstr::bstr_free((*h).value);
             free(h as *mut libc::c_void);
             return -(1 as libc::c_int);
         }
         (*h_existing).value = new_value;
-        bstr_add_mem_noex(
+        bstr::bstr_add_mem_noex(
             (*h_existing).value,
             b", \x00" as *const u8 as *const libc::c_char as *const libc::c_void,
             2 as libc::c_int as size_t,
         );
-        bstr_add_noex((*h_existing).value, (*h).value);
+        bstr::bstr_add_noex((*h_existing).value, (*h).value);
         // The header is no longer needed.
-        bstr_free((*h).name);
-        bstr_free((*h).value);
+        bstr::bstr_free((*h).name);
+        bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
         // Keep track of same-name headers.
         // FIXME: Normalize the flags? define the symbol in both Flags and MultipartFlags and set the value in both from their own namespace
         (*h_existing).flags |=
             Flags::from_bits_unchecked(MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits());
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
-    } else if htp_table_add((*part).headers, (*h).name, h as *const libc::c_void)
+    } else if htp_table::htp_table_add((*part).headers, (*h).name, h as *const libc::c_void)
         != 1 as libc::c_int
     {
-        bstr_free((*h).value);
-        bstr_free((*h).name);
+        bstr::bstr_free((*h).value);
+        bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
@@ -987,14 +891,14 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     if part.is_null() {
         return 0 as *mut htp_multipart_part_t;
     }
-    (*part).headers = htp_table_create(4 as libc::c_int as size_t);
+    (*part).headers = htp_table::htp_table_create(4 as libc::c_int as size_t);
     if (*part).headers.is_null() {
         free(part as *mut libc::c_void);
         return 0 as *mut htp_multipart_part_t;
     }
     (*part).parser = parser;
-    bstr_builder_clear((*parser).part_data_pieces);
-    bstr_builder_clear((*parser).part_header_pieces);
+    bstr_builder::bstr_builder_clear((*parser).part_data_pieces);
+    bstr_builder::bstr_builder_clear((*parser).part_header_pieces);
     return part;
 }
 
@@ -1013,33 +917,32 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
         return;
     }
     if !(*part).file.is_null() {
-        bstr_free((*(*part).file).filename);
+        bstr::bstr_free((*(*part).file).filename);
         if !(*(*part).file).tmpname.is_null() {
             unlink((*(*part).file).tmpname);
             free((*(*part).file).tmpname as *mut libc::c_void);
         }
         free((*part).file as *mut libc::c_void);
-        (*part).file = 0 as *mut crate::src::htp_util::htp_file_t
+        (*part).file = 0 as *mut htp_util::htp_file_t
     }
     if gave_up_data == 0 || (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_TEXT {
-        bstr_free((*part).name);
-        bstr_free((*part).value);
+        bstr::bstr_free((*part).name);
+        bstr::bstr_free((*part).value);
     }
-    bstr_free((*part).content_type);
+    bstr::bstr_free((*part).content_type);
     if !(*part).headers.is_null() {
-        let mut h: *mut crate::src::htp_transaction::htp_header_t =
-            0 as *mut crate::src::htp_transaction::htp_header_t;
+        let mut h: *mut htp_transaction::htp_header_t = 0 as *mut htp_transaction::htp_header_t;
         let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_table_size((*part).headers);
+        let mut n: size_t = htp_table::htp_table_size((*part).headers);
         while i < n {
-            h = htp_table_get_index((*part).headers, i, 0 as *mut *mut bstr)
-                as *mut crate::src::htp_transaction::htp_header_t;
-            bstr_free((*h).name);
-            bstr_free((*h).value);
+            h = htp_table::htp_table_get_index((*part).headers, i, 0 as *mut *mut bstr::bstr)
+                as *mut htp_transaction::htp_header_t;
+            bstr::bstr_free((*h).name);
+            bstr::bstr_free((*h).value);
             free(h as *mut libc::c_void);
             i = i.wrapping_add(1)
         }
-        htp_table_destroy((*part).headers);
+        htp_table::htp_table_destroy((*part).headers);
     }
     free(part as *mut libc::c_void);
 }
@@ -1103,11 +1006,11 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
         if (*(*part).file).fd != -(1 as libc::c_int) {
             close((*(*part).file).fd);
         }
-    } else if bstr_builder_size((*(*part).parser).part_data_pieces)
+    } else if bstr_builder::bstr_builder_size((*(*part).parser).part_data_pieces)
         > 0 as libc::c_int as libc::c_ulong
     {
-        (*part).value = bstr_builder_to_str((*(*part).parser).part_data_pieces);
-        bstr_builder_clear((*(*part).parser).part_data_pieces);
+        (*part).value = bstr_builder::bstr_builder_to_str((*(*part).parser).part_data_pieces);
+        bstr_builder::bstr_builder_clear((*(*part).parser).part_data_pieces);
     }
     return 1 as libc::c_int;
 }
@@ -1126,19 +1029,18 @@ pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     (*(*part).file).len =
         ((*(*part).file).len as libc::c_ulong).wrapping_add(len) as int64_t as int64_t;
     // Package data for the callbacks.
-    let mut file_data: crate::src::htp_util::htp_file_data_t =
-        crate::src::htp_util::htp_file_data_t {
-            file: 0 as *mut crate::src::htp_util::htp_file_t,
-            data: 0 as *const libc::c_uchar,
-            len: 0,
-        };
+    let mut file_data: htp_util::htp_file_data_t = htp_util::htp_file_data_t {
+        file: 0 as *mut htp_util::htp_file_t,
+        data: 0 as *const libc::c_uchar,
+        len: 0,
+    };
     file_data.file = (*part).file;
     file_data.data = data;
     file_data.len = len;
     // Send data to callbacks
-    let mut rc: htp_status_t = htp_hook_run_all(
+    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*part).parser).cfg).hook_request_file_data,
-        &mut file_data as *mut crate::src::htp_util::htp_file_data_t as *mut libc::c_void,
+        &mut file_data as *mut htp_util::htp_file_data_t as *mut libc::c_void,
     );
     if rc != 1 as libc::c_int {
         return rc;
@@ -1174,7 +1076,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
         .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
         && (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN
     {
-        bstr_builder_append_mem(
+        bstr_builder::bstr_builder_append_mem(
             (*(*part).parser).part_data_pieces,
             data as *const libc::c_void,
             len,
@@ -1184,24 +1086,24 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
         // Line mode.
         if is_line != 0 {
             // End of the line.
-            let mut line: *mut bstr = 0 as *mut bstr;
+            let mut line: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
             // If this line came to us in pieces, combine them now into a single buffer.
-            if bstr_builder_size((*(*part).parser).part_header_pieces)
+            if bstr_builder::bstr_builder_size((*(*part).parser).part_header_pieces)
                 > 0 as libc::c_int as libc::c_ulong
             {
-                bstr_builder_append_mem(
+                bstr_builder::bstr_builder_append_mem(
                     (*(*part).parser).part_header_pieces,
                     data as *const libc::c_void,
                     len,
                 );
-                line = bstr_builder_to_str((*(*part).parser).part_header_pieces);
+                line = bstr_builder::bstr_builder_to_str((*(*part).parser).part_header_pieces);
                 if line.is_null() {
                     return -(1 as libc::c_int);
                 }
-                bstr_builder_clear((*(*part).parser).part_header_pieces);
+                bstr_builder::bstr_builder_clear((*(*part).parser).part_header_pieces);
                 data = if (*line).realptr.is_null() {
                     (line as *mut libc::c_uchar)
-                        .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                        .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
                 } else {
                     (*line).realptr
                 };
@@ -1237,26 +1139,27 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     if htp_mpartp_parse_header(
                         part,
                         if (*(*(*part).parser).pending_header_line).realptr.is_null() {
-                            ((*(*part).parser).pending_header_line as *mut libc::c_uchar)
-                                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                            ((*(*part).parser).pending_header_line as *mut libc::c_uchar).offset(
+                                ::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize,
+                            )
                         } else {
                             (*(*(*part).parser).pending_header_line).realptr
                         },
                         (*(*(*part).parser).pending_header_line).len,
                     ) == -(1 as libc::c_int)
                     {
-                        bstr_free(line);
+                        bstr::bstr_free(line);
                         return -(1 as libc::c_int);
                     }
-                    bstr_free((*(*part).parser).pending_header_line);
-                    (*(*part).parser).pending_header_line = 0 as *mut bstr
+                    bstr::bstr_free((*(*part).parser).pending_header_line);
+                    (*(*part).parser).pending_header_line = 0 as *mut bstr::bstr
                 }
                 if htp_mpart_part_process_headers(part) == -(1 as libc::c_int) {
-                    bstr_free(line);
+                    bstr::bstr_free(line);
                     return -(1 as libc::c_int);
                 }
                 (*(*part).parser).current_part_mode = htp_part_mode_t::MODE_DATA;
-                bstr_builder_clear((*(*part).parser).part_header_pieces);
+                bstr_builder::bstr_builder_clear((*(*part).parser).part_header_pieces);
                 if !(*part).file.is_null() {
                     // Changing part type because we have a filename.
                     (*part).type_0 = htp_multipart_type_t::MULTIPART_PART_FILE;
@@ -1278,7 +1181,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                         );
                         (*(*part).file).tmpname = strdup(buf.as_mut_ptr());
                         if (*(*part).file).tmpname.is_null() {
-                            bstr_free(line);
+                            bstr::bstr_free(line);
                             return -(1 as libc::c_int);
                         }
                         let mut previous_mask: mode_t = umask(
@@ -1296,7 +1199,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                         (*(*part).file).fd = mkstemp((*(*part).file).tmpname);
                         umask(previous_mask);
                         if (*(*part).file).fd < 0 as libc::c_int {
-                            bstr_free(line);
+                            bstr::bstr_free(line);
                             return -(1 as libc::c_int);
                         }
                         (*(*part).parser).file_count += 1
@@ -1304,15 +1207,15 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 } else if !(*part).name.is_null() {
                     // Changing part type because we have a name.
                     (*part).type_0 = htp_multipart_type_t::MULTIPART_PART_TEXT;
-                    bstr_builder_clear((*(*part).parser).part_data_pieces);
+                    bstr_builder::bstr_builder_clear((*(*part).parser).part_data_pieces);
                 }
             } else if (*(*part).parser).pending_header_line.is_null() {
                 if !line.is_null() {
                     (*(*part).parser).pending_header_line = line;
-                    line = 0 as *mut bstr
+                    line = 0 as *mut bstr::bstr_t
                 } else {
                     (*(*part).parser).pending_header_line =
-                        bstr_dup_mem(data as *const libc::c_void, len);
+                        bstr::bstr_dup_mem(data as *const libc::c_void, len);
                     if (*(*part).parser).pending_header_line.is_null() {
                         return -(1 as libc::c_int);
                     }
@@ -1329,13 +1232,13 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 // Folding; add to the existing line.
                 (*(*part).parser).multipart.flags |=
                     MultipartFlags::HTP_MULTIPART_PART_HEADER_FOLDING;
-                (*(*part).parser).pending_header_line = bstr_add_mem(
+                (*(*part).parser).pending_header_line = bstr::bstr_add_mem(
                     (*(*part).parser).pending_header_line,
                     data as *const libc::c_void,
                     len,
                 );
                 if (*(*part).parser).pending_header_line.is_null() {
-                    bstr_free(line);
+                    bstr::bstr_free(line);
                     return -(1 as libc::c_int);
                 }
             } else {
@@ -1344,33 +1247,33 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     part,
                     if (*(*(*part).parser).pending_header_line).realptr.is_null() {
                         ((*(*part).parser).pending_header_line as *mut libc::c_uchar)
-                            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
                     } else {
                         (*(*(*part).parser).pending_header_line).realptr
                     },
                     (*(*(*part).parser).pending_header_line).len,
                 ) == -(1 as libc::c_int)
                 {
-                    bstr_free(line);
+                    bstr::bstr_free(line);
                     return -(1 as libc::c_int);
                 }
-                bstr_free((*(*part).parser).pending_header_line);
+                bstr::bstr_free((*(*part).parser).pending_header_line);
                 if !line.is_null() {
                     (*(*part).parser).pending_header_line = line;
-                    line = 0 as *mut bstr
+                    line = 0 as *mut bstr::bstr_t
                 } else {
                     (*(*part).parser).pending_header_line =
-                        bstr_dup_mem(data as *const libc::c_void, len);
+                        bstr::bstr_dup_mem(data as *const libc::c_void, len);
                     if (*(*part).parser).pending_header_line.is_null() {
                         return -(1 as libc::c_int);
                     }
                 }
             }
-            bstr_free(line);
-            line = 0 as *mut bstr
+            bstr::bstr_free(line);
+            line = 0 as *mut bstr::bstr
         } else {
             // Not end of line; keep the data chunk for later.
-            bstr_builder_append_mem(
+            bstr_builder::bstr_builder_append_mem(
                 (*(*part).parser).part_header_pieces,
                 data as *const libc::c_void,
                 len,
@@ -1381,7 +1284,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
         match (*part).type_0 as libc::c_uint {
             4 | 3 | 1 | 0 => {
                 // Make a copy of the data in RAM.
-                bstr_builder_append_mem(
+                bstr_builder::bstr_builder_append_mem(
                     (*(*part).parser).part_data_pieces,
                     data as *const libc::c_void,
                     len,
@@ -1443,7 +1346,7 @@ unsafe extern "C" fn htp_mpartp_handle_data(
             (*parser).current_part_mode = htp_part_mode_t::MODE_LINE
         }
         // Add part to the list.
-        htp_list_array_push(
+        htp_list::htp_list_array_push(
             (*parser).multipart.parts,
             (*parser).current_part as *mut libc::c_void,
         );
@@ -1539,8 +1442,8 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_create(
-    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
-    mut boundary: *mut bstr,
+    mut cfg: *mut htp_config::htp_cfg_t,
+    mut boundary: *mut bstr::bstr_t,
     mut flags: MultipartFlags,
 ) -> *mut htp_mpartp_t {
     if cfg.is_null() || boundary.is_null() {
@@ -1554,22 +1457,22 @@ pub unsafe extern "C" fn htp_mpartp_create(
         return 0 as *mut htp_mpartp_t;
     }
     (*parser).cfg = cfg;
-    (*parser).boundary_pieces = bstr_builder_create();
+    (*parser).boundary_pieces = bstr_builder::bstr_builder_create();
     if (*parser).boundary_pieces.is_null() {
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
     }
-    (*parser).part_data_pieces = bstr_builder_create();
+    (*parser).part_data_pieces = bstr_builder::bstr_builder_create();
     if (*parser).part_data_pieces.is_null() {
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
     }
-    (*parser).part_header_pieces = bstr_builder_create();
+    (*parser).part_header_pieces = bstr_builder::bstr_builder_create();
     if (*parser).part_header_pieces.is_null() {
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
     }
-    (*parser).multipart.parts = htp_list_array_create(64 as libc::c_int as size_t);
+    (*parser).multipart.parts = htp_list::htp_list_array_create(64 as libc::c_int as size_t);
     if (*parser).multipart.parts.is_null() {
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
@@ -1600,7 +1503,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
         parser,
         if (*boundary).realptr.is_null() {
             (boundary as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
         } else {
             (*boundary).realptr
         },
@@ -1613,7 +1516,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
     // On success, the ownership of the boundary parameter
     // is transferred to us. We made a copy, and so we
     // don't need it any more.
-    bstr_free(boundary);
+    bstr::bstr_free(boundary);
     return parser;
 }
 
@@ -1630,21 +1533,22 @@ pub unsafe extern "C" fn htp_mpartp_destroy(mut parser: *mut htp_mpartp_t) {
     if !(*parser).multipart.boundary.is_null() {
         free((*parser).multipart.boundary as *mut libc::c_void);
     }
-    bstr_builder_destroy((*parser).boundary_pieces);
-    bstr_builder_destroy((*parser).part_header_pieces);
-    bstr_free((*parser).pending_header_line);
-    bstr_builder_destroy((*parser).part_data_pieces);
+    bstr_builder::bstr_builder_destroy((*parser).boundary_pieces);
+    bstr_builder::bstr_builder_destroy((*parser).part_header_pieces);
+    bstr::bstr_free((*parser).pending_header_line);
+    bstr_builder::bstr_builder_destroy((*parser).part_data_pieces);
     // Free the parts.
     if !(*parser).multipart.parts.is_null() {
         let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_list_array_size((*parser).multipart.parts);
+        let mut n: size_t = htp_list::htp_list_array_size((*parser).multipart.parts);
         while i < n {
             let mut part: *mut htp_multipart_part_t =
-                htp_list_array_get((*parser).multipart.parts, i) as *mut htp_multipart_part_t;
+                htp_list::htp_list_array_get((*parser).multipart.parts, i)
+                    as *mut htp_multipart_part_t;
             htp_mpart_part_destroy(part, (*parser).gave_up_data);
             i = i.wrapping_add(1)
         }
-        htp_list_array_destroy((*parser).multipart.parts);
+        htp_list::htp_list_array_destroy((*parser).multipart.parts);
     }
     free(parser as *mut libc::c_void);
 }
@@ -1692,13 +1596,16 @@ unsafe extern "C" fn htp_martp_process_aside(
         // we saw a new line. Now we have to find that line and
         // process it. It's either going to be in the current chunk,
         // or in the first stored chunk.
-        if bstr_builder_size((*parser).boundary_pieces) > 0 as libc::c_int as libc::c_ulong {
+        if bstr_builder::bstr_builder_size((*parser).boundary_pieces)
+            > 0 as libc::c_int as libc::c_ulong
+        {
             let mut first: libc::c_int = 1 as libc::c_int;
             let mut i: size_t = 0 as libc::c_int as size_t;
-            let mut n: size_t = htp_list_array_size((*(*parser).boundary_pieces).pieces);
+            let mut n: size_t = htp_list::htp_list_array_size((*(*parser).boundary_pieces).pieces);
             while i < n {
-                let mut b: *mut bstr =
-                    htp_list_array_get((*(*parser).boundary_pieces).pieces, i) as *mut bstr;
+                let mut b: *mut bstr::bstr =
+                    htp_list::htp_list_array_get((*(*parser).boundary_pieces).pieces, i)
+                        as *mut bstr::bstr;
                 if first != 0 {
                     first = 0 as libc::c_int;
                     // Split the first chunk.
@@ -1708,7 +1615,8 @@ unsafe extern "C" fn htp_martp_process_aside(
                             parser,
                             if (*b).realptr.is_null() {
                                 (b as *mut libc::c_uchar)
-                                    .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                                    .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong
+                                        as isize)
                             } else {
                                 (*b).realptr
                             },
@@ -1718,8 +1626,9 @@ unsafe extern "C" fn htp_martp_process_aside(
                     } else {
                         // But if there was a match, the line ending belongs to the boundary.
                         let mut dx: *mut libc::c_uchar = if (*b).realptr.is_null() {
-                            (b as *mut libc::c_uchar)
-                                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                            (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr::bstr_t>()
+                                as libc::c_ulong
+                                as isize)
                         } else {
                             (*b).realptr
                         };
@@ -1756,7 +1665,8 @@ unsafe extern "C" fn htp_martp_process_aside(
                             parser,
                             (if (*b).realptr.is_null() {
                                 (b as *mut libc::c_uchar)
-                                    .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                                    .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong
+                                        as isize)
                             } else {
                                 (*b).realptr
                             })
@@ -1769,8 +1679,9 @@ unsafe extern "C" fn htp_martp_process_aside(
                     (*parser).handle_data.expect("non-null function pointer")(
                         parser,
                         if (*b).realptr.is_null() {
-                            (b as *mut libc::c_uchar)
-                                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                            (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr::bstr_t>()
+                                as libc::c_ulong
+                                as isize)
                         } else {
                             (*b).realptr
                         },
@@ -1780,7 +1691,7 @@ unsafe extern "C" fn htp_martp_process_aside(
                 }
                 i = i.wrapping_add(1)
             }
-            bstr_builder_clear((*parser).boundary_pieces);
+            bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
         }
     } else {
         // Do not send data if there was a boundary match. The stored
@@ -1798,17 +1709,21 @@ unsafe extern "C" fn htp_martp_process_aside(
             (*parser).cr_aside = 0 as libc::c_int
         }
         // We then process any pieces that we might have stored, also as data.
-        if bstr_builder_size((*parser).boundary_pieces) > 0 as libc::c_int as libc::c_ulong {
+        if bstr_builder::bstr_builder_size((*parser).boundary_pieces)
+            > 0 as libc::c_int as libc::c_ulong
+        {
             let mut i_0: size_t = 0 as libc::c_int as size_t;
-            let mut n_0: size_t = htp_list_array_size((*(*parser).boundary_pieces).pieces);
+            let mut n_0: size_t =
+                htp_list::htp_list_array_size((*(*parser).boundary_pieces).pieces);
             while i_0 < n_0 {
-                let mut b_0: *mut bstr =
-                    htp_list_array_get((*(*parser).boundary_pieces).pieces, i_0) as *mut bstr;
+                let mut b_0: *mut bstr::bstr =
+                    htp_list::htp_list_array_get((*(*parser).boundary_pieces).pieces, i_0)
+                        as *mut bstr::bstr;
                 (*parser).handle_data.expect("non-null function pointer")(
                     parser,
                     if (*b_0).realptr.is_null() {
                         (b_0 as *mut libc::c_uchar)
-                            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
                     } else {
                         (*b_0).realptr
                     },
@@ -1817,7 +1732,7 @@ unsafe extern "C" fn htp_martp_process_aside(
                 );
                 i_0 = i_0.wrapping_add(1)
             }
-            bstr_builder_clear((*parser).boundary_pieces);
+            bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
         }
     }
     return 1 as libc::c_int;
@@ -1843,7 +1758,7 @@ pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> h
             (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
         }
     }
-    bstr_builder_clear((*parser).boundary_pieces);
+    bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
     return 1 as libc::c_int;
 }
 /* *
@@ -2074,7 +1989,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                     }
                     // No more data in the input buffer; store (buffer) the unprocessed
                     // part for later, for after we find out if this is a boundary.
-                    bstr_builder_append_mem(
+                    bstr_builder::bstr_builder_append_mem(
                         (*parser).boundary_pieces,
                         data.offset(startpos as isize) as *const libc::c_void,
                         len.wrapping_sub(startpos),
@@ -2127,7 +2042,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                         startpos = pos;
                         (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE;
                         (*parser).parser_state = htp_multipart_state_t::STATE_DATA
-                    } else if htp_is_lws(*data.offset(pos as isize) as libc::c_int) != 0 {
+                    } else if htp_util::htp_is_lws(*data.offset(pos as isize) as libc::c_int) != 0 {
                         // Linear white space is allowed here.
                         (*parser).multipart.flags |=
                             MultipartFlags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
@@ -2166,7 +2081,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
 }
 
 unsafe extern "C" fn htp_mpartp_validate_boundary(
-    mut boundary: *mut bstr,
+    mut boundary: *mut bstr::bstr_t,
     mut flags: *mut MultipartFlags,
 ) {
     /*
@@ -2198,7 +2113,7 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
      */
     let mut data: *mut libc::c_uchar = if (*boundary).realptr.is_null() {
         (boundary as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*boundary).realptr
     };
@@ -2236,19 +2151,19 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
 }
 
 unsafe extern "C" fn htp_mpartp_validate_content_type(
-    mut content_type: *mut bstr,
+    mut content_type: *mut bstr::bstr_t,
     mut flags: *mut MultipartFlags,
 ) {
     let mut data: *mut libc::c_uchar = if (*content_type).realptr.is_null() {
         (content_type as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*content_type).realptr
     };
     let mut len: size_t = (*content_type).len;
     let mut counter: size_t = 0 as libc::c_int as size_t;
     while len > 0 as libc::c_int as libc::c_ulong {
-        let mut i: libc::c_int = bstr_util_mem_index_of_c_nocase(
+        let mut i: libc::c_int = bstr::bstr_util_mem_index_of_c_nocase(
             data as *const libc::c_void,
             len,
             b"boundary\x00" as *const u8 as *const libc::c_char,
@@ -2297,8 +2212,8 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_find_boundary(
-    mut content_type: *mut bstr,
-    mut boundary: *mut *mut bstr,
+    mut content_type: *mut bstr::bstr_t,
+    mut boundary: *mut *mut bstr::bstr_t,
     mut flags: *mut MultipartFlags,
 ) -> htp_status_t {
     if content_type.is_null() || boundary.is_null() || flags.is_null() {
@@ -2310,7 +2225,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Reset flags.
     *flags = MultipartFlags::empty();
     // Look for the boundary, case insensitive.
-    let mut i: libc::c_int = bstr_index_of_c_nocase(
+    let mut i: libc::c_int = bstr::bstr_index_of_c_nocase(
         content_type,
         b"boundary\x00" as *const u8 as *const libc::c_char,
     );
@@ -2319,7 +2234,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     }
     let mut data: *mut libc::c_uchar = (if (*content_type).realptr.is_null() {
         (content_type as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*content_type).realptr
     })
@@ -2332,7 +2247,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Look for the boundary value.
     let mut pos: size_t = 0 as libc::c_int as size_t;
     while pos < len && *data.offset(pos as isize) as libc::c_int != '=' as i32 {
-        if htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
+        if htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
             // It is unusual to see whitespace before the equals sign.
             *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
         } else {
@@ -2349,8 +2264,8 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Go over the '=' character.
     pos = pos.wrapping_add(1);
     // Ignore any whitespace after the equals sign.
-    while pos < len && htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
-        if htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
+        if htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
             // It is unusual to see whitespace after
             // the equals sign.
             *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
@@ -2381,7 +2296,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
             // Include the starting double quote in the boundary.
             startpos = startpos.wrapping_sub(1)
         }
-        *boundary = bstr_dup_mem(
+        *boundary = bstr::bstr_dup_mem(
             data.offset(startpos as isize) as *const libc::c_void,
             pos.wrapping_sub(startpos),
         );
@@ -2399,11 +2314,11 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         while pos < len
             && *data.offset(pos as isize) as libc::c_int != ',' as i32
             && *data.offset(pos as isize) as libc::c_int != ';' as i32
-            && htp_is_space(*data.offset(pos as isize) as libc::c_int) == 0
+            && htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) == 0
         {
             pos = pos.wrapping_add(1)
         }
-        *boundary = bstr_dup_mem(
+        *boundary = bstr::bstr_dup_mem(
             data.offset(startpos_0 as isize) as *const libc::c_void,
             pos.wrapping_sub(startpos_0),
         );
@@ -2414,15 +2329,15 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Check for a zero-length boundary.
     if (**boundary).len == 0 as libc::c_int as libc::c_ulong {
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-        bstr_free(*boundary);
-        *boundary = 0 as *mut bstr;
+        bstr::bstr_free(*boundary);
+        *boundary = 0 as *mut bstr::bstr_t;
         return 0 as libc::c_int;
     }
     // Allow only whitespace characters after the boundary.
     let mut seen_space: libc::c_int = 0 as libc::c_int;
     let mut seen_non_space: libc::c_int = 0 as libc::c_int;
     while pos < len {
-        if htp_is_space(*data.offset(pos as isize) as libc::c_int) == 0 {
+        if htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) == 0 {
             seen_non_space = 1 as libc::c_int
         } else {
             seen_space = 1 as libc::c_int
@@ -2441,7 +2356,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Correlate with the MIME type. This might be a tad too
     // sensitive because it may catch non-browser access with sloppy
     // implementations, but let's go with it for now.
-    if bstr_begins_with_c(
+    if bstr::bstr_begins_with_c(
         content_type,
         b"multipart/form-data;\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int

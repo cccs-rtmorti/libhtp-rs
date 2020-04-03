@@ -1,54 +1,11 @@
+use crate::{bstr, bstr_builder, htp_table, htp_transaction, htp_util};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
-    #[no_mangle]
-    fn bstr_builder_append_mem(
-        bb: *mut crate::src::bstr_builder::bstr_builder_t,
-        data: *const libc::c_void,
-        len: size_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn bstr_builder_clear(bb: *mut crate::src::bstr_builder::bstr_builder_t);
-    #[no_mangle]
-    fn bstr_builder_create() -> *mut crate::src::bstr_builder::bstr_builder_t;
-    #[no_mangle]
-    fn bstr_builder_destroy(bb: *mut crate::src::bstr_builder::bstr_builder_t);
-    #[no_mangle]
-    fn bstr_builder_size(bb: *const crate::src::bstr_builder::bstr_builder_t) -> size_t;
-    #[no_mangle]
-    fn bstr_builder_to_str(bb: *const crate::src::bstr_builder::bstr_builder_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_dup_c(cstr: *const libc::c_char) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
-    #[no_mangle]
-    fn htp_table_addn(
-        table: *mut crate::src::htp_table::htp_table_t,
-        key: *const bstr,
-        element: *const libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_table_create(size: size_t) -> *mut crate::src::htp_table::htp_table_t;
-    #[no_mangle]
-    fn htp_table_destroy(table: *mut crate::src::htp_table::htp_table_t);
-    #[no_mangle]
-    fn htp_table_get_index(
-        table: *const crate::src::htp_table::htp_table_t,
-        idx: size_t,
-        key: *mut *mut bstr,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_size(table: *const crate::src::htp_table::htp_table_t) -> size_t;
-    #[no_mangle]
-    fn htp_tx_urldecode_params_inplace(
-        tx: *mut crate::src::htp_transaction::htp_tx_t,
-        input: *mut bstr,
-    ) -> htp_status_t;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -65,7 +22,6 @@ pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
 pub type htp_status_t = libc::c_int;
-pub type bstr = crate::src::bstr::bstr_t;
 
 /**
  * This is the main URLENCODED parser structure. It is used to store
@@ -75,7 +31,7 @@ pub type bstr = crate::src::bstr::bstr_t;
 #[derive(Copy, Clone)]
 pub struct htp_urlenp_t {
     /** The transaction this parser belongs to. */
-    pub tx: *mut crate::src::htp_transaction::htp_tx_t,
+    pub tx: *mut htp_transaction::htp_tx_t,
     /** The character used to separate parameters. Defaults to & and should
      *  not be changed without good reason.
      */
@@ -83,12 +39,12 @@ pub struct htp_urlenp_t {
     /** Whether to perform URL-decoding on parameters. */
     pub decode_url_encoding: libc::c_int,
     /** This table contains the list of parameters, indexed by name. */
-    pub params: *mut crate::src::htp_table::htp_table_t,
+    pub params: *mut htp_table::htp_table_t,
     // Private fields; these are used during the parsing process only
     pub _state: libc::c_int,
     pub _complete: libc::c_int,
-    pub _name: *mut bstr,
-    pub _bb: *mut crate::src::bstr_builder::bstr_builder_t,
+    pub _name: *mut bstr::bstr_t,
+    pub _bb: *mut bstr_builder::bstr_builder_t,
 }
 
 pub type htp_time_t = libc::timeval;
@@ -116,29 +72,29 @@ unsafe extern "C" fn htp_urlenp_add_field_piece(
     // or if we know that there won't be any more input data (urlenp->_complete is true).
     if last_char != -(1 as libc::c_int) || (*urlenp)._complete != 0 {
         // Prepare the field value, assembling from multiple pieces as necessary.
-        let mut field: *mut bstr = 0 as *mut bstr;
+        let mut field: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         // Did we use the string builder for this field?
-        if bstr_builder_size((*urlenp)._bb) > 0 as libc::c_int as libc::c_ulong {
+        if bstr_builder::bstr_builder_size((*urlenp)._bb) > 0 as libc::c_int as libc::c_ulong {
             // The current field consists of more than once piece, we have to use the string builder.
             // Add current piece to string builder.
             if !data.is_null() && endpos.wrapping_sub(startpos) > 0 as libc::c_int as libc::c_ulong
             {
-                bstr_builder_append_mem(
+                bstr_builder::bstr_builder_append_mem(
                     (*urlenp)._bb,
                     data.offset(startpos as isize) as *const libc::c_void,
                     endpos.wrapping_sub(startpos),
                 );
             }
             // Generate the field and clear the string builder.
-            field = bstr_builder_to_str((*urlenp)._bb);
+            field = bstr_builder::bstr_builder_to_str((*urlenp)._bb);
             if field.is_null() {
                 return;
             }
-            bstr_builder_clear((*urlenp)._bb);
+            bstr_builder::bstr_builder_clear((*urlenp)._bb);
         } else if !data.is_null()
             && endpos.wrapping_sub(startpos) > 0 as libc::c_int as libc::c_ulong
         {
-            field = bstr_dup_mem(
+            field = bstr::bstr_dup_mem(
                 data.offset(startpos as isize) as *const libc::c_void,
                 endpos.wrapping_sub(startpos),
             );
@@ -158,24 +114,24 @@ unsafe extern "C" fn htp_urlenp_add_field_piece(
                 // (e.g., /index.php?&q=2).
                 if !field.is_null() || last_char == (*urlenp).argument_separator as libc::c_int {
                     // Add one pair, with an empty value and possibly empty key too.
-                    let mut name: *mut bstr = field;
+                    let mut name: *mut bstr::bstr_t = field;
                     if name.is_null() {
-                        name = bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
+                        name = bstr::bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
                         if name.is_null() {
                             return;
                         }
                     }
-                    let mut value: *mut bstr =
-                        bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
+                    let mut value: *mut bstr::bstr =
+                        bstr::bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
                     if value.is_null() {
-                        bstr_free(name);
+                        bstr::bstr_free(name);
                         return;
                     }
                     if (*urlenp).decode_url_encoding != 0 {
-                        htp_tx_urldecode_params_inplace((*urlenp).tx, name);
+                        htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, name);
                     }
-                    htp_table_addn((*urlenp).params, name, value as *const libc::c_void);
-                    (*urlenp)._name = 0 as *mut bstr
+                    htp_table::htp_table_addn((*urlenp).params, name, value as *const libc::c_void);
+                    (*urlenp)._name = 0 as *mut bstr::bstr
                 }
             } else {
                 // This key will possibly be followed by a value, so keep it for later.
@@ -183,31 +139,31 @@ unsafe extern "C" fn htp_urlenp_add_field_piece(
             }
         } else {
             // Value (with a key remembered from before).
-            let mut name_0: *mut bstr = (*urlenp)._name;
-            (*urlenp)._name = 0 as *mut bstr;
+            let mut name_0: *mut bstr::bstr_t = (*urlenp)._name;
+            (*urlenp)._name = 0 as *mut bstr::bstr_t;
             if name_0.is_null() {
-                name_0 = bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
+                name_0 = bstr::bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
                 if name_0.is_null() {
-                    bstr_free(field);
+                    bstr::bstr_free(field);
                     return;
                 }
             }
-            let mut value_0: *mut bstr = field;
+            let mut value_0: *mut bstr::bstr_t = field;
             if value_0.is_null() {
-                value_0 = bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
+                value_0 = bstr::bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
                 if value_0.is_null() {
-                    bstr_free(name_0);
+                    bstr::bstr_free(name_0);
                     return;
                 }
             }
             if (*urlenp).decode_url_encoding != 0 {
-                htp_tx_urldecode_params_inplace((*urlenp).tx, name_0);
-                htp_tx_urldecode_params_inplace((*urlenp).tx, value_0);
+                htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, name_0);
+                htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, value_0);
             }
-            htp_table_addn((*urlenp).params, name_0, value_0 as *const libc::c_void);
+            htp_table::htp_table_addn((*urlenp).params, name_0, value_0 as *const libc::c_void);
         }
     } else if !data.is_null() && endpos.wrapping_sub(startpos) > 0 as libc::c_int as libc::c_ulong {
-        bstr_builder_append_mem(
+        bstr_builder::bstr_builder_append_mem(
             (*urlenp)._bb,
             data.offset(startpos as isize) as *const libc::c_void,
             endpos.wrapping_sub(startpos),
@@ -222,7 +178,7 @@ unsafe extern "C" fn htp_urlenp_add_field_piece(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_urlenp_create(
-    mut tx: *mut crate::src::htp_transaction::htp_tx_t,
+    mut tx: *mut htp_transaction::htp_tx_t,
 ) -> *mut htp_urlenp_t {
     let mut urlenp: *mut htp_urlenp_t = calloc(
         1 as libc::c_int as libc::c_ulong,
@@ -232,14 +188,14 @@ pub unsafe extern "C" fn htp_urlenp_create(
         return 0 as *mut htp_urlenp_t;
     }
     (*urlenp).tx = tx;
-    (*urlenp).params = htp_table_create(32 as libc::c_int as size_t);
+    (*urlenp).params = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*urlenp).params.is_null() {
         free(urlenp as *mut libc::c_void);
         return 0 as *mut htp_urlenp_t;
     }
-    (*urlenp)._bb = bstr_builder_create();
+    (*urlenp)._bb = bstr_builder::bstr_builder_create();
     if (*urlenp)._bb.is_null() {
-        htp_table_destroy((*urlenp).params);
+        htp_table::htp_table_destroy((*urlenp).params);
         free(urlenp as *mut libc::c_void);
         return 0 as *mut htp_urlenp_t;
     }
@@ -260,21 +216,22 @@ pub unsafe extern "C" fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
         return;
     }
     if !(*urlenp)._name.is_null() {
-        bstr_free((*urlenp)._name);
+        bstr::bstr_free((*urlenp)._name);
     }
-    bstr_builder_destroy((*urlenp)._bb);
+    bstr_builder::bstr_builder_destroy((*urlenp)._bb);
     if !(*urlenp).params.is_null() {
         // Destroy parameters.
         let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_table_size((*urlenp).params);
+        let mut n: size_t = htp_table::htp_table_size((*urlenp).params);
         while i < n {
-            let mut b: *mut bstr =
-                htp_table_get_index((*urlenp).params, i, 0 as *mut *mut bstr) as *mut bstr;
+            let mut b: *mut bstr::bstr =
+                htp_table::htp_table_get_index((*urlenp).params, i, 0 as *mut *mut bstr::bstr)
+                    as *mut bstr::bstr;
             // Parameter name will be freed by the table code.
-            bstr_free(b);
+            bstr::bstr_free(b);
             i = i.wrapping_add(1)
         }
-        htp_table_destroy((*urlenp).params);
+        htp_table::htp_table_destroy((*urlenp).params);
     }
     free(urlenp as *mut libc::c_void);
 }

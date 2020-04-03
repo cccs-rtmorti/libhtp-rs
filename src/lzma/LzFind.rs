@@ -1,4 +1,6 @@
 use ::libc;
+
+use crate::lzma::LzmaDec;
 extern "C" {
     #[no_mangle]
     fn memmove(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong)
@@ -20,7 +22,7 @@ pub struct ISeqInStream {
     >,
 }
 
-pub type ISzAllocPtr = *const crate::src::lzma::LzmaDec::ISzAlloc;
+pub type ISzAllocPtr = *const LzmaDec::ISzAlloc;
 pub type CLzRef = UInt32;
 
 #[repr(C)]

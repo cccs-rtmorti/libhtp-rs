@@ -1,4 +1,6 @@
+use crate::{htp_list, htp_transaction, htp_util};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
@@ -8,25 +10,6 @@ extern "C" {
     fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn htp_list_array_create(size: size_t) -> *mut crate::src::htp_list::htp_list_array_t;
-    #[no_mangle]
-    fn htp_list_array_destroy(l: *mut crate::src::htp_list::htp_list_array_t);
-    #[no_mangle]
-    fn htp_list_array_get(
-        l: *const crate::src::htp_list::htp_list_array_t,
-        idx: size_t,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_list_array_replace(
-        l: *mut crate::src::htp_list::htp_list_array_t,
-        idx: size_t,
-        e: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
-    #[no_mangle]
-    fn htp_tx_destroy_incomplete(tx: *mut crate::src::htp_transaction::htp_tx_t);
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -44,8 +27,6 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_status_t = libc::c_int;
 
-pub type bstr = crate::src::bstr::bstr_t;
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_conn_t {
@@ -62,11 +43,11 @@ pub struct htp_conn_t {
      * NULL elements when some of the transactions are deleted (and then
      * removed from a connection by calling htp_conn_remove_tx().
      */
-    pub transactions: *mut crate::src::htp_list::htp_list_array_t,
+    pub transactions: *mut htp_list::htp_list_array_t,
     /** Log messages associated with this connection. */
-    pub messages: *mut crate::src::htp_list::htp_list_array_t,
+    pub messages: *mut htp_list::htp_list_array_t,
     /** Parsing flags: HTP_CONN_PIPELINED. */
-    pub flags: crate::src::htp_util::ConnectionFlags,
+    pub flags: htp_util::ConnectionFlags,
     /** When was this connection opened? Can be NULL. */
     pub open_timestamp: htp_time_t,
     /** When was this connection closed? Can be NULL. */
@@ -92,15 +73,15 @@ pub unsafe extern "C" fn htp_conn_create() -> *mut htp_conn_t {
     if conn.is_null() {
         return 0 as *mut htp_conn_t;
     }
-    (*conn).transactions = htp_list_array_create(16 as libc::c_int as size_t);
+    (*conn).transactions = htp_list::htp_list_array_create(16 as libc::c_int as size_t);
     if (*conn).transactions.is_null() {
         free(conn as *mut libc::c_void);
         return 0 as *mut htp_conn_t;
     }
-    (*conn).messages = htp_list_array_create(8 as libc::c_int as size_t);
+    (*conn).messages = htp_list::htp_list_array_create(8 as libc::c_int as size_t);
     if (*conn).messages.is_null() {
-        htp_list_array_destroy((*conn).transactions);
-        (*conn).transactions = 0 as *mut crate::src::htp_list::htp_list_array_t;
+        htp_list::htp_list_array_destroy((*conn).transactions);
+        (*conn).transactions = 0 as *mut htp_list::htp_list_array_t;
         free(conn as *mut libc::c_void);
         return 0 as *mut htp_conn_t;
     }
@@ -151,32 +132,32 @@ pub unsafe extern "C" fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
         // list element may be NULL (and with the iterator it is impossible
         // to distinguish a NULL element from the end of the list).
         let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_list_array_size((*conn).transactions);
+        let mut n: size_t = htp_list::htp_list_array_size((*conn).transactions);
         while i < n {
-            let mut tx: *mut crate::src::htp_transaction::htp_tx_t =
-                htp_list_array_get((*conn).transactions, i)
-                    as *mut crate::src::htp_transaction::htp_tx_t;
+            let mut tx: *mut htp_transaction::htp_tx_t =
+                htp_list::htp_list_array_get((*conn).transactions, i)
+                    as *mut htp_transaction::htp_tx_t;
             if !tx.is_null() {
-                htp_tx_destroy_incomplete(tx);
+                htp_transaction::htp_tx_destroy_incomplete(tx);
             }
             i = i.wrapping_add(1)
         }
-        htp_list_array_destroy((*conn).transactions);
-        (*conn).transactions = 0 as *mut crate::src::htp_list::htp_list_array_t
+        htp_list::htp_list_array_destroy((*conn).transactions);
+        (*conn).transactions = 0 as *mut htp_list::htp_list_array_t
     }
     if !(*conn).messages.is_null() {
         // Destroy individual messages.
         let mut i_0: size_t = 0 as libc::c_int as size_t;
-        let mut n_0: size_t = htp_list_array_size((*conn).messages);
+        let mut n_0: size_t = htp_list::htp_list_array_size((*conn).messages);
         while i_0 < n_0 {
-            let mut l: *mut crate::src::htp_util::htp_log_t =
-                htp_list_array_get((*conn).messages, i_0) as *mut crate::src::htp_util::htp_log_t;
+            let mut l: *mut htp_util::htp_log_t =
+                htp_list::htp_list_array_get((*conn).messages, i_0) as *mut htp_util::htp_log_t;
             free((*l).msg as *mut libc::c_void);
             free(l as *mut libc::c_void);
             i_0 = i_0.wrapping_add(1)
         }
-        htp_list_array_destroy((*conn).messages);
-        (*conn).messages = 0 as *mut crate::src::htp_list::htp_list_array_t
+        htp_list::htp_list_array_destroy((*conn).messages);
+        (*conn).messages = 0 as *mut htp_list::htp_list_array_t
     }
     if !(*conn).server_addr.is_null() {
         free((*conn).server_addr as *mut libc::c_void);
@@ -251,7 +232,7 @@ pub unsafe extern "C" fn htp_conn_open(
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_remove_tx(
     mut conn: *mut htp_conn_t,
-    mut tx: *const crate::src::htp_transaction::htp_tx_t,
+    mut tx: *const htp_transaction::htp_tx_t,
 ) -> htp_status_t {
     if tx.is_null() || conn.is_null() {
         return -(1 as libc::c_int);
@@ -259,7 +240,11 @@ pub unsafe extern "C" fn htp_conn_remove_tx(
     if (*conn).transactions.is_null() {
         return -(1 as libc::c_int);
     }
-    return htp_list_array_replace((*conn).transactions, (*tx).index, 0 as *mut libc::c_void);
+    return htp_list::htp_list_array_replace(
+        (*conn).transactions,
+        (*tx).index,
+        0 as *mut libc::c_void,
+    );
 }
 
 /**

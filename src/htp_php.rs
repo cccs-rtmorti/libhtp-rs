@@ -1,13 +1,9 @@
+use crate::{bstr, htp_transaction};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
-    fn bstr_dup(b: *const bstr) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
 }
 pub type C2RustUnnamed = libc::c_uint;
 pub const _ISalnum: C2RustUnnamed = 8;
@@ -24,7 +20,6 @@ pub const _ISlower: C2RustUnnamed = 512;
 pub const _ISupper: C2RustUnnamed = 256;
 pub type size_t = libc::c_ulong;
 pub type htp_status_t = libc::c_int;
-pub type bstr = crate::src::bstr::bstr_t;
 
 /* *
  * This is a proof-of-concept processor that processes parameter names in
@@ -37,17 +32,17 @@ pub type bstr = crate::src::bstr::bstr_t;
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_php_parameter_processor(
-    mut p: *mut crate::src::htp_transaction::htp_param_t,
+    mut p: *mut htp_transaction::htp_param_t,
 ) -> htp_status_t {
     if p.is_null() {
         return -(1 as libc::c_int);
     }
     // Name transformation
-    let mut new_name: *mut bstr = 0 as *mut bstr;
+    let mut new_name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     // Ignore whitespace characters at the beginning of parameter name.
     let mut data: *mut libc::c_uchar = if (*(*p).name).realptr.is_null() {
         ((*p).name as *mut libc::c_uchar)
-            .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+            .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
     } else {
         (*(*p).name).realptr
     };
@@ -66,7 +61,7 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
     if pos > 0 as libc::c_int as libc::c_ulong {
         // Make a copy of the name, starting with
         // the first non-whitespace character.
-        new_name = bstr_dup_mem(
+        new_name = bstr::bstr_dup_mem(
             data.offset(pos as isize) as *const libc::c_void,
             len.wrapping_sub(pos),
         );
@@ -92,7 +87,7 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
         // Make a copy of the name if needed (which would be the case
         // with a parameter that does not have any whitespace in front).
         if new_name.is_null() {
-            new_name = bstr_dup((*p).name);
+            new_name = bstr::bstr_dup((*p).name);
             if new_name.is_null() {
                 return -(1 as libc::c_int);
             }
@@ -100,7 +95,7 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
         // Change the pointers to the new name and ditch the offset.
         data = if (*new_name).realptr.is_null() {
             (new_name as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
         } else {
             (*new_name).realptr
         };
@@ -119,7 +114,7 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
     }
     // If we made any changes, free the old parameter name and put the new one in.
     if !new_name.is_null() {
-        bstr_free((*p).name);
+        bstr::bstr_free((*p).name);
         (*p).name = new_name
     }
     return 1 as libc::c_int;

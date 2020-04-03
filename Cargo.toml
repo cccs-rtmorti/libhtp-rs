@@ -12,8 +12,6 @@ autobins = false
 license-file = "LICENSE"
 
 [lib]
-name = "libhtp2"
-path = "lib.rs"
 crate-type = ["staticlib", "rlib", "cdylib"]
 
 

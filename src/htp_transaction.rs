@@ -1,227 +1,20 @@
-use crate::src::htp_util::Flags;
+use crate::htp_util::Flags;
+use crate::{
+    bstr, htp_config, htp_connection, htp_connection_parser, htp_cookies, htp_decompressors,
+    htp_hooks, htp_list, htp_multipart, htp_parsers, htp_request, htp_response, htp_table,
+    htp_urlencoded, htp_util,
+};
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
     #[no_mangle]
-    fn htp_list_array_push(
-        l: *mut crate::src::htp_list::htp_list_array_t,
-        e: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_list_array_size(l: *const crate::src::htp_list::htp_list_array_t) -> size_t;
-    #[no_mangle]
-    fn bstr_cmp_c_nocase(b: *const bstr, cstr: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_cmp_c_nocasenorzero(b: *const bstr, cstr: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_cmp_mem_nocase(b: *const bstr, data: *const libc::c_void, len: size_t) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_cmp_nocase(b1: *const bstr, b2: *const bstr) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_dup(b: *const bstr) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_dup_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn bstr_free(b: *mut bstr);
-    #[no_mangle]
-    fn bstr_util_cmp_mem(
-        data1: *const libc::c_void,
-        len1: size_t,
-        data2: *const libc::c_void,
-        len2: size_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_util_mem_index_of_c_nocase(
-        data: *const libc::c_void,
-        len: size_t,
-        cstr: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn bstr_wrap_mem(data: *const libc::c_void, len: size_t) -> *mut bstr;
-    #[no_mangle]
-    fn htp_config_destroy(cfg: *mut crate::src::htp_config::htp_cfg_t);
-    #[no_mangle]
-    fn htp_gzip_decompressor_create(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        format: crate::src::htp_decompressors::htp_content_encoding_t,
-    ) -> *mut crate::src::htp_decompressors::htp_decompressor_t;
-    #[no_mangle]
-    fn htp_hook_destroy(hook: *mut crate::src::htp_hooks::htp_hook_t);
-    #[no_mangle]
     fn htp_hook_register(
-        hook: *mut *mut crate::src::htp_hooks::htp_hook_t,
+        hook: *mut *mut htp_hooks::htp_hook_t,
         callback_fn: htp_callback_fn_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_hook_run_all(
-        hook: *mut crate::src::htp_hooks::htp_hook_t,
-        user_data: *mut libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_table_add(
-        table: *mut crate::src::htp_table::htp_table_t,
-        key: *const bstr,
-        element: *const libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_table_addk(
-        table: *mut crate::src::htp_table::htp_table_t,
-        key: *const bstr,
-        element: *const libc::c_void,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_table_create(size: size_t) -> *mut crate::src::htp_table::htp_table_t;
-    #[no_mangle]
-    fn htp_table_destroy(table: *mut crate::src::htp_table::htp_table_t);
-    #[no_mangle]
-    fn htp_table_get_c(
-        table: *const crate::src::htp_table::htp_table_t,
-        ckey: *const libc::c_char,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_get_index(
-        table: *const crate::src::htp_table::htp_table_t,
-        idx: size_t,
-        key: *mut *mut bstr,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_get_mem(
-        table: *const crate::src::htp_table::htp_table_t,
-        key: *const libc::c_void,
-        key_len: size_t,
-    ) -> *mut libc::c_void;
-    #[no_mangle]
-    fn htp_table_size(table: *const crate::src::htp_table::htp_table_t) -> size_t;
-    #[no_mangle]
-    fn htp_mpartp_destroy(parser: *mut crate::src::htp_multipart::htp_mpartp_t);
-    #[no_mangle]
-    fn htp_urlenp_destroy(urlenp: *mut crate::src::htp_urlencoded::htp_urlenp_t);
-    #[no_mangle]
-    fn htp_uri_free(uri: *mut crate::src::htp_util::htp_uri_t);
-    #[no_mangle]
-    fn htp_connp_tx_remove(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        tx: *mut htp_tx_t,
-    );
-    #[no_mangle]
-    fn htp_conn_remove_tx(
-        conn: *mut crate::src::htp_connection::htp_conn_t,
-        tx: *const htp_tx_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_uri_alloc() -> *mut crate::src::htp_util::htp_uri_t;
-    #[no_mangle]
-    fn htp_req_run_hook_body_data(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        d: *mut htp_tx_data_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_log(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        file: *const libc::c_char,
-        line: libc::c_int,
-        level: crate::src::htp_util::htp_log_level_t,
-        code: libc::c_int,
-        fmt: *const libc::c_char,
-        _: ...
-    );
-    #[no_mangle]
-    fn htp_res_run_hook_body_data(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        d: *mut htp_tx_data_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_REQ_IDLE(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_REQ_CONNECT_CHECK(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_req_receiver_finalize_clear(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_parse_authorization(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_parse_cookies_v0(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_parse_ct_header(header: *mut bstr, ct: *mut *mut bstr) -> htp_status_t;
-    #[no_mangle]
-    fn htp_parse_header_hostport(
-        authority: *mut bstr,
-        hostname: *mut *mut bstr,
-        port: *mut *mut bstr,
-        port_number: *mut libc::c_int,
-        flags: *mut Flags,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_parse_content_length(
-        b: *mut bstr,
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> int64_t;
-    #[no_mangle]
-    fn htp_connp_REQ_FINALIZE(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_REQ_PROTOCOL(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_validate_hostname(hostname: *mut bstr) -> libc::c_int;
-    #[no_mangle]
-    fn htp_normalize_parsed_uri(
-        tx: *mut htp_tx_t,
-        parsed_uri_incomplete: *mut crate::src::htp_util::htp_uri_t,
-        parsed_uri: *mut crate::src::htp_util::htp_uri_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_parse_uri(
-        input: *mut bstr,
-        uri: *mut *mut crate::src::htp_util::htp_uri_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_parse_uri_hostport(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-        input: *mut bstr,
-        uri: *mut crate::src::htp_util::htp_uri_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn htp_connp_REQ_LINE(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_RES_IDLE(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_res_receiver_finalize_clear(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_REQ_LINE_complete(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_RES_LINE(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
-    ) -> htp_status_t;
-    #[no_mangle]
-    fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(
-        connp: *mut crate::src::htp_connection_parser::htp_connp_t,
     ) -> htp_status_t;
 }
 pub type __uint8_t = libc::c_uchar;
@@ -271,9 +64,9 @@ pub enum htp_parser_id_t {
 #[derive(Copy, Clone)]
 pub struct htp_param_t {
     /** Parameter name. */
-    pub name: *mut bstr,
+    pub name: *mut bstr::bstr_t,
     /** Parameter value. */
-    pub value: *mut bstr,
+    pub value: *mut bstr::bstr_t,
     /** Source of the parameter, for example HTP_SOURCE_QUERY_STRING. */
     pub source: htp_data_source_t,
     /** Type of the data structure referenced below. */
@@ -284,7 +77,6 @@ pub struct htp_param_t {
      */
     pub parser_data: *mut libc::c_void,
 }
-pub type bstr = crate::src::bstr::bstr_t;
 
 /* *
  * This structure is used to pass transaction data (for example
@@ -332,11 +124,11 @@ pub enum htp_transfer_coding_t {
 #[derive(Copy, Clone)]
 pub struct htp_tx_t {
     /** The connection parser associated with this transaction. */
-    pub connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    pub connp: *mut htp_connection_parser::htp_connp_t,
     /** The connection to which this transaction belongs. */
-    pub conn: *mut crate::src::htp_connection::htp_conn_t,
+    pub conn: *mut htp_connection::htp_conn_t,
     /** The configuration structure associated with this transaction. */
-    pub cfg: *mut crate::src::htp_config::htp_cfg_t,
+    pub cfg: *mut htp_config::htp_cfg_t,
     /**
      * Is the configuration structure shared with other transactions or connections? If
      * this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
@@ -349,9 +141,9 @@ pub struct htp_tx_t {
     /** Contains a count of how many empty lines were skipped before the request line. */
     pub request_ignored_lines: libc::c_uint,
     /** The first line of this request. */
-    pub request_line: *mut bstr,
+    pub request_line: *mut bstr::bstr_t,
     /** Request method. */
-    pub request_method: *mut bstr,
+    pub request_method: *mut bstr::bstr_t,
     /** Request method, as number. Available only if we were able to recognize the request method. */
     pub request_method_number: libc::c_uint,
     /**
@@ -361,9 +153,9 @@ pub struct htp_tx_t {
      * URI elements. Can be NULL if the request line contains only a request method (which is
      * an extreme case of HTTP/0.9, but passes in practice.
      */
-    pub request_uri: *mut bstr,
+    pub request_uri: *mut bstr::bstr_t,
     /** Request protocol, as text. Can be NULL if no protocol was specified. */
-    pub request_protocol: *mut bstr,
+    pub request_protocol: *mut bstr::bstr_t,
     /**
      * Protocol version as a number. Multiply the high version number by 100, then add the low
      * version number. You should prefer to work the pre-defined HTP_PROTOCOL_* constants.
@@ -383,14 +175,14 @@ pub struct htp_tx_t {
      * will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
      * htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
      */
-    pub parsed_uri: *mut crate::src::htp_util::htp_uri_t,
+    pub parsed_uri: *mut htp_util::htp_uri_t,
     /**
      * This structure holds the individual components parsed out of the request URI, but
      * without any modification. The purpose of this field is to allow you to look at the data as it
      * was supplied on the request line. Fields can be NULL, depending on what data was supplied.
      * The port_number field is always -1.
      */
-    pub parsed_uri_raw: *mut crate::src::htp_util::htp_uri_t,
+    pub parsed_uri_raw: *mut htp_util::htp_uri_t,
     /* HTTP 1.1 RFC
      *
      * 4.3 Message Body
@@ -423,7 +215,7 @@ pub struct htp_tx_t {
      */
     pub request_entity_len: int64_t,
     /** Parsed request headers. */
-    pub request_headers: *mut crate::src::htp_table::htp_table_t,
+    pub request_headers: *mut htp_table::htp_table_t,
     /**
      * Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
      * determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
@@ -431,13 +223,13 @@ pub struct htp_tx_t {
      */
     pub request_transfer_coding: htp_transfer_coding_t,
     /** Request body compression. */
-    pub request_content_encoding: crate::src::htp_decompressors::htp_content_encoding_t,
+    pub request_content_encoding: htp_decompressors::htp_content_encoding_t,
     /**
      * This field contain the request content type when that information is
      * available in request headers. The contents of the field will be converted
      * to lowercase and any parameters (e.g., character set information) removed.
      */
-    pub request_content_type: *mut bstr,
+    pub request_content_type: *mut bstr::bstr_t,
     /**
      * Contains the value specified in the Content-Length header. The value of this
      * field will be -1 from the beginning of the transaction and until request
@@ -449,44 +241,44 @@ pub struct htp_tx_t {
      * Transaction-specific REQUEST_BODY_DATA hook. Behaves as
      * the configuration hook with the same name.
      */
-    pub hook_request_body_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_request_body_data: *mut htp_hooks::htp_hook_t,
     /**
      * Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
      * the configuration hook with the same name.
      */
-    pub hook_response_body_data: *mut crate::src::htp_hooks::htp_hook_t,
+    pub hook_response_body_data: *mut htp_hooks::htp_hook_t,
     /**
      * Query string URLENCODED parser. Available only
      * when the query string is not NULL and not empty.
      */
-    pub request_urlenp_query: *mut crate::src::htp_urlencoded::htp_urlenp_t,
+    pub request_urlenp_query: *mut htp_urlencoded::htp_urlenp_t,
     /**
      * Request body URLENCODED parser. Available only when the request body is in the
      * application/x-www-form-urlencoded format and the parser was configured to run.
      */
-    pub request_urlenp_body: *mut crate::src::htp_urlencoded::htp_urlenp_t,
+    pub request_urlenp_body: *mut htp_urlencoded::htp_urlenp_t,
     /**
      * Request body MULTIPART parser. Available only when the body is in the
      * multipart/form-data format and the parser was configured to run.
      */
-    pub request_mpartp: *mut crate::src::htp_multipart::htp_mpartp_t,
+    pub request_mpartp: *mut htp_multipart::htp_mpartp_t,
     /** Request parameters. */
-    pub request_params: *mut crate::src::htp_table::htp_table_t,
+    pub request_params: *mut htp_table::htp_table_t,
     /** Request cookies */
-    pub request_cookies: *mut crate::src::htp_table::htp_table_t,
+    pub request_cookies: *mut htp_table::htp_table_t,
     /** Authentication type used in the request. */
     pub request_auth_type: htp_auth_type_t,
     /** Authentication username. */
-    pub request_auth_username: *mut bstr,
+    pub request_auth_username: *mut bstr::bstr_t,
     /** Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC. */
-    pub request_auth_password: *mut bstr,
+    pub request_auth_password: *mut bstr::bstr_t,
     /**
      * Request hostname. Per the RFC, the hostname will be taken from the Host header
      * when available. If the host information is also available in the URI, it is used
      * instead of whatever might be in the Host header. Can be NULL. This field does
      * not contain port information.
      */
-    pub request_hostname: *mut bstr,
+    pub request_hostname: *mut bstr::bstr_t,
     /**
      * Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
      * -1 by default.
@@ -497,9 +289,9 @@ pub struct htp_tx_t {
     /** How many empty lines did we ignore before reaching the status line? */
     pub response_ignored_lines: libc::c_uint,
     /** Response line. */
-    pub response_line: *mut bstr,
+    pub response_line: *mut bstr::bstr_t,
     /** Response protocol, as text. Can be NULL. */
-    pub response_protocol: *mut bstr,
+    pub response_protocol: *mut bstr::bstr_t,
     /**
      * Response protocol as number. Available only if we were able to parse the protocol version,
      * HTP_PROTOCOL_INVALID otherwise. HTP_PROTOCOL_UNKNOWN until parsing is attempted.
@@ -509,7 +301,7 @@ pub struct htp_tx_t {
      * Response status code, as text. Starts as NULL and can remain NULL on
      * an invalid response that does not specify status code.
      */
-    pub response_status: *mut bstr,
+    pub response_status: *mut bstr::bstr_t,
     /**
      * Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
      * otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
@@ -521,11 +313,11 @@ pub struct htp_tx_t {
      */
     pub response_status_expected_number: libc::c_int,
     /** The message associated with the response status code. Can be NULL. */
-    pub response_message: *mut bstr,
+    pub response_message: *mut bstr::bstr_t,
     /** Have we seen the server respond with a 100 response? */
     pub seen_100continue: libc::c_int,
     /** Parsed response headers. Contains instances of htp_header_t. */
-    pub response_headers: *mut crate::src::htp_table::htp_table_t,
+    pub response_headers: *mut htp_table::htp_table_t,
 
     /* HTTP 1.1 RFC
      *
@@ -575,7 +367,7 @@ pub struct htp_tx_t {
      * for the response body. This field is an interpretation of the information
      * available in response headers.
      */
-    pub response_content_encoding: crate::src::htp_decompressors::htp_content_encoding_t,
+    pub response_content_encoding: htp_decompressors::htp_content_encoding_t,
     /**
      * Response body compression processing information, which is related to how
      * the library is going to process (or has processed) a response body. Changing
@@ -583,13 +375,13 @@ pub struct htp_tx_t {
      * this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
      * decompression.
      */
-    pub response_content_encoding_processing: crate::src::htp_decompressors::htp_content_encoding_t,
+    pub response_content_encoding_processing: htp_decompressors::htp_content_encoding_t,
     /**
      * This field will contain the response content type when that information
      * is available in response headers. The contents of the field will be converted
      * to lowercase and any parameters (e.g., character set information) removed.
      */
-    pub response_content_type: *mut bstr,
+    pub response_content_type: *mut bstr::bstr_t,
 
     // Common fields
     /**
@@ -668,9 +460,9 @@ pub type htp_time_t = libc::timeval;
 #[derive(Copy, Clone)]
 pub struct htp_header_t {
     /** Header name. */
-    pub name: *mut bstr,
+    pub name: *mut bstr::bstr_t,
     /** Header value. */
-    pub value: *mut bstr,
+    pub value: *mut bstr::bstr_t,
     /** Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED. */
     pub flags: Flags,
 }
@@ -683,14 +475,14 @@ unsafe extern "C" fn copy_or_wrap_mem(
     mut data: *const libc::c_void,
     mut len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> *mut bstr {
+) -> *mut bstr::bstr_t {
     if data == 0 as *mut libc::c_void {
-        return 0 as *mut bstr;
+        return 0 as *mut bstr::bstr_t;
     }
     if alloc as libc::c_uint == HTP_ALLOC_REUSE as libc::c_int as libc::c_uint {
-        return bstr_wrap_mem(data, len);
+        return bstr::bstr_wrap_mem(data, len);
     } else {
-        return bstr_dup_mem(data, len);
+        return bstr::bstr_dup_mem(data, len);
     };
 }
 
@@ -702,7 +494,7 @@ unsafe extern "C" fn copy_or_wrap_mem(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_create(
-    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut htp_tx_t {
     if connp.is_null() {
         return 0 as *mut htp_tx_t;
@@ -716,40 +508,40 @@ pub unsafe extern "C" fn htp_tx_create(
     }
     (*tx).connp = connp;
     (*tx).conn = (*connp).conn;
-    (*tx).index = htp_list_array_size((*(*tx).conn).transactions);
+    (*tx).index = htp_list::htp_list_array_size((*(*tx).conn).transactions);
     (*tx).cfg = (*connp).cfg;
     (*tx).is_config_shared = 1 as libc::c_int;
     // Request fields.
     (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED;
     (*tx).request_protocol_number = -(1 as libc::c_int);
     (*tx).request_content_length = -(1 as libc::c_int) as int64_t;
-    (*tx).parsed_uri_raw = htp_uri_alloc();
+    (*tx).parsed_uri_raw = htp_util::htp_uri_alloc();
     if (*tx).parsed_uri_raw.is_null() {
         htp_tx_destroy_incomplete(tx);
         return 0 as *mut htp_tx_t;
     }
-    (*tx).request_headers = htp_table_create(32 as libc::c_int as size_t);
+    (*tx).request_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).request_headers.is_null() {
         htp_tx_destroy_incomplete(tx);
         return 0 as *mut htp_tx_t;
     }
-    (*tx).request_params = htp_table_create(32 as libc::c_int as size_t);
+    (*tx).request_params = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).request_params.is_null() {
         htp_tx_destroy_incomplete(tx);
         return 0 as *mut htp_tx_t;
     }
     // Response fields.
     (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED;
-    (*tx).response_status = 0 as *mut bstr;
+    (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = 0 as libc::c_int;
     (*tx).response_protocol_number = -(1 as libc::c_int);
     (*tx).response_content_length = -(1 as libc::c_int) as int64_t;
-    (*tx).response_headers = htp_table_create(32 as libc::c_int as size_t);
+    (*tx).response_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).response_headers.is_null() {
         htp_tx_destroy_incomplete(tx);
         return 0 as *mut htp_tx_t;
     }
-    htp_list_array_push((*(*tx).conn).transactions, tx as *mut libc::c_void);
+    htp_list::htp_list_array_push((*(*tx).conn).transactions, tx as *mut libc::c_void);
     return tx;
 }
 
@@ -776,88 +568,95 @@ pub unsafe extern "C" fn htp_tx_destroy_incomplete(mut tx: *mut htp_tx_t) {
         return;
     }
     // Disconnect transaction from other structures.
-    htp_conn_remove_tx((*tx).conn, tx);
-    htp_connp_tx_remove((*tx).connp, tx);
+    htp_connection::htp_conn_remove_tx((*tx).conn, tx);
+    htp_connection_parser::htp_connp_tx_remove((*tx).connp, tx);
     // Request fields.
-    bstr_free((*tx).request_line);
-    bstr_free((*tx).request_method);
-    bstr_free((*tx).request_uri);
-    bstr_free((*tx).request_protocol);
-    bstr_free((*tx).request_content_type);
-    bstr_free((*tx).request_hostname);
-    htp_uri_free((*tx).parsed_uri_raw);
-    htp_uri_free((*tx).parsed_uri);
-    bstr_free((*tx).request_auth_username);
-    bstr_free((*tx).request_auth_password);
+    bstr::bstr_free((*tx).request_line);
+    bstr::bstr_free((*tx).request_method);
+    bstr::bstr_free((*tx).request_uri);
+    bstr::bstr_free((*tx).request_protocol);
+    bstr::bstr_free((*tx).request_content_type);
+    bstr::bstr_free((*tx).request_hostname);
+    htp_util::htp_uri_free((*tx).parsed_uri_raw);
+    htp_util::htp_uri_free((*tx).parsed_uri);
+    bstr::bstr_free((*tx).request_auth_username);
+    bstr::bstr_free((*tx).request_auth_password);
     // Request_headers.
     if !(*tx).request_headers.is_null() {
         let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
         let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_table_size((*tx).request_headers);
+        let mut n: size_t = htp_table::htp_table_size((*tx).request_headers);
         while i < n {
-            h = htp_table_get_index((*tx).request_headers, i, 0 as *mut *mut bstr)
+            h = htp_table::htp_table_get_index((*tx).request_headers, i, 0 as *mut *mut bstr::bstr)
                 as *mut htp_header_t;
-            bstr_free((*h).name);
-            bstr_free((*h).value);
+            bstr::bstr_free((*h).name);
+            bstr::bstr_free((*h).value);
             free(h as *mut libc::c_void);
             i = i.wrapping_add(1)
         }
-        htp_table_destroy((*tx).request_headers);
+        htp_table::htp_table_destroy((*tx).request_headers);
     }
     // Request parsers.
-    htp_urlenp_destroy((*tx).request_urlenp_query);
-    htp_urlenp_destroy((*tx).request_urlenp_body);
-    htp_mpartp_destroy((*tx).request_mpartp);
+    htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_query);
+    htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_body);
+    htp_multipart::htp_mpartp_destroy((*tx).request_mpartp);
     // Request parameters.
     let mut param: *mut htp_param_t = 0 as *mut htp_param_t;
     let mut i_0: size_t = 0 as libc::c_int as size_t;
-    let mut n_0: size_t = htp_table_size((*tx).request_params);
+    let mut n_0: size_t = htp_table::htp_table_size((*tx).request_params);
     while i_0 < n_0 {
-        param =
-            htp_table_get_index((*tx).request_params, i_0, 0 as *mut *mut bstr) as *mut htp_param_t;
-        bstr_free((*param).name);
-        bstr_free((*param).value);
+        param = htp_table::htp_table_get_index((*tx).request_params, i_0, 0 as *mut *mut bstr::bstr)
+            as *mut htp_param_t;
+        bstr::bstr_free((*param).name);
+        bstr::bstr_free((*param).value);
         free(param as *mut libc::c_void);
         i_0 = i_0.wrapping_add(1)
     }
-    htp_table_destroy((*tx).request_params);
+    htp_table::htp_table_destroy((*tx).request_params);
     // Request cookies.
     if !(*tx).request_cookies.is_null() {
-        let mut b: *mut bstr = 0 as *mut bstr;
+        let mut b: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut i_1: size_t = 0 as libc::c_int as size_t;
-        let mut n_1: size_t = htp_table_size((*tx).request_cookies);
+        let mut n_1: size_t = htp_table::htp_table_size((*tx).request_cookies);
         while i_1 < n_1 {
-            b = htp_table_get_index((*tx).request_cookies, i_1, 0 as *mut *mut bstr) as *mut bstr;
-            bstr_free(b);
+            b = htp_table::htp_table_get_index(
+                (*tx).request_cookies,
+                i_1,
+                0 as *mut *mut bstr::bstr,
+            ) as *mut bstr::bstr;
+            bstr::bstr_free(b);
             i_1 = i_1.wrapping_add(1)
         }
-        htp_table_destroy((*tx).request_cookies);
+        htp_table::htp_table_destroy((*tx).request_cookies);
     }
-    htp_hook_destroy((*tx).hook_request_body_data);
+    htp_hooks::htp_hook_destroy((*tx).hook_request_body_data);
     // Response fields.
-    bstr_free((*tx).response_line);
-    bstr_free((*tx).response_protocol);
-    bstr_free((*tx).response_status);
-    bstr_free((*tx).response_message);
-    bstr_free((*tx).response_content_type);
+    bstr::bstr_free((*tx).response_line);
+    bstr::bstr_free((*tx).response_protocol);
+    bstr::bstr_free((*tx).response_status);
+    bstr::bstr_free((*tx).response_message);
+    bstr::bstr_free((*tx).response_content_type);
     // Destroy response headers.
     if !(*tx).response_headers.is_null() {
         let mut h_0: *mut htp_header_t = 0 as *mut htp_header_t;
         let mut i_2: size_t = 0 as libc::c_int as size_t;
-        let mut n_2: size_t = htp_table_size((*tx).response_headers);
+        let mut n_2: size_t = htp_table::htp_table_size((*tx).response_headers);
         while i_2 < n_2 {
-            h_0 = htp_table_get_index((*tx).response_headers, i_2, 0 as *mut *mut bstr)
-                as *mut htp_header_t;
-            bstr_free((*h_0).name);
-            bstr_free((*h_0).value);
+            h_0 = htp_table::htp_table_get_index(
+                (*tx).response_headers,
+                i_2,
+                0 as *mut *mut bstr::bstr,
+            ) as *mut htp_header_t;
+            bstr::bstr_free((*h_0).name);
+            bstr::bstr_free((*h_0).value);
             free(h_0 as *mut libc::c_void);
             i_2 = i_2.wrapping_add(1)
         }
-        htp_table_destroy((*tx).response_headers);
+        htp_table::htp_table_destroy((*tx).response_headers);
     }
     // If we're using a private configuration structure, destroy it.
     if (*tx).is_config_shared == 0 as libc::c_int {
-        htp_config_destroy((*tx).cfg);
+        htp_config::htp_config_destroy((*tx).cfg);
     }
     free(tx as *mut libc::c_void);
 }
@@ -910,7 +709,7 @@ pub unsafe extern "C" fn htp_tx_get_user_data(mut tx: *const htp_tx_t) -> *mut l
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_set_config(
     mut tx: *mut htp_tx_t,
-    mut cfg: *mut crate::src::htp_config::htp_cfg_t,
+    mut cfg: *mut htp_config::htp_cfg_t,
     mut is_cfg_shared: libc::c_int,
 ) {
     if tx.is_null() || cfg.is_null() {
@@ -921,7 +720,7 @@ pub unsafe extern "C" fn htp_tx_set_config(
     }
     // If we're using a private configuration, destroy it.
     if (*tx).is_config_shared == 0 as libc::c_int {
-        htp_config_destroy((*tx).cfg);
+        htp_config::htp_config_destroy((*tx).cfg);
     }
     (*tx).cfg = cfg;
     (*tx).is_config_shared = is_cfg_shared;
@@ -969,7 +768,7 @@ pub unsafe extern "C" fn htp_tx_req_add_param(
             return -(1 as libc::c_int);
         }
     }
-    return htp_table_addk(
+    return htp_table::htp_table_addk(
         (*tx).request_params,
         (*param).name,
         param as *const libc::c_void,
@@ -993,7 +792,7 @@ pub unsafe extern "C" fn htp_tx_req_get_param(
     if tx.is_null() || name.is_null() {
         return 0 as *mut htp_param_t;
     }
-    return htp_table_get_mem((*tx).request_params, name as *const libc::c_void, name_len)
+    return htp_table::htp_table_get_mem((*tx).request_params, name as *const libc::c_void, name_len)
         as *mut htp_param_t;
 }
 
@@ -1019,11 +818,12 @@ pub unsafe extern "C" fn htp_tx_req_get_param_ex(
     }
     let mut p: *mut htp_param_t = 0 as *mut htp_param_t;
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_table_size((*tx).request_params);
+    let mut n: size_t = htp_table::htp_table_size((*tx).request_params);
     while i < n {
-        p = htp_table_get_index((*tx).request_params, i, 0 as *mut *mut bstr) as *mut htp_param_t;
+        p = htp_table::htp_table_get_index((*tx).request_params, i, 0 as *mut *mut bstr::bstr)
+            as *mut htp_param_t;
         if !((*p).source as libc::c_uint != source as libc::c_uint) {
-            if bstr_cmp_mem_nocase((*p).name, name as *const libc::c_void, name_len)
+            if bstr::bstr_cmp_mem_nocase((*p).name, name as *const libc::c_void, name_len)
                 == 0 as libc::c_int
             {
                 return p;
@@ -1092,14 +892,15 @@ pub unsafe extern "C" fn htp_tx_req_set_header(
     }
     (*h).value = copy_or_wrap_mem(value as *const libc::c_void, value_len, alloc);
     if (*h).value.is_null() {
-        bstr_free((*h).name);
+        bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
-    if htp_table_add((*tx).request_headers, (*h).name, h as *const libc::c_void) != 1 as libc::c_int
+    if htp_table::htp_table_add((*tx).request_headers, (*h).name, h as *const libc::c_void)
+        != 1 as libc::c_int
     {
-        bstr_free((*h).name);
-        bstr_free((*h).value);
+        bstr::bstr_free((*h).name);
+        bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
@@ -1263,11 +1064,11 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
     }
     // Determine if we have a request body, and how it is packaged.
     let mut rc: htp_status_t = 1 as libc::c_int;
-    let mut cl: *mut htp_header_t = htp_table_get_c(
+    let mut cl: *mut htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
         b"content-length\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_header_t;
-    let mut te: *mut htp_header_t = htp_table_get_c(
+    let mut te: *mut htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
         b"transfer-encoding\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_header_t;
@@ -1279,7 +1080,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
         //      And it behaves strangely, too, sending a 501 and proceeding to process the request
         //      (e.g., PHP is run), but without the body. It then closes the connection.
-        if bstr_cmp_c_nocase(
+        if bstr::bstr_cmp_c_nocase(
             (*te).value,
             b"chunked\x00" as *const u8 as *const libc::c_char,
         ) != 0 as libc::c_int
@@ -1327,7 +1128,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
             //      which is bound to fail (because it will contain commas).
         }
         // Get the body length.
-        (*tx).request_content_length = htp_parse_content_length((*cl).value, (*tx).connp);
+        (*tx).request_content_length = htp_util::htp_parse_content_length((*cl).value, (*tx).connp);
         if (*tx).request_content_length < 0 as libc::c_int as libc::c_long {
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_C_L;
@@ -1347,34 +1148,31 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         (*tx).flags |= Flags::HTP_REQUEST_INVALID
     }
     // Check for PUT requests, which we need to treat as file uploads.
-    if (*tx).request_method_number
-        == crate::src::htp_request::htp_method_t::HTP_M_PUT as libc::c_uint
-    {
+    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_PUT as libc::c_uint {
         if htp_tx_req_has_body(tx) != 0 {
             // Prepare to treat PUT request body as a file.
             (*(*tx).connp).put_file = calloc(
                 1 as libc::c_int as libc::c_ulong,
-                ::std::mem::size_of::<crate::src::htp_util::htp_file_t>() as libc::c_ulong,
-            ) as *mut crate::src::htp_util::htp_file_t;
+                ::std::mem::size_of::<htp_util::htp_file_t>() as libc::c_ulong,
+            ) as *mut htp_util::htp_file_t;
             if (*(*tx).connp).put_file.is_null() {
                 return -(1 as libc::c_int);
             }
             (*(*(*tx).connp).put_file).fd = -(1 as libc::c_int);
-            (*(*(*tx).connp).put_file).source =
-                crate::src::htp_util::htp_file_source_t::HTP_FILE_PUT
+            (*(*(*tx).connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
         }
     }
     // Determine hostname.
     // Use the hostname from the URI, when available.
     if !(*(*tx).parsed_uri).hostname.is_null() {
-        (*tx).request_hostname = bstr_dup((*(*tx).parsed_uri).hostname);
+        (*tx).request_hostname = bstr::bstr_dup((*(*tx).parsed_uri).hostname);
         if (*tx).request_hostname.is_null() {
             return -(1 as libc::c_int);
         }
     }
     (*tx).request_port_number = (*(*tx).parsed_uri).port_number;
     // Examine the Host header.
-    let mut h: *mut htp_header_t = htp_table_get_c(
+    let mut h: *mut htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
         b"host\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_header_t;
@@ -1386,12 +1184,12 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         }
     } else {
         // Host information available in the headers.
-        let mut hostname: *mut bstr = 0 as *mut bstr;
+        let mut hostname: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut port: libc::c_int = 0;
-        rc = htp_parse_header_hostport(
+        rc = htp_util::htp_parse_header_hostport(
             (*h).value,
             &mut hostname,
-            0 as *mut *mut bstr,
+            0 as *mut *mut bstr::bstr_t,
             &mut port,
             &mut (*tx).flags,
         );
@@ -1410,7 +1208,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
                 // The host information appears in the URI and in the headers. The
                 // HTTP RFC states that we should ignore the header copy.
                 // Check for different hostnames.
-                if bstr_cmp_nocase(hostname, (*tx).request_hostname) != 0 as libc::c_int {
+                if bstr::bstr_cmp_nocase(hostname, (*tx).request_hostname) != 0 as libc::c_int {
                     (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
                 }
                 // Check for different ports.
@@ -1420,7 +1218,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
                 {
                     (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
                 }
-                bstr_free(hostname);
+                bstr::bstr_free(hostname);
             }
         } else if !(*tx).request_hostname.is_null() {
             // Invalid host information in the headers.
@@ -1429,26 +1227,26 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         }
     }
     // Determine Content-Type.
-    let mut ct: *mut htp_header_t = htp_table_get_c(
+    let mut ct: *mut htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
         b"content-type\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_header_t;
     if !ct.is_null() {
-        rc = htp_parse_ct_header((*ct).value, &mut (*tx).request_content_type);
+        rc = htp_util::htp_parse_ct_header((*ct).value, &mut (*tx).request_content_type);
         if rc != 1 as libc::c_int {
             return rc;
         }
     }
     // Parse cookies.
     if (*(*(*tx).connp).cfg).parse_request_cookies != 0 {
-        rc = htp_parse_cookies_v0((*tx).connp);
+        rc = htp_cookies::htp_parse_cookies_v0((*tx).connp);
         if rc != 1 as libc::c_int {
             return rc;
         }
     }
     // Parse authentication information.
     if (*(*(*tx).connp).cfg).parse_request_auth != 0 {
-        rc = htp_parse_authorization((*tx).connp);
+        rc = htp_parsers::htp_parse_authorization((*tx).connp);
         if rc == 0 as libc::c_int {
             // Don't fail the stream if an authorization header is invalid, just set a flag.
             (*tx).flags |= Flags::HTP_AUTH_INVALID
@@ -1457,12 +1255,12 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         }
     }
     // Finalize sending raw header data.
-    rc = htp_connp_req_receiver_finalize_clear((*tx).connp);
+    rc = htp_request::htp_connp_req_receiver_finalize_clear((*tx).connp);
     if rc != 1 as libc::c_int {
         return rc;
     }
     // Run hook REQUEST_HEADERS.
-    rc = htp_hook_run_all(
+    rc = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_headers,
         tx as *mut libc::c_void,
     );
@@ -1529,13 +1327,13 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
     d.tx = tx;
     d.data = data as *mut libc::c_uchar;
     d.len = len;
-    let mut rc: htp_status_t = htp_req_run_hook_body_data((*tx).connp, &mut d);
+    let mut rc: htp_status_t = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut d);
     if rc != 1 as libc::c_int {
-        htp_log(
+        htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
             589 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_ERROR,
+            htp_util::htp_log_level_t::HTP_LOG_ERROR,
             0 as libc::c_int,
             b"Request body data callback returned error (%d)\x00" as *const u8
                 as *const libc::c_char,
@@ -1565,16 +1363,17 @@ pub unsafe extern "C" fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> 
     }
     let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_table_size((*tx).request_headers);
+    let mut n: size_t = htp_table::htp_table_size((*tx).request_headers);
     while i < n {
-        h = htp_table_get_index((*tx).request_headers, i, 0 as *mut *mut bstr) as *mut htp_header_t;
-        bstr_free((*h).name);
-        bstr_free((*h).value);
+        h = htp_table::htp_table_get_index((*tx).request_headers, i, 0 as *mut *mut bstr::bstr)
+            as *mut htp_header_t;
+        bstr::bstr_free((*h).name);
+        bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
         i = i.wrapping_add(1)
     }
-    htp_table_destroy((*tx).request_headers);
-    (*tx).request_headers = htp_table_create(32 as libc::c_int as size_t);
+    htp_table::htp_table_destroy((*tx).request_headers);
+    (*tx).request_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).request_headers.is_null() {
         return -(1 as libc::c_int);
     }
@@ -1628,13 +1427,13 @@ pub unsafe extern "C" fn htp_tx_req_set_line(
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_req_set_parsed_uri(
     mut tx: *mut htp_tx_t,
-    mut parsed_uri: *mut crate::src::htp_util::htp_uri_t,
+    mut parsed_uri: *mut htp_util::htp_uri_t,
 ) {
     if tx.is_null() || parsed_uri.is_null() {
         return;
     }
     if !(*tx).parsed_uri.is_null() {
-        htp_uri_free((*tx).parsed_uri);
+        htp_util::htp_uri_free((*tx).parsed_uri);
     }
     (*tx).parsed_uri = parsed_uri;
 }
@@ -1732,7 +1531,7 @@ pub unsafe extern "C" fn htp_tx_res_set_status_message(
         return -(1 as libc::c_int);
     }
     if !(*tx).response_message.is_null() {
-        bstr_free((*tx).response_message);
+        bstr::bstr_free((*tx).response_message);
     }
     (*tx).response_message = copy_or_wrap_mem(msg as *const libc::c_void, msg_len, alloc);
     if (*tx).response_message.is_null() {
@@ -1755,11 +1554,11 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> ht
     }
     // Is the response line valid?
     if (*tx).response_protocol_number == -(2 as libc::c_int) {
-        htp_log(
+        htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
             688 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+            htp_util::htp_log_level_t::HTP_LOG_WARNING,
             0 as libc::c_int,
             b"Invalid response line: invalid protocol\x00" as *const u8 as *const libc::c_char,
         );
@@ -1769,11 +1568,11 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> ht
         || (*tx).response_status_number < 100 as libc::c_int
         || (*tx).response_status_number > 999 as libc::c_int
     {
-        htp_log(
+        htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
             695 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+            htp_util::htp_log_level_t::HTP_LOG_WARNING,
             0 as libc::c_int,
             b"Invalid response line: invalid response status %d.\x00" as *const u8
                 as *const libc::c_char,
@@ -1783,7 +1582,7 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> ht
         (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
     }
     // Run hook HTP_RESPONSE_LINE
-    let mut rc: htp_status_t = htp_hook_run_all(
+    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_response_line,
         tx as *mut libc::c_void,
     );
@@ -1832,15 +1631,15 @@ pub unsafe extern "C" fn htp_tx_res_set_header(
     }
     (*h).value = copy_or_wrap_mem(value as *const libc::c_void, value_len, alloc);
     if (*h).value.is_null() {
-        bstr_free((*h).name);
+        bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
-    if htp_table_add((*tx).response_headers, (*h).name, h as *const libc::c_void)
+    if htp_table::htp_table_add((*tx).response_headers, (*h).name, h as *const libc::c_void)
         != 1 as libc::c_int
     {
-        bstr_free((*h).name);
-        bstr_free((*h).value);
+        bstr::bstr_free((*h).name);
+        bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
         return -(1 as libc::c_int);
     }
@@ -1866,17 +1665,17 @@ pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> 
     }
     let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
     let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_table_size((*tx).response_headers);
+    let mut n: size_t = htp_table::htp_table_size((*tx).response_headers);
     while i < n {
-        h = htp_table_get_index((*tx).response_headers, i, 0 as *mut *mut bstr)
+        h = htp_table::htp_table_get_index((*tx).response_headers, i, 0 as *mut *mut bstr::bstr)
             as *mut htp_header_t;
-        bstr_free((*h).name);
-        bstr_free((*h).value);
+        bstr::bstr_free((*h).name);
+        bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
         i = i.wrapping_add(1)
     }
-    htp_table_destroy((*tx).response_headers);
-    (*tx).response_headers = htp_table_create(32 as libc::c_int as size_t);
+    htp_table::htp_table_destroy((*tx).response_headers);
+    (*tx).response_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).response_headers.is_null() {
         return -(1 as libc::c_int);
     }
@@ -1885,16 +1684,15 @@ pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> 
 
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_destroy_decompressors(
-    mut connp: *mut crate::src::htp_connection_parser::htp_connp_t,
+    mut connp: *mut htp_connection_parser::htp_connp_t,
 ) {
-    let mut comp: *mut crate::src::htp_decompressors::htp_decompressor_t =
-        (*connp).out_decompressor;
+    let mut comp: *mut htp_decompressors::htp_decompressor_t = (*connp).out_decompressor;
     while !comp.is_null() {
-        let mut next: *mut crate::src::htp_decompressors::htp_decompressor_t = (*comp).next;
+        let mut next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
         (*comp).destroy.expect("non-null function pointer")(comp);
         comp = next
     }
-    (*connp).out_decompressor = 0 as *mut crate::src::htp_decompressors::htp_decompressor_t;
+    (*connp).out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
 }
 
 /* *
@@ -1916,7 +1714,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     (*(*d).tx).response_entity_len = ((*(*d).tx).response_entity_len as libc::c_ulong)
         .wrapping_add((*d).len) as int64_t as int64_t;
     // Invoke all callbacks.
-    let mut rc: htp_status_t = htp_res_run_hook_body_data((*(*d).tx).connp, d);
+    let mut rc: htp_status_t = htp_util::htp_res_run_hook_body_data((*(*d).tx).connp, d);
     if rc != 1 as libc::c_int {
         return -(1 as libc::c_int);
     }
@@ -1925,11 +1723,11 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
         && (*(*d).tx).response_entity_len
             > 2048 as libc::c_int as libc::c_long * (*(*d).tx).response_message_len
     {
-        htp_log(
+        htp_util::htp_log(
             (*(*d).tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
             794 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_ERROR,
+            htp_util::htp_log_level_t::HTP_LOG_ERROR,
             0 as libc::c_int,
             b"Compression bomb: decompressed %ld bytes out of %ld\x00" as *const u8
                 as *const libc::c_char,
@@ -2023,18 +1821,18 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
             // is identical to response_message_len.
             (*tx).response_entity_len = ((*tx).response_entity_len as libc::c_ulong)
                 .wrapping_add(d.len) as int64_t as int64_t;
-            rc = htp_res_run_hook_body_data((*tx).connp, &mut d);
+            rc = htp_util::htp_res_run_hook_body_data((*tx).connp, &mut d);
             if rc != 1 as libc::c_int {
                 return -(1 as libc::c_int);
             }
         }
         _ => {
             // Internal error.
-            htp_log(
+            htp_util::htp_log(
                 (*tx).connp,
                 b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
                 857 as libc::c_int,
-                crate::src::htp_util::htp_log_level_t::HTP_LOG_ERROR,
+                htp_util::htp_log_level_t::HTP_LOG_ERROR,
                 0 as libc::c_int,
                 b"[Internal Error] Invalid tx->response_content_encoding_processing value: %d\x00"
                     as *const u8 as *const libc::c_char,
@@ -2066,7 +1864,7 @@ pub unsafe extern "C" fn htp_tx_state_request_complete_partial(
     }
     (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
     // Run hook REQUEST_COMPLETE.
-    let mut rc_0: htp_status_t = htp_hook_run_all(
+    let mut rc_0: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_complete,
         tx as *mut libc::c_void,
     );
@@ -2075,9 +1873,9 @@ pub unsafe extern "C" fn htp_tx_state_request_complete_partial(
     }
     // Clean-up.
     if !(*(*tx).connp).put_file.is_null() {
-        bstr_free((*(*(*tx).connp).put_file).filename);
+        bstr::bstr_free((*(*(*tx).connp).put_file).filename);
         free((*(*tx).connp).put_file as *mut libc::c_void);
-        (*(*tx).connp).put_file = 0 as *mut crate::src::htp_util::htp_file_t
+        (*(*tx).connp).put_file = 0 as *mut htp_util::htp_file_t
     }
     return 1 as libc::c_int;
 }
@@ -2103,21 +1901,17 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) ->
     // Make a copy of the connection parser pointer, so that
     // we don't have to reference it via tx, which may be
     // destroyed later.
-    let mut connp: *mut crate::src::htp_connection_parser::htp_connp_t = (*tx).connp;
+    let mut connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
     // Determine what happens next, and remove this transaction from the parser.
     if (*tx).is_protocol_0_9 != 0 {
         (*connp).in_state = Some(
-            htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
-                ) -> htp_status_t,
+            htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
         )
     } else {
         (*connp).in_state = Some(
-            htp_connp_REQ_IDLE
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
-                ) -> htp_status_t,
+            htp_request::htp_connp_REQ_IDLE
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
         )
     }
     // Check if the entire transaction is complete. This call may
@@ -2142,7 +1936,7 @@ pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> ht
         return -(1 as libc::c_int);
     }
     // Run hook REQUEST_START.
-    let mut rc: htp_status_t = htp_hook_run_all(
+    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_start,
         tx as *mut libc::c_void,
     );
@@ -2151,10 +1945,8 @@ pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> ht
     }
     // Change state into request line parsing.
     (*(*tx).connp).in_state = Some(
-        htp_connp_REQ_LINE
-            as unsafe extern "C" fn(
-                _: *mut crate::src::htp_connection_parser::htp_connp_t,
-            ) -> htp_status_t,
+        htp_request::htp_connp_REQ_LINE
+            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
     );
     (*(*(*tx).connp).in_tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
     return 1 as libc::c_int;
@@ -2179,7 +1971,7 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
     if (*tx).request_progress > htp_tx_req_progress_t::HTP_REQUEST_HEADERS {
         // Request trailers.
         // Run hook HTP_REQUEST_TRAILER.
-        let mut rc: htp_status_t = htp_hook_run_all(
+        let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
             (*(*(*tx).connp).cfg).hook_request_trailer,
             tx as *mut libc::c_void,
         );
@@ -2187,16 +1979,14 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
             return rc;
         }
         // Finalize sending raw header data.
-        rc = htp_connp_req_receiver_finalize_clear((*tx).connp);
+        rc = htp_request::htp_connp_req_receiver_finalize_clear((*tx).connp);
         if rc != 1 as libc::c_int {
             return rc;
         }
         // Completed parsing this request; finalize it now.
         (*(*tx).connp).in_state = Some(
-            htp_connp_REQ_FINALIZE
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
-                ) -> htp_status_t,
+            htp_request::htp_connp_REQ_FINALIZE
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
         )
     } else if (*tx).request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {
         // Request headers.
@@ -2209,17 +1999,15 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
             return rc_0;
         }
         (*(*tx).connp).in_state = Some(
-            htp_connp_REQ_CONNECT_CHECK
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
-                ) -> htp_status_t,
+            htp_request::htp_connp_REQ_CONNECT_CHECK
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
         )
     } else {
-        htp_log(
+        htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
             969 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+            htp_util::htp_log_level_t::HTP_LOG_WARNING,
             0 as libc::c_int,
             b"[Internal Error] Invalid tx progress: %d\x00" as *const u8 as *const libc::c_char,
             (*tx).request_progress as libc::c_uint,
@@ -2243,39 +2031,40 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
         return -(1 as libc::c_int);
     }
     // Determine how to process the request URI.
-    if (*tx).request_method_number
-        == crate::src::htp_request::htp_method_t::HTP_M_CONNECT as libc::c_uint
-    {
+    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT as libc::c_uint {
         // When CONNECT is used, the request URI contains an authority string.
-        if htp_parse_uri_hostport((*tx).connp, (*tx).request_uri, (*tx).parsed_uri_raw)
+        if htp_util::htp_parse_uri_hostport((*tx).connp, (*tx).request_uri, (*tx).parsed_uri_raw)
             != 1 as libc::c_int
         {
             return -(1 as libc::c_int);
         }
-    } else if htp_parse_uri((*tx).request_uri, &mut (*tx).parsed_uri_raw) != 1 as libc::c_int {
+    } else if htp_util::htp_parse_uri((*tx).request_uri, &mut (*tx).parsed_uri_raw)
+        != 1 as libc::c_int
+    {
         return -(1 as libc::c_int);
     }
     // Parse the request URI into htp_tx_t::parsed_uri_raw.
     // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
     if (*tx).parsed_uri.is_null() {
-        (*tx).parsed_uri = htp_uri_alloc();
+        (*tx).parsed_uri = htp_util::htp_uri_alloc();
         if (*tx).parsed_uri.is_null() {
             return -(1 as libc::c_int);
         }
         // Keep the original URI components, but create a copy which we can normalize and use internally.
-        if htp_normalize_parsed_uri(tx, (*tx).parsed_uri_raw, (*tx).parsed_uri) != 1 as libc::c_int
+        if htp_util::htp_normalize_parsed_uri(tx, (*tx).parsed_uri_raw, (*tx).parsed_uri)
+            != 1 as libc::c_int
         {
             return -(1 as libc::c_int);
         }
     }
     // Check parsed_uri hostname.
     if !(*(*tx).parsed_uri).hostname.is_null() {
-        if htp_validate_hostname((*(*tx).parsed_uri).hostname) == 0 as libc::c_int {
+        if htp_util::htp_validate_hostname((*(*tx).parsed_uri).hostname) == 0 as libc::c_int {
             (*tx).flags |= Flags::HTP_HOSTU_INVALID
         }
     }
     // Run hook REQUEST_URI_NORMALIZE.
-    let mut rc: htp_status_t = htp_hook_run_all(
+    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_uri_normalize,
         tx as *mut libc::c_void,
     );
@@ -2283,7 +2072,7 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
         return rc;
     }
     // Run hook REQUEST_LINE.
-    rc = htp_hook_run_all(
+    rc = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_line,
         tx as *mut libc::c_void,
     );
@@ -2292,10 +2081,8 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
     }
     // Move on to the next phase.
     (*(*tx).connp).in_state = Some(
-        htp_connp_REQ_PROTOCOL
-            as unsafe extern "C" fn(
-                _: *mut crate::src::htp_connection_parser::htp_connp_t,
-            ) -> htp_status_t,
+        htp_request::htp_connp_REQ_PROTOCOL
+            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
     );
     return 1 as libc::c_int;
 }
@@ -2324,7 +2111,7 @@ pub unsafe extern "C" fn htp_tx_finalize(mut tx: *mut htp_tx_t) -> htp_status_t 
         return 1 as libc::c_int;
     }
     // Run hook TRANSACTION_COMPLETE.
-    let mut rc: htp_status_t = htp_hook_run_all(
+    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_transaction_complete,
         tx as *mut libc::c_void,
     );
@@ -2357,7 +2144,7 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
             );
         }
         // Run hook RESPONSE_COMPLETE.
-        let mut rc: htp_status_t = htp_hook_run_all(
+        let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
             (*(*(*tx).connp).cfg).hook_response_complete,
             tx as *mut libc::c_void,
         );
@@ -2380,7 +2167,7 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
         // that many inbound transactions have been processed, and that the parser is
         // waiting on a response that we have not seen yet.
         if (*(*tx).connp).in_status
-            == crate::src::htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
+            == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
             && (*(*tx).connp).in_tx == (*(*tx).connp).out_tx
         {
             return 3 as libc::c_int;
@@ -2395,7 +2182,7 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
     }
     // Make a copy of the connection parser pointer, so that
     // we don't have to reference it via tx, which may be destroyed later.
-    let mut connp: *mut crate::src::htp_connection_parser::htp_connp_t = (*tx).connp;
+    let mut connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
     // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
     let mut rc_0: htp_status_t = htp_tx_finalize(tx);
     if rc_0 != 1 as libc::c_int {
@@ -2404,10 +2191,8 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
     // Disconnect transaction from the parser.
     (*connp).out_tx = 0 as *mut htp_tx_t;
     (*connp).out_state = Some(
-        htp_connp_RES_IDLE
-            as unsafe extern "C" fn(
-                _: *mut crate::src::htp_connection_parser::htp_connp_t,
-            ) -> htp_status_t,
+        htp_response::htp_connp_RES_IDLE
+            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
     );
     return 1 as libc::c_int;
 }
@@ -2480,41 +2265,43 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
     // Determine content encoding.
     let mut ce_multi_comp: libc::c_int = 0 as libc::c_int;
     (*tx).response_content_encoding =
-        crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-    let mut ce: *mut htp_header_t = htp_table_get_c(
+        htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+    let mut ce: *mut htp_header_t = htp_table::htp_table_get_c(
         (*tx).response_headers,
         b"content-encoding\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_header_t;
     if !ce.is_null() {
         /* fast paths: regular gzip and friends */
-        if bstr_cmp_c_nocasenorzero((*ce).value, b"gzip\x00" as *const u8 as *const libc::c_char)
-            == 0 as libc::c_int
-            || bstr_cmp_c_nocasenorzero(
+        if bstr::bstr_cmp_c_nocasenorzero(
+            (*ce).value,
+            b"gzip\x00" as *const u8 as *const libc::c_char,
+        ) == 0 as libc::c_int
+            || bstr::bstr_cmp_c_nocasenorzero(
                 (*ce).value,
                 b"x-gzip\x00" as *const u8 as *const libc::c_char,
             ) == 0 as libc::c_int
         {
             (*tx).response_content_encoding =
-                crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        } else if bstr_cmp_c_nocasenorzero(
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+        } else if bstr::bstr_cmp_c_nocasenorzero(
             (*ce).value,
             b"deflate\x00" as *const u8 as *const libc::c_char,
         ) == 0 as libc::c_int
-            || bstr_cmp_c_nocasenorzero(
+            || bstr::bstr_cmp_c_nocasenorzero(
                 (*ce).value,
                 b"x-deflate\x00" as *const u8 as *const libc::c_char,
             ) == 0 as libc::c_int
         {
             (*tx).response_content_encoding =
-                crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-        } else if bstr_cmp_c_nocasenorzero(
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+        } else if bstr::bstr_cmp_c_nocasenorzero(
             (*ce).value,
             b"lzma\x00" as *const u8 as *const libc::c_char,
         ) == 0 as libc::c_int
         {
             (*tx).response_content_encoding =
-                crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-        } else if !(bstr_cmp_c_nocasenorzero(
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+        } else if !(bstr::bstr_cmp_c_nocasenorzero(
             (*ce).value,
             b"inflate\x00" as *const u8 as *const libc::c_char,
         ) == 0 as libc::c_int)
@@ -2528,16 +2315,16 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         (*tx).response_content_encoding_processing = (*tx).response_content_encoding
     } else {
         (*tx).response_content_encoding_processing =
-            crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
         ce_multi_comp = 0 as libc::c_int
     }
     // Finalize sending raw header data.
-    let mut rc: htp_status_t = htp_connp_res_receiver_finalize_clear((*tx).connp);
+    let mut rc: htp_status_t = htp_response::htp_connp_res_receiver_finalize_clear((*tx).connp);
     if rc != 1 as libc::c_int {
         return rc;
     }
     // Run hook RESPONSE_HEADERS.
-    rc = htp_hook_run_all(
+    rc = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_response_headers,
         tx as *mut libc::c_void,
     );
@@ -2556,11 +2343,11 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
     //    forces decompression by setting response_content_encoding to one of the
     //    supported algorithms.
     if (*tx).response_content_encoding_processing
-        == crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+        == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
         || (*tx).response_content_encoding_processing
-            == crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+            == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
         || (*tx).response_content_encoding_processing
-            == crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+            == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
         || ce_multi_comp != 0
     {
         if !(*(*tx).connp).out_decompressor.is_null() {
@@ -2568,7 +2355,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         }
         /* normal case */
         if ce_multi_comp == 0 {
-            (*(*tx).connp).out_decompressor = htp_gzip_decompressor_create(
+            (*(*tx).connp).out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
                 (*tx).connp,
                 (*tx).response_content_encoding_processing,
             );
@@ -2582,13 +2369,13 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         /* multiple ce value case */
         } else {
             let mut layers: libc::c_int = 0 as libc::c_int;
-            let mut comp: *mut crate::src::htp_decompressors::htp_decompressor_t =
-                0 as *mut crate::src::htp_decompressors::htp_decompressor_t;
+            let mut comp: *mut htp_decompressors::htp_decompressor_t =
+                0 as *mut htp_decompressors::htp_decompressor_t;
             let mut tok: *mut uint8_t = 0 as *mut uint8_t;
             let mut tok_len: size_t = 0 as libc::c_int as size_t;
             let mut input: *mut uint8_t = if (*(*ce).value).realptr.is_null() {
                 ((*ce).value as *mut libc::c_uchar)
-                    .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
+                    .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
             } else {
                 (*(*ce).value).realptr
             };
@@ -2602,37 +2389,37 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                     &mut tok_len,
                 ) != 0
             {
-                let mut cetype: crate::src::htp_decompressors::htp_content_encoding_t =
-                    crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+                let mut cetype: htp_decompressors::htp_content_encoding_t =
+                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                 /* check depth limit (0 means no limit) */
                 if (*(*(*tx).connp).cfg).response_decompression_layer_limit != 0 as libc::c_int && {
                     layers += 1;
                     (layers) > (*(*(*tx).connp).cfg).response_decompression_layer_limit
                 } {
-                    htp_log(
+                    htp_util::htp_log(
                         (*tx).connp,
                         b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
                         1265 as libc::c_int,
-                        crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                        htp_util::htp_log_level_t::HTP_LOG_WARNING,
                         0 as libc::c_int,
                         b"Too many response content encoding layers\x00" as *const u8
                             as *const libc::c_char,
                     );
                     break;
                 } else {
-                    if bstr_util_mem_index_of_c_nocase(
+                    if bstr::bstr_util_mem_index_of_c_nocase(
                         tok as *const libc::c_void,
                         tok_len,
                         b"gzip\x00" as *const u8 as *const libc::c_char,
                     ) != -(1 as libc::c_int)
                     {
-                        if !(bstr_util_cmp_mem(
+                        if !(bstr::bstr_util_cmp_mem(
                             tok as *const libc::c_void,
                             tok_len,
                             b"gzip\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
                             4 as libc::c_int as size_t,
                         ) == 0 as libc::c_int
-                            || bstr_util_cmp_mem(
+                            || bstr::bstr_util_cmp_mem(
                                 tok as *const libc::c_void,
                                 tok_len,
                                 b"x-gzip\x00" as *const u8 as *const libc::c_char
@@ -2640,31 +2427,31 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                                 6 as libc::c_int as size_t,
                             ) == 0 as libc::c_int)
                         {
-                            htp_log(
+                            htp_util::htp_log(
                                 (*tx).connp,
                                 b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
                                 1273 as libc::c_int,
-                                crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                                htp_util::htp_log_level_t::HTP_LOG_WARNING,
                                 0 as libc::c_int,
                                 b"C-E gzip has abnormal value\x00" as *const u8
                                     as *const libc::c_char,
                             );
                         }
-                        cetype = crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-                    } else if bstr_util_mem_index_of_c_nocase(
+                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+                    } else if bstr::bstr_util_mem_index_of_c_nocase(
                         tok as *const libc::c_void,
                         tok_len,
                         b"deflate\x00" as *const u8 as *const libc::c_char,
                     ) != -(1 as libc::c_int)
                     {
-                        if !(bstr_util_cmp_mem(
+                        if !(bstr::bstr_util_cmp_mem(
                             tok as *const libc::c_void,
                             tok_len,
                             b"deflate\x00" as *const u8 as *const libc::c_char
                                 as *const libc::c_void,
                             7 as libc::c_int as size_t,
                         ) == 0 as libc::c_int
-                            || bstr_util_cmp_mem(
+                            || bstr::bstr_util_cmp_mem(
                                 tok as *const libc::c_void,
                                 tok_len,
                                 b"x-deflate\x00" as *const u8 as *const libc::c_char
@@ -2672,52 +2459,52 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                                 9 as libc::c_int as size_t,
                             ) == 0 as libc::c_int)
                         {
-                            htp_log(
+                            htp_util::htp_log(
                                 (*tx).connp,
                                 b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
                                 1280 as libc::c_int,
-                                crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                                htp_util::htp_log_level_t::HTP_LOG_WARNING,
                                 0 as libc::c_int,
                                 b"C-E deflate has abnormal value\x00" as *const u8
                                     as *const libc::c_char,
                             );
                         }
-                        cetype = crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-                    } else if bstr_util_cmp_mem(
+                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                    } else if bstr::bstr_util_cmp_mem(
                         tok as *const libc::c_void,
                         tok_len,
                         b"lzma\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
                         4 as libc::c_int as size_t,
                     ) == 0 as libc::c_int
                     {
-                        cetype = crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-                    } else if bstr_util_cmp_mem(
+                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                    } else if bstr::bstr_util_cmp_mem(
                         tok as *const libc::c_void,
                         tok_len,
                         b"inflate\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
                         7 as libc::c_int as size_t,
                     ) == 0 as libc::c_int
                     {
-                        cetype = crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
                     } else {
                         // continue
-                        htp_log(
+                        htp_util::htp_log(
                             (*tx).connp,
                             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
                             1290 as libc::c_int,
-                            crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                            htp_util::htp_log_level_t::HTP_LOG_WARNING,
                             0 as libc::c_int,
                             b"C-E unknown setting\x00" as *const u8 as *const libc::c_char,
                         );
                     }
-                    if cetype != crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
-                    {
+                    if cetype != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE {
                         if comp.is_null() {
                             (*tx).response_content_encoding_processing = cetype;
-                            (*(*tx).connp).out_decompressor = htp_gzip_decompressor_create(
-                                (*tx).connp,
-                                (*tx).response_content_encoding_processing,
-                            );
+                            (*(*tx).connp).out_decompressor =
+                                htp_decompressors::htp_gzip_decompressor_create(
+                                    (*tx).connp,
+                                    (*tx).response_content_encoding_processing,
+                                );
                             if (*(*tx).connp).out_decompressor.is_null() {
                                 return -(1 as libc::c_int);
                             }
@@ -2727,7 +2514,10 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                             );
                             comp = (*(*tx).connp).out_decompressor
                         } else {
-                            (*comp).next = htp_gzip_decompressor_create((*tx).connp, cetype);
+                            (*comp).next = htp_decompressors::htp_gzip_decompressor_create(
+                                (*tx).connp,
+                                cetype,
+                            );
                             if (*comp).next.is_null() {
                                 return -(1 as libc::c_int);
                             }
@@ -2750,7 +2540,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
             }
         }
     } else if (*tx).response_content_encoding_processing
-        != crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+        != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
     {
         return -(1 as libc::c_int);
     }
@@ -2771,7 +2561,7 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> h
     }
     (*(*tx).connp).out_tx = tx;
     // Run hook RESPONSE_START.
-    let mut rc: htp_status_t = htp_hook_run_all(
+    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_response_start,
         tx as *mut libc::c_void,
     );
@@ -2783,46 +2573,42 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> h
     if (*tx).is_protocol_0_9 != 0 {
         (*tx).response_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY;
         (*tx).response_content_encoding_processing =
-            crate::src::htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
         (*(*tx).connp).out_state = Some(
-            htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
-                ) -> htp_status_t,
+            htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
         );
         (*(*tx).connp).out_body_data_left = -(1 as libc::c_int) as int64_t
     } else {
         (*(*tx).connp).out_state = Some(
-            htp_connp_RES_LINE
-                as unsafe extern "C" fn(
-                    _: *mut crate::src::htp_connection_parser::htp_connp_t,
-                ) -> htp_status_t,
+            htp_response::htp_connp_RES_LINE
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
         );
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
     }
     /* If at this point we have no method and no uri and our status
-     * is still htp_connp_REQ_LINE, we likely have timed out request
+     * is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
      * or a overly long request */
     if (*tx).request_method.is_null()
         && (*tx).request_uri.is_null()
         && (*(*tx).connp).in_state
             == Some(
-                htp_connp_REQ_LINE
+                htp_request::htp_connp_REQ_LINE
                     as unsafe extern "C" fn(
-                        _: *mut crate::src::htp_connection_parser::htp_connp_t,
+                        _: *mut htp_connection_parser::htp_connp_t,
                     ) -> htp_status_t,
             )
     {
-        htp_log(
+        htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
             1352 as libc::c_int,
-            crate::src::htp_util::htp_log_level_t::HTP_LOG_WARNING,
+            htp_util::htp_log_level_t::HTP_LOG_WARNING,
             0 as libc::c_int,
             b"Request line incomplete\x00" as *const u8 as *const libc::c_char,
         );
-        if htp_connp_REQ_LINE_complete((*tx).connp) != 1 as libc::c_int {
+        if htp_request::htp_connp_REQ_LINE_complete((*tx).connp) != 1 as libc::c_int {
             return -(1 as libc::c_int);
         }
     }
