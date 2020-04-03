@@ -1,3 +1,4 @@
+use crate::src::htp_util::Flags;
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -984,10 +985,8 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 // Folding; check that there's a previous header line to add to.
                 // Invalid folding.
                 // Warn only once per transaction.
-                if (*(*connp).in_tx).flags as libc::c_ulonglong & 0x200 as libc::c_ulonglong == 0 {
-                    (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-                        | 0x200 as libc::c_ulonglong)
-                        as uint64_t;
+                if !(*(*connp).in_tx).flags.contains(Flags::HTP_INVALID_FOLDING) {
+                    (*(*connp).in_tx).flags |= Flags::HTP_INVALID_FOLDING;
                     htp_log(
                         connp,
                         b"htp_request.c\x00" as *const u8 as *const libc::c_char,
@@ -1273,8 +1272,7 @@ pub unsafe extern "C" fn htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(
     let mut bytes_left: size_t =
         ((*connp).in_current_len - (*connp).in_current_read_offset) as size_t;
     if bytes_left > 0 as libc::c_int as libc::c_ulong {
-        (*(*connp).conn).flags =
-            ((*(*connp).conn).flags as libc::c_ulonglong | 0x2 as libc::c_ulonglong) as uint8_t
+        (*(*connp).conn).flags |= crate::src::htp_util::ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA
     }
     (*connp).in_current_read_offset = ((*connp).in_current_read_offset as libc::c_ulong)
         .wrapping_add(bytes_left) as int64_t as int64_t;

@@ -1,3 +1,4 @@
+use crate::src::htp_util::Flags;
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -128,9 +129,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
     if !h_existing.is_null() {
         // TODO Do we want to have a list of the headers that are
         //      allowed to be combined in this way?
-        if (*h_existing).flags as libc::c_ulonglong & 0x20 as libc::c_ulonglong
-            == 0 as libc::c_int as libc::c_ulonglong
-        {
+        if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
             htp_log(
                 connp,
@@ -151,8 +150,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         }
         // For simplicity reasons, we count the repetitions of all headers
         // Keep track of repeated same-name headers.
-        (*h_existing).flags =
-            ((*h_existing).flags as libc::c_ulonglong | 0x20 as libc::c_ulonglong) as uint64_t;
+        (*h_existing).flags |= Flags::HTP_FIELD_REPEATED;
         // Having multiple C-L headers is against the RFC but
         // servers may ignore the subsequent headers if the values are the same.
         if bstr_cmp_c_nocase(
@@ -256,11 +254,13 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     }
     if colon_pos == len || *data.offset(colon_pos as isize) as libc::c_int == '\u{0}' as i32 {
         // Missing colon.
-        (*h).flags = ((*h).flags as libc::c_ulonglong | 0x4 as libc::c_ulonglong) as uint64_t;
+        (*h).flags |= Flags::HTP_FIELD_UNPARSEABLE;
         // Log only once per transaction.
-        if (*(*connp).in_tx).flags as libc::c_ulonglong & 0x4 as libc::c_ulonglong == 0 {
-            (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-                | 0x4 as libc::c_ulonglong) as uint64_t;
+        if !(*(*connp).in_tx)
+            .flags
+            .contains(Flags::HTP_FIELD_UNPARSEABLE)
+        {
+            (*(*connp).in_tx).flags |= Flags::HTP_FIELD_UNPARSEABLE;
             htp_log(
                 connp,
                 b"htp_request_generic.c\x00" as *const u8 as *const libc::c_char,
@@ -287,11 +287,10 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     }
     if colon_pos == 0 as libc::c_int as libc::c_ulong {
         // Empty header name.
-        (*h).flags = ((*h).flags as libc::c_ulonglong | 0x8 as libc::c_ulonglong) as uint64_t;
+        (*h).flags |= Flags::HTP_FIELD_INVALID;
         // Log only once per transaction.
-        if (*(*connp).in_tx).flags as libc::c_ulonglong & 0x8 as libc::c_ulonglong == 0 {
-            (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-                | 0x8 as libc::c_ulonglong) as uint64_t;
+        if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
+            (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
             htp_log(
                 connp,
                 b"htp_request_generic.c\x00" as *const u8 as *const libc::c_char,
@@ -314,11 +313,10 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         // LWS after header name.
         prev = prev.wrapping_sub(1);
         name_end = name_end.wrapping_sub(1);
-        (*h).flags = ((*h).flags as libc::c_ulonglong | 0x8 as libc::c_ulonglong) as uint64_t;
+        (*h).flags |= Flags::HTP_FIELD_INVALID;
         // Log only once per transaction.
-        if (*(*connp).in_tx).flags as libc::c_ulonglong & 0x8 as libc::c_ulonglong == 0 {
-            (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-                | 0x8 as libc::c_ulonglong) as uint64_t;
+        if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
+            (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
             htp_log(
                 connp,
                 b"htp_request_generic.c\x00" as *const u8 as *const libc::c_char,
@@ -355,12 +353,10 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     while i < name_end {
         if htp_is_token(*data.offset(i as isize) as libc::c_int) == 0 {
             // Incorrectly formed header name.
-            (*h).flags = ((*h).flags as libc::c_ulonglong | 0x8 as libc::c_ulonglong) as uint64_t;
+            (*h).flags |= Flags::HTP_FIELD_INVALID;
             // Log only once per transaction.
-            if (*(*connp).in_tx).flags as libc::c_ulonglong & 0x8 as libc::c_ulonglong == 0 {
-                (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-                    | 0x8 as libc::c_ulonglong)
-                    as uint64_t;
+            if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
+                (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
                 htp_log(
                     connp,
                     b"htp_request_generic.c\x00" as *const u8 as *const libc::c_char,

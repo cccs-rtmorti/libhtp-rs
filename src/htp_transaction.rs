@@ -1,3 +1,4 @@
+use crate::src::htp_util::Flags;
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -164,7 +165,7 @@ extern "C" {
         hostname: *mut *mut bstr,
         port: *mut *mut bstr,
         port_number: *mut libc::c_int,
-        flags: *mut uint64_t,
+        flags: *mut Flags,
     ) -> htp_status_t;
     #[no_mangle]
     fn htp_parse_content_length(
@@ -595,7 +596,7 @@ pub struct htp_tx_t {
      * Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
      * HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
      */
-    pub flags: uint64_t,
+    pub flags: Flags,
     /** Request progress. */
     pub request_progress: htp_tx_req_progress_t,
     /** Response progress. */
@@ -671,7 +672,7 @@ pub struct htp_header_t {
     /** Header value. */
     pub value: *mut bstr,
     /** Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED. */
-    pub flags: uint64_t,
+    pub flags: Flags,
 }
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> libc::c_int>;
 pub type htp_alloc_strategy_t = libc::c_uint;
@@ -1285,10 +1286,8 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         {
             // Invalid T-E header value.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x400 as libc::c_ulonglong) as uint64_t;
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x100000000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
+            (*tx).flags |= Flags::HTP_REQUEST_INVALID
         } else {
             // Chunked encoding is a HTTP/1.1 feature, so check that an earlier protocol
             // version is not used. The flag will also be set if the protocol could not be parsed.
@@ -1297,10 +1296,8 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
             //      it is used with a protocol below HTTP 1.1. This should be a
             //      personality trait.
             if (*tx).request_protocol_number < 101 as libc::c_int {
-                (*tx).flags =
-                    ((*tx).flags as libc::c_ulonglong | 0x400 as libc::c_ulonglong) as uint64_t;
-                (*tx).flags =
-                    ((*tx).flags as libc::c_ulonglong | 0x100 as libc::c_ulonglong) as uint64_t
+                (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
+                (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING;
             }
             // If the T-E header is present we are going to use it.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_CHUNKED;
@@ -1314,20 +1311,17 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
                 //  Transfer-Encoding header field and a Content-Length header field,
                 //  the latter MUST be ignored."
                 //
-                (*tx).flags =
-                    ((*tx).flags as libc::c_ulonglong | 0x100 as libc::c_ulonglong) as uint64_t
+                (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
         }
     } else if !cl.is_null() {
         // Check for a folded C-L header.
-        if (*cl).flags as libc::c_ulonglong & 0x10 as libc::c_ulonglong != 0 {
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x100 as libc::c_ulonglong) as uint64_t
+        if (*cl).flags.contains(Flags::HTP_FIELD_FOLDED) {
+            (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
         }
         // Check for multiple C-L headers.
-        if (*cl).flags as libc::c_ulonglong & 0x20 as libc::c_ulonglong != 0 {
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x100 as libc::c_ulonglong) as uint64_t
+        if (*cl).flags.contains(Flags::HTP_FIELD_REPEATED) {
+            (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             // TODO Personality trait to determine which C-L header to parse.
             //      At the moment we're parsing the combination of all instances,
             //      which is bound to fail (because it will contain commas).
@@ -1336,10 +1330,8 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         (*tx).request_content_length = htp_parse_content_length((*cl).value, (*tx).connp);
         if (*tx).request_content_length < 0 as libc::c_int as libc::c_long {
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x200000000 as libc::c_ulonglong) as uint64_t;
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x100000000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_REQUEST_INVALID_C_L;
+            (*tx).flags |= Flags::HTP_REQUEST_INVALID
         } else {
             // We have a request body of known length.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
@@ -1352,8 +1344,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
     // consider the request invalid.
     if (*tx).request_transfer_coding == htp_transfer_coding_t::HTP_CODING_UNKNOWN {
         (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
-        (*tx).flags =
-            ((*tx).flags as libc::c_ulonglong | 0x100000000 as libc::c_ulonglong) as uint64_t
+        (*tx).flags |= Flags::HTP_REQUEST_INVALID
     }
     // Check for PUT requests, which we need to treat as file uploads.
     if (*tx).request_method_number
@@ -1391,8 +1382,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         // No host information in the headers.
         // HTTP/1.1 requires host information in the headers.
         if (*tx).request_protocol_number >= 101 as libc::c_int {
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x1000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_HOST_MISSING
         }
     } else {
         // Host information available in the headers.
@@ -1421,24 +1411,21 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
                 // HTTP RFC states that we should ignore the header copy.
                 // Check for different hostnames.
                 if bstr_cmp_nocase(hostname, (*tx).request_hostname) != 0 as libc::c_int {
-                    (*tx).flags =
-                        ((*tx).flags as libc::c_ulonglong | 0x2000 as libc::c_ulonglong) as uint64_t
+                    (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
                 }
                 // Check for different ports.
                 if (*tx).request_port_number != -(1 as libc::c_int)
                     && port != -(1 as libc::c_int)
                     && (*tx).request_port_number != port
                 {
-                    (*tx).flags =
-                        ((*tx).flags as libc::c_ulonglong | 0x2000 as libc::c_ulonglong) as uint64_t
+                    (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
                 }
                 bstr_free(hostname);
             }
         } else if !(*tx).request_hostname.is_null() {
             // Invalid host information in the headers.
             // Raise the flag, even though the host information in the headers is invalid.
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x2000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
         }
     }
     // Determine Content-Type.
@@ -1464,8 +1451,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         rc = htp_parse_authorization((*tx).connp);
         if rc == 0 as libc::c_int {
             // Don't fail the stream if an authorization header is invalid, just set a flag.
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x400000000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_AUTH_INVALID
         } else if rc != 1 as libc::c_int {
             return rc;
         }
@@ -1484,7 +1470,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         return rc;
     }
     // We cannot proceed if the request is invalid.
-    if (*tx).flags as libc::c_ulonglong & 0x100000000 as libc::c_ulonglong != 0 {
+    if (*tx).flags.contains(Flags::HTP_REQUEST_INVALID) {
         return -(1 as libc::c_int);
     }
     return 1 as libc::c_int;
@@ -1777,8 +1763,7 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> ht
             0 as libc::c_int,
             b"Invalid response line: invalid protocol\x00" as *const u8 as *const libc::c_char,
         );
-        (*tx).flags =
-            ((*tx).flags as libc::c_ulonglong | 0x1000000 as libc::c_ulonglong) as uint64_t
+        (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
     }
     if (*tx).response_status_number == -(1 as libc::c_int)
         || (*tx).response_status_number < 100 as libc::c_int
@@ -1795,8 +1780,7 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> ht
             (*tx).response_status_number,
         );
         (*tx).response_status_number = -(1 as libc::c_int);
-        (*tx).flags =
-            ((*tx).flags as libc::c_ulonglong | 0x1000000 as libc::c_ulonglong) as uint64_t
+        (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
     }
     // Run hook HTP_RESPONSE_LINE
     let mut rc: htp_status_t = htp_hook_run_all(
@@ -2218,8 +2202,7 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
         // Request headers.
         // Did this request arrive in multiple data chunks?
         if (*(*tx).connp).in_chunk_count != (*(*tx).connp).in_chunk_request_index {
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x800 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_MULTI_PACKET_HEAD
         }
         let mut rc_0: htp_status_t = htp_tx_process_request_headers(tx);
         if rc_0 != 1 as libc::c_int {
@@ -2288,8 +2271,7 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
     // Check parsed_uri hostname.
     if !(*(*tx).parsed_uri).hostname.is_null() {
         if htp_validate_hostname((*(*tx).parsed_uri).hostname) == 0 as libc::c_int {
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x2000000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_HOSTU_INVALID
         }
     }
     // Run hook REQUEST_URI_NORMALIZE.

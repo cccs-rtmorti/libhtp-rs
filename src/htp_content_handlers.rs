@@ -1,3 +1,4 @@
+use crate::src::htp_multipart::MultipartFlags;
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -34,13 +35,13 @@ extern "C" {
     fn htp_mpartp_create(
         cfg: *mut crate::src::htp_config::htp_cfg_t,
         boundary: *mut bstr,
-        flags: uint64_t,
+        flags: MultipartFlags,
     ) -> *mut crate::src::htp_multipart::htp_mpartp_t;
     #[no_mangle]
     fn htp_mpartp_find_boundary(
         content_type: *mut bstr,
         boundary: *mut *mut bstr,
-        multipart_flags: *mut uint64_t,
+        multipart_flags: *mut MultipartFlags,
     ) -> htp_status_t;
     #[no_mangle]
     fn htp_mpartp_get_multipart(
@@ -378,7 +379,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
         return -(1 as libc::c_int);
     }
     let mut boundary: *mut bstr = 0 as *mut bstr;
-    let mut flags: uint64_t = 0 as libc::c_int as uint64_t;
+    let mut flags: MultipartFlags = MultipartFlags::empty();
     let mut rc: htp_status_t = htp_mpartp_find_boundary((*ct).value, &mut boundary, &mut flags);
     if rc != 1 as libc::c_int {
         // No boundary (HTP_DECLINED) or error (HTP_ERROR).

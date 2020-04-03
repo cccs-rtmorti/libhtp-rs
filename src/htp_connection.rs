@@ -66,7 +66,7 @@ pub struct htp_conn_t {
     /** Log messages associated with this connection. */
     pub messages: *mut crate::src::htp_list::htp_list_array_t,
     /** Parsing flags: HTP_CONN_PIPELINED. */
-    pub flags: uint8_t,
+    pub flags: crate::src::htp_util::ConnectionFlags,
     /** When was this connection opened? Can be NULL. */
     pub open_timestamp: htp_time_t,
     /** When was this connection closed? Can be NULL. */

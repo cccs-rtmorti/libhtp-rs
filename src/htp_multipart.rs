@@ -1,4 +1,103 @@
+use crate::src::htp_util::Flags;
+use ::bitflags;
 use ::libc;
+
+bitflags::bitflags! {
+    #[repr(C)]
+    pub struct MultipartFlags: u64 {
+/**
+ * Seen a LF line in the payload. LF lines are not allowed, but
+ * some clients do use them and some backends do accept them. Mixing
+ * LF and CRLF lines within some payload might be unusual.
+ */
+        const HTP_MULTIPART_LF_LINE = 0x0001;
+/** Seen a CRLF line in the payload. This is normal and expected. */
+        const HTP_MULTIPART_CRLF_LINE = 0x0002;
+/** Seen LWS after a boundary instance in the body. Unusual. */
+        const HTP_MULTIPART_BBOUNDARY_LWS_AFTER = 0x0004;
+/** Seen non-LWS content after a boundary instance in the body. Highly unusual. */
+        const HTP_MULTIPART_BBOUNDARY_NLWS_AFTER = 0x0008;
+/**
+ * Payload has a preamble part. Might not be that unusual.
+ */
+        const HTP_MULTIPART_HAS_PREAMBLE = 0x0010;
+/**
+ * Payload has an epilogue part. Unusual.
+ */
+        const HTP_MULTIPART_HAS_EPILOGUE = 0x0020;
+/**
+ * The last boundary was seen in the payload. Absence of the last boundary
+ * may not break parsing with some (most?) backends, but it means that the payload
+ * is not well formed. Can occur if the client gives up, or if the connection is
+ * interrupted. Incomplete payloads should be blocked whenever possible.
+ */
+        const HTP_MULTIPART_SEEN_LAST_BOUNDARY = 0x0040;
+/**
+ * There was a part after the last boundary. This is highly irregular
+ * and indicative of evasion.
+ */
+        const HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY = 0x0080;
+/**
+ * The payloads ends abruptly, without proper termination. Can occur if the client gives up,
+ * or if the connection is interrupted. When this flag is raised, HTP_MULTIPART_PART_INCOMPLETE
+ * will also be raised for the part that was only partially processed. (But the opposite may not
+ * always be the case -- there are other ways in which a part can be left incomplete.)
+ */
+        const HTP_MULTIPART_INCOMPLETE = 0x0100;
+/** The boundary in the Content-Type header is invalid. */
+        const HTP_MULTIPART_HBOUNDARY_INVALID = 0x0200;
+/**
+ * The boundary in the Content-Type header is unusual. This may mean that evasion
+ * is attempted, but it could also mean that we have encountered a client that does
+ * not do things in the way it should.
+ */
+        const HTP_MULTIPART_HBOUNDARY_UNUSUAL = 0x0400;
+/**
+ * The boundary in the Content-Type header is quoted. This is very unusual,
+ * and may be indicative of an evasion attempt.
+ */
+        const HTP_MULTIPART_HBOUNDARY_QUOTED = 0x0800;
+/** Header folding was used in part headers. Very unusual. */
+        const HTP_MULTIPART_PART_HEADER_FOLDING = 0x1000;
+/**
+ * A part of unknown type was encountered, which probably means that the part is lacking
+ * a Content-Disposition header, or that the header is invalid. Highly unusual.
+ */
+        const HTP_MULTIPART_PART_UNKNOWN = 0x2000;
+/** There was a repeated part header, possibly in an attempt to confuse the parser. Very unusual. */
+        const HTP_MULTIPART_PART_HEADER_REPEATED = 0x4000;
+/** Unknown part header encountered. */
+        const HTP_MULTIPART_PART_HEADER_UNKNOWN = 0x8000;
+/** Invalid part header encountered. */
+        const HTP_MULTIPART_PART_HEADER_INVALID = 0x10000;
+/** Part type specified in the C-D header is neither MULTIPART_PART_TEXT nor MULTIPART_PART_FILE. */
+        const HTP_MULTIPART_CD_TYPE_INVALID = 0x20000;
+/** Content-Disposition part header with multiple parameters with the same name. */
+        const HTP_MULTIPART_CD_PARAM_REPEATED = 0x40000;
+/** Unknown Content-Disposition parameter. */
+        const HTP_MULTIPART_CD_PARAM_UNKNOWN = 0x80000;
+/** Invalid Content-Disposition syntax. */
+        const HTP_MULTIPART_CD_SYNTAX_INVALID = 0x100000;
+/**
+ * There is an abruptly terminated part. This can happen when the payload itself is abruptly
+ * terminated (in which case HTP_MULTIPART_INCOMPLETE) will be raised. However, it can also
+ * happen when a boundary is seen before any part data.
+ */
+        const HTP_MULTIPART_PART_INCOMPLETE = 0x200000;
+/** A NUL byte was seen in a part header area. */
+        const HTP_MULTIPART_NUL_BYTE = 0x400000;
+/** A collection of flags that all indicate an invalid C-D header. */
+        const HTP_MULTIPART_CD_INVALID = ( Self::HTP_MULTIPART_CD_TYPE_INVALID.bits | Self::HTP_MULTIPART_CD_PARAM_REPEATED.bits | Self::HTP_MULTIPART_CD_PARAM_UNKNOWN.bits | Self::HTP_MULTIPART_CD_SYNTAX_INVALID.bits );
+/** A collection of flags that all indicate an invalid part. */
+        const HTP_MULTIPART_PART_INVALID = ( Self::HTP_MULTIPART_CD_INVALID.bits | Self::HTP_MULTIPART_NUL_BYTE.bits | Self::HTP_MULTIPART_PART_UNKNOWN.bits | Self::HTP_MULTIPART_PART_HEADER_REPEATED.bits | Self::HTP_MULTIPART_PART_INCOMPLETE.bits | Self::HTP_MULTIPART_PART_HEADER_UNKNOWN.bits | Self::HTP_MULTIPART_PART_HEADER_INVALID.bits );
+/** A collection of flags that all indicate an invalid Multipart payload. */
+        const HTP_MULTIPART_INVALID = ( Self::HTP_MULTIPART_PART_INVALID.bits | Self::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY.bits | Self::HTP_MULTIPART_INCOMPLETE.bits | Self::HTP_MULTIPART_HBOUNDARY_INVALID.bits );
+/** A collection of flags that all indicate an unusual Multipart payload. */
+        const HTP_MULTIPART_UNUSUAL = ( Self::HTP_MULTIPART_INVALID.bits | Self::HTP_MULTIPART_PART_HEADER_FOLDING.bits | Self::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER.bits | Self::HTP_MULTIPART_HAS_EPILOGUE.bits | Self::HTP_MULTIPART_HBOUNDARY_UNUSUAL.bits | Self::HTP_MULTIPART_HBOUNDARY_QUOTED.bits );
+/** A collection of flags that all indicate an unusual Multipart payload, with a low sensitivity to irregularities. */
+        const HTP_MULTIPART_UNUSUAL_PARANOID = ( Self::HTP_MULTIPART_UNUSUAL.bits | Self::HTP_MULTIPART_LF_LINE.bits | Self::HTP_MULTIPART_BBOUNDARY_LWS_AFTER.bits | Self::HTP_MULTIPART_HAS_PREAMBLE.bits );
+    }
+}
 extern "C" {
     #[no_mangle]
     fn __ctype_b_loc() -> *mut *const libc::c_ushort;
@@ -341,7 +440,7 @@ pub struct htp_multipart_t {
     /** List of parts, in the order in which they appeared in the body. */
     pub parts: *mut crate::src::htp_list::htp_list_array_t,
     /** Parsing flags. */
-    pub flags: uint64_t,
+    pub flags: MultipartFlags,
 }
 
 pub type htp_time_t = libc::timeval;
@@ -456,7 +555,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     )
         as *mut crate::src::htp_transaction::htp_header_t;
     if h.is_null() {
-        (*(*part).parser).multipart.flags |= 0x2000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
         return 0 as libc::c_int;
     }
     // Require "form-data" at the beginning of the header.
@@ -465,7 +564,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         b"form-data\x00" as *const u8 as *const libc::c_char,
     ) != 0 as libc::c_int
     {
-        (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
         return 0 as libc::c_int;
     }
     // The parsing starts here.
@@ -489,12 +588,12 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         // Continue to parse the next parameter, if any.
         if *data.offset(pos as isize) as libc::c_int != ';' as i32 {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         pos = pos.wrapping_add(1);
@@ -509,7 +608,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         let mut start: size_t = pos;
@@ -525,7 +624,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         let mut param_type: libc::c_int = htp_mpartp_cd_param_type(data, start, pos);
@@ -541,11 +640,11 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         if *data.offset(pos as isize) as libc::c_int != '=' as i32 {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         pos = pos.wrapping_add(1);
@@ -560,13 +659,13 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
             // Expecting a double quote.
             // Bare string or non-standard quoting, which we don't like.
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong; // Over the double quote.
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID; // Over the double quote.
             return 0 as libc::c_int;
         }
         pos = pos.wrapping_add(1);
@@ -579,7 +678,8 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             if *data.offset(pos as isize) as libc::c_int == '\\' as i32 {
                 if pos.wrapping_add(1 as libc::c_int as libc::c_ulong) >= len {
                     // A backslash as the last character in the C-D header.
-                    (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+                    (*(*part).parser).multipart.flags |=
+                        MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
                     return 0 as libc::c_int;
                 }
                 // Allow " and \ to be escaped.
@@ -597,11 +697,11 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
-            (*(*part).parser).multipart.flags |= 0x100000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
             return 0 as libc::c_int;
         }
         pos = pos.wrapping_add(1);
@@ -614,7 +714,8 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                 // Finally, process the parameter value.
                 // Check that we have not seen the name parameter already.
                 if !(*part).name.is_null() {
-                    (*(*part).parser).multipart.flags |= 0x40000 as libc::c_int as libc::c_ulong;
+                    (*(*part).parser).multipart.flags |=
+                        MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
                     return 0 as libc::c_int;
                 }
                 (*part).name = bstr_dup_mem(
@@ -630,7 +731,8 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             2 => {
                 // Check that we have not seen the filename parameter already.
                 if !(*part).file.is_null() {
-                    (*(*part).parser).multipart.flags |= 0x40000 as libc::c_int as libc::c_ulong;
+                    (*(*part).parser).multipart.flags |=
+                        MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
                     return 0 as libc::c_int;
                 }
                 (*part).file = calloc(
@@ -656,7 +758,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
             }
             _ => {
                 // Unknown parameter.
-                (*(*part).parser).multipart.flags |= 0x80000 as libc::c_int as libc::c_ulong;
+                (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_PARAM_UNKNOWN;
                 return 0 as libc::c_int;
             }
         }
@@ -721,7 +823,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     let mut value_end: size_t = 0;
     // We do not allow NUL bytes here.
     if !memchr(data as *const libc::c_void, '\u{0}' as i32, len).is_null() {
-        (*(*part).parser).multipart.flags |= 0x400000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_NUL_BYTE;
         return 0 as libc::c_int;
     }
     name_start = 0 as libc::c_int as size_t;
@@ -732,7 +834,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     }
     if colon_pos != 0 as libc::c_int as libc::c_ulong {
         // Whitespace before header name.
-        (*(*part).parser).multipart.flags |= 0x10000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
         return 0 as libc::c_int;
     }
     // Now look for the colon.
@@ -741,12 +843,12 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     }
     if colon_pos == len {
         // Missing colon.
-        (*(*part).parser).multipart.flags |= 0x10000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
         return 0 as libc::c_int;
     }
     if colon_pos == 0 as libc::c_int as libc::c_ulong {
         // Empty header name.
-        (*(*part).parser).multipart.flags |= 0x10000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
         return 0 as libc::c_int;
     }
     name_end = colon_pos;
@@ -761,7 +863,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         prev = prev.wrapping_sub(1);
         name_end = name_end.wrapping_sub(1);
         // LWS after field name. Not allowing for now.
-        (*(*part).parser).multipart.flags |= 0x10000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
         return 0 as libc::c_int;
     }
     // Header value.
@@ -772,7 +874,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     }
     if value_start == len {
         // No header value.
-        (*(*part).parser).multipart.flags |= 0x10000 as libc::c_int as libc::c_ulong;
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
         return 0 as libc::c_int;
     }
     // Assume the value is at the end.
@@ -781,7 +883,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     let mut i: size_t = name_start;
     while i < name_end {
         if htp_is_token(*data.offset(i as isize) as libc::c_int) == 0 {
-            (*(*part).parser).multipart.flags |= 0x10000 as libc::c_int as libc::c_ulong;
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
             return 0 as libc::c_int;
         }
         i = i.wrapping_add(1)
@@ -821,7 +923,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
             b"content-type\x00" as *const u8 as *const libc::c_char,
         ) != 0 as libc::c_int
     {
-        (*(*part).parser).multipart.flags |= 0x8000 as libc::c_int as libc::c_ulong
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
     }
     // Check if the header already exists.
     let mut h_existing: *mut crate::src::htp_transaction::htp_header_t =
@@ -853,8 +955,10 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         bstr_free((*h).value);
         free(h as *mut libc::c_void);
         // Keep track of same-name headers.
-        (*h_existing).flags |= 0x4000 as libc::c_int as libc::c_ulong;
-        (*(*part).parser).multipart.flags |= 0x4000 as libc::c_int as libc::c_ulong
+        // FIXME: Normalize the flags? define the symbol in both Flags and MultipartFlags and set the value in both from their own namespace
+        (*h_existing).flags |=
+            Flags::from_bits_unchecked(MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits());
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
     } else if htp_table_add((*part).headers, (*h).name, h as *const libc::c_void)
         != 1 as libc::c_int
     {
@@ -951,19 +1055,28 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     mut part: *mut htp_multipart_part_t,
 ) -> htp_status_t {
     // Determine if this part is the epilogue.
-    if (*(*part).parser).multipart.flags & 0x40 as libc::c_int as libc::c_ulong != 0 {
+    if (*(*part).parser)
+        .multipart
+        .flags
+        .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
+    {
         if (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
             // Assume that the unknown part after the last boundary is the epilogue.
             (*(*(*part).parser).current_part).type_0 =
                 htp_multipart_type_t::MULTIPART_PART_EPILOGUE;
             // But if we've already seen a part we thought was the epilogue,
             // raise HTP_MULTIPART_PART_UNKNOWN. Multiple epilogues are not allowed.
-            if (*(*part).parser).multipart.flags & 0x20 as libc::c_int as libc::c_ulong != 0 {
-                (*(*part).parser).multipart.flags |= 0x2000 as libc::c_int as libc::c_ulong
+            if (*(*part).parser)
+                .multipart
+                .flags
+                .contains(MultipartFlags::HTP_MULTIPART_HAS_EPILOGUE)
+            {
+                (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN
             }
-            (*(*part).parser).multipart.flags |= 0x20 as libc::c_int as libc::c_ulong
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_HAS_EPILOGUE
         } else {
-            (*(*part).parser).multipart.flags |= 0x80 as libc::c_int as libc::c_ulong
+            (*(*part).parser).multipart.flags |=
+                MultipartFlags::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY
         }
     }
     // Sanity checks.
@@ -971,12 +1084,12 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     if (*(*(*part).parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE
         && (*(*part).parser).current_part_mode != htp_part_mode_t::MODE_DATA
     {
-        (*(*part).parser).multipart.flags |= 0x200000 as libc::c_int as libc::c_ulong
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_INCOMPLETE
     }
     // Have we been able to determine the part type? If not, this means
     // that the part did not contain the C-D header.
     if (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
-        (*(*part).parser).multipart.flags |= 0x2000 as libc::c_int as libc::c_ulong
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN
     }
     // Finalize part value.
     if (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_FILE {
@@ -1055,7 +1168,10 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
     // is the epilogue part or some other part (in case of evasion attempt). For that reason we
     // will keep all its data in the part_data_pieces structure. If it ends up not being the
     // epilogue, this structure will be cleared.
-    if (*(*part).parser).multipart.flags & 0x40 as libc::c_int as libc::c_ulong != 0
+    if (*(*part).parser)
+        .multipart
+        .flags
+        .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
         && (*part).type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN
     {
         bstr_builder_append_mem(
@@ -1211,7 +1327,8 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 // Is there a pending header?
                 // Is this a folded line?
                 // Folding; add to the existing line.
-                (*(*part).parser).multipart.flags |= 0x1000 as libc::c_int as libc::c_ulong;
+                (*(*part).parser).multipart.flags |=
+                    MultipartFlags::HTP_MULTIPART_PART_HEADER_FOLDING;
                 (*(*part).parser).pending_header_line = bstr_add_mem(
                     (*(*part).parser).pending_header_line,
                     data as *const libc::c_void,
@@ -1319,7 +1436,7 @@ unsafe extern "C" fn htp_mpartp_handle_data(
         if (*parser).multipart.boundary_count == 0 as libc::c_int {
             // We haven't seen a boundary yet, so this must be the preamble part.
             (*(*parser).current_part).type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE;
-            (*parser).multipart.flags |= 0x10 as libc::c_int as libc::c_ulong;
+            (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_HAS_PREAMBLE;
             (*parser).current_part_mode = htp_part_mode_t::MODE_DATA
         } else {
             // Part after preamble.
@@ -1424,7 +1541,7 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
 pub unsafe extern "C" fn htp_mpartp_create(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut boundary: *mut bstr,
-    mut flags: uint64_t,
+    mut flags: MultipartFlags,
 ) -> *mut htp_mpartp_t {
     if cfg.is_null() || boundary.is_null() {
         return 0 as *mut htp_mpartp_t;
@@ -1723,7 +1840,7 @@ pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> h
         }
         // It is OK to end abruptly in the epilogue part, but not in any other.
         if (*(*parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
-            (*parser).multipart.flags |= 0x100 as libc::c_int as libc::c_ulong
+            (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
         }
     }
     bstr_builder_clear((*parser).boundary_pieces);
@@ -1799,8 +1916,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                                                                              libc::c_ulong)
                                             as size_t as
                                             size_t; // Advance over CR and LF.
-                                    (*parser).multipart.flags |=
-                                        0x2 as libc::c_int as libc::c_ulong;
+                                    (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE;
                                     // Prepare to switch to boundary testing.
                                     data_return_pos =
                                         pos; // After LF; position of the first dash.
@@ -1821,9 +1937,9 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                             pos = pos.wrapping_add(1); // Advance over LF.
                                                        // Did we have a CR in the previous input chunk?
                             if (*parser).cr_aside == 0 as libc::c_int {
-                                (*parser).multipart.flags |= 0x1 as libc::c_int as libc::c_ulong
+                                (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE
                             } else {
-                                (*parser).multipart.flags |= 0x2 as libc::c_int as libc::c_ulong
+                                (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE
                             }
                             // Prepare to switch to boundary testing.
                             data_return_pos = pos; // After LF; position of the first dash.
@@ -1937,9 +2053,13 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                             );
                             // Keep track of how many boundaries we've seen.
                             (*parser).multipart.boundary_count += 1;
-                            if (*parser).multipart.flags & 0x40 as libc::c_int as libc::c_ulong != 0
+                            if (*parser)
+                                .multipart
+                                .flags
+                                .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
                             {
-                                (*parser).multipart.flags |= 0x80 as libc::c_int as libc::c_ulong
+                                (*parser).multipart.flags |=
+                                    MultipartFlags::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY
                             }
                             // Run boundary match.
                             (*parser)
@@ -1983,13 +2103,15 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                     if *data.offset(pos as isize) as libc::c_int == '-' as i32 {
                         // This is indeed the last boundary in the payload.
                         pos = pos.wrapping_add(1);
-                        (*parser).multipart.flags |= 0x40 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY;
                         (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     } else {
                         // The second character is not a dash, and so this is not
                         // the final boundary. Raise the flag for the first dash,
                         // and change state to consume the rest of the boundary line.
-                        (*parser).multipart.flags |= 0x8 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
                         (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     }
                     break;
@@ -2003,15 +2125,17 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                         // LF line ending; we're done with boundary processing; data bytes follow.
                         pos = pos.wrapping_add(1);
                         startpos = pos;
-                        (*parser).multipart.flags |= 0x1 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE;
                         (*parser).parser_state = htp_multipart_state_t::STATE_DATA
                     } else if htp_is_lws(*data.offset(pos as isize) as libc::c_int) != 0 {
                         // Linear white space is allowed here.
-                        (*parser).multipart.flags |= 0x4 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
                         pos = pos.wrapping_add(1)
                     } else {
                         // Unexpected byte; consume, but remain in the same state.
-                        (*parser).multipart.flags |= 0x8 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
                         pos = pos.wrapping_add(1)
                     }
                     break;
@@ -2021,11 +2145,12 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                         // CRLF line ending; we're done with boundary processing; data bytes follow.
                         pos = pos.wrapping_add(1);
                         startpos = pos;
-                        (*parser).multipart.flags |= 0x2 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE;
                         (*parser).parser_state = htp_multipart_state_t::STATE_DATA
                     } else {
                         // Not a line ending; start again, but do not process this byte.
-                        (*parser).multipart.flags |= 0x8 as libc::c_int as libc::c_ulong;
+                        (*parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
                         (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS
                     }
                     break;
@@ -2042,7 +2167,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
 
 unsafe extern "C" fn htp_mpartp_validate_boundary(
     mut boundary: *mut bstr,
-    mut flags: *mut uint64_t,
+    mut flags: *mut MultipartFlags,
 ) {
     /*
 
@@ -2081,7 +2206,7 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
     // The RFC allows up to 70 characters. In real life,
     // boundaries tend to be shorter.
     if len == 0 as libc::c_int as libc::c_ulong || len > 70 as libc::c_int as libc::c_ulong {
-        *flags |= 0x200 as libc::c_int as libc::c_ulong
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
     // Check boundary characters. This check is stricter than the
     // RFC, which seems to allow many separator characters.
@@ -2098,11 +2223,11 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
             match *data.offset(pos as isize) as libc::c_int {
                 39 | 40 | 41 | 43 | 95 | 44 | 46 | 47 | 58 | 61 | 63 => {
                     // These characters are allowed by the RFC, but not common.
-                    *flags |= 0x400 as libc::c_int as libc::c_ulong
+                    *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
                 }
                 _ => {
                     // Invalid character.
-                    *flags |= 0x200 as libc::c_int as libc::c_ulong
+                    *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
                 }
             }
         }
@@ -2112,7 +2237,7 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
 
 unsafe extern "C" fn htp_mpartp_validate_content_type(
     mut content_type: *mut bstr,
-    mut flags: *mut uint64_t,
+    mut flags: *mut MultipartFlags,
 ) {
     let mut data: *mut libc::c_uchar = if (*content_type).realptr.is_null() {
         (content_type as *mut libc::c_uchar)
@@ -2145,7 +2270,7 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
         let mut j: size_t = 0 as libc::c_int as size_t;
         while j < 8 as libc::c_int as libc::c_ulong {
             if !(*data as libc::c_int >= 'a' as i32 && *data as libc::c_int <= 'z' as i32) {
-                *flags |= 0x200 as libc::c_int as libc::c_ulong
+                *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
             }
             data = data.offset(1);
             len = len.wrapping_sub(1);
@@ -2154,7 +2279,7 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
     }
     // How many boundaries have we seen?
     if counter > 1 as libc::c_int as libc::c_ulong {
-        *flags |= 0x200 as libc::c_int as libc::c_ulong
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     };
 }
 
@@ -2174,7 +2299,7 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
 pub unsafe extern "C" fn htp_mpartp_find_boundary(
     mut content_type: *mut bstr,
     mut boundary: *mut *mut bstr,
-    mut flags: *mut uint64_t,
+    mut flags: *mut MultipartFlags,
 ) -> htp_status_t {
     if content_type.is_null() || boundary.is_null() || flags.is_null() {
         return -(1 as libc::c_int);
@@ -2183,7 +2308,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // the boundary. This approach is more reliable in the face of various
     // evasion techniques that focus on submitting invalid MIME types.
     // Reset flags.
-    *flags = 0 as libc::c_int as uint64_t;
+    *flags = MultipartFlags::empty();
     // Look for the boundary, case insensitive.
     let mut i: libc::c_int = bstr_index_of_c_nocase(
         content_type,
@@ -2209,16 +2334,16 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     while pos < len && *data.offset(pos as isize) as libc::c_int != '=' as i32 {
         if htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
             // It is unusual to see whitespace before the equals sign.
-            *flags |= 0x400 as libc::c_int as libc::c_ulong
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
         } else {
             // But seeing a non-whitespace character may indicate evasion.
-            *flags |= 0x200 as libc::c_int as libc::c_ulong
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
         }
         pos = pos.wrapping_add(1)
     }
     if pos >= len {
         // No equals sign in the header.
-        *flags |= 0x200 as libc::c_int as libc::c_ulong;
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
         return 0 as libc::c_int;
     }
     // Go over the '=' character.
@@ -2228,19 +2353,19 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         if htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
             // It is unusual to see whitespace after
             // the equals sign.
-            *flags |= 0x400 as libc::c_int as libc::c_ulong
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
         }
         pos = pos.wrapping_add(1)
     }
     if pos >= len {
         // No value after the equals sign.
-        *flags |= 0x200 as libc::c_int as libc::c_ulong;
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
         return 0 as libc::c_int;
     }
     if *data.offset(pos as isize) as libc::c_int == '\"' as i32 {
         // Quoted boundary.
         // Possibly not very unusual, but let's see.
-        *flags |= 0x400 as libc::c_int as libc::c_ulong;
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL;
         // Over the double quote.
         pos = pos.wrapping_add(1); // Over the double quote.
         let mut startpos: size_t = pos; // Starting position of the boundary.
@@ -2252,7 +2377,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         if pos >= len {
             // Ran out of space without seeing
             // the terminating double quote.
-            *flags |= 0x200 as libc::c_int as libc::c_ulong;
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
             // Include the starting double quote in the boundary.
             startpos = startpos.wrapping_sub(1)
         }
@@ -2288,7 +2413,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     }
     // Check for a zero-length boundary.
     if (**boundary).len == 0 as libc::c_int as libc::c_ulong {
-        *flags |= 0x200 as libc::c_int as libc::c_ulong;
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
         bstr_free(*boundary);
         *boundary = 0 as *mut bstr;
         return 0 as libc::c_int;
@@ -2307,9 +2432,9 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Raise INVALID if we see any non-space characters,
     // but raise UNUSUAL if we see _only_ space characters.
     if seen_non_space != 0 {
-        *flags |= 0x200 as libc::c_int as libc::c_ulong
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     } else if seen_space != 0 {
-        *flags |= 0x400 as libc::c_int as libc::c_ulong
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
     }
     // Validate boundary characters.
     htp_mpartp_validate_boundary(*boundary, flags);
@@ -2321,7 +2446,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         b"multipart/form-data;\x00" as *const u8 as *const libc::c_char,
     ) == 0 as libc::c_int
     {
-        *flags |= 0x200 as libc::c_int as libc::c_ulong
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
     htp_mpartp_validate_content_type(content_type, flags);
     return 1 as libc::c_int;

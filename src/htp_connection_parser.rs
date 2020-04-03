@@ -1,4 +1,5 @@
 use ::libc;
+
 extern "C" {
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
@@ -608,8 +609,7 @@ pub unsafe extern "C" fn htp_connp_tx_create(
     }
     // Detect pipelining.
     if htp_list_array_size((*(*connp).conn).transactions) > (*connp).out_next_tx_index {
-        (*(*connp).conn).flags =
-            ((*(*connp).conn).flags as libc::c_ulonglong | 0x1 as libc::c_ulonglong) as uint8_t
+        (*(*connp).conn).flags |= crate::src::htp_util::ConnectionFlags::HTP_CONN_PIPELINED
     }
     let mut tx: *mut crate::src::htp_transaction::htp_tx_t = htp_tx_create(connp);
     if tx.is_null() {

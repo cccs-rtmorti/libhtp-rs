@@ -1,3 +1,4 @@
+use crate::src::htp_util::Flags;
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -1046,9 +1047,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             // We are still going to check for the presence of C-L
             if !cl.is_null() {
                 // This is a violation of the RFC
-                (*(*connp).out_tx).flags = ((*(*connp).out_tx).flags as libc::c_ulonglong
-                    | 0x100 as libc::c_ulonglong)
-                    as uint64_t
+                (*(*connp).out_tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             (*connp).out_state = Some(
                 htp_connp_RES_BODY_CHUNKED_LENGTH
@@ -1064,10 +1063,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*(*connp).out_tx).response_transfer_coding =
                 crate::src::htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
             // Check for multiple C-L headers
-            if (*cl).flags as libc::c_ulonglong & 0x20 as libc::c_ulonglong != 0 {
-                (*(*connp).out_tx).flags = ((*(*connp).out_tx).flags as libc::c_ulonglong
-                    | 0x100 as libc::c_ulonglong)
-                    as uint64_t
+            if (*cl).flags.contains(Flags::HTP_FIELD_REPEATED) {
+                (*(*connp).out_tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             // Get body length
             (*(*connp).out_tx).response_content_length =
@@ -1438,10 +1435,11 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 // Folding; check that there's a previous header line to add to.
                 // Invalid folding.
                 // Warn only once per transaction.
-                if (*(*connp).out_tx).flags as libc::c_ulonglong & 0x200 as libc::c_ulonglong == 0 {
-                    (*(*connp).out_tx).flags = ((*(*connp).out_tx).flags as libc::c_ulonglong
-                        | 0x200 as libc::c_ulonglong)
-                        as uint64_t;
+                if !(*(*connp).out_tx)
+                    .flags
+                    .contains(Flags::HTP_INVALID_FOLDING)
+                {
+                    (*(*connp).out_tx).flags |= Flags::HTP_INVALID_FOLDING;
                     htp_log(
                         connp,
                         b"htp_response.c\x00" as *const u8 as *const libc::c_char,
@@ -1468,12 +1466,11 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                     && (*(*connp).out_tx).response_protocol_number == 101 as libc::c_int
                 {
                     // Warn only once per transaction.
-                    if (*(*connp).out_tx).flags as libc::c_ulonglong & 0x200 as libc::c_ulonglong
-                        == 0
+                    if !(*(*connp).out_tx)
+                        .flags
+                        .contains(Flags::HTP_INVALID_FOLDING)
                     {
-                        (*(*connp).out_tx).flags = ((*(*connp).out_tx).flags as libc::c_ulonglong
-                            | 0x200 as libc::c_ulonglong)
-                            as uint64_t;
+                        (*(*connp).out_tx).flags |= Flags::HTP_INVALID_FOLDING;
                         htp_log(
                             connp,
                             b"htp_response.c\x00" as *const u8 as *const libc::c_char,

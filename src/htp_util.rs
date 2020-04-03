@@ -1,4 +1,62 @@
+use ::bitflags;
 use ::libc;
+
+// Various flag bits. Even though we have a flag field in several places
+// (header, transaction, connection), these fields are all in the same namespace
+// because we may want to set the same flag in several locations. For example, we
+// may set HTP_FIELD_FOLDED on the actual folded header, but also on the transaction
+// that contains the header. Both uses are useful.
+
+// Connection flags are 8 bits wide.
+bitflags::bitflags! {
+    #[repr(C)]
+    pub struct ConnectionFlags: u8 {
+        const HTP_CONN_PIPELINED      = 0x01;
+        const HTP_CONN_HTTP_0_9_EXTRA = 0x02;
+    }
+}
+
+// All other flags are 64 bits wide.
+bitflags::bitflags! {
+    #[repr(C)]
+    pub struct Flags: u64 {
+        const HTP_FIELD_UNPARSEABLE      = 0x000000004;
+        const HTP_FIELD_INVALID          = 0x000000008;
+        const HTP_FIELD_FOLDED           = 0x000000010;
+        const HTP_FIELD_REPEATED         = 0x000000020;
+        const HTP_FIELD_LONG             = 0x000000040;
+        const HTP_FIELD_RAW_NUL          = 0x000000080;
+        const HTP_REQUEST_SMUGGLING      = 0x000000100;
+        const HTP_INVALID_FOLDING        = 0x000000200;
+        const HTP_REQUEST_INVALID_T_E    = 0x000000400;
+        const HTP_MULTI_PACKET_HEAD      = 0x000000800;
+        const HTP_HOST_MISSING           = 0x000001000;
+        const HTP_HOST_AMBIGUOUS         = 0x000002000;
+        const HTP_PATH_ENCODED_NUL       = 0x000004000;
+        const HTP_PATH_RAW_NUL           = 0x000008000;
+        const HTP_PATH_INVALID_ENCODING  = 0x000010000;
+        const HTP_PATH_INVALID           = 0x000020000;
+        const HTP_PATH_OVERLONG_U        = 0x000040000;
+        const HTP_PATH_ENCODED_SEPARATOR = 0x000080000;
+        const HTP_PATH_UTF8_VALID        = 0x000100000; /* At least one valid UTF-8 character and no invalid ones. */
+        const HTP_PATH_UTF8_INVALID      = 0x000200000;
+        const HTP_PATH_UTF8_OVERLONG     = 0x000400000;
+        const HTP_PATH_HALF_FULL_RANGE   = 0x000800000; /* Range U+FF00 - U+FFEF detected. */
+        const HTP_STATUS_LINE_INVALID    = 0x001000000;
+        const HTP_HOSTU_INVALID          = 0x002000000; /* Host in the URI. */
+        const HTP_HOSTH_INVALID          = 0x004000000; /* Host in the Host header. */
+        const HTP_HOST_INVALID           = ( Self::HTP_HOSTU_INVALID.bits | Self::HTP_HOSTH_INVALID.bits );
+        const HTP_URLEN_ENCODED_NUL      = 0x008000000;
+        const HTP_URLEN_INVALID_ENCODING = 0x010000000;
+        const HTP_URLEN_OVERLONG_U       = 0x020000000;
+        const HTP_URLEN_HALF_FULL_RANGE  = 0x040000000; /* Range U+FF00 - U+FFEF detected. */
+        const HTP_URLEN_RAW_NUL          = 0x080000000;
+        const HTP_REQUEST_INVALID        = 0x100000000;
+        const HTP_REQUEST_INVALID_C_L    = 0x200000000;
+        const HTP_AUTH_INVALID           = 0x400000000;
+    }
+}
+
 extern "C" {
     #[no_mangle]
     fn __ctype_b_loc() -> *mut *const libc::c_ushort;
@@ -186,6 +244,7 @@ pub struct __va_list_tag {
     pub overflow_arg_area: *mut libc::c_void,
     pub reg_save_area: *mut libc::c_void,
 }
+
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
 pub type __int32_t = libc::c_int;
@@ -1224,13 +1283,11 @@ pub unsafe extern "C" fn htp_parse_uri_hostport(
         return rc;
     }
     if invalid != 0 {
-        (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-            | 0x2000000 as libc::c_ulonglong) as uint64_t
+        (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
     }
     if !(*uri).hostname.is_null() {
         if htp_validate_hostname((*uri).hostname) == 0 as libc::c_int {
-            (*(*connp).in_tx).flags = ((*(*connp).in_tx).flags as libc::c_ulonglong
-                | 0x2000000 as libc::c_ulonglong) as uint64_t
+            (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
         }
     }
     return 1 as libc::c_int;
@@ -1252,7 +1309,7 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
     mut hostname: *mut *mut bstr,
     mut port: *mut *mut bstr,
     mut port_number: *mut libc::c_int,
-    mut flags: *mut uint64_t,
+    mut flags: *mut Flags,
 ) -> htp_status_t {
     let mut invalid: libc::c_int = 0;
     let mut rc: htp_status_t =
@@ -1261,11 +1318,11 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
         return rc;
     }
     if invalid != 0 {
-        *flags = (*flags as libc::c_ulonglong | 0x4000000 as libc::c_ulonglong) as uint64_t
+        *flags |= Flags::HTP_HOSTH_INVALID
     }
     if !(*hostname).is_null() {
         if htp_validate_hostname(*hostname) == 0 as libc::c_int {
-            *flags = (*flags as libc::c_ulonglong | 0x4000000 as libc::c_ulonglong) as uint64_t
+            *flags |= Flags::HTP_HOSTH_INVALID
         }
     }
     return 1 as libc::c_int;
@@ -1693,23 +1750,17 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
                     match counter {
                         2 => {
                             if codepoint < 0x80 as libc::c_int as libc::c_uint {
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x400000 as libc::c_ulonglong)
-                                    as uint64_t
+                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
                             }
                         }
                         3 => {
                             if codepoint < 0x800 as libc::c_int as libc::c_uint {
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x400000 as libc::c_ulonglong)
-                                    as uint64_t
+                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
                             }
                         }
                         4 => {
                             if codepoint < 0x10000 as libc::c_int as libc::c_uint {
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x400000 as libc::c_ulonglong)
-                                    as uint64_t
+                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
                             }
                         }
                         _ => {}
@@ -1718,9 +1769,7 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
                     if codepoint >= 0xff00 as libc::c_int as libc::c_uint
                         && codepoint <= 0xffef as libc::c_int as libc::c_uint
                     {
-                        (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                            | 0x800000 as libc::c_ulonglong)
-                            as uint64_t
+                        (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
                     }
                     // Use best-fit mapping to convert to a single byte.
                     let fresh1 = wpos;
@@ -1737,8 +1786,7 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
             }
             1 => {
                 // Invalid UTF-8 character.
-                (*tx).flags =
-                    ((*tx).flags as libc::c_ulonglong | 0x200000 as libc::c_ulonglong) as uint64_t;
+                (*tx).flags |= Flags::HTP_PATH_UTF8_INVALID;
                 // Is the server expected to respond with 400?
                 if (*cfg).decoder_cfgs
                     [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
@@ -1773,10 +1821,8 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
         }
     }
     // Did the input stream seem like a valid UTF-8 string?
-    if seen_valid as libc::c_int != 0
-        && (*tx).flags as libc::c_ulonglong & 0x200000 as libc::c_ulonglong == 0
-    {
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x100000 as libc::c_ulonglong) as uint64_t
+    if seen_valid as libc::c_int != 0 && !(*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID) {
+        (*tx).flags |= Flags::HTP_PATH_UTF8_VALID
     }
     // Adjust the length of the string, because
     // we're doing in-place decoding.
@@ -1821,23 +1867,17 @@ pub unsafe extern "C" fn htp_utf8_validate_path(
                     match counter {
                         2 => {
                             if codepoint < 0x80 as libc::c_int as libc::c_uint {
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x400000 as libc::c_ulonglong)
-                                    as uint64_t
+                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
                             }
                         }
                         3 => {
                             if codepoint < 0x800 as libc::c_int as libc::c_uint {
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x400000 as libc::c_ulonglong)
-                                    as uint64_t
+                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
                             }
                         }
                         4 => {
                             if codepoint < 0x10000 as libc::c_int as libc::c_uint {
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x400000 as libc::c_ulonglong)
-                                    as uint64_t
+                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
                             }
                         }
                         _ => {}
@@ -1847,8 +1887,7 @@ pub unsafe extern "C" fn htp_utf8_validate_path(
                 if codepoint > 0xfeff as libc::c_int as libc::c_uint
                     && codepoint < 0x10000 as libc::c_int as libc::c_uint
                 {
-                    (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x800000 as libc::c_ulonglong)
-                        as uint64_t
+                    (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
                 }
                 // Advance over the consumed byte and reset the byte counter.
                 rpos = rpos.wrapping_add(1);
@@ -1856,8 +1895,7 @@ pub unsafe extern "C" fn htp_utf8_validate_path(
             }
             1 => {
                 // Invalid UTF-8 character.
-                (*tx).flags =
-                    ((*tx).flags as libc::c_ulonglong | 0x200000 as libc::c_ulonglong) as uint64_t;
+                (*tx).flags |= Flags::HTP_PATH_UTF8_INVALID;
                 // Override the decoder state because we want to continue decoding.
                 state = 0 as libc::c_int as uint32_t;
                 // Advance over the consumed byte and reset the byte counter.
@@ -1871,10 +1909,8 @@ pub unsafe extern "C" fn htp_utf8_validate_path(
         }
     }
     // Did the input stream seem like a valid UTF-8 string?
-    if seen_valid as libc::c_int != 0
-        && (*tx).flags as libc::c_ulonglong & 0x200000 as libc::c_ulonglong == 0
-    {
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x100000 as libc::c_ulonglong) as uint64_t
+    if seen_valid as libc::c_int != 0 && !(*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID) {
+        (*tx).flags |= Flags::HTP_PATH_UTF8_VALID
     };
 }
 
@@ -1898,12 +1934,11 @@ unsafe extern "C" fn decode_u_encoding_path(
         .bestfit_replacement_byte as libc::c_int;
     if c1 == 0 as libc::c_int as libc::c_uint {
         r = c2 as libc::c_int;
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x40000 as libc::c_ulonglong) as uint64_t
+        (*tx).flags |= Flags::HTP_PATH_OVERLONG_U
     } else {
         // Check for fullwidth form evasion
         if c1 == 0xff as libc::c_int as libc::c_uint {
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x800000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
         }
         if (*cfg).decoder_cfgs
             [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
@@ -1944,7 +1979,7 @@ unsafe extern "C" fn decode_u_encoding_path(
             != 0
             && r == '\\' as i32
     {
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x80000 as libc::c_ulonglong) as uint64_t
+        (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR
     }
     return r;
 }
@@ -1961,19 +1996,19 @@ unsafe extern "C" fn decode_u_encoding_params(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut data: *mut libc::c_uchar,
-    mut flags: *mut uint64_t,
+    mut flags: *mut Flags,
 ) -> libc::c_int {
     let mut c1: libc::c_uint = x2c(data) as libc::c_uint;
     let mut c2: libc::c_uint = x2c(data.offset(2 as libc::c_int as isize)) as libc::c_uint;
     // Check for overlong usage first.
     if c1 == 0 as libc::c_int as libc::c_uint {
-        *flags = (*flags as libc::c_ulonglong | 0x20000000 as libc::c_ulonglong) as uint64_t;
+        *flags |= Flags::HTP_URLEN_OVERLONG_U;
         return c2 as libc::c_int;
     }
     // Both bytes were used.
     // Detect half-width and full-width range.
     if c1 == 0xff as libc::c_int as libc::c_uint && c2 <= 0xef as libc::c_int as libc::c_uint {
-        *flags = (*flags as libc::c_ulonglong | 0x40000000 as libc::c_ulonglong) as uint64_t
+        *flags |= Flags::HTP_URLEN_HALF_FULL_RANGE
     }
     // Use best-fit mapping.
     let mut p: *mut libc::c_uchar = (*cfg).decoder_cfgs[ctx as usize].bestfit_map;
@@ -2107,9 +2142,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                                     .wrapping_add(6 as libc::c_int as libc::c_ulong)
                                     as size_t as size_t;
                                 if c == 0 as libc::c_int {
-                                    (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                        | 0x4000 as libc::c_ulonglong)
-                                        as uint64_t;
+                                    (*tx).flags |= Flags::HTP_PATH_ENCODED_NUL;
                                     if (*cfg).decoder_cfgs
                                         [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                                         .nul_encoded_unwanted != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
@@ -2122,9 +2155,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                                 }
                             } else {
                                 // Invalid %u encoding
-                                (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                    | 0x10000 as libc::c_ulonglong)
-                                    as uint64_t;
+                                (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
                                 if (*cfg).decoder_cfgs
                                     [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
                                         as usize]
@@ -2225,9 +2256,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             }
                         } else {
                             // Invalid %u encoding (not enough data)
-                            (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                | 0x10000 as libc::c_ulonglong)
-                                as uint64_t;
+                            (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
                             if (*cfg).decoder_cfgs
                                 [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
                                     as usize]
@@ -2313,9 +2342,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                             .offset(rpos.wrapping_add(1 as libc::c_int as libc::c_ulong) as isize))
                             as libc::c_int;
                         if c == 0 as libc::c_int {
-                            (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                | 0x4000 as libc::c_ulonglong)
-                                as uint64_t;
+                            (*tx).flags |= Flags::HTP_PATH_ENCODED_NUL;
                             if (*cfg).decoder_cfgs
                                 [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
                                     as usize]
@@ -2346,9 +2373,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                                 != 0
                                 && c == '\\' as i32
                         {
-                            (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                                | 0x80000 as libc::c_ulonglong)
-                                as uint64_t;
+                            (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR;
                             if (*cfg).decoder_cfgs
                                 [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
                                     as usize]
@@ -2384,9 +2409,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                         }
                     } else {
                         // Invalid encoding
-                        (*tx).flags = ((*tx).flags as libc::c_ulonglong
-                            | 0x10000 as libc::c_ulonglong)
-                            as uint64_t;
+                        (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
                         if (*cfg).decoder_cfgs
                             [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
                                 as usize]
@@ -2434,8 +2457,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
                 }
             } else {
                 // Invalid URL encoding (not enough data)
-                (*tx).flags =
-                    ((*tx).flags as libc::c_ulonglong | 0x10000 as libc::c_ulonglong) as uint64_t;
+                (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
                 if (*cfg).decoder_cfgs
                     [crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .url_encoding_invalid_unwanted
@@ -2593,7 +2615,7 @@ pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
     mut tx: *mut crate::src::htp_transaction::htp_tx_t,
     mut input: *mut bstr,
 ) -> htp_status_t {
-    let mut flags: uint64_t = 0 as libc::c_int as uint64_t;
+    let mut flags: Flags = Flags::empty();
     let mut rc: htp_status_t = htp_urldecode_inplace_ex(
         (*tx).cfg,
         crate::src::htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
@@ -2601,14 +2623,14 @@ pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
         &mut flags,
         &mut (*tx).response_status_expected_number,
     );
-    if flags as libc::c_ulonglong & 0x10000000 as libc::c_ulonglong != 0 {
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x10000 as libc::c_ulonglong) as uint64_t
+    if flags.contains(Flags::HTP_URLEN_INVALID_ENCODING) {
+        (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING
     }
-    if flags as libc::c_ulonglong & 0x8000000 as libc::c_ulonglong != 0 {
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x4000 as libc::c_ulonglong) as uint64_t
+    if flags.contains(Flags::HTP_URLEN_ENCODED_NUL) {
+        (*tx).flags |= Flags::HTP_PATH_ENCODED_NUL
     }
-    if flags as libc::c_ulonglong & 0x80000000 as libc::c_ulonglong != 0 {
-        (*tx).flags = ((*tx).flags as libc::c_ulonglong | 0x8000 as libc::c_ulonglong) as uint64_t
+    if flags.contains(Flags::HTP_URLEN_RAW_NUL) {
+        (*tx).flags |= Flags::HTP_PATH_RAW_NUL;
     }
     return rc;
 }
@@ -2643,7 +2665,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr,
-    mut flags: *mut uint64_t,
+    mut flags: *mut Flags,
 ) -> htp_status_t {
     let mut expected_status_code: libc::c_int = 0 as libc::c_int;
     return htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code);
@@ -2668,7 +2690,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
     mut cfg: *mut crate::src::htp_config::htp_cfg_t,
     mut ctx: crate::src::htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr,
-    mut flags: *mut uint64_t,
+    mut flags: *mut Flags,
     mut expected_status_code: *mut libc::c_int,
 ) -> htp_status_t {
     if input.is_null() {
@@ -2761,9 +2783,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                                     as size_t as size_t
                             } else {
                                 // Invalid %u encoding (could not find 4 xdigits).
-                                *flags = (*flags as libc::c_ulonglong
-                                    | 0x10000000 as libc::c_ulonglong)
-                                    as uint64_t;
+                                *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
                                 if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
                                     != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                                 {
@@ -2860,8 +2880,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                             }
                         } else {
                             // Invalid %u encoding; not enough data.
-                            *flags = (*flags as libc::c_ulonglong | 0x10000000 as libc::c_ulonglong)
-                                as uint64_t;
+                            *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
                             if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
                                 != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                             {
@@ -2945,8 +2964,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                             as size_t as size_t
                     } else {
                         // Invalid encoding (enough bytes, but not hexadecimal digits).
-                        *flags = (*flags as libc::c_ulonglong | 0x10000000 as libc::c_ulonglong)
-                            as uint64_t;
+                        *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
                         if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
                             != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                         {
@@ -3031,8 +3049,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                 }
             } else {
                 // Invalid encoding; not enough data (at least 2 bytes required).
-                *flags =
-                    (*flags as libc::c_ulonglong | 0x10000000 as libc::c_ulonglong) as uint64_t;
+                *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
                 if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
                     != crate::src::htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
@@ -3096,7 +3113,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                     *expected_status_code =
                         (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted as libc::c_int
                 }
-                *flags = (*flags as libc::c_ulonglong | 0x8000000 as libc::c_ulonglong) as uint64_t;
+                *flags |= Flags::HTP_URLEN_ENCODED_NUL;
                 if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates != 0 {
                     // Terminate the path at the raw NUL byte.
                     bstr_adjust_len(input, wpos);
@@ -3125,8 +3142,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                     *expected_status_code =
                         (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted as libc::c_int
                 }
-                *flags =
-                    (*flags as libc::c_ulonglong | 0x80000000 as libc::c_ulonglong) as uint64_t;
+                *flags |= Flags::HTP_URLEN_RAW_NUL;
                 if (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates != 0 {
                     // Terminate the path at the encoded NUL byte.
                     bstr_adjust_len(input, wpos);
@@ -3207,8 +3223,7 @@ pub unsafe extern "C" fn htp_normalize_parsed_uri(
         if port_parsed < 0 as libc::c_int as libc::c_long {
             // Failed to parse the port number.
             (*normalized).port_number = -(1 as libc::c_int);
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x2000000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_HOSTU_INVALID
         } else if port_parsed > 0 as libc::c_int as libc::c_long
             && port_parsed < 65536 as libc::c_int as libc::c_long
         {
@@ -3217,8 +3232,7 @@ pub unsafe extern "C" fn htp_normalize_parsed_uri(
         } else {
             // Port number out of range.
             (*normalized).port_number = -(1 as libc::c_int);
-            (*tx).flags =
-                ((*tx).flags as libc::c_ulonglong | 0x2000000 as libc::c_ulonglong) as uint64_t
+            (*tx).flags |= Flags::HTP_HOSTU_INVALID
         }
     } else {
         (*normalized).port_number = -(1 as libc::c_int)
