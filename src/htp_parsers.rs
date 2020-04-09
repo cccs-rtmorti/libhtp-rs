@@ -1,4 +1,6 @@
-use crate::{bstr, htp_base64, htp_connection_parser, htp_table, htp_transaction, htp_util};
+use crate::{
+    bstr, htp_base64, htp_connection_parser, htp_table, htp_transaction, htp_util, Status,
+};
 use ::libc;
 
 extern "C" {
@@ -31,8 +33,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 pub type htp_time_t = libc::timeval;
 
@@ -122,14 +122,14 @@ pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr::bstr) -> libc::
 pub unsafe extern "C" fn htp_parse_authorization_digest(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut auth_header: *mut htp_transaction::htp_header_t,
-) -> libc::c_int {
+) -> Status {
     // Extract the username
     let mut i: libc::c_int = bstr::bstr_index_of_c(
         (*auth_header).value,
         b"username=\x00" as *const u8 as *const libc::c_char,
     );
     if i == -(1 as libc::c_int) {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     let mut data: *mut libc::c_uchar = if (*(*auth_header).value).realptr.is_null() {
         ((*auth_header).value as *mut libc::c_uchar)
@@ -149,10 +149,10 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
         pos = pos.wrapping_add(1)
     }
     if pos == len {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     return htp_util::htp_extract_quoted_string_as_bstr(
         data.offset(pos as isize),
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
 pub unsafe extern "C" fn htp_parse_authorization_basic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut auth_header: *mut htp_transaction::htp_header_t,
-) -> libc::c_int {
+) -> Status {
     let mut data: *mut libc::c_uchar = if (*(*auth_header).value).realptr.is_null() {
         ((*auth_header).value as *mut libc::c_uchar)
             .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
@@ -191,7 +191,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
         pos = pos.wrapping_add(1)
     }
     if pos == len {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Decode base64-encoded data
     let mut decoded: *mut bstr::bstr = htp_base64::htp_base64_decode_mem(
@@ -199,20 +199,20 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
         len.wrapping_sub(pos),
     );
     if decoded.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Now extract the username and password
     let mut i: libc::c_int =
         bstr::bstr_index_of_c(decoded, b":\x00" as *const u8 as *const libc::c_char);
     if i == -(1 as libc::c_int) {
         bstr::bstr_free(decoded);
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     (*(*connp).in_tx).request_auth_username =
         bstr::bstr_dup_ex(decoded, 0 as libc::c_int as size_t, i as size_t);
     if (*(*connp).in_tx).request_auth_username.is_null() {
         bstr::bstr_free(decoded);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*(*connp).in_tx).request_auth_password = bstr::bstr_dup_ex(
         decoded,
@@ -225,10 +225,10 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     if (*(*connp).in_tx).request_auth_password.is_null() {
         bstr::bstr_free(decoded);
         bstr::bstr_free((*(*connp).in_tx).request_auth_username);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     bstr::bstr_free(decoded);
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_authorization(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> libc::c_int {
+) -> Status {
     let mut auth_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*(*connp).in_tx).request_headers,
         b"authorization\x00" as *const u8 as *const libc::c_char,
@@ -247,7 +247,7 @@ pub unsafe extern "C" fn htp_parse_authorization(
         as *mut htp_transaction::htp_header_t;
     if auth_header.is_null() {
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // TODO Need a flag to raise when failing to parse authentication headers.
     if bstr::bstr_begins_with_c_nocase(
@@ -273,5 +273,5 @@ pub unsafe extern "C" fn htp_parse_authorization(
                 htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }

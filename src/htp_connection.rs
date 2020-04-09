@@ -1,4 +1,4 @@
-use crate::{htp_list, htp_transaction, htp_util};
+use crate::{htp_list, htp_transaction, htp_util, Status};
 use ::libc;
 
 extern "C" {
@@ -24,8 +24,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -188,14 +186,14 @@ pub unsafe extern "C" fn htp_conn_open(
     mut server_addr: *const libc::c_char,
     mut server_port: libc::c_int,
     mut timestamp: *const htp_time_t,
-) -> htp_status_t {
+) -> Status {
     if conn.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if !client_addr.is_null() {
         (*conn).client_addr = strdup(client_addr);
         if (*conn).client_addr.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     (*conn).client_port = client_port;
@@ -205,7 +203,7 @@ pub unsafe extern "C" fn htp_conn_open(
             if !(*conn).client_addr.is_null() {
                 free((*conn).client_addr as *mut libc::c_void);
             }
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     (*conn).server_port = server_port;
@@ -217,7 +215,7 @@ pub unsafe extern "C" fn htp_conn_open(
             ::std::mem::size_of::<htp_time_t>() as libc::c_ulong,
         );
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -233,12 +231,12 @@ pub unsafe extern "C" fn htp_conn_open(
 pub unsafe extern "C" fn htp_conn_remove_tx(
     mut conn: *mut htp_conn_t,
     mut tx: *const htp_transaction::htp_tx_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || conn.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*conn).transactions.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     return htp_list::htp_list_array_replace(
         (*conn).transactions,

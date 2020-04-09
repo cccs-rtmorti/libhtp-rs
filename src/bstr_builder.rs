@@ -1,6 +1,5 @@
+use crate::{bstr, htp_list, Status};
 use ::libc;
-
-use crate::{bstr, htp_list};
 
 extern "C" {
     #[no_mangle]
@@ -17,8 +16,6 @@ pub struct bstr_builder_t {
     pub pieces: *mut htp_list::htp_list_array_t,
 }
 
-pub type htp_status_t = libc::c_int;
-
 /**
  * Adds one new string to the builder. This function will adopt the
  * string and destroy it when the builder itself is destroyed.
@@ -31,7 +28,7 @@ pub type htp_status_t = libc::c_int;
 pub unsafe extern "C" fn bstr_builder_appendn(
     mut bb: *mut bstr_builder_t,
     mut b: *mut bstr::bstr_t,
-) -> htp_status_t {
+) -> Status {
     return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
 }
 
@@ -47,10 +44,10 @@ pub unsafe extern "C" fn bstr_builder_appendn(
 pub unsafe extern "C" fn bstr_builder_append_c(
     mut bb: *mut bstr_builder_t,
     mut cstr: *const libc::c_char,
-) -> htp_status_t {
+) -> Status {
     let mut b: *mut bstr::bstr_t = bstr::bstr_dup_c(cstr);
     if b.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
 }
@@ -70,10 +67,10 @@ pub unsafe extern "C" fn bstr_builder_append_mem(
     mut bb: *mut bstr_builder_t,
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     let mut b: *mut bstr::bstr_t = bstr::bstr_dup_mem(data, len);
     if b.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
 }

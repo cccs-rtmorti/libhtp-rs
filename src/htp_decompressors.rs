@@ -1,4 +1,4 @@
-use crate::{htp_connection_parser, htp_transaction, htp_util, lzma};
+use crate::{htp_connection_parser, htp_transaction, htp_util, lzma, Status};
 use ::libc;
 extern "C" {
     pub type internal_state;
@@ -38,8 +38,6 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-pub type htp_status_t = libc::c_int;
-
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_content_encoding_t {
@@ -66,10 +64,9 @@ pub struct htp_decompressor_t {
         unsafe extern "C" fn(
             _: *mut htp_decompressor_t,
             _: *mut htp_transaction::htp_tx_data_t,
-        ) -> htp_status_t,
+        ) -> Status,
     >,
-    pub callback:
-        Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> htp_status_t>,
+    pub callback: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
     pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
 }
@@ -317,10 +314,10 @@ unsafe extern "C" fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_g
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
     mut d: *mut htp_transaction::htp_tx_data_t,
-) -> htp_status_t {
+) -> Status {
     let mut consumed: size_t = 0 as libc::c_int as size_t;
-    let mut rc: libc::c_int = 0 as libc::c_int;
-    let mut callback_rc: htp_status_t = 0;
+    let mut rc: libc::c_int = 0;
+    let mut callback_rc: Status = Status::DECLINED;
     // Pass-through the NULL chunk, which indicates the end of the stream.
     if (*drec).passthrough != 0 {
         let mut d2: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
@@ -334,10 +331,10 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
         d2.len = (*d).len;
         d2.is_last = (*d).is_last;
         callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut d2);
-        if callback_rc != 1 as libc::c_int {
-            return -(1 as libc::c_int);
+        if callback_rc != Status::OK {
+            return Status::ERROR;
         }
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     if (*d).data.is_null() {
         // Prepare data for callback.
@@ -365,12 +362,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
         } else {
             // Send decompressed data to the callback.
             callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut dout);
-            if callback_rc != 1 as libc::c_int {
+            if callback_rc != Status::OK {
                 htp_gzip_decompressor_end(drec);
                 return callback_rc;
             }
         }
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     'c_5645: loop
     // we'll be restarting the compressor
@@ -384,7 +381,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 0 as libc::c_int,
                 b"GZip decompressor: consumed > d->len\x00" as *const u8 as *const libc::c_char,
             );
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         (*drec).stream.next_in = (*d).data.offset(consumed as isize) as *mut libc::c_uchar;
         (*drec).stream.avail_in = (*d).len.wrapping_sub(consumed) as uInt;
@@ -414,7 +411,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     callback_rc =
                         (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_0)
                 }
-                if callback_rc != 1 as libc::c_int {
+                if callback_rc != Status::OK {
                     htp_gzip_decompressor_end(drec);
                     return callback_rc;
                 }
@@ -454,8 +451,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         5 as libc::c_int as libc::c_uint,
                         &lzma_Alloc,
                     );
-                    if rc != 0 as libc::c_int {
-                        return rc;
+                    if rc != 0 {
+                        match rc {
+                            0 => return Status::OK,
+                            _ => return Status::ERROR,
+                        }
                     }
                     lzma::LzmaDec::LzmaDec_Init(&mut (*drec).state);
                     // hacky to get to next step end retry allocate in case of failure
@@ -525,7 +525,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 rc = inflate(&mut (*drec).stream, 0 as libc::c_int)
             } else {
                 // no initialization means previous error on stream
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             if 8192 as libc::c_int as libc::c_uint > (*drec).stream.avail_out {
                 if rc == -(3 as libc::c_int) {
@@ -541,10 +541,10 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                             as *const libc::c_char,
                         rc,
                     );
-                    rc = 1 as libc::c_int
+                    rc = 1 as libc::c_int;
                 }
             }
-            if rc == 1 as libc::c_int {
+            if rc == 1 {
                 // How many bytes do we have?
                 let mut len: size_t = (8192 as libc::c_int as libc::c_uint)
                     .wrapping_sub((*drec).stream.avail_out)
@@ -571,16 +571,16 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     callback_rc =
                         (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_1)
                 }
-                if callback_rc != 1 as libc::c_int {
+                if callback_rc != Status::OK {
                     htp_gzip_decompressor_end(drec);
                     return callback_rc;
                 }
                 (*drec).stream.avail_out = 8192 as libc::c_int as uInt;
                 (*drec).stream.next_out = (*drec).buffer;
                 // TODO Handle trailer.
-                return 1 as libc::c_int;
+                return Status::OK;
             } else {
-                if !(rc != 0 as libc::c_int) {
+                if !(rc != 0) {
                     continue;
                 }
                 htp_util::htp_log(
@@ -625,17 +625,17 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 d2_2.is_last = (*d).is_last;
                 callback_rc =
                     (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_2);
-                if callback_rc != 1 as libc::c_int {
-                    return -(1 as libc::c_int);
+                if callback_rc != Status::OK {
+                    return Status::ERROR;
                 }
                 (*drec).stream.avail_out = 8192 as libc::c_int as uInt;
                 (*drec).stream.next_out = (*drec).buffer;
                 /* successfully passed through, lets continue doing that */
                 (*drec).passthrough = 1 as libc::c_int as uint8_t;
-                return 1 as libc::c_int;
+                return Status::OK;
             }
         }
-        return 1 as libc::c_int;
+        return Status::OK;
     }
 }
 
@@ -678,20 +678,20 @@ pub unsafe extern "C" fn htp_gzip_decompressor_create(
             unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
                 _: *mut htp_transaction::htp_tx_data_t,
-            ) -> htp_status_t,
+            ) -> Status,
         >,
         Option<
             unsafe extern "C" fn(
                 _: *mut htp_decompressor_t,
                 _: *mut htp_transaction::htp_tx_data_t,
-            ) -> libc::c_int,
+            ) -> Status,
         >,
     >(Some(
         htp_gzip_decompressor_decompress
             as unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
                 _: *mut htp_transaction::htp_tx_data_t,
-            ) -> htp_status_t,
+            ) -> Status,
     ));
     (*drec).super_0.destroy = ::std::mem::transmute::<
         Option<unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t) -> ()>,

@@ -1,4 +1,4 @@
-use crate::{bstr, htp_list};
+use crate::{bstr, htp_list, Status};
 use ::libc;
 
 extern "C" {
@@ -8,7 +8,6 @@ extern "C" {
     fn free(__ptr: *mut libc::c_void);
 }
 pub type size_t = libc::c_ulong;
-pub type htp_status_t = libc::c_int;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -39,21 +38,18 @@ unsafe extern "C" fn _htp_table_add(
     mut table: *mut htp_table_t,
     mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
-) -> htp_status_t {
+) -> Status {
     // Add key.
-    if htp_list::htp_list_array_push(&mut (*table).list, key as *mut libc::c_void)
-        != 1 as libc::c_int
-    {
-        return -(1 as libc::c_int);
+    if htp_list::htp_list_array_push(&mut (*table).list, key as *mut libc::c_void) != Status::OK {
+        return Status::ERROR;
     }
     // Add element.
-    if htp_list::htp_list_array_push(&mut (*table).list, element as *mut libc::c_void)
-        != 1 as libc::c_int
+    if htp_list::htp_list_array_push(&mut (*table).list, element as *mut libc::c_void) != Status::OK
     {
         htp_list::htp_list_array_pop(&mut (*table).list);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -71,26 +67,26 @@ pub unsafe extern "C" fn htp_table_add(
     mut table: *mut htp_table_t,
     mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
-) -> htp_status_t {
+) -> Status {
     if table.is_null() || key.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Keep track of how keys are allocated, and
     // ensure that all invocations are consistent.
     if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN {
         (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_COPIED
     } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_COPIED {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut dupkey: *mut bstr::bstr = bstr::bstr_dup(key);
     if dupkey.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    if _htp_table_add(table, dupkey, element) != 1 as libc::c_int {
+    if _htp_table_add(table, dupkey, element) != Status::OK {
         bstr::bstr_free(dupkey);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -110,16 +106,16 @@ pub unsafe extern "C" fn htp_table_addn(
     mut table: *mut htp_table_t,
     mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
-) -> htp_status_t {
+) -> Status {
     if table.is_null() || key.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Keep track of how keys are allocated, and
     // ensure that all invocations are consistent.
     if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN {
         (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_ADOPTED
     } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_ADOPTED {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     return _htp_table_add(table, key, element);
 }
@@ -140,16 +136,16 @@ pub unsafe extern "C" fn htp_table_addk(
     mut table: *mut htp_table_t,
     mut key: *const bstr::bstr_t,
     mut element: *const libc::c_void,
-) -> htp_status_t {
+) -> Status {
     if table.is_null() || key.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Keep track of how keys are allocated, and
     // ensure that all invocations are consistent.
     if (*table).alloc_type == htp_table_alloc_t::HTP_TABLE_KEYS_ALLOC_UKNOWN {
         (*table).alloc_type = htp_table_alloc_t::HTP_TABLE_KEYS_REFERENCED
     } else if (*table).alloc_type != htp_table_alloc_t::HTP_TABLE_KEYS_REFERENCED {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     return _htp_table_add(table, key, element);
 }
@@ -223,7 +219,7 @@ pub unsafe extern "C" fn htp_table_create(mut size: size_t) -> *mut htp_table_t 
     if htp_list::htp_list_array_init(
         &mut (*table).list,
         size.wrapping_mul(2 as libc::c_int as libc::c_ulong),
-    ) == -(1 as libc::c_int)
+    ) == Status::ERROR
     {
         free(table as *mut libc::c_void);
         return 0 as *mut htp_table_t;

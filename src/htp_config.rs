@@ -1,6 +1,6 @@
 use crate::{
     htp_connection_parser, htp_content_handlers, htp_hooks, htp_request_apache_2_2,
-    htp_request_generic, htp_response_generic, htp_transaction, htp_util,
+    htp_request_generic, htp_response_generic, htp_transaction, htp_util, Status,
 };
 use ::libc;
 
@@ -27,8 +27,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -60,17 +58,17 @@ pub struct htp_cfg_t {
     pub server_personality: htp_server_personality_t,
     /** The function used for request line parsing. Depends on the personality. */
     pub parse_request_line:
-        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> libc::c_int>,
+        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status>,
     /** The function used for response line parsing. Depends on the personality. */
     pub parse_response_line:
-        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> libc::c_int>,
+        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status>,
     /** The function used for request header parsing. Depends on the personality. */
     pub process_request_header: Option<
         unsafe extern "C" fn(
             _: *mut htp_connection_parser::htp_connp_t,
             _: *mut libc::c_uchar,
             _: size_t,
-        ) -> libc::c_int,
+        ) -> Status,
     >,
     /** The function used for response header parsing. Depends on the personality. */
     pub process_response_header: Option<
@@ -78,11 +76,11 @@ pub struct htp_cfg_t {
             _: *mut htp_connection_parser::htp_connp_t,
             _: *mut libc::c_uchar,
             _: size_t,
-        ) -> libc::c_int,
+        ) -> Status,
     >,
     /** The function to use to transform parameters after parsing. */
     pub parameter_processor:
-        Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> libc::c_int>,
+        Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> Status>,
     /** Decoder configuration array, one per context. */
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
     /** Whether to generate the request_uri_normalized field. */
@@ -349,7 +347,7 @@ pub enum htp_url_encoding_handling_t {
     HTP_URL_DECODE_PROCESS_INVALID,
 }
 
-pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> libc::c_int>;
+pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> Status>;
 /* *
  * This map is used by default for best-fit mapping from the Unicode
  * values U+0100-FFFF.
@@ -1832,7 +1830,7 @@ pub unsafe extern "C" fn htp_config_get_user_data(mut cfg: *mut htp_cfg_t) -> *m
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_log(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -1840,7 +1838,7 @@ pub unsafe extern "C" fn htp_config_register_log(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_log,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1861,7 +1859,7 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(mut cfg: *mut htp_
         cfg,
         Some(
             htp_content_handlers::htp_ch_multipart_callback_request_headers
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
         ),
     );
 }
@@ -1875,7 +1873,7 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(mut cfg: *mut htp_
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_complete(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -1883,7 +1881,7 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_complete,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1898,9 +1896,7 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_body_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -1908,7 +1904,7 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_body_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1994,7 +1990,7 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_headers(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2002,7 +1998,7 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_headers,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2017,7 +2013,7 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_line(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2025,7 +2021,7 @@ pub unsafe extern "C" fn htp_config_register_request_line(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_line,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2277,9 +2273,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2287,7 +2281,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_trailer_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2302,7 +2296,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_transaction_complete(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2310,7 +2304,7 @@ pub unsafe extern "C" fn htp_config_register_transaction_complete(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_transaction_complete,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2331,14 +2325,14 @@ pub unsafe extern "C" fn htp_config_register_urlencoded_parser(mut cfg: *mut htp
         cfg,
         Some(
             htp_content_handlers::htp_ch_urlencoded_callback_request_line
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
         ),
     );
     htp_config_register_request_headers(
         cfg,
         Some(
             htp_content_handlers::htp_ch_urlencoded_callback_request_headers
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
         ),
     );
 }
@@ -2364,16 +2358,16 @@ pub unsafe extern "C" fn htp_config_set_extract_request_files(
     mut cfg: *mut htp_cfg_t,
     mut extract_request_files: libc::c_int,
     mut limit: libc::c_int,
-) -> htp_status_t {
+) -> Status {
     if cfg.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*cfg).tmpdir.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*cfg).extract_request_files = extract_request_files;
     (*cfg).extract_request_files_limit = limit;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -2515,17 +2509,15 @@ pub unsafe extern "C" fn htp_config_set_response_decompression(
 pub unsafe extern "C" fn htp_config_set_server_personality(
     mut cfg: *mut htp_cfg_t,
     mut personality: htp_server_personality_t,
-) -> htp_status_t {
+) -> Status {
     if cfg.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     match personality as libc::c_uint {
         0 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_generic::htp_process_request_header_generic
@@ -2533,13 +2525,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2547,15 +2537,13 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             )
         }
         1 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_generic::htp_process_request_header_generic
@@ -2563,13 +2551,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2577,7 +2563,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
@@ -2598,9 +2584,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         2 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_generic::htp_process_request_header_generic
@@ -2608,13 +2592,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2622,7 +2604,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
@@ -2663,9 +2645,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         9 => {
             (*cfg).parse_request_line = Some(
                 htp_request_apache_2_2::htp_parse_request_line_apache_2_2
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_apache_2_2::htp_process_request_header_apache_2_2
@@ -2673,13 +2653,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2687,7 +2665,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
@@ -2733,9 +2711,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         5 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_generic::htp_process_request_header_generic
@@ -2743,13 +2719,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2757,7 +2731,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
@@ -2798,9 +2772,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         6 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_generic::htp_process_request_header_generic
@@ -2808,13 +2780,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2822,7 +2792,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
@@ -2868,9 +2838,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
         7 | 8 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_request_header = Some(
                 htp_request_generic::htp_process_request_header_generic
@@ -2878,13 +2846,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             (*cfg).parse_response_line = Some(
                 htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             );
             (*cfg).process_response_header = Some(
                 htp_response_generic::htp_process_response_header_generic
@@ -2892,7 +2858,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                         _: *mut htp_connection_parser::htp_connp_t,
                         _: *mut libc::c_uchar,
                         _: size_t,
-                    ) -> htp_status_t,
+                    ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
@@ -2935,11 +2901,11 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
                 htp_unwanted_t::HTP_UNWANTED_IGNORE,
             );
         }
-        _ => return -(1 as libc::c_int),
+        _ => return Status::ERROR,
     }
     // Remember the personality
     (*cfg).server_personality = personality;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**

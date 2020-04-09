@@ -1,6 +1,6 @@
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_hooks, htp_list, htp_request, htp_response,
-    htp_transaction, htp_utf8_decoder,
+    htp_transaction, htp_utf8_decoder, Status,
 };
 use ::libc;
 use bitflags;
@@ -137,8 +137,6 @@ pub type uint16_t = __uint16_t;
 pub type uint32_t = __uint32_t;
 pub type uint64_t = __uint64_t;
 pub type va_list = __builtin_va_list;
-
-pub type htp_status_t = libc::c_int;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -936,11 +934,11 @@ unsafe extern "C" fn htp_parse_port(
     mut len: size_t,
     mut port: *mut libc::c_int,
     mut invalid: *mut libc::c_int,
-) -> htp_status_t {
+) -> Status {
     if len == 0 as libc::c_int as libc::c_ulong {
         *port = -(1 as libc::c_int);
         *invalid = 1 as libc::c_int;
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     let mut port_parsed: int64_t =
         htp_parse_positive_integer_whitespace(data, len, 10 as libc::c_int);
@@ -958,7 +956,7 @@ unsafe extern "C" fn htp_parse_port(
         *port = -(1 as libc::c_int);
         *invalid = 1 as libc::c_int
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -980,9 +978,9 @@ pub unsafe extern "C" fn htp_parse_hostport(
     mut port: *mut *mut bstr::bstr_t,
     mut port_number: *mut libc::c_int,
     mut invalid: *mut libc::c_int,
-) -> htp_status_t {
+) -> Status {
     if hostport.is_null() || hostname.is_null() || port_number.is_null() || invalid.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     *hostname = 0 as *mut bstr::bstr_t;
     if !port.is_null() {
@@ -1000,7 +998,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
     bstr::bstr_util_mem_trim(&mut data, &mut len);
     if len == 0 as libc::c_int as libc::c_ulong {
         *invalid = 1 as libc::c_int;
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Check for an IPv6 address.
     if *data.offset(0 as libc::c_int as isize) as libc::c_int == '[' as i32 {
@@ -1012,19 +1010,19 @@ pub unsafe extern "C" fn htp_parse_hostport(
         }
         if pos == len {
             *invalid = 1 as libc::c_int;
-            return 1 as libc::c_int;
+            return Status::OK;
         }
         *hostname = bstr::bstr_dup_mem(
             data as *const libc::c_void,
             pos.wrapping_add(1 as libc::c_int as libc::c_ulong),
         );
         if (*hostname).is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         // Over the ']'.
         pos = pos.wrapping_add(1);
         if pos == len {
-            return 1 as libc::c_int;
+            return Status::OK;
         }
         // Handle port.
         if *data.offset(pos as isize) as libc::c_int == ':' as i32 {
@@ -1037,7 +1035,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
                 );
                 if (*port).is_null() {
                     bstr::bstr_free(*hostname);
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
             }
             return htp_parse_port(
@@ -1049,7 +1047,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
             );
         } else {
             *invalid = 1 as libc::c_int;
-            return 1 as libc::c_int;
+            return Status::OK;
         }
     } else {
         // Not IPv6 host.
@@ -1060,7 +1058,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
             // Hostname alone, no port.
             *hostname = bstr::bstr_dup_mem(data as *const libc::c_void, len);
             if (*hostname).is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             bstr::bstr_to_lowercase(*hostname);
         } else {
@@ -1081,7 +1079,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
                 hostend.wrapping_offset_from(data) as libc::c_long as size_t,
             );
             if (*hostname).is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             if !port.is_null() {
                 *port = bstr::bstr_dup_mem(
@@ -1095,7 +1093,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
                 );
                 if (*port).is_null() {
                     bstr::bstr_free(*hostname);
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
             }
             return htp_parse_port(
@@ -1111,7 +1109,7 @@ pub unsafe extern "C" fn htp_parse_hostport(
             );
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -1127,16 +1125,16 @@ pub unsafe extern "C" fn htp_parse_uri_hostport(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut hostport: *mut bstr::bstr_t,
     mut uri: *mut htp_uri_t,
-) -> libc::c_int {
+) -> Status {
     let mut invalid: libc::c_int = 0;
-    let mut rc: htp_status_t = htp_parse_hostport(
+    let mut rc: Status = htp_parse_hostport(
         hostport,
         &mut (*uri).hostname,
         &mut (*uri).port,
         &mut (*uri).port_number,
         &mut invalid,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     if invalid != 0 {
@@ -1147,7 +1145,7 @@ pub unsafe extern "C" fn htp_parse_uri_hostport(
             (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -1167,11 +1165,10 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
     mut port: *mut *mut bstr::bstr_t,
     mut port_number: *mut libc::c_int,
     mut flags: *mut Flags,
-) -> htp_status_t {
+) -> Status {
     let mut invalid: libc::c_int = 0;
-    let mut rc: htp_status_t =
-        htp_parse_hostport(hostport, hostname, port, port_number, &mut invalid);
-    if rc != 1 as libc::c_int {
+    let mut rc: Status = htp_parse_hostport(hostport, hostname, port, port_number, &mut invalid);
+    if rc != Status::OK {
         return rc;
     }
     if invalid != 0 {
@@ -1182,7 +1179,7 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
             *flags |= Flags::HTP_HOSTH_INVALID
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -2451,9 +2448,9 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
 pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut input: *mut bstr::bstr_t,
-) -> htp_status_t {
+) -> Status {
     let mut flags: Flags = Flags::empty();
-    let mut rc: htp_status_t = htp_urldecode_inplace_ex(
+    let mut rc: Status = htp_urldecode_inplace_ex(
         (*tx).cfg,
         htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
         input,
@@ -2476,7 +2473,7 @@ pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
 pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut input: *mut bstr::bstr_t,
-) -> htp_status_t {
+) -> Status {
     return htp_urldecode_inplace_ex(
         (*tx).cfg,
         htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
@@ -2503,7 +2500,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     mut ctx: htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr::bstr_t,
     mut flags: *mut Flags,
-) -> htp_status_t {
+) -> Status {
     let mut expected_status_code: libc::c_int = 0 as libc::c_int;
     return htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code);
 }
@@ -2529,9 +2526,9 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
     mut input: *mut bstr::bstr_t,
     mut flags: *mut Flags,
     mut expected_status_code: *mut libc::c_int,
-) -> htp_status_t {
+) -> Status {
     if input.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut data: *mut libc::c_uchar = if (*input).realptr.is_null() {
         (input as *mut libc::c_uchar)
@@ -2540,7 +2537,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
         (*input).realptr
     };
     if data.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut len: size_t = (*input).len;
     let mut rpos: size_t = 0 as libc::c_int as size_t;
@@ -2954,7 +2951,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                 if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates != 0 {
                     // Terminate the path at the raw NUL byte.
                     bstr::bstr_adjust_len(input, wpos);
-                    return 1 as libc::c_int;
+                    return Status::OK;
                 }
             }
             let fresh6 = wpos;
@@ -2983,7 +2980,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
                 if (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates != 0 {
                     // Terminate the path at the encoded NUL byte.
                     bstr::bstr_adjust_len(input, wpos);
-                    return 1 as libc::c_int;
+                    return Status::OK;
                 }
             }
             rpos = rpos.wrapping_add(1);
@@ -2993,7 +2990,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
         }
     }
     bstr::bstr_adjust_len(input, wpos);
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -3471,7 +3468,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_IDLE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_IDLE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3479,7 +3476,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_LINE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_LINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3487,7 +3484,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_PROTOCOL
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_PROTOCOL\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3495,7 +3492,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_HEADERS
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_HEADERS\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3503,7 +3500,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_CONNECT_CHECK
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_CONNECT_CHECK\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3511,7 +3508,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_CONNECT_WAIT_RESPONSE\x00" as *const u8 as *const libc::c_char
@@ -3520,7 +3517,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_BODY_DETERMINE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_BODY_DETERMINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3528,7 +3525,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_BODY_IDENTITY
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_BODY_IDENTITY\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3536,7 +3533,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_BODY_CHUNKED_LENGTH\x00" as *const u8 as *const libc::c_char
@@ -3545,7 +3542,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_BODY_CHUNKED_DATA
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_BODY_CHUNKED_DATA\x00" as *const u8 as *const libc::c_char
@@ -3554,7 +3551,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_BODY_CHUNKED_DATA_END\x00" as *const u8 as *const libc::c_char
@@ -3563,7 +3560,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_FINALIZE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_FINALIZE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3571,7 +3568,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     if (*connp).in_state
         == Some(
             htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"REQ_IGNORE_DATA_AFTER_HTTP_0_9\x00" as *const u8 as *const libc::c_char
@@ -3590,7 +3587,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_IDLE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_IDLE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3598,7 +3595,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_LINE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_LINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3606,7 +3603,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_HEADERS
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_HEADERS\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3614,7 +3611,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_BODY_DETERMINE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_DETERMINE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3622,7 +3619,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_IDENTITY_CL_KNOWN\x00" as *const u8 as *const libc::c_char
@@ -3631,7 +3628,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_IDENTITY_STREAM_CLOSE\x00" as *const u8 as *const libc::c_char
@@ -3640,7 +3637,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_CHUNKED_LENGTH\x00" as *const u8 as *const libc::c_char
@@ -3649,7 +3646,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_BODY_CHUNKED_DATA
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_CHUNKED_DATA\x00" as *const u8 as *const libc::c_char
@@ -3658,7 +3655,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_CHUNKED_DATA_END\x00" as *const u8 as *const libc::c_char
@@ -3667,7 +3664,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     if (*connp).out_state
         == Some(
             htp_response::htp_connp_RES_FINALIZE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     {
         return b"RES_BODY_FINALIZE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -3885,21 +3882,21 @@ pub unsafe extern "C" fn htp_treat_response_line_as_body(
 pub unsafe extern "C" fn htp_req_run_hook_body_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut d: *mut htp_transaction::htp_tx_data_t,
-) -> htp_status_t {
+) -> Status {
     // Do not invoke callbacks with an empty data chunk
     if !(*d).data.is_null() && (*d).len == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Do not invoke callbacks without a transaction.
     if (*connp).in_tx.is_null() {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Run transaction hooks first
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*connp).in_tx).hook_request_body_data,
         d as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Run configuration hooks second
@@ -3907,7 +3904,7 @@ pub unsafe extern "C" fn htp_req_run_hook_body_data(
         (*(*connp).cfg).hook_request_body_data,
         d as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // On PUT requests, treat request body as file
@@ -3926,11 +3923,11 @@ pub unsafe extern "C" fn htp_req_run_hook_body_data(
             (*(*connp).cfg).hook_request_file_data,
             &mut file_data as *mut htp_file_data_t as *mut libc::c_void,
         );
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -3943,17 +3940,17 @@ pub unsafe extern "C" fn htp_req_run_hook_body_data(
 pub unsafe extern "C" fn htp_res_run_hook_body_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut d: *mut htp_transaction::htp_tx_data_t,
-) -> htp_status_t {
+) -> Status {
     // Do not invoke callbacks with an empty data chunk.
     if !(*d).data.is_null() && (*d).len == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Run transaction hooks first
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*connp).out_tx).hook_response_body_data,
         d as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Run configuration hooks second
@@ -3961,10 +3958,10 @@ pub unsafe extern "C" fn htp_res_run_hook_body_data(
         (*(*connp).cfg).hook_response_body_data,
         d as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -3982,22 +3979,22 @@ pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
     mut len: size_t,
     mut out: *mut *mut bstr::bstr_t,
     mut endoffset: *mut size_t,
-) -> htp_status_t {
+) -> Status {
     if data.is_null() || out.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if len == 0 as libc::c_int as libc::c_ulong {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     let mut pos: size_t = 0 as libc::c_int as size_t;
     // Check that the first character is a double quote.
     if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Step over the double quote.
     pos = pos.wrapping_add(1);
     if pos == len {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Calculate the length of the resulting string.
     let mut escaped_chars: size_t = 0 as libc::c_int as size_t;
@@ -4016,7 +4013,7 @@ pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
     }
     // Have we reached the end of input without seeing the terminating double quote?
     if pos == len {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Copy the data and unescape it as necessary.
     let mut outlen: size_t = pos
@@ -4024,7 +4021,7 @@ pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
         .wrapping_sub(escaped_chars);
     *out = bstr::bstr_alloc(outlen);
     if (*out).is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut outptr: *mut libc::c_uchar = if (**out).realptr.is_null() {
         (*out as *mut libc::c_uchar)
@@ -4060,16 +4057,16 @@ pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
     if !endoffset.is_null() {
         *endoffset = pos
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_ct_header(
     mut header: *mut bstr::bstr_t,
     mut ct: *mut *mut bstr::bstr_t,
-) -> htp_status_t {
+) -> Status {
     if header.is_null() || ct.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut data: *mut libc::c_uchar = if (*header).realptr.is_null() {
         (header as *mut libc::c_uchar)
@@ -4093,10 +4090,10 @@ pub unsafe extern "C" fn htp_parse_ct_header(
     }
     *ct = bstr::bstr_dup_ex(header, 0 as libc::c_int as size_t, pos);
     if (*ct).is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     bstr::bstr_to_lowercase(*ct);
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *

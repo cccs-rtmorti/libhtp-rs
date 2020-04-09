@@ -1,4 +1,4 @@
-use crate::{bstr, bstr_builder, htp_connection_parser, htp_table};
+use crate::{bstr, bstr_builder, htp_connection_parser, htp_table, Status};
 use ::libc;
 
 extern "C" {
@@ -36,8 +36,6 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-pub type htp_status_t = libc::c_int;
-
 pub type htp_time_t = libc::timeval;
 
 /* *
@@ -52,17 +50,17 @@ pub unsafe extern "C" fn htp_transcode_params(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut params: *mut *mut htp_table::htp_table_t,
     mut destroy_old: libc::c_int,
-) -> libc::c_int {
+) -> Status {
     let mut input_params: *mut htp_table::htp_table_t = *params;
     // No transcoding unless necessary
     if (*(*connp).cfg).internal_encoding.is_null() || (*(*connp).cfg).request_encoding.is_null() {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Create a new table that will hold transcoded parameters
     let mut output_params: *mut htp_table::htp_table_t =
         htp_table::htp_table_create(htp_table::htp_table_size(input_params));
     if output_params.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Initialize iconv
     let mut cd: iconv_t = iconv_open(
@@ -71,7 +69,7 @@ pub unsafe extern "C" fn htp_transcode_params(
     );
     if cd == -(1 as libc::c_int) as iconv_t {
         htp_table::htp_table_destroy(output_params);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Convert the parameters, one by one
     let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
@@ -100,7 +98,7 @@ pub unsafe extern "C" fn htp_transcode_params(
                 j += 1
             }
             htp_table::htp_table_destroy(output_params);
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         // Convert value
         htp_transcode_bstr(cd, value, &mut new_value);
@@ -120,7 +118,7 @@ pub unsafe extern "C" fn htp_transcode_params(
                 j_0 += 1
             }
             htp_table::htp_table_destroy(output_params);
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         // Add to new table
         htp_table::htp_table_addn(output_params, new_name, new_value as *const libc::c_void);
@@ -145,7 +143,7 @@ pub unsafe extern "C" fn htp_transcode_params(
         htp_table::htp_table_destroy(input_params);
     }
     iconv_close(cd);
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -160,7 +158,7 @@ pub unsafe extern "C" fn htp_transcode_bstr(
     mut cd: iconv_t,
     mut input: *mut bstr::bstr_t,
     mut output: *mut *mut bstr::bstr_t,
-) -> libc::c_int {
+) -> Status {
     // Reset conversion state for every new string
     iconv(
         cd,
@@ -173,7 +171,7 @@ pub unsafe extern "C" fn htp_transcode_bstr(
     let buflen: size_t = 10 as libc::c_int as size_t;
     let mut buf: *mut libc::c_uchar = malloc(buflen) as *mut libc::c_uchar;
     if buf.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut inbuf: *const libc::c_char = if (*input).realptr.is_null() {
         (input as *mut libc::c_uchar)
@@ -201,7 +199,7 @@ pub unsafe extern "C" fn htp_transcode_bstr(
                     bb = bstr_builder::bstr_builder_create();
                     if bb.is_null() {
                         free(buf as *mut libc::c_void);
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 }
                 // The output buffer is full
@@ -220,7 +218,7 @@ pub unsafe extern "C" fn htp_transcode_bstr(
                     bstr_builder::bstr_builder_destroy(bb);
                 }
                 free(buf as *mut libc::c_void);
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
         }
     }
@@ -234,15 +232,15 @@ pub unsafe extern "C" fn htp_transcode_bstr(
         bstr_builder::bstr_builder_destroy(bb);
         if (*output).is_null() {
             free(buf as *mut libc::c_void);
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     } else {
         *output = bstr::bstr_dup_mem(buf as *const libc::c_void, buflen.wrapping_sub(outleft));
         if (*output).is_null() {
             free(buf as *mut libc::c_void);
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     free(buf as *mut libc::c_void);
-    return 1 as libc::c_int;
+    return Status::OK;
 }

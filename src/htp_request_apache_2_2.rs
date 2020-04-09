@@ -1,4 +1,4 @@
-use crate::{htp_connection_parser, htp_request_generic};
+use crate::{htp_connection_parser, htp_request_generic, Status};
 use ::libc;
 
 pub type __uint8_t = libc::c_uchar;
@@ -14,8 +14,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 pub type htp_time_t = libc::timeval;
 
@@ -33,7 +31,7 @@ pub unsafe extern "C" fn htp_process_request_header_apache_2_2(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     return htp_request_generic::htp_process_request_header_generic(connp, data, len);
 }
 /* *
@@ -45,6 +43,6 @@ pub unsafe extern "C" fn htp_process_request_header_apache_2_2(
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_request_line_apache_2_2(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> htp_status_t {
+) -> Status {
     return htp_request_generic::htp_parse_request_line_generic_ex(connp, 1 as libc::c_int);
 }

@@ -1,6 +1,6 @@
 use crate::{
     bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_list, htp_request,
-    htp_response, htp_transaction, htp_util,
+    htp_response, htp_transaction, htp_util, Status,
 };
 use ::libc;
 
@@ -23,8 +23,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 /**
  * Enumerates all stream states. Each connection has two streams, one
@@ -132,9 +130,9 @@ pub struct htp_connp_t {
      */
     pub in_chunked_length: int64_t,
     /** Current request parser state. */
-    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /** Previous request parser state. Used to detect state changes. */
-    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /** The hook that should be receiving raw connection data. */
     pub in_data_receiver_hook: *mut htp_hooks::htp_hook_t,
 
@@ -191,9 +189,9 @@ pub struct htp_connp_t {
      */
     pub out_chunked_length: int64_t,
     /** Current response parser state. */
-    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /** Previous response parser state. */
-    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> libc::c_int>,
+    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /** The hook that should be receiving raw connection data. */
     pub out_data_receiver_hook: *mut htp_hooks::htp_hook_t,
     /** Response decompressor used to decompress response body data. */
@@ -310,14 +308,12 @@ pub unsafe extern "C" fn htp_connp_create(mut cfg: *mut htp_config::htp_cfg_t) -
     }
     // Request parsing
     (*connp).in_state = Some(
-        htp_request::htp_connp_REQ_IDLE
-            as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+        htp_request::htp_connp_REQ_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
     );
     (*connp).in_status = htp_stream_state_t::HTP_STREAM_NEW;
     // Response parsing
     (*connp).out_state = Some(
-        htp_response::htp_connp_RES_IDLE
-            as unsafe extern "C" fn(_: *mut htp_connp_t) -> htp_status_t,
+        htp_response::htp_connp_RES_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
     );
     (*connp).out_status = htp_stream_state_t::HTP_STREAM_NEW;
     return connp;
@@ -519,7 +515,7 @@ pub unsafe extern "C" fn htp_connp_open(
         server_addr,
         server_port,
         timestamp,
-    ) != 1 as libc::c_int
+    ) != Status::OK
     {
         return;
     }

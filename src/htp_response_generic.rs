@@ -1,5 +1,7 @@
 use crate::htp_util::Flags;
-use crate::{bstr, htp_connection_parser, htp_parsers, htp_table, htp_transaction, htp_util};
+use crate::{
+    bstr, htp_connection_parser, htp_parsers, htp_table, htp_transaction, htp_util, Status,
+};
 use ::libc;
 
 extern "C" {
@@ -37,8 +39,6 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-pub type htp_status_t = libc::c_int;
-
 pub type htp_time_t = libc::timeval;
 
 /* *
@@ -50,7 +50,7 @@ pub type htp_time_t = libc::timeval;
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_response_line_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> htp_status_t {
+) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*connp).out_tx;
     let mut data: *mut libc::c_uchar = if (*(*tx).response_line).realptr.is_null() {
         ((*tx).response_line as *mut libc::c_uchar)
@@ -75,14 +75,14 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         pos = pos.wrapping_add(1)
     }
     if pos.wrapping_sub(start) == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     (*tx).response_protocol = bstr::bstr_dup_mem(
         data.offset(start as isize) as *const libc::c_void,
         pos.wrapping_sub(start),
     );
     if (*tx).response_protocol.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).response_protocol_number = htp_parsers::htp_parse_protocol((*tx).response_protocol);
     // Ignore whitespace after the response protocol.
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         pos = pos.wrapping_add(1)
     }
     if pos == len {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     start = pos;
     // Find the next whitespace character.
@@ -98,14 +98,14 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         pos = pos.wrapping_add(1)
     }
     if pos.wrapping_sub(start) == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     (*tx).response_status = bstr::bstr_dup_mem(
         data.offset(start as isize) as *const libc::c_void,
         pos.wrapping_sub(start),
     );
     if (*tx).response_status.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).response_status_number = htp_parsers::htp_parse_status((*tx).response_status);
     // Ignore whitespace that follows the status code.
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         pos = pos.wrapping_add(1)
     }
     if pos == len {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Assume the message stretches until the end of the line.
     (*tx).response_message = bstr::bstr_dup_mem(
@@ -126,9 +126,9 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         len.wrapping_sub(pos),
     );
     if (*tx).response_message.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     mut h: *mut htp_transaction::htp_header_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     let mut name_start: size_t = 0;
     let mut name_end: size_t = 0;
     let mut value_start: size_t = 0;
@@ -289,9 +289,9 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     if (*h).name.is_null() || (*h).value.is_null() {
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -308,18 +308,18 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     // Create a new header structure.
     let mut h: *mut htp_transaction::htp_header_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_transaction::htp_header_t>() as libc::c_ulong,
     ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    if htp_parse_response_header_generic(connp, h, data, len) != 1 as libc::c_int {
+    if htp_parse_response_header_generic(connp, h, data, len) != Status::OK {
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Do we already have a header with the same name?
     let mut h_existing: *mut htp_transaction::htp_header_t =
@@ -344,7 +344,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             bstr::bstr_free((*h).name);
             bstr::bstr_free((*h).value);
             free(h as *mut libc::c_void);
-            return 1 as libc::c_int;
+            return Status::OK;
         }
         (*h_existing).flags |= Flags::HTP_FIELD_REPEATED;
         // For simplicity reasons, we count the repetitions of all headers
@@ -394,7 +394,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
                 bstr::bstr_free((*h).name);
                 bstr::bstr_free((*h).value);
                 free(h as *mut libc::c_void);
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             (*h_existing).value = new_value;
             bstr::bstr_add_mem_noex(
@@ -413,12 +413,12 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         (*(*connp).out_tx).response_headers,
         (*h).name,
         h as *const libc::c_void,
-    ) != 1 as libc::c_int
+    ) != Status::OK
     {
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }

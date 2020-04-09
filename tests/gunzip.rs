@@ -6,17 +6,18 @@ use libhtp2::htp_connection_parser::*;
 use libhtp2::htp_decompressors::htp_content_encoding_t::*;
 use libhtp2::htp_decompressors::*;
 use libhtp2::htp_transaction::*;
+use libhtp2::Status;
 use std::env;
 use std::ffi::CString;
 use std::path::PathBuf;
 
 #[no_mangle]
-extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> libc::c_int {
+extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
     unsafe {
         let output_ptr: *mut *mut bstr_t = htp_tx_get_user_data((*d).tx) as *mut *mut bstr_t;
         *output_ptr = bstr_dup_mem((*d).data as *const core::ffi::c_void, (*d).len);
     }
-    return 1 as libc::c_int; //HTP_OK
+    return Status::OK; 
 }
 
 #[derive(Debug)]
@@ -31,7 +32,7 @@ struct Test {
 
 enum TestError {
     Io(std::io::Error),
-    Htp(i32),
+    Htp(Status),
 }
 
 impl Test {
@@ -90,8 +91,7 @@ impl Test {
                 is_last: 0,
             };
             let rc = (*self.decompressor).decompress.unwrap()(self.decompressor, &mut tx);
-            if rc == 1 {
-                // HTP_OK
+            if rc == Status::OK {
                 Ok(())
             } else {
                 Err(TestError::Htp(rc))

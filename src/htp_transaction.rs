@@ -2,7 +2,7 @@ use crate::htp_util::Flags;
 use crate::{
     bstr, htp_config, htp_connection, htp_connection_parser, htp_cookies, htp_decompressors,
     htp_hooks, htp_list, htp_multipart, htp_parsers, htp_request, htp_response, htp_table,
-    htp_urlencoded, htp_util,
+    htp_urlencoded, htp_util, Status,
 };
 use ::libc;
 
@@ -15,7 +15,7 @@ extern "C" {
     fn htp_hook_register(
         hook: *mut *mut htp_hooks::htp_hook_t,
         callback_fn: htp_callback_fn_t,
-    ) -> htp_status_t;
+    ) -> Status;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -30,8 +30,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -551,15 +549,15 @@ pub unsafe extern "C" fn htp_tx_create(
  * @param[in] tx Transaction pointer. Must not be NULL.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_destroy(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if htp_tx_is_complete(tx) == 0 {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     htp_tx_destroy_incomplete(tx);
-    return 1 as libc::c_int;
+    Status::OK
 }
 
 #[no_mangle]
@@ -755,17 +753,17 @@ pub unsafe extern "C" fn htp_tx_set_user_data(
 pub unsafe extern "C" fn htp_tx_req_add_param(
     mut tx: *mut htp_tx_t,
     mut param: *mut htp_param_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || param.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*(*tx).cfg).parameter_processor.is_some() {
         if (*(*tx).cfg)
             .parameter_processor
             .expect("non-null function pointer")(param)
-            != 1 as libc::c_int
+            != Status::OK
         {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     return htp_table::htp_table_addk(
@@ -874,37 +872,37 @@ pub unsafe extern "C" fn htp_tx_req_set_header(
     mut value: *const libc::c_char,
     mut value_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || name.is_null() || value.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut h: *mut htp_header_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_header_t>() as libc::c_ulong,
     ) as *mut htp_header_t;
     if h.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).name = copy_or_wrap_mem(name as *const libc::c_void, name_len, alloc);
     if (*h).name.is_null() {
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).value = copy_or_wrap_mem(value as *const libc::c_void, value_len, alloc);
     if (*h).value.is_null() {
         bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if htp_table::htp_table_add((*tx).request_headers, (*h).name, h as *const libc::c_void)
-        != 1 as libc::c_int
+        != Status::OK
     {
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    Status::OK
 }
 
 /**
@@ -923,15 +921,15 @@ pub unsafe extern "C" fn htp_tx_req_set_method(
     mut method: *const libc::c_char,
     mut method_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || method.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).request_method = copy_or_wrap_mem(method as *const libc::c_void, method_len, alloc);
     if (*tx).request_method.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -971,15 +969,15 @@ pub unsafe extern "C" fn htp_tx_req_set_uri(
     mut uri: *const libc::c_char,
     mut uri_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || uri.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).request_uri = copy_or_wrap_mem(uri as *const libc::c_void, uri_len, alloc);
     if (*tx).request_uri.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -999,15 +997,15 @@ pub unsafe extern "C" fn htp_tx_req_set_protocol(
     mut protocol: *const libc::c_char,
     mut protocol_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || protocol.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).request_protocol = copy_or_wrap_mem(protocol as *const libc::c_void, protocol_len, alloc);
     if (*tx).request_protocol.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1058,12 +1056,12 @@ pub unsafe extern "C" fn htp_tx_req_set_protocol_0_9(
         (*tx).is_protocol_0_9 = 0 as libc::c_int
     };
 }
-unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> htp_status_t {
+unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Determine if we have a request body, and how it is packaged.
-    let mut rc: htp_status_t = 1 as libc::c_int;
+    let mut rc: Status = Status::OK;
     let mut cl: *mut htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
         b"content-length\x00" as *const u8 as *const libc::c_char,
@@ -1156,7 +1154,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
                 ::std::mem::size_of::<htp_util::htp_file_t>() as libc::c_ulong,
             ) as *mut htp_util::htp_file_t;
             if (*(*tx).connp).put_file.is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             (*(*(*tx).connp).put_file).fd = -(1 as libc::c_int);
             (*(*(*tx).connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
@@ -1167,7 +1165,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
     if !(*(*tx).parsed_uri).hostname.is_null() {
         (*tx).request_hostname = bstr::bstr_dup((*(*tx).parsed_uri).hostname);
         if (*tx).request_hostname.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     (*tx).request_port_number = (*(*tx).parsed_uri).port_number;
@@ -1193,7 +1191,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
             &mut port,
             &mut (*tx).flags,
         );
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
         if !hostname.is_null() {
@@ -1233,30 +1231,30 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
     ) as *mut htp_header_t;
     if !ct.is_null() {
         rc = htp_util::htp_parse_ct_header((*ct).value, &mut (*tx).request_content_type);
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
     }
     // Parse cookies.
     if (*(*(*tx).connp).cfg).parse_request_cookies != 0 {
         rc = htp_cookies::htp_parse_cookies_v0((*tx).connp);
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
     }
     // Parse authentication information.
     if (*(*(*tx).connp).cfg).parse_request_auth != 0 {
         rc = htp_parsers::htp_parse_authorization((*tx).connp);
-        if rc == 0 as libc::c_int {
+        if rc == Status::DECLINED {
             // Don't fail the stream if an authorization header is invalid, just set a flag.
             (*tx).flags |= Flags::HTP_AUTH_INVALID
-        } else if rc != 1 as libc::c_int {
+        } else if rc != Status::OK {
             return rc;
         }
     }
     // Finalize sending raw header data.
     rc = htp_request::htp_connp_req_receiver_finalize_clear((*tx).connp);
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Run hook REQUEST_HEADERS.
@@ -1264,14 +1262,14 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> ht
         (*(*(*tx).connp).cfg).hook_request_headers,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // We cannot proceed if the request is invalid.
     if (*tx).flags.contains(Flags::HTP_REQUEST_INVALID) {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1293,12 +1291,12 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || data == 0 as *mut libc::c_void {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if len == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     return htp_tx_req_process_body_data_ex(tx, data, len);
 }
@@ -1308,9 +1306,9 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // NULL data is allowed in this private function; it's
     // used to indicate the end of request body.
@@ -1327,8 +1325,8 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
     d.tx = tx;
     d.data = data as *mut libc::c_uchar;
     d.len = len;
-    let mut rc: htp_status_t = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut d);
-    if rc != 1 as libc::c_int {
+    let mut rc: Status = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut d);
+    if rc != Status::OK {
         htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
@@ -1339,9 +1337,9 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
                 as *const libc::c_char,
             rc,
         );
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1357,9 +1355,9 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
  * @return HTP_OK on success, HTP_ERROR on failure.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() || (*tx).request_headers.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
     let mut i: size_t = 0 as libc::c_int as size_t;
@@ -1375,9 +1373,9 @@ pub unsafe extern "C" fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> 
     htp_table::htp_table_destroy((*tx).request_headers);
     (*tx).request_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).request_headers.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1396,22 +1394,22 @@ pub unsafe extern "C" fn htp_tx_req_set_line(
     mut line: *const libc::c_char,
     mut line_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || line.is_null() || line_len == 0 as libc::c_int as libc::c_ulong {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).request_line = copy_or_wrap_mem(line as *const libc::c_void, line_len, alloc);
     if (*tx).request_line.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*(*(*tx).connp).cfg)
         .parse_request_line
         .expect("non-null function pointer")((*tx).connp)
-        != 1 as libc::c_int
+        != Status::OK
     {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1455,22 +1453,22 @@ pub unsafe extern "C" fn htp_tx_res_set_status_line(
     mut line: *const libc::c_char,
     mut line_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || line.is_null() || line_len == 0 as libc::c_int as libc::c_ulong {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).response_line = copy_or_wrap_mem(line as *const libc::c_void, line_len, alloc);
     if (*tx).response_line.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*(*(*tx).connp).cfg)
         .parse_response_line
         .expect("non-null function pointer")((*tx).connp)
-        != 1 as libc::c_int
+        != Status::OK
     {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1526,18 +1524,18 @@ pub unsafe extern "C" fn htp_tx_res_set_status_message(
     mut msg: *const libc::c_char,
     mut msg_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || msg.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if !(*tx).response_message.is_null() {
         bstr::bstr_free((*tx).response_message);
     }
     (*tx).response_message = copy_or_wrap_mem(msg as *const libc::c_void, msg_len, alloc);
     if (*tx).response_message.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1548,9 +1546,9 @@ pub unsafe extern "C" fn htp_tx_res_set_status_message(
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Is the response line valid?
     if (*tx).response_protocol_number == -(2 as libc::c_int) {
@@ -1582,14 +1580,14 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> ht
         (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
     }
     // Run hook HTP_RESPONSE_LINE
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_response_line,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1613,37 +1611,37 @@ pub unsafe extern "C" fn htp_tx_res_set_header(
     mut value: *const libc::c_char,
     mut value_len: size_t,
     mut alloc: htp_alloc_strategy_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || name.is_null() || value.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut h: *mut htp_header_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_header_t>() as libc::c_ulong,
     ) as *mut htp_header_t;
     if h.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).name = copy_or_wrap_mem(name as *const libc::c_void, name_len, alloc);
     if (*h).name.is_null() {
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).value = copy_or_wrap_mem(value as *const libc::c_void, value_len, alloc);
     if (*h).value.is_null() {
         bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if htp_table::htp_table_add((*tx).response_headers, (*h).name, h as *const libc::c_void)
-        != 1 as libc::c_int
+        != Status::OK
     {
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1659,9 +1657,9 @@ pub unsafe extern "C" fn htp_tx_res_set_header(
  * @return HTP_OK on success, HTP_ERROR on failure.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() || (*tx).response_headers.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
     let mut i: size_t = 0 as libc::c_int as size_t;
@@ -1677,9 +1675,9 @@ pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> 
     htp_table::htp_table_destroy((*tx).response_headers);
     (*tx).response_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).response_headers.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 #[no_mangle]
@@ -1706,17 +1704,17 @@ unsafe extern "C" fn htp_tx_res_destroy_decompressors(mut tx: *mut htp_tx_t) {
 
 unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     mut d: *mut htp_tx_data_t,
-) -> htp_status_t {
+) -> Status {
     if d.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Keep track of actual response body length.
     (*(*d).tx).response_entity_len = ((*(*d).tx).response_entity_len as libc::c_ulong)
         .wrapping_add((*d).len) as int64_t as int64_t;
     // Invoke all callbacks.
-    let mut rc: htp_status_t = htp_util::htp_res_run_hook_body_data((*(*d).tx).connp, d);
-    if rc != 1 as libc::c_int {
-        return -(1 as libc::c_int);
+    let mut rc: Status = htp_util::htp_res_run_hook_body_data((*(*d).tx).connp, d);
+    if rc != Status::OK {
+        return Status::ERROR;
     }
     if (*(*d).tx).response_entity_len
         > (*(*(*(*d).tx).connp).cfg).compression_bomb_limit as libc::c_long
@@ -1734,9 +1732,9 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
             (*(*d).tx).response_entity_len,
             (*(*d).tx).response_message_len,
         );
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1762,12 +1760,12 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() || data == 0 as *mut libc::c_void {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if len == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     return htp_tx_res_process_body_data_ex(tx, data, len);
 }
@@ -1777,9 +1775,9 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // NULL data is allowed in this private function; it's
     // used to indicate the end of response body.
@@ -1796,14 +1794,14 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
     // Keep track of body size before decompression.
     (*tx).response_message_len =
         ((*tx).response_message_len as libc::c_ulong).wrapping_add(d.len) as int64_t as int64_t;
-    let mut rc: htp_status_t = 0;
+    let mut rc: Status = Status::DECLINED;
     match (*tx).response_content_encoding_processing as libc::c_uint {
         2 | 3 | 4 => {
             // In severe memory stress these could be NULL
             if (*(*tx).connp).out_decompressor.is_null()
                 || (*(*(*tx).connp).out_decompressor).decompress.is_none()
             {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             // Send data buffer to the decompressor.
             (*(*(*tx).connp).out_decompressor)
@@ -1822,8 +1820,8 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
             (*tx).response_entity_len = ((*tx).response_entity_len as libc::c_ulong)
                 .wrapping_add(d.len) as int64_t as int64_t;
             rc = htp_util::htp_res_run_hook_body_data((*tx).connp, &mut d);
-            if rc != 1 as libc::c_int {
-                return -(1 as libc::c_int);
+            if rc != Status::OK {
+                return Status::ERROR;
             }
         }
         _ => {
@@ -1838,37 +1836,35 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
                     as *const u8 as *const libc::c_char,
                 (*tx).response_content_encoding_processing as libc::c_uint,
             );
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete_partial(
-    mut tx: *mut htp_tx_t,
-) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_request_complete_partial(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Finalize request body.
     if htp_tx_req_has_body(tx) != 0 {
-        let mut rc: htp_status_t = htp_tx_req_process_body_data_ex(
+        let mut rc: Status = htp_tx_req_process_body_data_ex(
             tx,
             0 as *const libc::c_void,
             0 as libc::c_int as size_t,
         );
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
     }
     (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
     // Run hook REQUEST_COMPLETE.
-    let mut rc_0: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc_0: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_complete,
         tx as *mut libc::c_void,
     );
-    if rc_0 != 1 as libc::c_int {
+    if rc_0 != Status::OK {
         return rc_0;
     }
     // Clean-up.
@@ -1877,7 +1873,7 @@ pub unsafe extern "C" fn htp_tx_state_request_complete_partial(
         free((*(*tx).connp).put_file as *mut libc::c_void);
         (*(*tx).connp).put_file = 0 as *mut htp_util::htp_file_t
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1888,13 +1884,13 @@ pub unsafe extern "C" fn htp_tx_state_request_complete_partial(
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*tx).request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE {
-        let mut rc: htp_status_t = htp_tx_state_request_complete_partial(tx);
-        if rc != 1 as libc::c_int {
+        let mut rc: Status = htp_tx_state_request_complete_partial(tx);
+        if rc != Status::OK {
             return rc;
         }
     }
@@ -1906,12 +1902,12 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) ->
     if (*tx).is_protocol_0_9 != 0 {
         (*connp).in_state = Some(
             htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     } else {
         (*connp).in_state = Some(
             htp_request::htp_connp_REQ_IDLE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     }
     // Check if the entire transaction is complete. This call may
@@ -1919,7 +1915,7 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) ->
     htp_tx_finalize(tx);
     // At this point, tx may no longer be valid.
     (*connp).in_tx = 0 as *mut htp_tx_t;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1931,25 +1927,25 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) ->
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Run hook REQUEST_START.
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_start,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Change state into request line parsing.
     (*(*tx).connp).in_state = Some(
         htp_request::htp_connp_REQ_LINE
-            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
     (*(*(*tx).connp).in_tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1961,9 +1957,9 @@ pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> ht
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // If we're in HTP_REQ_HEADERS that means that this is the
     // first time we're processing headers in a request. Otherwise,
@@ -1971,22 +1967,22 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
     if (*tx).request_progress > htp_tx_req_progress_t::HTP_REQUEST_HEADERS {
         // Request trailers.
         // Run hook HTP_REQUEST_TRAILER.
-        let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+        let mut rc: Status = htp_hooks::htp_hook_run_all(
             (*(*(*tx).connp).cfg).hook_request_trailer,
             tx as *mut libc::c_void,
         );
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
         // Finalize sending raw header data.
         rc = htp_request::htp_connp_req_receiver_finalize_clear((*tx).connp);
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
         // Completed parsing this request; finalize it now.
         (*(*tx).connp).in_state = Some(
             htp_request::htp_connp_REQ_FINALIZE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     } else if (*tx).request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {
         // Request headers.
@@ -1994,13 +1990,13 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
         if (*(*tx).connp).in_chunk_count != (*(*tx).connp).in_chunk_request_index {
             (*tx).flags |= Flags::HTP_MULTI_PACKET_HEAD
         }
-        let mut rc_0: htp_status_t = htp_tx_process_request_headers(tx);
-        if rc_0 != 1 as libc::c_int {
+        let mut rc_0: Status = htp_tx_process_request_headers(tx);
+        if rc_0 != Status::OK {
             return rc_0;
         }
         (*(*tx).connp).in_state = Some(
             htp_request::htp_connp_REQ_CONNECT_CHECK
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     } else {
         htp_util::htp_log(
@@ -2012,9 +2008,9 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
             b"[Internal Error] Invalid tx progress: %d\x00" as *const u8 as *const libc::c_char,
             (*tx).request_progress as libc::c_uint,
         );
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -2026,35 +2022,35 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Determine how to process the request URI.
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT as libc::c_uint {
         // When CONNECT is used, the request URI contains an authority string.
         if htp_util::htp_parse_uri_hostport((*tx).connp, (*tx).request_uri, (*tx).parsed_uri_raw)
-            != 1 as libc::c_int
+            != Status::OK
         {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     } else if htp_util::htp_parse_uri((*tx).request_uri, &mut (*tx).parsed_uri_raw)
         != 1 as libc::c_int
     {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Parse the request URI into htp_tx_t::parsed_uri_raw.
     // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
     if (*tx).parsed_uri.is_null() {
         (*tx).parsed_uri = htp_util::htp_uri_alloc();
         if (*tx).parsed_uri.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         // Keep the original URI components, but create a copy which we can normalize and use internally.
         if htp_util::htp_normalize_parsed_uri(tx, (*tx).parsed_uri_raw, (*tx).parsed_uri)
             != 1 as libc::c_int
         {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     // Check parsed_uri hostname.
@@ -2064,11 +2060,11 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
         }
     }
     // Run hook REQUEST_URI_NORMALIZE.
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_uri_normalize,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Run hook REQUEST_LINE.
@@ -2076,15 +2072,15 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
         (*(*(*tx).connp).cfg).hook_request_line,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Move on to the next phase.
     (*(*tx).connp).in_state = Some(
         htp_request::htp_connp_REQ_PROTOCOL
-            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -2095,43 +2091,43 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> htp
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_complete(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_response_complete(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     return htp_tx_state_response_complete_ex(tx, 1 as libc::c_int);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_finalize(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_finalize(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if htp_tx_is_complete(tx) == 0 {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Run hook TRANSACTION_COMPLETE.
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_transaction_complete,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // In streaming processing, we destroy the transaction because it will not be needed any more.
     if (*(*(*tx).connp).cfg).tx_auto_destroy != 0 {
         htp_tx_destroy(tx);
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
     mut tx: *mut htp_tx_t,
     mut hybrid_mode: libc::c_int,
-) -> htp_status_t {
+) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if (*tx).response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE {
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE;
@@ -2144,11 +2140,11 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
             );
         }
         // Run hook RESPONSE_COMPLETE.
-        let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+        let mut rc: Status = htp_hooks::htp_hook_run_all(
             (*(*(*tx).connp).cfg).hook_response_complete,
             tx as *mut libc::c_void,
         );
-        if rc != 1 as libc::c_int {
+        if rc != Status::OK {
             return rc;
         }
     }
@@ -2170,31 +2166,31 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
             == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
             && (*(*tx).connp).in_tx == (*(*tx).connp).out_tx
         {
-            return 3 as libc::c_int;
+            return Status::DATA_OTHER;
         }
         // Do we have a signal to yield to inbound processing at
         // the end of the next transaction?
         if (*(*tx).connp).out_data_other_at_tx_end != 0 {
             // We do. Let's yield then.
             (*(*tx).connp).out_data_other_at_tx_end = 0 as libc::c_int as libc::c_uint;
-            return 3 as libc::c_int;
+            return Status::DATA_OTHER;
         }
     }
     // Make a copy of the connection parser pointer, so that
     // we don't have to reference it via tx, which may be destroyed later.
     let mut connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
     // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
-    let mut rc_0: htp_status_t = htp_tx_finalize(tx);
-    if rc_0 != 1 as libc::c_int {
+    let mut rc_0: Status = htp_tx_finalize(tx);
+    if rc_0 != Status::OK {
         return rc_0;
     }
     // Disconnect transaction from the parser.
     (*connp).out_tx = 0 as *mut htp_tx_t;
     (*connp).out_state = Some(
         htp_response::htp_connp_RES_IDLE
-            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 /* *
  *  @internal
@@ -2257,9 +2253,9 @@ unsafe extern "C" fn get_token(
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Check for compression.
     // Determine content encoding.
@@ -2319,8 +2315,8 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         ce_multi_comp = 0 as libc::c_int
     }
     // Finalize sending raw header data.
-    let mut rc: htp_status_t = htp_response::htp_connp_res_receiver_finalize_clear((*tx).connp);
-    if rc != 1 as libc::c_int {
+    let mut rc: Status = htp_response::htp_connp_res_receiver_finalize_clear((*tx).connp);
+    if rc != Status::OK {
         return rc;
     }
     // Run hook RESPONSE_HEADERS.
@@ -2328,7 +2324,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         (*(*(*tx).connp).cfg).hook_response_headers,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Initialize the decompression engine as necessary. We can deal with three
@@ -2360,11 +2356,11 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                 (*tx).response_content_encoding_processing,
             );
             if (*(*tx).connp).out_decompressor.is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             (*(*(*tx).connp).out_decompressor).callback = Some(
                 htp_tx_res_process_body_data_decompressor_callback
-                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
             )
         /* multiple ce value case */
         } else {
@@ -2506,11 +2502,11 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                                     (*tx).response_content_encoding_processing,
                                 );
                             if (*(*tx).connp).out_decompressor.is_null() {
-                                return -(1 as libc::c_int);
+                                return Status::ERROR;
                             }
                             (*(*(*tx).connp).out_decompressor).callback = Some(
                                 htp_tx_res_process_body_data_decompressor_callback
-                                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> htp_status_t,
+                                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
                             );
                             comp = (*(*tx).connp).out_decompressor
                         } else {
@@ -2519,11 +2515,11 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                                 cetype,
                             );
                             if (*comp).next.is_null() {
-                                return -(1 as libc::c_int);
+                                return Status::ERROR;
                             }
                             (*(*comp).next).callback = Some(
                                 htp_tx_res_process_body_data_decompressor_callback
-                                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> htp_status_t,
+                                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
                             );
                             comp = (*comp).next
                         }
@@ -2542,9 +2538,9 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
     } else if (*tx).response_content_encoding_processing
         != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
     {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -2555,17 +2551,17 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
  *         callbacks does not want to follow the transaction any more.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*(*tx).connp).out_tx = tx;
     // Run hook RESPONSE_START.
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_response_start,
         tx as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
     // Change state into response line parsing, except if we're following
@@ -2577,13 +2573,13 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> h
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
         (*(*tx).connp).out_state = Some(
             htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         );
         (*(*tx).connp).out_body_data_left = -(1 as libc::c_int) as int64_t
     } else {
         (*(*tx).connp).out_state = Some(
             htp_response::htp_connp_RES_LINE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> htp_status_t,
+                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         );
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
     }
@@ -2595,9 +2591,7 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> h
         && (*(*tx).connp).in_state
             == Some(
                 htp_request::htp_connp_REQ_LINE
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                    ) -> htp_status_t,
+                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             )
     {
         htp_util::htp_log(
@@ -2608,11 +2602,11 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> h
             0 as libc::c_int,
             b"Request line incomplete\x00" as *const u8 as *const libc::c_char,
         );
-        if htp_request::htp_connp_REQ_LINE_complete((*tx).connp) != 1 as libc::c_int {
-            return -(1 as libc::c_int);
+        if htp_request::htp_connp_REQ_LINE_complete((*tx).connp) != Status::OK {
+            return Status::ERROR;
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *

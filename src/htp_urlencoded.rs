@@ -1,4 +1,4 @@
-use crate::{bstr, bstr_builder, htp_table, htp_transaction, htp_util};
+use crate::{bstr, bstr_builder, htp_table, htp_transaction, htp_util, Status};
 use ::libc;
 
 extern "C" {
@@ -20,8 +20,6 @@ pub type int64_t = __int64_t;
 pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
-
-pub type htp_status_t = libc::c_int;
 
 /**
  * This is the main URLENCODED parser structure. It is used to store
@@ -245,7 +243,7 @@ pub unsafe extern "C" fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
  * @return Success indication
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_urlenp_finalize(mut urlenp: *mut htp_urlenp_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_urlenp_finalize(mut urlenp: *mut htp_urlenp_t) -> Status {
     (*urlenp)._complete = 1 as libc::c_int;
     return htp_urlenp_parse_partial(urlenp, 0 as *const libc::c_void, 0 as libc::c_int as size_t);
 }
@@ -266,7 +264,7 @@ pub unsafe extern "C" fn htp_urlenp_parse_complete(
     mut urlenp: *mut htp_urlenp_t,
     mut data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     htp_urlenp_parse_partial(urlenp, data, len);
     return htp_urlenp_finalize(urlenp);
 }
@@ -286,7 +284,7 @@ pub unsafe extern "C" fn htp_urlenp_parse_partial(
     mut urlenp: *mut htp_urlenp_t,
     mut _data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     let mut data: *mut libc::c_uchar = _data as *mut libc::c_uchar;
     let mut startpos: size_t = 0 as libc::c_int as size_t;
     let mut pos: size_t = 0 as libc::c_int as size_t;
@@ -339,12 +337,12 @@ pub unsafe extern "C" fn htp_urlenp_parse_partial(
             }
             _ => {
                 // Invalid state.
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
         }
         if !(c != -(1 as libc::c_int)) {
             break;
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }

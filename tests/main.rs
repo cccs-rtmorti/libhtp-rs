@@ -16,6 +16,7 @@ use libhtp2::htp_transaction::htp_tx_res_progress_t::*;
 use libhtp2::htp_transaction::*;
 use libhtp2::htp_util::htp_log_level_t::*;
 use libhtp2::htp_util::*;
+use libhtp2::Status;
 use std::env;
 use std::ffi::CString;
 use std::iter::IntoIterator;
@@ -1124,7 +1125,7 @@ fn ResponseHeaderData() {
 #[no_mangle]
 extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
     d: *mut htp_tx_data_t,
-) -> libc::c_int {
+) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len as usize;
@@ -1173,7 +1174,7 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
         let counter_ptr: *mut i32 = &mut COUNTER;
         htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
 
-        return 1 as libc::c_int; // HTP_OK
+        Status::OK
     }
 }
 

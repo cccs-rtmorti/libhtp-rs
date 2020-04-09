@@ -1,6 +1,7 @@
 use crate::htp_util::Flags;
 use crate::{
     bstr, bstr_builder, htp_config, htp_hooks, htp_list, htp_table, htp_transaction, htp_util,
+    Status,
 };
 
 use ::libc;
@@ -167,8 +168,6 @@ pub type uint64_t = __uint64_t;
 pub type ssize_t = __ssize_t;
 pub type mode_t = __mode_t;
 
-pub type htp_status_t = libc::c_int;
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_mpartp_t {
@@ -186,9 +185,9 @@ pub struct htp_mpartp_t {
             _: *const libc::c_uchar,
             _: size_t,
             _: libc::c_int,
-        ) -> libc::c_int,
+        ) -> Status,
     >,
-    pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t) -> libc::c_int>,
+    pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t) -> Status>,
     // Internal parsing fields; move into a private structure
     /**
      * Parser state; one of MULTIPART_STATE_* constants.
@@ -449,9 +448,7 @@ unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr::
  *         it could not be processed, and HTP_ERROR on fatal error.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
-    mut part: *mut htp_multipart_part_t,
-) -> htp_status_t {
+pub unsafe extern "C" fn htp_mpart_part_parse_c_d(mut part: *mut htp_multipart_part_t) -> Status {
     // Find the C-D header.
     let mut h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*part).headers,
@@ -459,7 +456,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Require "form-data" at the beginning of the header.
     if bstr::bstr_index_of_c(
@@ -468,7 +465,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
     ) != 0 as libc::c_int
     {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // The parsing starts here.
     let mut data: *mut libc::c_uchar = if (*(*h).value).realptr.is_null() {
@@ -492,12 +489,12 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         }
         if pos == len {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         // Continue to parse the next parameter, if any.
         if *data.offset(pos as isize) as libc::c_int != ';' as i32 {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         pos = pos.wrapping_add(1);
         while pos < len
@@ -512,7 +509,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         }
         if pos == len {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         let mut start: size_t = pos;
         while pos < len
@@ -528,7 +525,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         }
         if pos == len {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         let mut param_type: libc::c_int = htp_mpartp_cd_param_type(data, start, pos);
         while pos < len
@@ -544,11 +541,11 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         }
         if pos == len {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         if *data.offset(pos as isize) as libc::c_int != '=' as i32 {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         pos = pos.wrapping_add(1);
         while pos < len
@@ -563,13 +560,13 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         }
         if pos == len {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
             // Expecting a double quote.
             // Bare string or non-standard quoting, which we don't like.
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID; // Over the double quote.
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         pos = pos.wrapping_add(1);
         start = pos;
@@ -583,7 +580,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                     // A backslash as the last character in the C-D header.
                     (*(*part).parser).multipart.flags |=
                         MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-                    return 0 as libc::c_int;
+                    return Status::DECLINED;
                 }
                 // Allow " and \ to be escaped.
                 if *data.offset(pos.wrapping_add(1 as libc::c_int as libc::c_ulong) as isize)
@@ -601,11 +598,11 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
         }
         if pos == len {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         if *data.offset(pos as isize) as libc::c_int != '\"' as i32 {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         pos = pos.wrapping_add(1);
         match param_type {
@@ -619,7 +616,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                 if !(*part).name.is_null() {
                     (*(*part).parser).multipart.flags |=
                         MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                    return 0 as libc::c_int;
+                    return Status::DECLINED;
                 }
                 (*part).name = bstr::bstr_dup_mem(
                     data.offset(start as isize) as *const libc::c_void,
@@ -627,7 +624,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                         .wrapping_sub(1 as libc::c_int as libc::c_ulong),
                 );
                 if (*part).name.is_null() {
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 htp_mpart_decode_quoted_cd_value_inplace((*part).name);
             }
@@ -636,14 +633,14 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                 if !(*part).file.is_null() {
                     (*(*part).parser).multipart.flags |=
                         MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                    return 0 as libc::c_int;
+                    return Status::DECLINED;
                 }
                 (*part).file = calloc(
                     1 as libc::c_int as libc::c_ulong,
                     ::std::mem::size_of::<htp_util::htp_file_t>() as libc::c_ulong,
                 ) as *mut htp_util::htp_file_t;
                 if (*part).file.is_null() {
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 (*(*part).file).fd = -(1 as libc::c_int);
                 (*(*part).file).source = htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
@@ -654,18 +651,18 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
                 );
                 if (*(*part).file).filename.is_null() {
                     free((*part).file as *mut libc::c_void);
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 htp_mpart_decode_quoted_cd_value_inplace((*(*part).file).filename);
             }
             _ => {
                 // Unknown parameter.
                 (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_PARAM_UNKNOWN;
-                return 0 as libc::c_int;
+                return Status::DECLINED;
             }
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -674,13 +671,13 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(
  * @param[in] part
  * @return HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
  */
-unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_t) -> htp_status_t {
+unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_t) -> Status {
     let mut h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*part).headers,
         b"content-type\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     return htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type);
 }
@@ -694,14 +691,14 @@ unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpart_part_process_headers(
     mut part: *mut htp_multipart_part_t,
-) -> htp_status_t {
-    if htp_mpart_part_parse_c_d(part) == -(1 as libc::c_int) {
-        return -(1 as libc::c_int);
+) -> Status {
+    if htp_mpart_part_parse_c_d(part) == Status::ERROR {
+        return Status::ERROR;
     }
-    if htp_mpart_part_parse_c_t(part) == -(1 as libc::c_int) {
-        return -(1 as libc::c_int);
+    if htp_mpart_part_parse_c_t(part) == Status::ERROR {
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -717,7 +714,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     mut part: *mut htp_multipart_part_t,
     mut data: *const libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     let mut name_start: size_t = 0;
     let mut name_end: size_t = 0;
     let mut value_start: size_t = 0;
@@ -725,7 +722,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     // We do not allow NUL bytes here.
     if !memchr(data as *const libc::c_void, '\u{0}' as i32, len).is_null() {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_NUL_BYTE;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     name_start = 0 as libc::c_int as size_t;
     // Look for the starting position of the name first.
@@ -738,7 +735,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     if colon_pos != 0 as libc::c_int as libc::c_ulong {
         // Whitespace before header name.
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Now look for the colon.
     while colon_pos < len && *data.offset(colon_pos as isize) as libc::c_int != ':' as i32 {
@@ -747,12 +744,12 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     if colon_pos == len {
         // Missing colon.
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     if colon_pos == 0 as libc::c_int as libc::c_ulong {
         // Empty header name.
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     name_end = colon_pos;
     // Ignore LWS after header name.
@@ -767,7 +764,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         name_end = name_end.wrapping_sub(1);
         // LWS after field name. Not allowing for now.
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Header value.
     value_start = colon_pos.wrapping_add(1 as libc::c_int as libc::c_ulong);
@@ -780,7 +777,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     if value_start == len {
         // No header value.
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Assume the value is at the end.
     value_end = len;
@@ -789,7 +786,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     while i < name_end {
         if htp_util::htp_is_token(*data.offset(i as isize) as libc::c_int) == 0 {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-            return 0 as libc::c_int;
+            return Status::DECLINED;
         }
         i = i.wrapping_add(1)
     }
@@ -799,7 +796,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         ::std::mem::size_of::<htp_transaction::htp_header_t>() as libc::c_ulong,
     ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).name = bstr::bstr_dup_mem(
         data.offset(name_start as isize) as *const libc::c_void,
@@ -807,7 +804,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     );
     if (*h).name.is_null() {
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).value = bstr::bstr_dup_mem(
         data.offset(value_start as isize) as *const libc::c_void,
@@ -816,7 +813,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     if (*h).value.is_null() {
         bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if bstr::bstr_cmp_c_nocase(
         (*h).name,
@@ -845,7 +842,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
             bstr::bstr_free((*h).name);
             bstr::bstr_free((*h).value);
             free(h as *mut libc::c_void);
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         (*h_existing).value = new_value;
         bstr::bstr_add_mem_noex(
@@ -864,14 +861,14 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
             Flags::from_bits_unchecked(MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits());
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
     } else if htp_table::htp_table_add((*part).headers, (*h).name, h as *const libc::c_void)
-        != 1 as libc::c_int
+        != Status::OK
     {
         bstr::bstr_free((*h).value);
         bstr::bstr_free((*h).name);
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -956,7 +953,7 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
 #[no_mangle]
 pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     mut part: *mut htp_multipart_part_t,
-) -> htp_status_t {
+) -> Status {
     // Determine if this part is the epilogue.
     if (*(*part).parser)
         .multipart
@@ -1012,7 +1009,7 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
         (*part).value = bstr_builder::bstr_builder_to_str((*(*part).parser).part_data_pieces);
         bstr_builder::bstr_builder_clear((*(*part).parser).part_data_pieces);
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 #[no_mangle]
@@ -1020,9 +1017,9 @@ pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     mut part: *mut htp_multipart_part_t,
     mut data: *const libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     if (*(*part).parser).cfg.is_null() {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Combine value pieces into a single buffer.
     // Keep track of the file length.
@@ -1038,14 +1035,14 @@ pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     file_data.data = data;
     file_data.len = len;
     // Send data to callbacks
-    let mut rc: htp_status_t = htp_hooks::htp_hook_run_all(
+    let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*part).parser).cfg).hook_request_file_data,
         &mut file_data as *mut htp_util::htp_file_data_t as *mut libc::c_void,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         return rc;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -1063,7 +1060,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
     mut data: *const libc::c_uchar,
     mut len: size_t,
     mut is_line: libc::c_int,
-) -> htp_status_t {
+) -> Status {
     // Keep track of raw part length.
     (*part).len = ((*part).len as libc::c_ulong).wrapping_add(len) as size_t as size_t;
     // If we're processing a part that came after the last boundary, then we're not sure if it
@@ -1098,7 +1095,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 );
                 line = bstr_builder::bstr_builder_to_str((*(*part).parser).part_header_pieces);
                 if line.is_null() {
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 bstr_builder::bstr_builder_clear((*(*part).parser).part_header_pieces);
                 data = if (*line).realptr.is_null() {
@@ -1146,17 +1143,17 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                             (*(*(*part).parser).pending_header_line).realptr
                         },
                         (*(*(*part).parser).pending_header_line).len,
-                    ) == -(1 as libc::c_int)
+                    ) == Status::ERROR
                     {
                         bstr::bstr_free(line);
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                     bstr::bstr_free((*(*part).parser).pending_header_line);
                     (*(*part).parser).pending_header_line = 0 as *mut bstr::bstr
                 }
-                if htp_mpart_part_process_headers(part) == -(1 as libc::c_int) {
+                if htp_mpart_part_process_headers(part) == Status::ERROR {
                     bstr::bstr_free(line);
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 (*(*part).parser).current_part_mode = htp_part_mode_t::MODE_DATA;
                 bstr_builder::bstr_builder_clear((*(*part).parser).part_header_pieces);
@@ -1182,7 +1179,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                         (*(*part).file).tmpname = strdup(buf.as_mut_ptr());
                         if (*(*part).file).tmpname.is_null() {
                             bstr::bstr_free(line);
-                            return -(1 as libc::c_int);
+                            return Status::ERROR;
                         }
                         let mut previous_mask: mode_t = umask(
                             (0o100 as libc::c_int
@@ -1200,7 +1197,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                         umask(previous_mask);
                         if (*(*part).file).fd < 0 as libc::c_int {
                             bstr::bstr_free(line);
-                            return -(1 as libc::c_int);
+                            return Status::ERROR;
                         }
                         (*(*part).parser).file_count += 1
                     }
@@ -1217,7 +1214,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     (*(*part).parser).pending_header_line =
                         bstr::bstr_dup_mem(data as *const libc::c_void, len);
                     if (*(*part).parser).pending_header_line.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 }
             } else if *(*__ctype_b_loc())
@@ -1239,7 +1236,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 );
                 if (*(*part).parser).pending_header_line.is_null() {
                     bstr::bstr_free(line);
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
             } else {
                 // Process the pending header line.
@@ -1252,10 +1249,10 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                         (*(*(*part).parser).pending_header_line).realptr
                     },
                     (*(*(*part).parser).pending_header_line).len,
-                ) == -(1 as libc::c_int)
+                ) == Status::ERROR
                 {
                     bstr::bstr_free(line);
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 bstr::bstr_free((*(*part).parser).pending_header_line);
                 if !line.is_null() {
@@ -1265,7 +1262,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     (*(*part).parser).pending_header_line =
                         bstr::bstr_dup_mem(data as *const libc::c_void, len);
                     if (*(*part).parser).pending_header_line.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 }
             }
@@ -1298,17 +1295,17 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     if write((*(*part).file).fd, data as *const libc::c_void, len)
                         < 0 as libc::c_int as libc::c_long
                     {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 }
             }
             _ => {
                 // Internal error.
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -1325,16 +1322,16 @@ unsafe extern "C" fn htp_mpartp_handle_data(
     mut data: *const libc::c_uchar,
     mut len: size_t,
     mut is_line: libc::c_int,
-) -> htp_status_t {
+) -> Status {
     if len == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Do we have a part already?
     if (*parser).current_part.is_null() {
         // Create a new part.
         (*parser).current_part = htp_mpart_part_create(parser);
         if (*parser).current_part.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         if (*parser).multipart.boundary_count == 0 as libc::c_int {
             // We haven't seen a boundary yet, so this must be the preamble part.
@@ -1361,26 +1358,26 @@ unsafe extern "C" fn htp_mpartp_handle_data(
  * @param[in] mpartp
  * @return HTP_OK on success, HTP_ERROR on failure.
  */
-unsafe extern "C" fn htp_mpartp_handle_boundary(mut parser: *mut htp_mpartp_t) -> htp_status_t {
+unsafe extern "C" fn htp_mpartp_handle_boundary(mut parser: *mut htp_mpartp_t) -> Status {
     if !(*parser).current_part.is_null() {
-        if htp_mpart_part_finalize_data((*parser).current_part) != 1 as libc::c_int {
-            return -(1 as libc::c_int);
+        if htp_mpart_part_finalize_data((*parser).current_part) != Status::OK {
+            return Status::OK;
         }
         // We're done with this part
         (*parser).current_part = 0 as *mut htp_multipart_part_t;
         // Revert to line mode
         (*parser).current_part_mode = htp_part_mode_t::MODE_LINE
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 unsafe extern "C" fn htp_mpartp_init_boundary(
     mut parser: *mut htp_mpartp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     if parser.is_null() || data.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Copy the boundary and convert it to lowercase.
     (*parser).multipart.boundary_len = len.wrapping_add(4 as libc::c_int as libc::c_ulong);
@@ -1391,7 +1388,7 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
             .wrapping_add(1 as libc::c_int as libc::c_ulong),
     ) as *mut libc::c_char;
     if (*parser).multipart.boundary.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     *(*parser)
         .multipart
@@ -1428,7 +1425,7 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
     // to boundary matching. Thus, we handle all the possibilities.
     (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY;
     (*parser).boundary_match_pos = 2 as libc::c_int as size_t;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1493,13 +1490,12 @@ pub unsafe extern "C" fn htp_mpartp_create(
                 _: *const libc::c_uchar,
                 _: size_t,
                 _: libc::c_int,
-            ) -> htp_status_t,
+            ) -> Status,
     );
-    (*parser).handle_boundary = Some(
-        htp_mpartp_handle_boundary as unsafe extern "C" fn(_: *mut htp_mpartp_t) -> htp_status_t,
-    );
+    (*parser).handle_boundary =
+        Some(htp_mpartp_handle_boundary as unsafe extern "C" fn(_: *mut htp_mpartp_t) -> Status);
     // Initialize the boundary.
-    let mut rc: htp_status_t = htp_mpartp_init_boundary(
+    let mut rc: Status = htp_mpartp_init_boundary(
         parser,
         if (*boundary).realptr.is_null() {
             (boundary as *mut libc::c_uchar)
@@ -1509,7 +1505,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
         },
         (*boundary).len,
     );
-    if rc != 1 as libc::c_int {
+    if rc != Status::OK {
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
     }
@@ -1567,7 +1563,7 @@ pub unsafe extern "C" fn htp_mpartp_destroy(mut parser: *mut htp_mpartp_t) {
 unsafe extern "C" fn htp_martp_process_aside(
     mut parser: *mut htp_mpartp_t,
     mut matched: libc::c_int,
-) -> htp_status_t {
+) -> Status {
     // The stored data pieces can contain up to one line. If we're in data mode and there
     // was no boundary match, things are straightforward -- we process everything as data.
     // If there was a match, we need to take care to not send the line ending as data, nor
@@ -1735,7 +1731,7 @@ unsafe extern "C" fn htp_martp_process_aside(
             bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -1745,13 +1741,13 @@ unsafe extern "C" fn htp_martp_process_aside(
  * @returns HTP_OK on success, HTP_ERROR on failure.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> htp_status_t {
+pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> Status {
     if !(*parser).current_part.is_null() {
         // Process buffered data, if any.
         htp_martp_process_aside(parser, 0 as libc::c_int);
         // Finalize the last part.
-        if htp_mpart_part_finalize_data((*parser).current_part) != 1 as libc::c_int {
-            return -(1 as libc::c_int);
+        if htp_mpart_part_finalize_data((*parser).current_part) != Status::OK {
+            return Status::ERROR;
         }
         // It is OK to end abruptly in the epilogue part, but not in any other.
         if (*(*parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
@@ -1759,7 +1755,7 @@ pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> h
         }
     }
     bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 /* *
  * Parses a chunk of multipart/form-data data. This function should be called
@@ -1775,7 +1771,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
     mut parser: *mut htp_mpartp_t,
     mut _data: *const libc::c_void,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     let mut data: *mut libc::c_uchar = _data as *mut libc::c_uchar;
     // The current position in the entire input buffer.
     let mut pos: size_t = 0 as libc::c_int as size_t;
@@ -1794,7 +1790,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
             match (*parser).parser_state as libc::c_uint {
                 0 => {
                     // Incomplete initialization.
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
                 1 => {
                     // Handle part data.
@@ -2077,7 +2073,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
             }
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 unsafe extern "C" fn htp_mpartp_validate_boundary(
@@ -2215,9 +2211,9 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     mut content_type: *mut bstr::bstr_t,
     mut boundary: *mut *mut bstr::bstr_t,
     mut flags: *mut MultipartFlags,
-) -> htp_status_t {
+) -> Status {
     if content_type.is_null() || boundary.is_null() || flags.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Our approach is to ignore the MIME type and instead just look for
     // the boundary. This approach is more reliable in the face of various
@@ -2230,7 +2226,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         b"boundary\x00" as *const u8 as *const libc::c_char,
     );
     if i == -(1 as libc::c_int) {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     let mut data: *mut libc::c_uchar = (if (*content_type).realptr.is_null() {
         (content_type as *mut libc::c_uchar)
@@ -2259,7 +2255,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     if pos >= len {
         // No equals sign in the header.
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Go over the '=' character.
     pos = pos.wrapping_add(1);
@@ -2275,7 +2271,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     if pos >= len {
         // No value after the equals sign.
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     if *data.offset(pos as isize) as libc::c_int == '\"' as i32 {
         // Quoted boundary.
@@ -2301,7 +2297,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
             pos.wrapping_sub(startpos),
         );
         if (*boundary).is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         pos = pos.wrapping_add(1)
     } else {
@@ -2323,7 +2319,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
             pos.wrapping_sub(startpos_0),
         );
         if (*boundary).is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     // Check for a zero-length boundary.
@@ -2331,7 +2327,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
         bstr::bstr_free(*boundary);
         *boundary = 0 as *mut bstr::bstr_t;
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     // Allow only whitespace characters after the boundary.
     let mut seen_space: libc::c_int = 0 as libc::c_int;
@@ -2364,5 +2360,5 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
     htp_mpartp_validate_content_type(content_type, flags);
-    return 1 as libc::c_int;
+    return Status::OK;
 }

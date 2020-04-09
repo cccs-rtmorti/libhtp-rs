@@ -1,4 +1,4 @@
-use crate::{bstr, htp_transaction};
+use crate::{bstr, htp_transaction, Status};
 use ::libc;
 
 extern "C" {
@@ -19,7 +19,6 @@ pub const _ISalpha: C2RustUnnamed = 1024;
 pub const _ISlower: C2RustUnnamed = 512;
 pub const _ISupper: C2RustUnnamed = 256;
 pub type size_t = libc::c_ulong;
-pub type htp_status_t = libc::c_int;
 
 /* *
  * This is a proof-of-concept processor that processes parameter names in
@@ -33,9 +32,9 @@ pub type htp_status_t = libc::c_int;
 #[no_mangle]
 pub unsafe extern "C" fn htp_php_parameter_processor(
     mut p: *mut htp_transaction::htp_param_t,
-) -> htp_status_t {
+) -> Status {
     if p.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Name transformation
     let mut new_name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
@@ -66,7 +65,7 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
             len.wrapping_sub(pos),
         );
         if new_name.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     // Replace remaining whitespace characters with underscores.
@@ -89,7 +88,7 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
         if new_name.is_null() {
             new_name = bstr::bstr_dup((*p).name);
             if new_name.is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
         }
         // Change the pointers to the new name and ditch the offset.
@@ -117,5 +116,5 @@ pub unsafe extern "C" fn htp_php_parameter_processor(
         bstr::bstr_free((*p).name);
         (*p).name = new_name
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }

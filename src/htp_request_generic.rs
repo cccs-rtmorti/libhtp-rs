@@ -1,7 +1,7 @@
 use crate::htp_util::Flags;
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_parsers, htp_request, htp_table, htp_transaction,
-    htp_util,
+    htp_util, Status,
 };
 use ::libc;
 
@@ -40,8 +40,6 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-pub type htp_status_t = libc::c_int;
-
 pub type htp_time_t = libc::timeval;
 
 /* *
@@ -58,19 +56,19 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     // Create a new header structure.
     let mut h: *mut htp_transaction::htp_header_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_transaction::htp_header_t>() as libc::c_ulong,
     ) as *mut htp_transaction::htp_header_t;
     if h.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Now try to parse the header.
-    if htp_parse_request_header_generic(connp, h, data, len) != 1 as libc::c_int {
+    if htp_parse_request_header_generic(connp, h, data, len) != Status::OK {
         free(h as *mut libc::c_void);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Do we already have a header with the same name?
     let mut h_existing: *mut htp_transaction::htp_header_t =
@@ -96,7 +94,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
             bstr::bstr_free((*h).name);
             bstr::bstr_free((*h).value);
             free(h as *mut libc::c_void);
-            return 1 as libc::c_int;
+            return Status::OK;
         }
         // For simplicity reasons, we count the repetitions of all headers
         // Keep track of repeated same-name headers.
@@ -145,7 +143,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
                 bstr::bstr_free((*h).name);
                 bstr::bstr_free((*h).value);
                 free(h as *mut libc::c_void);
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             (*h_existing).value = new_value;
             bstr::bstr_add_mem_noex(
@@ -163,13 +161,13 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         (*(*connp).in_tx).request_headers,
         (*h).name,
         h as *const libc::c_void,
-    ) != 1 as libc::c_int
+    ) != Status::OK
     {
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -187,7 +185,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     mut h: *mut htp_transaction::htp_header_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> htp_status_t {
+) -> Status {
     let mut name_start: size_t = 0;
     let mut name_end: size_t = 0;
     let mut value_start: size_t = 0;
@@ -226,14 +224,14 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         // Now extract the name and the value
         (*h).name = bstr::bstr_dup_c(b"\x00" as *const u8 as *const libc::c_char);
         if (*h).name.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         (*h).value = bstr::bstr_dup_mem(data as *const libc::c_void, len);
         if (*h).value.is_null() {
             bstr::bstr_free((*h).name);
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     if colon_pos == 0 as libc::c_int as libc::c_ulong {
         // Empty header name.
@@ -331,7 +329,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         name_end.wrapping_sub(name_start),
     );
     if (*h).name.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*h).value = bstr::bstr_dup_mem(
         data.offset(value_start as isize) as *const libc::c_void,
@@ -339,9 +337,9 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     );
     if (*h).value.is_null() {
         bstr::bstr_free((*h).name);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -353,7 +351,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_request_line_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> htp_status_t {
+) -> Status {
     return htp_parse_request_line_generic_ex(connp, 0 as libc::c_int);
 }
 
@@ -361,7 +359,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic(
 pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut nul_terminates: libc::c_int,
-) -> htp_status_t {
+) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*connp).in_tx;
     let mut data: *mut libc::c_uchar = if (*(*tx).request_line).realptr.is_null() {
         ((*tx).request_line as *mut libc::c_uchar)
@@ -420,7 +418,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         pos.wrapping_sub(mstart),
     );
     if (*tx).request_method.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).request_method_number =
         htp_util::htp_convert_method_to_number((*tx).request_method) as libc::c_uint;
@@ -467,7 +465,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                 b"Request line: unknown method only\x00" as *const u8 as *const libc::c_char,
             );
         }
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     start = pos;
     bad_delim = 0 as libc::c_int as size_t;
@@ -507,7 +505,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         pos.wrapping_sub(start),
     );
     if (*tx).request_uri.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Ignore whitespace after URI.
     while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
@@ -529,7 +527,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                     as *const libc::c_char,
             );
         }
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // The protocol information continues until the end of the line.
     (*tx).request_protocol = bstr::bstr_dup_mem(
@@ -537,7 +535,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         len.wrapping_sub(pos),
     );
     if (*tx).request_protocol.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     (*tx).request_protocol_number = htp_parsers::htp_parse_protocol((*tx).request_protocol);
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_uint
@@ -553,5 +551,5 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                 as *const libc::c_char,
         );
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }

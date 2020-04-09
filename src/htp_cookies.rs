@@ -1,4 +1,4 @@
-use crate::{bstr, htp_connection_parser, htp_table, htp_transaction};
+use crate::{bstr, htp_connection_parser, htp_table, htp_transaction, Status};
 use ::libc;
 
 extern "C" {
@@ -32,8 +32,6 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-pub type htp_status_t = libc::c_int;
-
 pub type htp_time_t = libc::timeval;
 
 /* *
@@ -49,9 +47,9 @@ pub unsafe extern "C" fn htp_parse_single_cookie_v0(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
-) -> libc::c_int {
+) -> Status {
     if len == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     let mut pos: size_t = 0 as libc::c_int as size_t;
     // Look for '='.
@@ -59,11 +57,11 @@ pub unsafe extern "C" fn htp_parse_single_cookie_v0(
         pos = pos.wrapping_add(1)
     } // Ignore a nameless cookie.
     if pos == 0 as libc::c_int as libc::c_ulong {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     let mut name: *mut bstr::bstr = bstr::bstr_dup_mem(data as *const libc::c_void, pos);
     if name.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     if pos == len {
@@ -79,14 +77,14 @@ pub unsafe extern "C" fn htp_parse_single_cookie_v0(
     }
     if value.is_null() {
         bstr::bstr_free(name);
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     htp_table::htp_table_addn(
         (*(*connp).in_tx).request_cookies,
         name,
         value as *const libc::c_void,
     );
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
@@ -98,19 +96,19 @@ pub unsafe extern "C" fn htp_parse_single_cookie_v0(
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_cookies_v0(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> libc::c_int {
+) -> Status {
     let mut cookie_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*(*connp).in_tx).request_headers,
         b"cookie\x00" as *const u8 as *const libc::c_char,
     )
         as *mut htp_transaction::htp_header_t;
     if cookie_header.is_null() {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Create a new table to store cookies.
     (*(*connp).in_tx).request_cookies = htp_table::htp_table_create(4 as libc::c_int as size_t);
     if (*(*connp).in_tx).request_cookies.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     let mut data: *mut libc::c_uchar = if (*(*cookie_header).value).realptr.is_null() {
         ((*cookie_header).value as *mut libc::c_uchar)
@@ -131,7 +129,7 @@ pub unsafe extern "C" fn htp_parse_cookies_v0(
             pos = pos.wrapping_add(1)
         }
         if pos == len {
-            return 1 as libc::c_int;
+            return Status::OK;
         }
         let mut start: size_t = pos;
         // Find the end of the cookie.
@@ -139,14 +137,14 @@ pub unsafe extern "C" fn htp_parse_cookies_v0(
             pos = pos.wrapping_add(1)
         }
         if htp_parse_single_cookie_v0(connp, data.offset(start as isize), pos.wrapping_sub(start))
-            != 1 as libc::c_int
+            != Status::OK
         {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         // Go over the semicolon.
         if pos < len {
             pos = pos.wrapping_add(1)
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }

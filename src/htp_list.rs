@@ -1,3 +1,4 @@
+use crate::Status;
 use ::libc;
 extern "C" {
     #[no_mangle]
@@ -12,7 +13,6 @@ extern "C" {
     fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
 }
 pub type size_t = libc::c_ulong;
-pub type htp_status_t = libc::c_int;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -37,20 +37,20 @@ pub struct htp_list_array_t {
 pub unsafe extern "C" fn htp_list_array_init(
     mut l: *mut htp_list_array_t,
     mut size: size_t,
-) -> htp_status_t {
+) -> Status {
     // Allocate the initial batch of elements.
     (*l).elements =
         malloc(size.wrapping_mul(::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong))
             as *mut *mut libc::c_void;
     if (*l).elements.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Initialize the structure.
     (*l).first = 0 as libc::c_int as size_t;
     (*l).last = 0 as libc::c_int as size_t;
     (*l).current_size = 0 as libc::c_int as size_t;
     (*l).max_size = size;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -73,7 +73,7 @@ pub unsafe extern "C" fn htp_list_array_create(mut size: size_t) -> *mut htp_lis
     if l.is_null() {
         return 0 as *mut htp_list_array_t;
     }
-    if htp_list_array_init(l, size) == -(1 as libc::c_int) {
+    if htp_list_array_init(l, size) == Status::ERROR {
         free(l as *mut libc::c_void);
         return 0 as *mut htp_list_array_t;
     }
@@ -200,9 +200,9 @@ pub unsafe extern "C" fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mu
 pub unsafe extern "C" fn htp_list_array_push(
     mut l: *mut htp_list_array_t,
     mut e: *mut libc::c_void,
-) -> htp_status_t {
+) -> Status {
     if l.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     // Check whether we're full
     if (*l).current_size >= (*l).max_size {
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn htp_list_array_push(
                 new_size.wrapping_mul(::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong),
             );
             if newblock.is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
         } else {
             // When the first element is not in the first
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn htp_list_array_push(
                 new_size.wrapping_mul(::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong),
             );
             if newblock.is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             // Copy the beginning of the list to the beginning of the new memory block
             /* coverity[suspicious_sizeof] */
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn htp_list_array_push(
     if (*l).last == (*l).max_size {
         (*l).last = 0 as libc::c_int as size_t
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
@@ -290,18 +290,18 @@ pub unsafe extern "C" fn htp_list_array_replace(
     mut l: *mut htp_list_array_t,
     mut idx: size_t,
     mut e: *mut libc::c_void,
-) -> htp_status_t {
+) -> Status {
     if l.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if idx.wrapping_add(1 as libc::c_int as libc::c_ulong) > (*l).current_size {
-        return 0 as libc::c_int;
+        return Status::DECLINED;
     }
     let ref mut fresh1 = *(*l)
         .elements
         .offset((*l).first.wrapping_add(idx).wrapping_rem((*l).max_size) as isize);
     *fresh1 = e;
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /**
