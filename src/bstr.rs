@@ -81,7 +81,7 @@ pub unsafe extern "C" fn bstr_size(mut x: *mut bstr) -> size_t {
 pub unsafe extern "C" fn bstr_ptr(mut x: *mut bstr) -> *mut libc::c_uchar {
     if (*x).realptr.is_null() {
         // bstr optimizes small strings to be 'after this structure'
-        x.offset(std::mem::size_of::<bstr>() as isize) as *mut libc::c_uchar
+        (x as *mut libc::c_uchar).offset(std::mem::size_of::<bstr>() as isize) as *mut libc::c_uchar
     } else {
         (*x).realptr
     }
