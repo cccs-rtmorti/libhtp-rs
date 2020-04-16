@@ -34,7 +34,7 @@ pub const _ISupper: C2RustUnnamed = 256;
 // Data structures
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct bstr_t {
     /** The length of the string stored in the buffer. */
     pub len: size_t,
@@ -60,7 +60,7 @@ pub type int64_t = __int64_t;
  * #define bstr_len(X) ((*(X)).len)
  */
 #[no_mangle]
-pub unsafe extern "C" fn bstr_len(mut x: *mut bstr) -> size_t {
+pub unsafe extern "C" fn bstr_len(x: *const bstr) -> size_t {
     (*x).len
 }
 
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn bstr_size(mut x: *mut bstr) -> size_t {
  * #define bstr_ptr(X) ( ((*(X)).realptr == NULL) ? ((unsigned char *)(X) + sizeof(bstr)) : (unsigned char *)(*(X)).realptr )
  */
 #[no_mangle]
-pub unsafe extern "C" fn bstr_ptr(mut x: *mut bstr) -> *mut libc::c_uchar {
+pub unsafe extern "C" fn bstr_ptr(x: *const bstr) -> *mut libc::c_uchar {
     if (*x).realptr.is_null() {
         // bstr optimizes small strings to be 'after this structure'
         (x as *mut libc::c_uchar).offset(std::mem::size_of::<bstr>() as isize) as *mut libc::c_uchar

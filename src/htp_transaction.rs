@@ -2034,9 +2034,7 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Sta
         {
             return Status::ERROR;
         }
-    } else if htp_util::htp_parse_uri((*tx).request_uri, &mut (*tx).parsed_uri_raw)
-        != 1 as libc::c_int
-    {
+    } else if htp_util::htp_parse_uri((*tx).request_uri, &mut (*tx).parsed_uri_raw) != Status::OK {
         return Status::ERROR;
     }
     // Parse the request URI into htp_tx_t::parsed_uri_raw.

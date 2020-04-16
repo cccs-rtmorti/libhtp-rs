@@ -172,7 +172,7 @@ pub struct htp_file_t {
  * field type.
  */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct htp_uri_t {
     /** Scheme, e.g., "http". */
     pub scheme: *mut bstr::bstr_t,
@@ -602,7 +602,7 @@ pub unsafe extern "C" fn htp_is_line_whitespace(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_content_length(
-    mut b: *mut bstr::bstr_t,
+    b: *const bstr::bstr_t,
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> int64_t {
     let mut len: size_t = (*b).len;
@@ -734,7 +734,7 @@ pub unsafe extern "C" fn htp_parse_chunked_length(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_parse_positive_integer_whitespace(
-    mut data: *mut libc::c_uchar,
+    data: *const libc::c_uchar,
     mut len: size_t,
     mut base: libc::c_int,
 ) -> int64_t {
@@ -850,7 +850,7 @@ pub unsafe extern "C" fn htp_log(
  */
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_is_line_folded(
-    mut data: *mut libc::c_uchar,
+    data: *const libc::c_uchar,
     mut len: size_t,
 ) -> libc::c_int {
     if data.is_null() || len == 0 as libc::c_int as libc::c_ulong {
@@ -1193,7 +1193,7 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
 pub unsafe extern "C" fn htp_parse_uri(
     mut input: *mut bstr::bstr_t,
     mut uri: *mut *mut htp_uri_t,
-) -> libc::c_int {
+) -> Status {
     // Allow a htp_uri_t structure to be provided on input,
     // but allocate a new one if the structure is NULL.
     if (*uri).is_null() {
@@ -1202,13 +1202,13 @@ pub unsafe extern "C" fn htp_parse_uri(
             ::std::mem::size_of::<htp_uri_t>() as libc::c_ulong,
         ) as *mut htp_uri_t;
         if (*uri).is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
     if input.is_null() {
         // The input might be NULL on requests that don't actually
         // contain the URI. We allow that.
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     let mut data: *mut libc::c_uchar = if (*input).realptr.is_null() {
         (input as *mut libc::c_uchar)
@@ -1221,7 +1221,7 @@ pub unsafe extern "C" fn htp_parse_uri(
     let mut pos: size_t = 0;
     if len == 0 as libc::c_int as libc::c_ulong {
         // Empty string.
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     pos = 0 as libc::c_int as size_t;
     // Scheme test: if it doesn't start with a forward slash character (which it must
@@ -1246,7 +1246,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                 pos.wrapping_sub(start),
             );
             if (**uri).scheme.is_null() {
-                return -(1 as libc::c_int);
+                return Status::ERROR;
             }
             // Go over the colon
             pos = pos.wrapping_add(1)
@@ -1313,7 +1313,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                         m.wrapping_offset_from(credentials_start) as libc::c_long as size_t,
                     );
                     if (**uri).username.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                     (**uri).password = bstr::bstr_dup_mem(
                         m.offset(1 as libc::c_int as isize) as *const libc::c_void,
@@ -1323,7 +1323,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                             .wrapping_sub(1 as libc::c_int as libc::c_ulong),
                     );
                     if (**uri).password.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 } else {
                     // Username alone
@@ -1332,7 +1332,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                         credentials_len,
                     );
                     if (**uri).username.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 }
             } else {
@@ -1355,7 +1355,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                     (**uri).hostname =
                         bstr::bstr_dup_mem(hostname_start as *const libc::c_void, hostname_len);
                     if (**uri).hostname.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 } else {
                     (**uri).hostname = bstr::bstr_dup_mem(
@@ -1364,7 +1364,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                             + 1 as libc::c_int as libc::c_long) as size_t,
                     );
                     if (**uri).hostname.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                     // Is there a port?
                     hostname_len = hostname_len.wrapping_sub(
@@ -1389,7 +1389,7 @@ pub unsafe extern "C" fn htp_parse_uri(
                             port_len,
                         );
                         if (**uri).port.is_null() {
-                            return -(1 as libc::c_int);
+                            return Status::ERROR;
                         }
                     }
                 }
@@ -1415,14 +1415,14 @@ pub unsafe extern "C" fn htp_parse_uri(
                         port_len_0,
                     );
                     if (**uri).port.is_null() {
-                        return -(1 as libc::c_int);
+                        return Status::ERROR;
                     }
                 }
                 // Hostname
                 (**uri).hostname =
                     bstr::bstr_dup_mem(hostname_start as *const libc::c_void, hostname_len);
                 if (**uri).hostname.is_null() {
-                    return -(1 as libc::c_int);
+                    return Status::ERROR;
                 }
             }
         }
@@ -1443,10 +1443,10 @@ pub unsafe extern "C" fn htp_parse_uri(
         pos.wrapping_sub(start),
     );
     if (**uri).path.is_null() {
-        return -(1 as libc::c_int);
+        return Status::ERROR;
     }
     if pos == len {
-        return 1 as libc::c_int;
+        return Status::OK;
     }
     // Query
     if *data.offset(pos as isize) as libc::c_int == '?' as i32 {
@@ -1463,10 +1463,10 @@ pub unsafe extern "C" fn htp_parse_uri(
             pos.wrapping_sub(start),
         );
         if (**uri).query.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
         if pos == len {
-            return 1 as libc::c_int;
+            return Status::OK;
         }
     }
     // Fragment
@@ -1479,10 +1479,10 @@ pub unsafe extern "C" fn htp_parse_uri(
             len.wrapping_sub(start),
         );
         if (**uri).fragment.is_null() {
-            return -(1 as libc::c_int);
+            return Status::ERROR;
         }
     }
-    return 1 as libc::c_int;
+    return Status::OK;
 }
 
 /* *
