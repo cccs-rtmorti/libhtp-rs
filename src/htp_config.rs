@@ -1919,7 +1919,7 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_file_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -1927,7 +1927,7 @@ pub unsafe extern "C" fn htp_config_register_request_file_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_file_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1942,7 +1942,7 @@ pub unsafe extern "C" fn htp_config_register_request_file_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -1950,7 +1950,7 @@ pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_uri_normalize,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1965,9 +1965,7 @@ pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_header_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -1975,7 +1973,7 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_header_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2037,7 +2035,7 @@ pub unsafe extern "C" fn htp_config_register_request_line(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_start(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2045,7 +2043,7 @@ pub unsafe extern "C" fn htp_config_register_request_start(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_start,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2060,7 +2058,7 @@ pub unsafe extern "C" fn htp_config_register_request_start(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2068,7 +2066,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_trailer,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2083,9 +2081,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2093,7 +2089,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_request_trailer_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2108,9 +2104,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_body_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2118,7 +2112,7 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_body_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2133,7 +2127,7 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_complete(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2141,7 +2135,7 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_complete,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2156,9 +2150,7 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_header_data(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<
-        unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int,
-    >,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2166,7 +2158,7 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_header_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2181,7 +2173,7 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_headers(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2189,7 +2181,7 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_headers,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2204,7 +2196,7 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_line(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2212,7 +2204,7 @@ pub unsafe extern "C" fn htp_config_register_response_line(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_line,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2227,7 +2219,7 @@ pub unsafe extern "C" fn htp_config_register_response_line(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_start(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2235,7 +2227,7 @@ pub unsafe extern "C" fn htp_config_register_response_start(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_start,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2250,7 +2242,7 @@ pub unsafe extern "C" fn htp_config_register_response_start(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer(
     mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if cfg.is_null() {
         return;
@@ -2258,7 +2250,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
     htp_hooks::htp_hook_register(
         &mut (*cfg).hook_response_trailer,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> libc::c_int>,
+            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );

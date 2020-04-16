@@ -921,7 +921,7 @@ fn SmallChunks() {
 #[no_mangle]
 extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
     d: *mut htp_tx_data_t,
-) -> libc::c_int {
+) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len as usize;
@@ -966,7 +966,7 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
         let counter_ptr: *mut i32 = &mut COUNTER;
         htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
 
-        return 1 as libc::c_int; // HTP_OK
+        Status::OK
     }
 }
 
@@ -993,7 +993,7 @@ fn RequestHeaderData() {
 #[no_mangle]
 extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
     d: *mut htp_tx_data_t,
-) -> libc::c_int {
+) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len as usize;
@@ -1026,7 +1026,7 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
         let counter_ptr: *mut i32 = &mut COUNTER;
         htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
 
-        return 1 as libc::c_int; // HTP_OK
+        Status::OK
     }
 }
 
@@ -1053,7 +1053,7 @@ fn RequestTrailerData() {
 #[no_mangle]
 extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
     d: *mut htp_tx_data_t,
-) -> libc::c_int {
+) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len as usize;
@@ -1098,7 +1098,7 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
         let counter_ptr: *mut i32 = &mut COUNTER;
         htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
 
-        return 1 as libc::c_int; // HTP_OK
+        Status::OK
     }
 }
 
