@@ -1,3 +1,4 @@
+use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_parsers, htp_request, htp_table, htp_transaction,
@@ -454,7 +455,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if pos == len {
         // No, this looks like a HTTP/0.9 request.
         (*tx).is_protocol_0_9 = 1 as libc::c_int;
-        (*tx).request_protocol_number = 9 as libc::c_int;
+        (*tx).request_protocol_number = Protocol::V0_9 as libc::c_int;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_uint {
             htp_util::htp_log(
                 connp,
@@ -515,7 +516,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if pos == len {
         // No, this looks like a HTTP/0.9 request.
         (*tx).is_protocol_0_9 = 1 as libc::c_int;
-        (*tx).request_protocol_number = 9 as libc::c_int;
+        (*tx).request_protocol_number = Protocol::V0_9 as libc::c_int;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_uint {
             htp_util::htp_log(
                 connp,
@@ -537,9 +538,10 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if (*tx).request_protocol.is_null() {
         return Status::ERROR;
     }
-    (*tx).request_protocol_number = htp_parsers::htp_parse_protocol((*tx).request_protocol);
+    (*tx).request_protocol_number =
+        htp_parsers::htp_parse_protocol((*tx).request_protocol) as libc::c_int;
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_uint
-        && (*tx).request_protocol_number == -(2 as libc::c_int)
+        && (*tx).request_protocol_number == Protocol::INVALID as libc::c_int
     {
         htp_util::htp_log(
             connp,

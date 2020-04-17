@@ -156,7 +156,7 @@ pub struct htp_tx_t {
     pub request_protocol: *mut bstr::bstr_t,
     /**
      * Protocol version as a number. Multiply the high version number by 100, then add the low
-     * version number. You should prefer to work the pre-defined HTP_PROTOCOL_* constants.
+     * version number. You should prefer to work the pre-defined Protocol constants.
      */
     pub request_protocol_number: libc::c_int,
     /**
@@ -292,7 +292,7 @@ pub struct htp_tx_t {
     pub response_protocol: *mut bstr::bstr_t,
     /**
      * Response protocol as number. Available only if we were able to parse the protocol version,
-     * HTP_PROTOCOL_INVALID otherwise. HTP_PROTOCOL_UNKNOWN until parsing is attempted.
+     * INVALID otherwise. UNKNOWN until parsing is attempted.
      */
     pub response_protocol_number: libc::c_int,
     /**
@@ -449,6 +449,17 @@ pub enum htp_auth_type_t {
     HTP_AUTH_UNRECOGNIZED = 9,
 }
 
+// Protocol version constants
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Protocol {
+    INVALID = -2,
+    UNKNOWN = -1,
+    V0_9 = 9,
+    V1_0 = 100,
+    V1_1 = 101,
+}
+
 pub type htp_time_t = libc::timeval;
 
 /* *
@@ -511,7 +522,7 @@ pub unsafe extern "C" fn htp_tx_create(
     (*tx).is_config_shared = 1 as libc::c_int;
     // Request fields.
     (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED;
-    (*tx).request_protocol_number = -(1 as libc::c_int);
+    (*tx).request_protocol_number = Protocol::UNKNOWN as libc::c_int;
     (*tx).request_content_length = -(1 as libc::c_int) as int64_t;
     (*tx).parsed_uri_raw = htp_util::htp_uri_alloc();
     if (*tx).parsed_uri_raw.is_null() {
@@ -532,7 +543,7 @@ pub unsafe extern "C" fn htp_tx_create(
     (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED;
     (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = 0 as libc::c_int;
-    (*tx).response_protocol_number = -(1 as libc::c_int);
+    (*tx).response_protocol_number = Protocol::UNKNOWN as libc::c_int;
     (*tx).response_content_length = -(1 as libc::c_int) as int64_t;
     (*tx).response_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
     if (*tx).response_headers.is_null() {
@@ -1012,9 +1023,9 @@ pub unsafe extern "C" fn htp_tx_req_set_protocol(
  * Set request protocol version number. Must be invoked after
  * htp_txh_set_req_protocol(), because it will overwrite the previously
  * extracted version number. Convert the protocol version number to an integer
- * by multiplying it with 100. For example, 1.1 becomes 110. Alternatively,
- * use the HTP_PROTOCOL_0_9, HTP_PROTOCOL_1_0, and HTP_PROTOCOL_1_1 constants.
- * Note: setting protocol to HTP_PROTOCOL_0_9 alone will _not_ get the library to
+ * by multiplying it with 100. For example, 1.1 becomes 101. Alternatively,
+ * use the V0_9, V1_0, and V1_1 constants.
+ * Note: setting protocol to V0_9 alone will _not_ get the library to
  * treat the transaction as HTTP/0.9. You need to also invoke htp_tx_req_set_protocol_0_9().
  * This is because HTTP 0.9 is used only when protocol information is absent from the
  * request line, and not when it is explicitly stated (as "HTTP/0.9"). This behavior is
@@ -1094,7 +1105,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> St
             // TODO IIS 7.0, for example, would ignore the T-E header when it
             //      it is used with a protocol below HTTP 1.1. This should be a
             //      personality trait.
-            if (*tx).request_protocol_number < 101 as libc::c_int {
+            if (*tx).request_protocol_number < Protocol::V1_1 as libc::c_int {
                 (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
                 (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING;
             }
@@ -1177,7 +1188,7 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> St
     if h.is_null() {
         // No host information in the headers.
         // HTTP/1.1 requires host information in the headers.
-        if (*tx).request_protocol_number >= 101 as libc::c_int {
+        if (*tx).request_protocol_number >= Protocol::V1_1 as libc::c_int {
             (*tx).flags |= Flags::HTP_HOST_MISSING
         }
     } else {
@@ -1551,7 +1562,7 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> St
         return Status::ERROR;
     }
     // Is the response line valid?
-    if (*tx).response_protocol_number == -(2 as libc::c_int) {
+    if (*tx).response_protocol_number == Protocol::INVALID as libc::c_int {
         htp_util::htp_log(
             (*tx).connp,
             b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,

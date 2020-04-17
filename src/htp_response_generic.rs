@@ -1,3 +1,4 @@
+use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
     bstr, htp_connection_parser, htp_parsers, htp_table, htp_transaction, htp_util, Status,
@@ -61,7 +62,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     let mut len: size_t = (*(*tx).response_line).len;
     let mut pos: size_t = 0 as libc::c_int as size_t;
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
-    (*tx).response_protocol_number = -(2 as libc::c_int);
+    (*tx).response_protocol_number = Protocol::INVALID as libc::c_int;
     (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = -(1 as libc::c_int);
     (*tx).response_message = 0 as *mut bstr::bstr_t;
@@ -84,7 +85,8 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     if (*tx).response_protocol.is_null() {
         return Status::ERROR;
     }
-    (*tx).response_protocol_number = htp_parsers::htp_parse_protocol((*tx).response_protocol);
+    (*tx).response_protocol_number =
+        htp_parsers::htp_parse_protocol((*tx).response_protocol) as libc::c_int;
     // Ignore whitespace after the response protocol.
     while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) != 0 {
         pos = pos.wrapping_add(1)

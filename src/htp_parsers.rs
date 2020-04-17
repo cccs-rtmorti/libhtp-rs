@@ -1,3 +1,4 @@
+use crate::htp_transaction::Protocol;
 use crate::{
     bstr, htp_base64, htp_connection_parser, htp_table, htp_transaction, htp_util, Status,
 };
@@ -45,9 +46,9 @@ pub type htp_time_t = libc::timeval;
  * @return Protocol version or PROTOCOL_UNKNOWN.
  */
 #[no_mangle]
-pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr::bstr_t) -> libc::c_int {
+pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr::bstr_t) -> Protocol {
     if protocol.is_null() {
-        return -(2 as libc::c_int);
+        return Protocol::INVALID;
     }
     // TODO This function uses a very strict approach to parsing, whereas
     //      browsers will typically be more flexible, allowing whitespace
@@ -71,20 +72,20 @@ pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr::bstr_t) -> 
             // Check the version numbers
             if *ptr.offset(5 as libc::c_int as isize) as libc::c_int == '0' as i32 {
                 if *ptr.offset(7 as libc::c_int as isize) as libc::c_int == '9' as i32 {
-                    return 9 as libc::c_int;
+                    return Protocol::V0_9;
                 }
             } else if *ptr.offset(5 as libc::c_int as isize) as libc::c_int == '1' as i32 {
                 if *ptr.offset(7 as libc::c_int as isize) as libc::c_int == '0' as i32 {
-                    return 100 as libc::c_int;
+                    return Protocol::V1_0;
                 } else {
                     if *ptr.offset(7 as libc::c_int as isize) as libc::c_int == '1' as i32 {
-                        return 101 as libc::c_int;
+                        return Protocol::V1_1;
                     }
                 }
             }
         }
     }
-    return -(2 as libc::c_int);
+    return Protocol::INVALID;
 }
 
 /* *

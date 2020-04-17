@@ -1,3 +1,4 @@
+use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
     bstr, htp_connection, htp_connection_parser, htp_decompressors, htp_hooks, htp_list,
@@ -867,7 +868,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             }
             // spec says chunked is HTTP/1.1 only, but some browsers accept it
             // with 1.0 as well
-            if (*(*connp).out_tx).response_protocol_number < 101 as libc::c_int {
+            if (*(*connp).out_tx).response_protocol_number < Protocol::V1_1 as libc::c_int {
                 htp_util::htp_log(
                     connp,
                     b"htp_response.c\x00" as *const u8 as *const libc::c_char,
@@ -1294,7 +1295,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 if colon_pos < len
                     && bstr::bstr_chr((*connp).out_header, ':' as i32) >= 0 as libc::c_int
-                    && (*(*connp).out_tx).response_protocol_number == 101 as libc::c_int
+                    && (*(*connp).out_tx).response_protocol_number == Protocol::V1_1 as libc::c_int
                 {
                     // Warn only once per transaction.
                     if !(*(*connp).out_tx)
