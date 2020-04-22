@@ -3,7 +3,7 @@ members = [
 ]
 
 [package]
-name = "libhtp2"
+name = "htp"
 authors = ["C2Rust"]
 version = "0.0.0"
 publish = false

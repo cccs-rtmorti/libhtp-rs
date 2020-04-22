@@ -1,8 +1,8 @@
-use libhtp2::htp_config::htp_server_personality_t::*;
-use libhtp2::htp_config::*;
-use libhtp2::htp_connection_parser::*;
-use libhtp2::htp_request::*;
-use libhtp2::htp_response::*;
+use htp::htp_config::htp_server_personality_t::*;
+use htp::htp_config::*;
+use htp::htp_connection_parser::*;
+use htp::htp_request::*;
+use htp::htp_response::*;
 use std::ffi::CString;
 use std::iter::IntoIterator;
 use std::ops::Drop;

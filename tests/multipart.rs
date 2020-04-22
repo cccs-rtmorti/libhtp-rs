@@ -1,15 +1,15 @@
 #![allow(non_snake_case)]
 use libc::calloc;
-use libhtp2::bstr::*;
-use libhtp2::htp_config::htp_server_personality_t::*;
-use libhtp2::htp_config::*;
-use libhtp2::htp_connection_parser::*;
-use libhtp2::htp_list::*;
-use libhtp2::htp_multipart::*;
-use libhtp2::htp_request::*;
-use libhtp2::htp_table::*;
-use libhtp2::htp_transaction::*;
-use libhtp2::Status;
+use htp::bstr::*;
+use htp::htp_config::htp_server_personality_t::*;
+use htp::htp_config::*;
+use htp::htp_connection_parser::*;
+use htp::htp_list::*;
+use htp::htp_multipart::*;
+use htp::htp_request::*;
+use htp::htp_table::*;
+use htp::htp_transaction::*;
+use htp::Status;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs;

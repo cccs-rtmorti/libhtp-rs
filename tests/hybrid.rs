@@ -1,17 +1,17 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
-use libhtp2::bstr::*;
-use libhtp2::htp_base64::*;
-use libhtp2::htp_config::htp_server_personality_t::*;
-use libhtp2::htp_config::*;
-use libhtp2::htp_connection_parser::*;
-use libhtp2::htp_decompressors::htp_content_encoding_t::*;
-use libhtp2::htp_request::htp_method_t::*;
-use libhtp2::htp_table::*;
-use libhtp2::htp_transaction::htp_data_source_t::*;
-use libhtp2::htp_transaction::*;
-use libhtp2::htp_util::*;
-use libhtp2::Status;
+use htp::bstr::*;
+use htp::htp_base64::*;
+use htp::htp_config::htp_server_personality_t::*;
+use htp::htp_config::*;
+use htp::htp_connection_parser::*;
+use htp::htp_decompressors::htp_content_encoding_t::*;
+use htp::htp_request::htp_method_t::*;
+use htp::htp_table::*;
+use htp::htp_transaction::htp_data_source_t::*;
+use htp::htp_transaction::*;
+use htp::htp_util::*;
+use htp::Status;
 use std::ffi::CString;
 use std::ops::Drop;
 

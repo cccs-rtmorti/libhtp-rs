@@ -5,18 +5,18 @@ use libc;
 use std::ffi::{CStr, CString};
 use std::io::Write;
 
-use libhtp2::bstr::*;
-use libhtp2::htp_base64::*;
-use libhtp2::htp_config::*;
-use libhtp2::htp_connection_parser::*;
-use libhtp2::htp_list::*;
-use libhtp2::htp_request::*;
-use libhtp2::htp_table::*;
-use libhtp2::htp_transaction::*;
-use libhtp2::htp_urlencoded::*;
-use libhtp2::htp_utf8_decoder::*;
-use libhtp2::htp_util::*;
-use libhtp2::Status;
+use htp::bstr::*;
+use htp::htp_base64::*;
+use htp::htp_config::*;
+use htp::htp_connection_parser::*;
+use htp::htp_list::*;
+use htp::htp_request::*;
+use htp::htp_table::*;
+use htp::htp_transaction::*;
+use htp::htp_urlencoded::*;
+use htp::htp_utf8_decoder::*;
+use htp::htp_util::*;
+use htp::Status;
 
 macro_rules! cstr {
     ( $x:expr ) => {{

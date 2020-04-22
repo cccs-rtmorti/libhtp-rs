@@ -1,12 +1,12 @@
 #![allow(non_snake_case)]
-use libhtp2::bstr::*;
-use libhtp2::htp_config::htp_server_personality_t::*;
-use libhtp2::htp_config::*;
-use libhtp2::htp_connection_parser::*;
-use libhtp2::htp_decompressors::htp_content_encoding_t::*;
-use libhtp2::htp_decompressors::*;
-use libhtp2::htp_transaction::*;
-use libhtp2::Status;
+use htp::bstr::*;
+use htp::htp_config::htp_server_personality_t::*;
+use htp::htp_config::*;
+use htp::htp_connection_parser::*;
+use htp::htp_decompressors::htp_content_encoding_t::*;
+use htp::htp_decompressors::*;
+use htp::htp_transaction::*;
+use htp::Status;
 use std::env;
 use std::ffi::CString;
 use std::path::PathBuf;

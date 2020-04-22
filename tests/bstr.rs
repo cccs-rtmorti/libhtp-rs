@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use libc;
-use libhtp2::bstr::*;
-use libhtp2::bstr_builder::*;
+use htp::bstr::*;
+use htp::bstr_builder::*;
 use std::ffi::CString;
 
 macro_rules! cstr {
