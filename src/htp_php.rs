@@ -20,16 +20,12 @@ pub const _ISlower: C2RustUnnamed = 512;
 pub const _ISupper: C2RustUnnamed = 256;
 pub type size_t = libc::c_ulong;
 
-/* *
- * This is a proof-of-concept processor that processes parameter names in
- * a way _similar_ to PHP. Whitespace at the beginning is removed, and the
- * remaining whitespace characters are converted to underscores. Proper
- * research of PHP's behavior is needed before we can claim to be emulating it.
- *
- * @param[in,out] p
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
+/// This is a proof-of-concept processor that processes parameter names in
+/// a way _similar_ to PHP. Whitespace at the beginning is removed, and the
+/// remaining whitespace characters are converted to underscores. Proper
+/// research of PHP's behavior is needed before we can claim to be emulating it.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe extern "C" fn htp_php_parameter_processor(
     mut p: *mut htp_transaction::htp_param_t,
 ) -> Status {

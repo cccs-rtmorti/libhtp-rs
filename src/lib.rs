@@ -15,6 +15,7 @@
 #[repr(C)]
 #[derive(PartialEq, Debug)]
 /// Status codes used by LibHTP internally.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 pub enum Status {
     /// The lowest value LibHTP will use internally.
     ERROR_RESERVED = -1000,
@@ -51,6 +52,7 @@ pub enum Status {
 
 pub mod bstr;
 pub mod bstr_builder;
+pub mod c_api;
 pub mod htp_base64;
 pub mod htp_config;
 pub mod htp_connection;

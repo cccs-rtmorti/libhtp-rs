@@ -36,49 +36,38 @@ pub const _ISupper: C2RustUnnamed = 256;
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct bstr_t {
-    /** The length of the string stored in the buffer. */
+    /// The length of the string stored in the buffer.
     pub len: size_t,
 
-    /** The current size of the buffer. If there is extra room in the
-     *  buffer the string will be able to expand without reallocation.
-     */
+    /// The current size of the buffer. If there is extra room in the
+    ///  buffer the string will be able to expand without reallocation.
     pub size: size_t,
 
-    /** Optional buffer pointer. If this pointer is NULL the string buffer
-     *  will immediately follow this structure. If the pointer is not NUL,
-     *  it points to the actual buffer used, and there's no data following
-     *  this structure.
-     */
+    /// Optional buffer pointer. If this pointer is NULL the string buffer
+    ///  will immediately follow this structure. If the pointer is not NUL,
+    ///  it points to the actual buffer used, and there's no data following
+    ///  this structure.
     pub realptr: *mut libc::c_uchar,
 }
 pub type size_t = libc::c_ulong;
 pub type bstr = bstr_t;
 pub type int64_t = __int64_t;
 
-/**
- * This function was a macro in libhtp
- * #define bstr_len(X) ((*(X)).len)
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_len(x: *const bstr) -> size_t {
+// This function was a macro in libhtp
+// #define bstr_len(X) ((*(X)).len)
+pub unsafe fn bstr_len(x: *const bstr) -> size_t {
     (*x).len
 }
 
-/**
- * This function was a macro in libhtp
- * #define bstr_size(X) ((*(X)).size)
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_size(mut x: *mut bstr) -> size_t {
+// This function was a macro in libhtp
+// #define bstr_size(X) ((*(X)).size)
+pub unsafe fn bstr_size(x: *const bstr) -> size_t {
     (*x).size
 }
 
-/**
- * This function was a macro in libhtp
- * #define bstr_ptr(X) ( ((*(X)).realptr == NULL) ? ((unsigned char *)(X) + sizeof(bstr)) : (unsigned char *)(*(X)).realptr )
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_ptr(x: *const bstr) -> *mut libc::c_uchar {
+// This function was a macro in libhtp
+// #define bstr_ptr(X) ( ((*(X)).realptr == NULL) ? ((unsigned char *)(X) + sizeof(bstr)) : (unsigned char *)(*(X)).realptr )
+pub unsafe fn bstr_ptr(x: *const bstr) -> *mut libc::c_uchar {
     if (*x).realptr.is_null() {
         // bstr optimizes small strings to be 'after this structure'
         (x as *mut libc::c_uchar).offset(std::mem::size_of::<bstr>() as isize) as *mut libc::c_uchar
@@ -87,23 +76,16 @@ pub unsafe extern "C" fn bstr_ptr(x: *const bstr) -> *mut libc::c_uchar {
     }
 }
 
-/**
- * This function was a macro in libhtp
- * #define bstr_realptr(X) ((*(X)).realptr)
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_realptr(mut x: *mut bstr) -> *mut libc::c_uchar {
+/// This function was a macro in libhtp
+/// #define bstr_realptr(X) ((*(X)).realptr)
+pub unsafe fn bstr_realptr(x: *const bstr) -> *mut libc::c_uchar {
     (*x).realptr
 }
 
-/**
- * Allocate a zero-length bstring, reserving space for at least size bytes.
- *
- * @param[in] size
- * @return New string instance
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_alloc(mut len: size_t) -> *mut bstr {
+/// Allocate a zero-length bstring, reserving space for at least size bytes.
+///
+/// Returns New string instance
+pub unsafe fn bstr_alloc(mut len: size_t) -> *mut bstr {
     let mut b: *mut bstr =
         malloc((::std::mem::size_of::<bstr>() as libc::c_ulong).wrapping_add(len)) as *mut bstr;
     if b.is_null() {
@@ -115,21 +97,13 @@ pub unsafe extern "C" fn bstr_alloc(mut len: size_t) -> *mut bstr {
     return b;
 }
 
-/**
- * Append source bstring to destination bstring, growing destination if
- * necessary. If the destination bstring is expanded, the pointer will change.
- * You must replace the original destination pointer with the returned one.
- * Destination is not changed on memory allocation failure.
- *
- * @param[in] bdestination
- * @param[in] bsource
- * @return Updated bstring, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add(
-    mut destination: *mut bstr,
-    mut source: *const bstr,
-) -> *mut bstr {
+/// Append source bstring to destination bstring, growing destination if
+/// necessary. If the destination bstring is expanded, the pointer will change.
+/// You must replace the original destination pointer with the returned one.
+/// Destination is not changed on memory allocation failure.
+///
+/// Returns Updated bstring, or NULL on memory allocation failure.
+pub unsafe fn bstr_add(mut destination: *mut bstr, mut source: *const bstr) -> *mut bstr {
     return bstr_add_mem(
         destination,
         if (*source).realptr.is_null() {
@@ -142,18 +116,13 @@ pub unsafe extern "C" fn bstr_add(
     );
 }
 
-/**
- * Append a NUL-terminated source to destination, growing destination if
- * necessary. If the string is expanded, the pointer will change. You must
- * replace the original destination pointer with the returned one. Destination
- * is not changed on memory allocation failure.
- *
- * @param[in] b
- * @param[in] cstr
- * @return Updated bstring, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_c(
+/// Append a NUL-terminated source to destination, growing destination if
+/// necessary. If the string is expanded, the pointer will change. You must
+/// replace the original destination pointer with the returned one. Destination
+/// is not changed on memory allocation failure.
+///
+/// Returns Updated bstring, or NULL on memory allocation failure.
+pub unsafe fn bstr_add_c(
     mut bdestination: *mut bstr,
     mut csource: *const libc::c_char,
 ) -> *mut bstr {
@@ -164,36 +133,23 @@ pub unsafe extern "C" fn bstr_add_c(
     );
 }
 
-/**
- * Append as many bytes from the source to destination bstring. The
- * destination storage will not be expanded if there is not enough space in it
- * already to accommodate all of the data.
- *
- * @param[in] b
- * @param[in] cstr
- * @return The destination bstring.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_c_noex(
+/// Append as many bytes from the source to destination bstring. The
+/// destination storage will not be expanded if there is not enough space in it
+/// already to accommodate all of the data.
+pub unsafe fn bstr_add_c_noex(
     mut destination: *mut bstr,
     mut source: *const libc::c_char,
 ) -> *mut bstr {
     return bstr_add_mem_noex(destination, source as *const libc::c_void, strlen(source));
 }
 
-/**
- * Append a memory region to destination, growing destination if necessary. If
- * the string is expanded, the pointer will change. You must replace the
- * original destination pointer with the returned one. Destination is not
- * changed on memory allocation failure.
- *
- * @param[in] b
- * @param[in] data
- * @param[in] len
- * @return Updated bstring, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_mem(
+/// Append a memory region to destination, growing destination if necessary. If
+/// the string is expanded, the pointer will change. You must replace the
+/// original destination pointer with the returned one. Destination is not
+/// changed on memory allocation failure.
+///
+/// Returns Updated bstring, or NULL on memory allocation failure.
+pub unsafe fn bstr_add_mem(
     mut destination: *mut bstr,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -222,18 +178,12 @@ pub unsafe extern "C" fn bstr_add_mem(
     return destination;
 }
 
-/**
- * Append as many bytes from the source to destination bstring. The
- * destination storage will not be expanded if there is not enough space in it
- * already to accommodate all of the data.
- *
- * @param[in] b
- * @param[in] data
- * @param[in] len
- * @return The destination bstring.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_mem_noex(
+/// Append as many bytes from the source to destination bstring. The
+/// destination storage will not be expanded if there is not enough space in it
+/// already to accommodate all of the data.
+///
+/// Returns The destination bstring.
+pub unsafe fn bstr_add_mem_noex(
     mut destination: *mut bstr,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -263,20 +213,10 @@ pub unsafe extern "C" fn bstr_add_mem_noex(
     return destination;
 }
 
-/**
- * Append as many bytes from the source bstring to destination bstring. The
- * destination storage will not be expanded if there is not enough space in it
- * already to accommodate all of the data.
- *
- * @param[in] bdestination
- * @param[in] bsource
- * @return The destination bstring.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_noex(
-    mut destination: *mut bstr,
-    mut source: *const bstr,
-) -> *mut bstr {
+/// Append as many bytes from the source bstring to destination bstring. The
+/// destination storage will not be expanded if there is not enough space in it
+/// already to accommodate all of the data.
+pub unsafe fn bstr_add_noex(mut destination: *mut bstr, mut source: *const bstr) -> *mut bstr {
     return bstr_add_mem_noex(
         destination,
         if (*source).realptr.is_null() {
@@ -289,57 +229,31 @@ pub unsafe extern "C" fn bstr_add_noex(
     );
 }
 
-/**
- * Adjust bstring length. You will need to use this method whenever
- * you work directly with the string contents, and end up changing
- * its length by direct structure manipulation.
- *
- * @param[in] b
- * @param[in] newlen
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_adjust_len(mut b: *mut bstr, mut newlen: size_t) {
+/// Adjust bstring length. You will need to use this method whenever
+/// you work directly with the string contents, and end up changing
+/// its length by direct structure manipulation.
+pub unsafe fn bstr_adjust_len(mut b: *mut bstr, mut newlen: size_t) {
     (*b).len = newlen;
 }
 
-/**
- * Change the external pointer used by bstring. You will need to use this
- * function only if you're messing with bstr internals. Use with caution.
- *
- * @param[in] b
- * @param[in] newrealptr
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_adjust_realptr(mut b: *mut bstr, mut newrealptr: *mut libc::c_void) {
+/// Change the external pointer used by bstring. You will need to use this
+/// function only if you're messing with bstr internals. Use with caution.
+pub unsafe fn bstr_adjust_realptr(mut b: *mut bstr, mut newrealptr: *mut libc::c_void) {
     (*b).realptr = newrealptr as *mut libc::c_uchar;
 }
 
-/**
- * Adjust bstring size. This does not change the size of the storage behind
- * the bstring, just changes the field that keeps track of how many bytes
- * there are in the storage. You will need to use this function only if
- * you're messing with bstr internals. Use with caution.
- *
- * @param[in] b
- * @param[in] newsize
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_adjust_size(mut b: *mut bstr, mut newsize: size_t) {
+/// Adjust bstring size. This does not change the size of the storage behind
+/// the bstring, just changes the field that keeps track of how many bytes
+/// there are in the storage. You will need to use this function only if
+/// you're messing with bstr internals. Use with caution.
+pub unsafe fn bstr_adjust_size(mut b: *mut bstr, mut newsize: size_t) {
     (*b).size = newsize;
 }
 
-/**
- * Checks whether bstring begins with another bstring. Case sensitive.
- *
- * @param[in] bhaystack
- * @param[in] bneedle
- * @return 1 if true, otherwise 0.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_begins_with(
-    mut haystack: *const bstr,
-    mut needle: *const bstr,
-) -> libc::c_int {
+/// Checks whether bstring begins with another bstring. Case sensitive.
+///
+/// Returns 1 if true, otherwise 0.
+pub unsafe fn bstr_begins_with(mut haystack: *const bstr, mut needle: *const bstr) -> libc::c_int {
     return bstr_begins_with_mem(
         haystack,
         if (*needle).realptr.is_null() {
@@ -352,45 +266,30 @@ pub unsafe extern "C" fn bstr_begins_with(
     );
 }
 
-/**
- * Checks whether bstring begins with NUL-terminated string. Case sensitive.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return 1 if true, otherwise 0.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_begins_with_c(
+/// Checks whether bstring begins with NUL-terminated string. Case sensitive.
+///
+/// Returns 1 if true, otherwise 0.
+pub unsafe fn bstr_begins_with_c(
     mut haystack: *const bstr,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
     return bstr_begins_with_mem(haystack, needle as *const libc::c_void, strlen(needle));
 }
 
-/**
- * Checks whether bstring begins with NUL-terminated string. Case insensitive.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return 1 if true, otherwise 0.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_begins_with_c_nocase(
+/// Checks whether bstring begins with NUL-terminated string. Case insensitive.
+///
+/// Returns 1 if true, otherwise 0.
+pub unsafe fn bstr_begins_with_c_nocase(
     mut haystack: *const bstr,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
     return bstr_begins_with_mem_nocase(haystack, needle as *const libc::c_void, strlen(needle));
 }
 
-/**
- * Checks whether bstring begins with another bstring. Case insensitive.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return 1 if true, otherwise 0.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_begins_with_nocase(
+/// Checks whether bstring begins with another bstring. Case insensitive.
+///
+/// Returns 1 if true, otherwise 0.
+pub unsafe fn bstr_begins_with_nocase(
     mut haystack: *const bstr,
     mut needle: *const bstr,
 ) -> libc::c_int {
@@ -406,16 +305,10 @@ pub unsafe extern "C" fn bstr_begins_with_nocase(
     );
 }
 
-/**
- * Checks whether the bstring begins with the given memory block. Case sensitive.
- *
- * @param[in] bhaystack
- * @param[in] data
- * @param[in] len
- * @return 1 if true, otherwise 0.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_begins_with_mem(
+/// Checks whether the bstring begins with the given memory block. Case sensitive.
+///
+/// Returns 1 if true, otherwise 0.
+pub unsafe fn bstr_begins_with_mem(
     mut haystack: *const bstr,
     mut _data: *const libc::c_void,
     mut len: size_t,
@@ -442,16 +335,10 @@ pub unsafe extern "C" fn bstr_begins_with_mem(
     };
 }
 
-/**
- * Checks whether bstring begins with memory block. Case insensitive.
- *
- * @param[in] bhaystack
- * @param[in] data
- * @param[in] len
- * @return 1 if true, otherwise 0.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_begins_with_mem_nocase(
+/// Checks whether bstring begins with memory block. Case insensitive.
+///
+/// Returns 1 if true, otherwise 0.
+pub unsafe fn bstr_begins_with_mem_nocase(
     mut haystack: *const bstr,
     mut _data: *const libc::c_void,
     mut len: size_t,
@@ -480,15 +367,10 @@ pub unsafe extern "C" fn bstr_begins_with_mem_nocase(
     };
 }
 
-/**
- * Return the byte at the given position.
- *
- * @param[in] b
- * @param[in] pos
- * @return The byte at the given location, or -1 if the position is out of range.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_char_at(mut b: *const bstr, mut pos: size_t) -> libc::c_int {
+/// Return the byte at the given position.
+///
+/// Returns The byte at the given location, or -1 if the position is out of range.
+pub unsafe fn bstr_char_at(mut b: *const bstr, mut pos: size_t) -> libc::c_int {
     let mut data: *mut libc::c_uchar = if (*b).realptr.is_null() {
         (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
     } else {
@@ -501,16 +383,11 @@ pub unsafe extern "C" fn bstr_char_at(mut b: *const bstr, mut pos: size_t) -> li
     return *data.offset(pos as isize) as libc::c_int;
 }
 
-/**
- * Return the byte at the given position, counting from the end of the string (e.g.,
- * byte at position 0 is the last byte in the string.)
- *
- * @param[in] b
- * @param[in] pos
- * @return The byte at the given location, or -1 if the position is out of range.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_char_at_end(mut b: *const bstr, mut pos: size_t) -> libc::c_int {
+/// Return the byte at the given position, counting from the end of the string (e.g.,
+/// byte at position 0 is the last byte in the string.)
+///
+/// Returns The byte at the given location, or -1 if the position is out of range.
+pub unsafe fn bstr_char_at_end(mut b: *const bstr, mut pos: size_t) -> libc::c_int {
     let mut data: *mut libc::c_uchar = if (*b).realptr.is_null() {
         (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
     } else {
@@ -526,29 +403,19 @@ pub unsafe extern "C" fn bstr_char_at_end(mut b: *const bstr, mut pos: size_t) -
     ) as libc::c_int;
 }
 
-/**
- * Remove the last byte from bstring, assuming it contains at least one byte. This
- * function will not reduce the storage that backs the string, only the amount
- * of data used.
- *
- * @param[in] b
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_chop(mut b: *mut bstr) {
+/// Remove the last byte from bstring, assuming it contains at least one byte. This
+/// function will not reduce the storage that backs the string, only the amount
+/// of data used.
+pub unsafe fn bstr_chop(mut b: *mut bstr) {
     if (*b).len > 0 as libc::c_int as libc::c_ulong {
         bstr_adjust_len(b, (*b).len.wrapping_sub(1 as libc::c_int as libc::c_ulong));
     };
 }
 
-/**
- * Return the first position of the provided byte.
- *
- * @param[in] b
- * @param[in] c
- * @return The first position of the byte, or -1 if it could not be found
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_chr(mut b: *const bstr, mut c: libc::c_int) -> libc::c_int {
+/// Return the first position of the provided byte.
+///
+/// Returns The first position of the byte, or -1 if it could not be found
+pub unsafe fn bstr_chr(mut b: *const bstr, mut c: libc::c_int) -> libc::c_int {
     let mut data: *mut libc::c_uchar = if (*b).realptr.is_null() {
         (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
     } else {
@@ -565,16 +432,11 @@ pub unsafe extern "C" fn bstr_chr(mut b: *const bstr, mut c: libc::c_int) -> lib
     return -(1 as libc::c_int);
 }
 
-/**
- * Case-sensitive comparison of two bstrings.
- *
- * @param[in] b1
- * @param[in] b2
- * @return Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
- *         greater than b1.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp(mut b1: *const bstr, mut b2: *const bstr) -> libc::c_int {
+/// Case-sensitive comparison of two bstrings.
+///
+/// Returns Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
+///         greater than b1.
+pub unsafe fn bstr_cmp(mut b1: *const bstr, mut b2: *const bstr) -> libc::c_int {
     return bstr_util_cmp_mem(
         if (*b1).realptr.is_null() {
             (b1 as *mut libc::c_uchar)
@@ -593,16 +455,8 @@ pub unsafe extern "C" fn bstr_cmp(mut b1: *const bstr, mut b2: *const bstr) -> l
     );
 }
 
-/**
- * Case-sensitive comparison of a bstring and a NUL-terminated string.
- *
- * @param[in] b
- * @param[in] cstr
- * @return Zero on string match, 1 if b is greater than cstr, and -1 if cstr is
- *         greater than b.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_c(mut b: *const bstr, mut c: *const libc::c_char) -> libc::c_int {
+/// Case-sensitive comparison of a bstring and a NUL-terminated string.
+pub unsafe fn bstr_cmp_c(mut b: *const bstr, mut c: *const libc::c_char) -> libc::c_int {
     return bstr_util_cmp_mem(
         if (*b).realptr.is_null() {
             (b as *mut libc::c_uchar)
@@ -616,18 +470,10 @@ pub unsafe extern "C" fn bstr_cmp_c(mut b: *const bstr, mut c: *const libc::c_ch
     );
 }
 
-/**
- * Case-insensitive comparison of a bstring with a NUL-terminated string.
- *
- * @param[in] b
- * @param[in] cstr
- * @return Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_c_nocase(
-    mut b: *const bstr,
-    mut c: *const libc::c_char,
-) -> libc::c_int {
+/// Case-insensitive comparison of a bstring with a NUL-terminated string.
+///
+/// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
+pub unsafe fn bstr_cmp_c_nocase(mut b: *const bstr, mut c: *const libc::c_char) -> libc::c_int {
     return bstr_util_cmp_mem_nocase(
         if (*b).realptr.is_null() {
             (b as *mut libc::c_uchar)
@@ -641,15 +487,10 @@ pub unsafe extern "C" fn bstr_cmp_c_nocase(
     );
 }
 
-/**
- * Case-insensitive zero-skipping comparison of a bstring with a NUL-terminated string.
- *
- * @param[in] b
- * @param[in] cstr
- * @return Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_c_nocasenorzero(
+/// Case-insensitive zero-skipping comparison of a bstring with a NUL-terminated string.
+///
+/// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
+pub unsafe fn bstr_cmp_c_nocasenorzero(
     mut b: *const bstr,
     mut c: *const libc::c_char,
 ) -> libc::c_int {
@@ -666,16 +507,10 @@ pub unsafe extern "C" fn bstr_cmp_c_nocasenorzero(
     );
 }
 
-/**
- * Performs a case-sensitive comparison of a bstring with a memory region.
- *
- * @param[in] b
- * @param[in] data
- * @param[in] len
- * @return Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_mem(
+/// Performs a case-sensitive comparison of a bstring with a memory region.
+///
+/// Returns Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
+pub unsafe fn bstr_cmp_mem(
     mut b: *const bstr,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -693,16 +528,10 @@ pub unsafe extern "C" fn bstr_cmp_mem(
     );
 }
 
-/**
- * Performs a case-insensitive comparison of a bstring with a memory region.
- *
- * @param[in] b
- * @param[in] data
- * @param[in] len
- * @return Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_mem_nocase(
+/// Performs a case-insensitive comparison of a bstring with a memory region.
+///
+/// Returns Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
+pub unsafe fn bstr_cmp_mem_nocase(
     mut b: *const bstr,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -720,16 +549,11 @@ pub unsafe extern "C" fn bstr_cmp_mem_nocase(
     );
 }
 
-/**
- * Case-insensitive comparison two bstrings.
- *
- * @param[in] b1
- * @param[in] b2
- * @return Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
- *         greater than b1.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_nocase(mut b1: *const bstr, mut b2: *const bstr) -> libc::c_int {
+/// Case-insensitive comparison two bstrings.
+///
+/// Returns Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
+///         greater than b1.
+pub unsafe fn bstr_cmp_nocase(mut b1: *const bstr, mut b2: *const bstr) -> libc::c_int {
     return bstr_util_cmp_mem_nocase(
         if (*b1).realptr.is_null() {
             (b1 as *mut libc::c_uchar)
@@ -748,42 +572,21 @@ pub unsafe extern "C" fn bstr_cmp_nocase(mut b1: *const bstr, mut b2: *const bst
     );
 }
 
-/**
- * Create a new bstring by copying the provided bstring.
- *
- * @param[in] b
- * @return New bstring, or NULL if memory allocation failed.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup(mut b: *const bstr) -> *mut bstr {
+// Create a new bstring by copying the provided bstring.
+// Returns New bstring, or NULL if memory allocation failed.
+pub unsafe fn bstr_dup(mut b: *const bstr) -> *mut bstr {
     return bstr_dup_ex(b, 0 as libc::c_int as size_t, (*b).len);
 }
 
-/**
- * Create a new bstring by copying the provided NUL-terminated string.
- *
- * @param[in] cstr
- * @return New bstring, or NULL if memory allocation failed.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup_c(mut cstr: *const libc::c_char) -> *mut bstr {
+/// Create a new bstring by copying the provided NUL-terminated string.
+///
+/// Returns New bstring, or NULL if memory allocation failed.
+pub unsafe fn bstr_dup_c(mut cstr: *const libc::c_char) -> *mut bstr {
     return bstr_dup_mem(cstr as *const libc::c_void, strlen(cstr));
 }
 
-/**
- * Create a new bstring by copying a part of the provided bstring.
- *
- * @param[in] b
- * @param[in] offset
- * @param[in] len
- * @return New bstring, or NULL if memory allocation failed.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup_ex(
-    mut b: *const bstr,
-    mut offset: size_t,
-    mut len: size_t,
-) -> *mut bstr {
+// Create a new bstring by copying a part of the provided bstring.
+pub unsafe fn bstr_dup_ex(mut b: *const bstr, mut offset: size_t, mut len: size_t) -> *mut bstr {
     let mut bnew: *mut bstr = bstr_alloc(len);
     if bnew.is_null() {
         return 0 as *mut bstr;
@@ -808,26 +611,17 @@ pub unsafe extern "C" fn bstr_dup_ex(
     return bnew;
 }
 
-/**
- * Create a copy of the provided bstring, then convert it to lowercase.
- *
- * @param[in] b
- * @return New bstring, or NULL if memory allocation failed
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup_lower(mut b: *const bstr) -> *mut bstr {
+/// Create a copy of the provided bstring, then convert it to lowercase.
+///
+/// Returns New bstring, or NULL if memory allocation failed
+pub unsafe fn bstr_dup_lower(mut b: *const bstr) -> *mut bstr {
     return bstr_to_lowercase(bstr_dup(b));
 }
 
-/**
- * Create a new bstring by copying the provided memory region.
- *
- * @param[in] data
- * @param[in] len
- * @return New bstring, or NULL if memory allocation failed
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup_mem(mut data: *const libc::c_void, mut len: size_t) -> *mut bstr {
+/// Create a new bstring by copying the provided memory region.
+///
+/// Returns New bstring, or NULL if memory allocation failed
+pub unsafe fn bstr_dup_mem(mut data: *const libc::c_void, mut len: size_t) -> *mut bstr {
     let mut bnew: *mut bstr = bstr_alloc(len);
     if bnew.is_null() {
         return 0 as *mut bstr;
@@ -846,19 +640,14 @@ pub unsafe extern "C" fn bstr_dup_mem(mut data: *const libc::c_void, mut len: si
     return bnew;
 }
 
-/**
- * Expand internal bstring storage to support at least newsize bytes. The storage
- * is not expanded if the current size is equal or greater to newsize. Because
- * realloc is used underneath, the old pointer to bstring may no longer be valid
- * after this function completes successfully.
- *
- * @param[in] b
- * @param[in] newsize
- * @return Updated string instance, or NULL if memory allocation failed or if
- *         attempt was made to "expand" the bstring to a smaller size.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_expand(mut b: *mut bstr, mut newsize: size_t) -> *mut bstr {
+/// Expand internal bstring storage to support at least newsize bytes. The storage
+/// is not expanded if the current size is equal or greater to newsize. Because
+/// realloc is used underneath, the old pointer to bstring may no longer be valid
+/// after this function completes successfully.
+///
+/// Returns Updated string instance, or NULL if memory allocation failed or if
+///         attempt was made to "expand" the bstring to a smaller size.
+pub unsafe fn bstr_expand(mut b: *mut bstr, mut newsize: size_t) -> *mut bstr {
     if !(*b).realptr.is_null() {
         // Refuse to expand a wrapped bstring. In the future,
         // we can change this to make a copy of the data, thus
@@ -880,32 +669,19 @@ pub unsafe extern "C" fn bstr_expand(mut b: *mut bstr, mut newsize: size_t) -> *
     return bnew;
 }
 
-/**
- * Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
- * input.
- *
- * @param[in] b
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_free(mut b: *mut bstr) {
+/// Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
+/// input.
+pub unsafe fn bstr_free(mut b: *mut bstr) {
     if b.is_null() {
         return;
     }
     free(b as *mut libc::c_void);
 }
 
-/**
- * Find the needle in the haystack.
- *
- * @param[in] bhaystack
- * @param[in] bneedle
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of(
-    mut haystack: *const bstr,
-    mut needle: *const bstr,
-) -> libc::c_int {
+/// Find the needle in the haystack.
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of(mut haystack: *const bstr, mut needle: *const bstr) -> libc::c_int {
     return bstr_index_of_mem(
         haystack,
         if (*needle).realptr.is_null() {
@@ -918,48 +694,33 @@ pub unsafe extern "C" fn bstr_index_of(
     );
 }
 
-/**
- * Find the needle in the haystack, with the needle being a NUL-terminated
- * string.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of_c(
+/// Find the needle in the haystack, with the needle being a NUL-terminated
+/// string.
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of_c(
     mut haystack: *const bstr,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
     return bstr_index_of_mem(haystack, needle as *const libc::c_void, strlen(needle));
 }
 
-/**
- * Find the needle in the haystack, with the needle being a NUL-terminated
- * string. Ignore case differences.
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of_c_nocase(
+/// Find the needle in the haystack, with the needle being a NUL-terminated
+/// string. Ignore case differences.
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of_c_nocase(
     mut haystack: *const bstr,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
     return bstr_index_of_mem_nocase(haystack, needle as *const libc::c_void, strlen(needle));
 }
 
-/**
- * Find the needle in the haystack, with the needle being a NUL-terminated
- * string. Ignore case differences. Skip zeroes in haystack
- *
- * @param[in] bhaystack
- * @param[in] cneedle
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of_c_nocasenorzero(
+/// Find the needle in the haystack, with the needle being a NUL-terminated
+/// string. Ignore case differences. Skip zeroes in haystack
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of_c_nocasenorzero(
     mut haystack: *const bstr,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
@@ -976,16 +737,10 @@ pub unsafe extern "C" fn bstr_index_of_c_nocasenorzero(
     );
 }
 
-/**
- * Find the needle in the haystack, with the needle being a memory region.
- *
- * @param[in] bhaystack
- * @param[in] data
- * @param[in] len
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of_mem(
+/// Find the needle in the haystack, with the needle being a memory region.
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of_mem(
     mut haystack: *const bstr,
     mut _data2: *const libc::c_void,
     mut len2: size_t,
@@ -1003,17 +758,11 @@ pub unsafe extern "C" fn bstr_index_of_mem(
     );
 }
 
-/**
- * Find the needle in the haystack, with the needle being a memory region.
- * Ignore case differences.
- *
- * @param[in] bhaystack
- * @param[in] data
- * @param[in] len
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of_mem_nocase(
+/// Find the needle in the haystack, with the needle being a memory region.
+/// Ignore case differences.
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of_mem_nocase(
     mut haystack: *const bstr,
     mut _data2: *const libc::c_void,
     mut len2: size_t,
@@ -1031,15 +780,10 @@ pub unsafe extern "C" fn bstr_index_of_mem_nocase(
     );
 }
 
-/**
- * Find the needle in the haystack, ignoring case differences.
- *
- * @param[in] bhaystack
- * @param[in] bneedle
- * @return Position of the match, or -1 if the needle could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_index_of_nocase(
+/// Find the needle in the haystack, ignoring case differences.
+///
+/// Returns Position of the match, or -1 if the needle could not be found.
+pub unsafe fn bstr_index_of_nocase(
     mut haystack: *const bstr,
     mut needle: *const bstr,
 ) -> libc::c_int {
@@ -1055,15 +799,10 @@ pub unsafe extern "C" fn bstr_index_of_nocase(
     );
 }
 
-/**
- * Return the last position of a character (byte).
- *
- * @param[in] b
- * @param[in] c
- * @return The last position of the character, or -1 if it could not be found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_rchr(mut b: *const bstr, mut c: libc::c_int) -> libc::c_int {
+/// Return the last position of a character (byte).
+///
+/// Returns The last position of the character, or -1 if it could not be found.
+pub unsafe fn bstr_rchr(mut b: *const bstr, mut c: libc::c_int) -> libc::c_int {
     let mut data: *const libc::c_uchar = if (*b).realptr.is_null() {
         (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
     } else {
@@ -1082,15 +821,11 @@ pub unsafe extern "C" fn bstr_rchr(mut b: *const bstr, mut c: libc::c_int) -> li
     return -(1 as libc::c_int);
 }
 
-/**
- * Convert bstring to lowercase. This function converts the supplied string,
- * it does not create a new string.
- *
- * @param[in] b
- * @return The same bstring received on input
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_to_lowercase(mut b: *mut bstr) -> *mut bstr {
+/// Convert bstring to lowercase. This function converts the supplied string,
+/// it does not create a new string.
+///
+/// Returns The same bstring received on input
+pub unsafe fn bstr_to_lowercase(mut b: *mut bstr) -> *mut bstr {
     if b.is_null() {
         return 0 as *mut bstr;
     }
@@ -1109,18 +844,11 @@ pub unsafe extern "C" fn bstr_to_lowercase(mut b: *mut bstr) -> *mut bstr {
     return b;
 }
 
-/**
- * Case-sensitive comparison of two memory regions.
- *
- * @param[in] data1
- * @param[in] len1
- * @param[in] data2
- * @param[in] len2
- * @return Zero if the memory regions are identical, 1 if data1 is greater than
- *         data2, and -1 if data2 is greater than data1.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_cmp_mem(
+/// Case-sensitive comparison of two memory regions.
+///
+/// Returns Zero if the memory regions are identical, 1 if data1 is greater than
+///         data2, and -1 if data2 is greater than data1.
+pub unsafe fn bstr_util_cmp_mem(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut _data2: *const libc::c_void,
@@ -1154,18 +882,11 @@ pub unsafe extern "C" fn bstr_util_cmp_mem(
     };
 }
 
-/**
- * Case-insensitive comparison of two memory regions.
- *
- * @param[in] data1
- * @param[in] len1
- * @param[in] data2
- * @param[in] len2
- * @return Zero if the memory regions are identical, 1 if data1 is greater than
- *         data2, and -1 if data2 is greater than data1.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_cmp_mem_nocase(
+/// Case-insensitive comparison of two memory regions.
+///
+/// Returns Zero if the memory regions are identical, 1 if data1 is greater than
+///         data2, and -1 if data2 is greater than data1.
+pub unsafe fn bstr_util_cmp_mem_nocase(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut _data2: *const libc::c_void,
@@ -1202,18 +923,12 @@ pub unsafe extern "C" fn bstr_util_cmp_mem_nocase(
     };
 }
 
-/**
- * Case-insensitive zero-skipping comparison of two memory regions.
- *
- * @param[in] data1
- * @param[in] len1
- * @param[in] data2
- * @param[in] len2
- * @return Zero if the memory regions are identical, 1 if data1 is greater than
- *         data2, and -1 if data2 is greater than data1.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_cmp_mem_nocasenorzero(
+/// Case-insensitive zero-skipping comparison of two memory regions.
+///
+/// Returns Zero if the memory regions are identical, 1 if data1 is greater than
+///         data2, and -1 if data2 is greater than data1.
+///
+pub unsafe fn bstr_util_cmp_mem_nocasenorzero(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut _data2: *const libc::c_void,
@@ -1257,20 +972,13 @@ pub unsafe extern "C" fn bstr_util_cmp_mem_nocasenorzero(
     };
 }
 
-/**
- * Convert contents of a memory region to a positive integer.
- *
- * @param[in] data
- * @param[in] len
- * @param[in] base The desired number base.
- * @param[in] lastlen Points to the first unused byte in the region
- * @return If the conversion was successful, this function returns the
- *         number. When the conversion fails, -1 will be returned when not
- *         one valid digit was found, and -2 will be returned if an overflow
- *         occurred.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_to_pint(
+/// Convert contents of a memory region to a positive integer.
+///
+/// If the conversion was successful, this function returns the
+/// number. When the conversion fails, -1 will be returned when not
+/// one valid digit was found, and -2 will be returned if an overflow
+/// occurred.
+pub unsafe fn bstr_util_mem_to_pint(
     mut _data: *const libc::c_void,
     mut len: size_t,
     mut base: libc::c_int,
@@ -1326,16 +1034,10 @@ pub unsafe extern "C" fn bstr_util_mem_to_pint(
     return rval;
 }
 
-/**
- * Searches a memory block for the given NUL-terminated string. Case sensitive.
- *
- * @param[in] data
- * @param[in] len
- * @param[in] cstr
- * @return Index of the first location of the needle on success, or -1 if the needle was not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_index_of_c(
+/// Searches a memory block for the given NUL-terminated string. Case sensitive.
+///
+/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
+pub unsafe fn bstr_util_mem_index_of_c(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut cstr: *const libc::c_char,
@@ -1343,16 +1045,10 @@ pub unsafe extern "C" fn bstr_util_mem_index_of_c(
     return bstr_util_mem_index_of_mem(_data1, len1, cstr as *const libc::c_void, strlen(cstr));
 }
 
-/**
- * Searches a memory block for the given NUL-terminated string. Case insensitive.
- *
- * @param[in] data
- * @param[in] len
- * @param[in] cstr
- * @return Index of the first location of the needle on success, or -1 if the needle was not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_index_of_c_nocase(
+/// Searches a memory block for the given NUL-terminated string. Case insensitive.
+///
+/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
+pub unsafe fn bstr_util_mem_index_of_c_nocase(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut cstr: *const libc::c_char,
@@ -1365,17 +1061,10 @@ pub unsafe extern "C" fn bstr_util_mem_index_of_c_nocase(
     );
 }
 
-/**
- * Searches the haystack memory block for the needle memory block. Case sensitive.
- *
- * @param data1
- * @param len1
- * @param data2
- * @param len2
- * @return Index of the first location of the needle on success, or -1 if the needle was not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_index_of_mem(
+/// Searches the haystack memory block for the needle memory block. Case sensitive.
+///
+/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
+pub unsafe fn bstr_util_mem_index_of_mem(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut _data2: *const libc::c_void,
@@ -1407,17 +1096,10 @@ pub unsafe extern "C" fn bstr_util_mem_index_of_mem(
     return -(1 as libc::c_int);
 }
 
-/**
- * Searches the haystack memory block for the needle memory block. Case sensitive.
- *
- * @param data1
- * @param len1
- * @param data2
- * @param len2
- * @return Index of the first location of the needle on success, or -1 if the needle was not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_index_of_mem_nocase(
+/// Searches the haystack memory block for the needle memory block. Case sensitive.
+///
+/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
+pub unsafe fn bstr_util_mem_index_of_mem_nocase(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut _data2: *const libc::c_void,
@@ -1450,17 +1132,10 @@ pub unsafe extern "C" fn bstr_util_mem_index_of_mem_nocase(
     return -(1 as libc::c_int);
 }
 
-/**
- * Searches the haystack memory block for the needle memory block. Case sensitive. Skips zeroes in data1
- *
- * @param data1
- * @param len1
- * @param data2
- * @param len2
- * @return Index of the first location of the needle on success, or -1 if the needle was not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_index_of_mem_nocasenorzero(
+/// Searches the haystack memory block for the needle memory block. Case sensitive. Skips zeroes in data1
+///
+/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
+pub unsafe fn bstr_util_mem_index_of_mem_nocasenorzero(
     mut _data1: *const libc::c_void,
     mut len1: size_t,
     mut _data2: *const libc::c_void,
@@ -1498,18 +1173,9 @@ pub unsafe extern "C" fn bstr_util_mem_index_of_mem_nocasenorzero(
     return -(1 as libc::c_int);
 }
 
-/**
- * Removes whitespace from the beginning and the end of a memory region. The data
- * itself is not modified; this function only adjusts the provided pointers.
- *
- * @param[in,out] data
- * @param[in,out] len
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_trim(
-    mut data: *mut *mut libc::c_uchar,
-    mut len: *mut size_t,
-) {
+/// Removes whitespace from the beginning and the end of a memory region. The data
+/// itself is not modified; this function only adjusts the provided pointers.
+pub unsafe fn bstr_util_mem_trim(mut data: *mut *mut libc::c_uchar, mut len: *mut size_t) {
     if data.is_null() || len.is_null() {
         return;
     }
@@ -1542,19 +1208,14 @@ pub unsafe extern "C" fn bstr_util_mem_trim(
     *len = l;
 }
 
-/**
- * Take the provided memory region, allocate a new memory buffer, and construct
- * a NUL-terminated string, replacing each NUL byte with "\0" (two bytes). The
- * caller is responsible to keep track of the allocated memory area and free
- * it once it is no longer needed.
- *
- * @param[in] data
- * @param[in] len
- * @return The newly created NUL-terminated string, or NULL in case of memory
- *         allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_memdup_to_c(
+/// Take the provided memory region, allocate a new memory buffer, and construct
+/// a NUL-terminated string, replacing each NUL byte with "\0" (two bytes). The
+/// caller is responsible to keep track of the allocated memory area and free
+/// it once it is no longer needed.
+///
+/// Returns The newly created NUL-terminated string, or NULL in case of memory
+///         allocation failure.
+pub unsafe fn bstr_util_memdup_to_c(
     mut _data: *const libc::c_void,
     mut len: size_t,
 ) -> *mut libc::c_char {
@@ -1606,18 +1267,11 @@ pub unsafe extern "C" fn bstr_util_memdup_to_c(
     return r;
 }
 
-/**
- * Create a new NUL-terminated string out of the provided bstring. If NUL bytes
- * are contained in the bstring, each will be replaced with "\0" (two characters).
- * The caller is responsible to keep track of the allocated memory area and free
- * it once it is no longer needed.
- *
- * @param[in] b
- * @return The newly created NUL-terminated string, or NULL in case of memory
- *         allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_strdup_to_c(mut b: *const bstr) -> *mut libc::c_char {
+/// Create a new NUL-terminated string out of the provided bstring. If NUL bytes
+/// are contained in the bstring, each will be replaced with "\0" (two characters).
+/// The caller is responsible to keep track of the allocated memory area and free
+/// it once it is no longer needed.
+pub unsafe fn bstr_util_strdup_to_c(mut b: *const bstr) -> *mut libc::c_char {
     if b.is_null() {
         return 0 as *mut libc::c_char;
     }
@@ -1632,36 +1286,24 @@ pub unsafe extern "C" fn bstr_util_strdup_to_c(mut b: *const bstr) -> *mut libc:
     );
 }
 
-/**
- * Create a new bstring from the provided NUL-terminated string and without
- * copying the data. The caller must ensure that the input string continues
- * to point to a valid memory location for as long as the bstring is used.
- *
- * @param[in] cstr
- * @return New bstring, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_wrap_c(mut cstr: *const libc::c_char) -> *mut bstr {
+/// Create a new bstring from the provided NUL-terminated string and without
+/// copying the data. The caller must ensure that the input string continues
+/// to point to a valid memory location for as long as the bstring is used.
+///
+/// Returns New bstring, or NULL on memory allocation failure.
+pub unsafe fn bstr_wrap_c(mut cstr: *const libc::c_char) -> *mut bstr {
     return bstr_wrap_mem(
         cstr as *mut libc::c_uchar as *const libc::c_void,
         strlen(cstr),
     );
 }
 
-/**
- * Create a new bstring from the provided memory buffer without
- * copying the data. The caller must ensure that the buffer remains
- * valid for as long as the bstring is used.
- *
- * @param[in] data
- * @param[in] len
- * @return New bstring, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_wrap_mem(
-    mut data: *const libc::c_void,
-    mut len: size_t,
-) -> *mut bstr {
+/// Create a new bstring from the provided memory buffer without
+/// copying the data. The caller must ensure that the buffer remains
+/// valid for as long as the bstring is used.
+///
+/// Returns New bstring, or NULL on memory allocation failure.
+pub unsafe fn bstr_wrap_mem(mut data: *const libc::c_void, mut len: size_t) -> *mut bstr {
     let mut b: *mut bstr = malloc(::std::mem::size_of::<bstr>() as libc::c_ulong) as *mut bstr;
     if b.is_null() {
         return 0 as *mut bstr;

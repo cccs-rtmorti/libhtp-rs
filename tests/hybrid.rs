@@ -21,7 +21,7 @@ macro_rules! cstr {
     }};
 }
 
-const HTP_URLENCODED_MIME_TYPE: &'static [u8; 34] = b"application/x-www-form-urlencoded\x00";
+const HTP_URLENCODED_MIME_TYPE: &[u8; 34] = b"application/x-www-form-urlencoded\x00";
 
 struct HybridParsing_Get_User_Data {
     // Request callback indicators.
@@ -65,43 +65,43 @@ impl HybridParsing_Get_User_Data {
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_START_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_LINE_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_HEADERS_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_START_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_LINE_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
@@ -163,19 +163,19 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
             (*user_data).response_body_correctly_received = -1;
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Status {
     let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
-    return Status::OK;
+    Status::OK
 }
 
 struct HybridParsingTest {
@@ -603,7 +603,7 @@ fn PostUrlecodedTest() {
     }
 }
 
-const HYBRID_PARSING_COMPRESSED_RESPONSE: &'static [u8; 253] =
+const HYBRID_PARSING_COMPRESSED_RESPONSE: &[u8; 253] =
     b"H4sIAAAAAAAAAG2PwQ6CMBBE73xFU++tXk2pASliAiEhPegRYUOJYEktEP5eqB6dy2ZnJ5O3LJFZ\
       yj2WiCBah7zKVPBMT1AjCf2gTWnabmH0e/AY/QXDPLqj8HLO07zw8S52wkiKm1zXvRPeeg//2lbX\
       kwpQrauxh5dFqnyj3uVYgJJCxD5W1g5HSud5Jo3WTQek0mR8UgNlDYZOLcz0ZMuH3y+YKzDAaMDJ\
@@ -712,7 +712,7 @@ extern "C" fn HybridParsing_ForcedDecompressionTest_Callback_RESPONSE_HEADERS(
 ) -> Status {
     unsafe {
         (*tx).response_content_encoding_processing = HTP_COMPRESSION_GZIP;
-        return Status::OK;
+        Status::OK
     }
 }
 
@@ -746,7 +746,7 @@ extern "C" fn HybridParsing_DisableDecompressionTest_Callback_RESPONSE_HEADERS(
 ) -> Status {
     unsafe {
         (*tx).response_content_encoding_processing = HTP_COMPRESSION_NONE;
-        return Status::OK;
+        Status::OK
     }
 }
 

@@ -16,32 +16,22 @@ pub struct bstr_builder_t {
     pub pieces: *mut htp_list::htp_list_array_t,
 }
 
-/**
- * Adds one new string to the builder. This function will adopt the
- * string and destroy it when the builder itself is destroyed.
- *
- * @param[in] bb
- * @param[in] b
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_appendn(
+/// Adds one new string to the builder. This function will adopt the
+/// string and destroy it when the builder itself is destroyed.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn bstr_builder_appendn(
     mut bb: *mut bstr_builder_t,
     mut b: *mut bstr::bstr_t,
 ) -> Status {
     return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
 }
 
-/**
- * Adds one new piece, in the form of a NUL-terminated string, to
- * the builder. This function will make a copy of the provided string.
- *
- * @param[in] bb
- * @param[in] cstr
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_append_c(
+/// Adds one new piece, in the form of a NUL-terminated string, to
+/// the builder. This function will make a copy of the provided string.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn bstr_builder_append_c(
     mut bb: *mut bstr_builder_t,
     mut cstr: *const libc::c_char,
 ) -> Status {
@@ -52,18 +42,12 @@ pub unsafe extern "C" fn bstr_builder_append_c(
     return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
 }
 
-/**
- * Adds one new piece, defined with the supplied pointer and
- * length, to the builder. This function will make a copy of the
- * provided data region.
- *
- * @param[in] bb
- * @param[in] data
- * @param[in] len
- * @return @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_append_mem(
+/// Adds one new piece, defined with the supplied pointer and
+/// length, to the builder. This function will make a copy of the
+/// provided data region.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn bstr_builder_append_mem(
     mut bb: *mut bstr_builder_t,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -75,16 +59,11 @@ pub unsafe extern "C" fn bstr_builder_append_mem(
     return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
 }
 
-/**
- * Clears this string builder, destroying all existing pieces. You may
- * want to clear a builder once you've either read all the pieces and
- * done something with them, or after you've converted the builder into
- * a single string.
- *
- * @param[in] bb
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_clear(mut bb: *mut bstr_builder_t) {
+/// Clears this string builder, destroying all existing pieces. You may
+/// want to clear a builder once you've either read all the pieces and
+/// done something with them, or after you've converted the builder into
+/// a single string.
+pub unsafe fn bstr_builder_clear(mut bb: *mut bstr_builder_t) {
     // Do nothing if the list is empty
     if htp_list::htp_list_array_size((*bb).pieces) == 0 as libc::c_int as libc::c_ulong {
         return;
@@ -100,13 +79,10 @@ pub unsafe extern "C" fn bstr_builder_clear(mut bb: *mut bstr_builder_t) {
     htp_list::htp_list_array_clear((*bb).pieces);
 }
 
-/**
- * Creates a new string builder.
- *
- * @return New string builder, or NULL on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_create() -> *mut bstr_builder_t {
+/// Creates a new string builder.
+///
+/// Returns New string builder, or NULL on error.
+pub unsafe fn bstr_builder_create() -> *mut bstr_builder_t {
     let mut bb: *mut bstr_builder_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<bstr_builder_t>() as libc::c_ulong,
@@ -122,14 +98,9 @@ pub unsafe extern "C" fn bstr_builder_create() -> *mut bstr_builder_t {
     return bb;
 }
 
-/**
- * Destroys an existing string builder, also destroying all
- * the pieces stored within.
- *
- * @param[in] bb
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_destroy(mut bb: *mut bstr_builder_t) {
+/// Destroys an existing string builder, also destroying all
+/// the pieces stored within.
+pub unsafe fn bstr_builder_destroy(mut bb: *mut bstr_builder_t) {
     if bb.is_null() {
         return;
     }
@@ -146,26 +117,18 @@ pub unsafe extern "C" fn bstr_builder_destroy(mut bb: *mut bstr_builder_t) {
     free(bb as *mut libc::c_void);
 }
 
-/**
- * Returns the size (the number of pieces) currently in a string builder.
- *
- * @param[in] bb
- * @return size
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_size(mut bb: *const bstr_builder_t) -> size_t {
+/// Returns the size (the number of pieces) currently in a string builder.
+///
+/// Returns size
+pub unsafe fn bstr_builder_size(mut bb: *const bstr_builder_t) -> size_t {
     return htp_list::htp_list_array_size((*bb).pieces);
 }
 
-/**
- * Creates a single string out of all the pieces held in a
- * string builder. This method will not destroy any of the pieces.
- *
- * @param[in] bb
- * @return New string, or NULL on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn bstr_builder_to_str(mut bb: *const bstr_builder_t) -> *mut bstr::bstr_t {
+/// Creates a single string out of all the pieces held in a
+/// string builder. This method will not destroy any of the pieces.
+///
+/// Returns New string, or NULL on error.
+pub unsafe fn bstr_builder_to_str(mut bb: *const bstr_builder_t) -> *mut bstr::bstr_t {
     let mut len: size_t = 0 as libc::c_int as size_t;
     // Determine the size of the string
     let mut i: size_t = 0 as libc::c_int as size_t;

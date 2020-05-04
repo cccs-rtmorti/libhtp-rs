@@ -63,7 +63,7 @@ impl TestInput {
                 && ((line[0] == b'>' && line[1] == b'>' && line[2] == b'>')
                     || (line[0] == b'<' && line[1] == b'<' && line[2] == b'<'))
             {
-                if current.len() > 0 {
+                if !current.is_empty() {
                     // Pop off the CRLF from the last line, which
                     // just separates the previous data from the
                     // boundary <<< >>> chars and isn't actual data
@@ -630,7 +630,7 @@ fn CompressedResponseChunked() {
 
         assert_eq!(28261, (*tx).response_message_len);
 
-        assert_eq!(159590, (*tx).response_entity_len);
+        assert_eq!(159_590, (*tx).response_entity_len);
     }
 }
 
@@ -928,25 +928,25 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
             0 => {
-                if !((len == 11) && data == "User-Agent:".as_bytes()) {
+                if !((len == 11) && data == b"User-Agent:") {
                     eprintln!("Mismatch in chunk 0");
                     COUNTER = -1;
                 }
             }
             1 => {
-                if !((len == 5) && data == " Test".as_bytes()) {
+                if !((len == 5) && data == b" Test") {
                     eprintln!("Mismatch in chunk 1");
                     COUNTER = -1;
                 }
             }
             2 => {
-                if !((len == 5) && data == " User".as_bytes()) {
+                if !((len == 5) && data == b" User") {
                     eprintln!("Mismatch in chunk 2");
                     COUNTER = -1;
                 }
             }
             3 => {
-                if !((len == 30) && data == " Agent\nHost: www.example.com\n\n".as_bytes()) {
+                if !((len == 30) && data == b" Agent\nHost: www.example.com\n\n") {
                     eprintln!("Mismatch in chunk 3");
                     COUNTER = -1;
                 }
@@ -1000,13 +1000,13 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
             0 => {
-                if !((len == 7) && (data == "Cookie:".as_bytes())) {
+                if !((len == 7) && (data == b"Cookie:")) {
                     eprintln!("Mismatch in chunk 0");
                     COUNTER = -1;
                 }
             }
             1 => {
-                if !((len == 6) && (data == " 2\r\n\r\n".as_bytes())) {
+                if !((len == 6) && (data == b" 2\r\n\r\n")) {
                     eprintln!("Mismatch in chunk 1");
                     COUNTER = -2;
                 }
@@ -1060,13 +1060,13 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
         0 => {
-            if !((len == 5) && (data == "Date:".as_bytes())) {
+            if !((len == 5) && (data == b"Date:")) {
                 eprintln!("Mismatch in chunk 0");
                 COUNTER = -1;
             }
         }
         1 => {
-            if !((len == 5) && (data == " Mon,".as_bytes())) {
+            if !((len == 5) && (data == b" Mon,")) {
                 eprintln!("Mismatch in chunk 1");
                 COUNTER = -2;
             }
@@ -1132,28 +1132,28 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
             0 => {
-                if !((len == 11) && (data == "Set-Cookie:".as_bytes())) {
+                if !((len == 11) && (data == b"Set-Cookie:")) {
                     eprintln!("Mismatch in chunk 0");
                     COUNTER = -1;
                 }
             }
 
             1 => {
-                if !((len == 6) && (data == " name=".as_bytes())) {
+                if !((len == 6) && (data == b" name=")) {
                     eprintln!("Mismatch in chunk 1");
                     COUNTER = -2;
                 }
             }
 
             2 => {
-                if !((len == 22) && (data == "value\r\nAnother-Header:".as_bytes())) {
+                if !((len == 22) && (data == b"value\r\nAnother-Header:")) {
                     eprintln!("Mismatch in chunk 1");
                     COUNTER = -3;
                 }
             }
 
             3 => {
-                if !((len == 17) && (data == " Header-Value\r\n\r\n".as_bytes())) {
+                if !((len == 17) && (data == b" Header-Value\r\n\r\n")) {
                     eprintln!("Mismatch in chunk 1");
                     COUNTER = -4;
                 }

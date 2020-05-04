@@ -10,96 +10,86 @@ use bitflags;
 bitflags::bitflags! {
     #[repr(C)]
     pub struct MultipartFlags: u64 {
-/**
- * Seen a LF line in the payload. LF lines are not allowed, but
- * some clients do use them and some backends do accept them. Mixing
- * LF and CRLF lines within some payload might be unusual.
- */
+
+/// Seen a LF line in the payload. LF lines are not allowed, but
+/// some clients do use them and some backends do accept them. Mixing
+/// LF and CRLF lines within some payload might be unusual.
         const HTP_MULTIPART_LF_LINE = 0x0001;
-/** Seen a CRLF line in the payload. This is normal and expected. */
+/// Seen a CRLF line in the payload. This is normal and expected.
         const HTP_MULTIPART_CRLF_LINE = 0x0002;
-/** Seen LWS after a boundary instance in the body. Unusual. */
+/// Seen LWS after a boundary instance in the body. Unusual.
         const HTP_MULTIPART_BBOUNDARY_LWS_AFTER = 0x0004;
-/** Seen non-LWS content after a boundary instance in the body. Highly unusual. */
+/// Seen non-LWS content after a boundary instance in the body. Highly unusual.
         const HTP_MULTIPART_BBOUNDARY_NLWS_AFTER = 0x0008;
-/**
- * Payload has a preamble part. Might not be that unusual.
- */
+
+/// Payload has a preamble part. Might not be that unusual.
         const HTP_MULTIPART_HAS_PREAMBLE = 0x0010;
-/**
- * Payload has an epilogue part. Unusual.
- */
+
+/// Payload has an epilogue part. Unusual.
         const HTP_MULTIPART_HAS_EPILOGUE = 0x0020;
-/**
- * The last boundary was seen in the payload. Absence of the last boundary
- * may not break parsing with some (most?) backends, but it means that the payload
- * is not well formed. Can occur if the client gives up, or if the connection is
- * interrupted. Incomplete payloads should be blocked whenever possible.
- */
+
+/// The last boundary was seen in the payload. Absence of the last boundary
+/// may not break parsing with some (most?) backends, but it means that the payload
+/// is not well formed. Can occur if the client gives up, or if the connection is
+/// interrupted. Incomplete payloads should be blocked whenever possible.
         const HTP_MULTIPART_SEEN_LAST_BOUNDARY = 0x0040;
-/**
- * There was a part after the last boundary. This is highly irregular
- * and indicative of evasion.
- */
+
+/// There was a part after the last boundary. This is highly irregular
+/// and indicative of evasion.
         const HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY = 0x0080;
-/**
- * The payloads ends abruptly, without proper termination. Can occur if the client gives up,
- * or if the connection is interrupted. When this flag is raised, HTP_MULTIPART_PART_INCOMPLETE
- * will also be raised for the part that was only partially processed. (But the opposite may not
- * always be the case -- there are other ways in which a part can be left incomplete.)
- */
+
+/// The payloads ends abruptly, without proper termination. Can occur if the client gives up,
+/// or if the connection is interrupted. When this flag is raised, HTP_MULTIPART_PART_INCOMPLETE
+/// will also be raised for the part that was only partially processed. (But the opposite may not
+/// always be the case -- there are other ways in which a part can be left incomplete.)
         const HTP_MULTIPART_INCOMPLETE = 0x0100;
-/** The boundary in the Content-Type header is invalid. */
+/// The boundary in the Content-Type header is invalid.
         const HTP_MULTIPART_HBOUNDARY_INVALID = 0x0200;
-/**
- * The boundary in the Content-Type header is unusual. This may mean that evasion
- * is attempted, but it could also mean that we have encountered a client that does
- * not do things in the way it should.
- */
+
+/// The boundary in the Content-Type header is unusual. This may mean that evasion
+/// is attempted, but it could also mean that we have encountered a client that does
+/// not do things in the way it should.
         const HTP_MULTIPART_HBOUNDARY_UNUSUAL = 0x0400;
-/**
- * The boundary in the Content-Type header is quoted. This is very unusual,
- * and may be indicative of an evasion attempt.
- */
+
+/// The boundary in the Content-Type header is quoted. This is very unusual,
+/// and may be indicative of an evasion attempt.
         const HTP_MULTIPART_HBOUNDARY_QUOTED = 0x0800;
-/** Header folding was used in part headers. Very unusual. */
+/// Header folding was used in part headers. Very unusual.
         const HTP_MULTIPART_PART_HEADER_FOLDING = 0x1000;
-/**
- * A part of unknown type was encountered, which probably means that the part is lacking
- * a Content-Disposition header, or that the header is invalid. Highly unusual.
- */
+
+/// A part of unknown type was encountered, which probably means that the part is lacking
+/// a Content-Disposition header, or that the header is invalid. Highly unusual.
         const HTP_MULTIPART_PART_UNKNOWN = 0x2000;
-/** There was a repeated part header, possibly in an attempt to confuse the parser. Very unusual. */
+/// There was a repeated part header, possibly in an attempt to confuse the parser. Very unusual.
         const HTP_MULTIPART_PART_HEADER_REPEATED = 0x4000;
-/** Unknown part header encountered. */
+/// Unknown part header encountered.
         const HTP_MULTIPART_PART_HEADER_UNKNOWN = 0x8000;
-/** Invalid part header encountered. */
+/// Invalid part header encountered.
         const HTP_MULTIPART_PART_HEADER_INVALID = 0x10000;
-/** Part type specified in the C-D header is neither MULTIPART_PART_TEXT nor MULTIPART_PART_FILE. */
+/// Part type specified in the C-D header is neither MULTIPART_PART_TEXT nor MULTIPART_PART_FILE.
         const HTP_MULTIPART_CD_TYPE_INVALID = 0x20000;
-/** Content-Disposition part header with multiple parameters with the same name. */
+/// Content-Disposition part header with multiple parameters with the same name.
         const HTP_MULTIPART_CD_PARAM_REPEATED = 0x40000;
-/** Unknown Content-Disposition parameter. */
+/// Unknown Content-Disposition parameter.
         const HTP_MULTIPART_CD_PARAM_UNKNOWN = 0x80000;
-/** Invalid Content-Disposition syntax. */
+/// Invalid Content-Disposition syntax.
         const HTP_MULTIPART_CD_SYNTAX_INVALID = 0x100000;
-/**
- * There is an abruptly terminated part. This can happen when the payload itself is abruptly
- * terminated (in which case HTP_MULTIPART_INCOMPLETE) will be raised. However, it can also
- * happen when a boundary is seen before any part data.
- */
+
+/// There is an abruptly terminated part. This can happen when the payload itself is abruptly
+/// terminated (in which case HTP_MULTIPART_INCOMPLETE) will be raised. However, it can also
+/// happen when a boundary is seen before any part data.
         const HTP_MULTIPART_PART_INCOMPLETE = 0x200000;
-/** A NUL byte was seen in a part header area. */
+/// A NUL byte was seen in a part header area.
         const HTP_MULTIPART_NUL_BYTE = 0x400000;
-/** A collection of flags that all indicate an invalid C-D header. */
+/// A collection of flags that all indicate an invalid C-D header.
         const HTP_MULTIPART_CD_INVALID = ( Self::HTP_MULTIPART_CD_TYPE_INVALID.bits | Self::HTP_MULTIPART_CD_PARAM_REPEATED.bits | Self::HTP_MULTIPART_CD_PARAM_UNKNOWN.bits | Self::HTP_MULTIPART_CD_SYNTAX_INVALID.bits );
-/** A collection of flags that all indicate an invalid part. */
+/// A collection of flags that all indicate an invalid part.
         const HTP_MULTIPART_PART_INVALID = ( Self::HTP_MULTIPART_CD_INVALID.bits | Self::HTP_MULTIPART_NUL_BYTE.bits | Self::HTP_MULTIPART_PART_UNKNOWN.bits | Self::HTP_MULTIPART_PART_HEADER_REPEATED.bits | Self::HTP_MULTIPART_PART_INCOMPLETE.bits | Self::HTP_MULTIPART_PART_HEADER_UNKNOWN.bits | Self::HTP_MULTIPART_PART_HEADER_INVALID.bits );
-/** A collection of flags that all indicate an invalid Multipart payload. */
+/// A collection of flags that all indicate an invalid Multipart payload.
         const HTP_MULTIPART_INVALID = ( Self::HTP_MULTIPART_PART_INVALID.bits | Self::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY.bits | Self::HTP_MULTIPART_INCOMPLETE.bits | Self::HTP_MULTIPART_HBOUNDARY_INVALID.bits );
-/** A collection of flags that all indicate an unusual Multipart payload. */
+/// A collection of flags that all indicate an unusual Multipart payload.
         const HTP_MULTIPART_UNUSUAL = ( Self::HTP_MULTIPART_INVALID.bits | Self::HTP_MULTIPART_PART_HEADER_FOLDING.bits | Self::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER.bits | Self::HTP_MULTIPART_HAS_EPILOGUE.bits | Self::HTP_MULTIPART_HBOUNDARY_UNUSUAL.bits | Self::HTP_MULTIPART_HBOUNDARY_QUOTED.bits );
-/** A collection of flags that all indicate an unusual Multipart payload, with a low sensitivity to irregularities. */
+/// A collection of flags that all indicate an unusual Multipart payload, with a low sensitivity to irregularities.
         const HTP_MULTIPART_UNUSUAL_PARANOID = ( Self::HTP_MULTIPART_UNUSUAL.bits | Self::HTP_MULTIPART_LF_LINE.bits | Self::HTP_MULTIPART_BBOUNDARY_LWS_AFTER.bits | Self::HTP_MULTIPART_HAS_PREAMBLE.bits );
     }
 }
@@ -189,170 +179,151 @@ pub struct htp_mpartp_t {
     >,
     pub handle_boundary: Option<unsafe extern "C" fn(_: *mut htp_mpartp_t) -> Status>,
     // Internal parsing fields; move into a private structure
-    /**
-     * Parser state; one of MULTIPART_STATE_* constants.
-     */
+    /// Parser state; one of MULTIPART_STATE_* constants.
     parser_state: htp_multipart_state_t,
-    /**
-     * Keeps track of the current position in the boundary matching progress.
-     * When this field reaches boundary_len, we have a boundary match.
-     */
+
+    /// Keeps track of the current position in the boundary matching progress.
+    /// When this field reaches boundary_len, we have a boundary match.
     pub boundary_match_pos: size_t,
-    /**
-     * Pointer to the part that is currently being processed.
-     */
+
+    /// Pointer to the part that is currently being processed.
     pub current_part: *mut htp_multipart_part_t,
-    /**
-     * This parser consists of two layers: the outer layer is charged with
-     * finding parts, and the internal layer handles part data. There is an
-     * interesting interaction between the two parsers. Because the
-     * outer layer is seeing every line (it has to, in order to test for
-     * boundaries), it also effectively also splits input into lines. The
-     * inner parser deals with two areas: first is the headers, which are
-     * line based, followed by binary data. When parsing headers, the inner
-     * parser can reuse the lines identified by the outer parser. In this
-     * variable we keep the current parsing mode of the part, which helps
-     * us process input data more efficiently. The possible values are
-     * MULTIPART_MODE_LINE and MULTIPART_MODE_DATA.
-     */
+
+    /// This parser consists of two layers: the outer layer is charged with
+    /// finding parts, and the internal layer handles part data. There is an
+    /// interesting interaction between the two parsers. Because the
+    /// outer layer is seeing every line (it has to, in order to test for
+    /// boundaries), it also effectively also splits input into lines. The
+    /// inner parser deals with two areas: first is the headers, which are
+    /// line based, followed by binary data. When parsing headers, the inner
+    /// parser can reuse the lines identified by the outer parser. In this
+    /// variable we keep the current parsing mode of the part, which helps
+    /// us process input data more efficiently. The possible values are
+    /// MULTIPART_MODE_LINE and MULTIPART_MODE_DATA.
     current_part_mode: htp_part_mode_t,
-    /**
-     * Used for buffering when a potential boundary is fragmented
-     * across many input data buffers. On a match, the data stored here is
-     * discarded. When there is no match, the buffer is processed as data
-     * (belonging to the currently active part).
-     */
+
+    /// Used for buffering when a potential boundary is fragmented
+    /// across many input data buffers. On a match, the data stored here is
+    /// discarded. When there is no match, the buffer is processed as data
+    /// (belonging to the currently active part).
     pub boundary_pieces: *mut bstr_builder::bstr_builder_t,
     pub part_header_pieces: *mut bstr_builder::bstr_builder_t,
     pub pending_header_line: *mut bstr::bstr_t,
-    /**
-     * Stores text part pieces until the entire part is seen, at which
-     * point the pieces are assembled into a single buffer, and the
-     * builder cleared.
-     */
+
+    /// Stores text part pieces until the entire part is seen, at which
+    /// point the pieces are assembled into a single buffer, and the
+    /// builder cleared.
     pub part_data_pieces: *mut bstr_builder::bstr_builder_t,
-    /**
-     * The offset of the current boundary candidate, relative to the most
-     * recent data chunk (first unprocessed chunk of data).
-     */
+
+    /// The offset of the current boundary candidate, relative to the most
+    /// recent data chunk (first unprocessed chunk of data).
     pub boundary_candidate_pos: size_t,
-    /**
-     * When we encounter a CR as the last byte in a buffer, we don't know
-     * if the byte is part of a CRLF combination. If it is, then the CR
-     * might be a part of a boundary. But if it is not, it's current
-     * part's data. Because we know how to handle everything before the
-     * CR, we do, and we use this flag to indicate that a CR byte is
-     * effectively being buffered. This is probably a case of premature
-     * optimization, but I am going to leave it in for now.
-     */
+
+    /// When we encounter a CR as the last byte in a buffer, we don't know
+    /// if the byte is part of a CRLF combination. If it is, then the CR
+    /// might be a part of a boundary. But if it is not, it's current
+    /// part's data. Because we know how to handle everything before the
+    /// CR, we do, and we use this flag to indicate that a CR byte is
+    /// effectively being buffered. This is probably a case of premature
+    /// optimization, but I am going to leave it in for now.
     pub cr_aside: libc::c_int,
-    /**
-     * When set, indicates that this parser no longer owns names and
-     * values of MULTIPART_PART_TEXT parts. It is used to avoid data
-     * duplication when the parser is used by LibHTP internally.
-     */
+
+    /// When set, indicates that this parser no longer owns names and
+    /// values of MULTIPART_PART_TEXT parts. It is used to avoid data
+    /// duplication when the parser is used by LibHTP internally.
     pub gave_up_data: libc::c_int,
 }
 
-/**
- * Holds information related to a part.
- */
+/// Holds information related to a part.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_multipart_part_t {
-    /** Pointer to the parser. */
+    /// Pointer to the parser.
     pub parser: *mut htp_mpartp_t,
-    /** Part type; see the MULTIPART_PART_* constants. */
+    /// Part type; see the MULTIPART_PART_* constants.
     pub type_0: htp_multipart_type_t,
-    /** Raw part length (i.e., headers and data). */
+    /// Raw part length (i.e., headers and data).
     pub len: size_t,
-    /** Part name, from the Content-Disposition header. Can be NULL. */
+    /// Part name, from the Content-Disposition header. Can be NULL.
     pub name: *mut bstr::bstr_t,
-    /**
-     * Part value; the contents depends on the type of the part:
-     * 1) NULL for files; 2) contains complete part contents for
-     * preamble and epilogue parts (they have no headers), and
-     * 3) data only (headers excluded) for text and unknown parts.
-     */
+
+    /// Part value; the contents depends on the type of the part:
+    /// 1) NULL for files; 2) contains complete part contents for
+    /// preamble and epilogue parts (they have no headers), and
+    /// 3) data only (headers excluded) for text and unknown parts.
     pub value: *mut bstr::bstr_t,
-    /** Part content type, from the Content-Type header. Can be NULL. */
+    /// Part content type, from the Content-Type header. Can be NULL.
     pub content_type: *mut bstr::bstr_t,
-    /** Part headers (htp_header_t instances), using header name as the key. */
+    /// Part headers (htp_header_t instances), using header name as the key.
     pub headers: *mut htp_table::htp_table_t,
-    /** File data, available only for MULTIPART_PART_FILE parts. */
+    /// File data, available only for MULTIPART_PART_FILE parts.
     pub file: *mut htp_util::htp_file_t,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum htp_part_mode_t {
-    /** When in line mode, the parser is handling part headers. */
+    /// When in line mode, the parser is handling part headers.
     MODE_LINE,
-    /** When in data mode, the parser is consuming part data. */
+    /// When in data mode, the parser is consuming part data.
     MODE_DATA,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum htp_multipart_state_t {
-    /** Initial state, after the parser has been created but before the boundary initialized. */
+    /// Initial state, after the parser has been created but before the boundary initialized.
     STATE_INIT,
-    /** Processing data, waiting for a new line (which might indicate a new boundary). */
+    /// Processing data, waiting for a new line (which might indicate a new boundary).
     STATE_DATA,
-    /** Testing a potential boundary. */
+    /// Testing a potential boundary.
     STATE_BOUNDARY,
-    /** Checking the first byte after a boundary. */
+    /// Checking the first byte after a boundary.
     STATE_BOUNDARY_IS_LAST1,
-    /** Checking the second byte after a boundary. */
+    /// Checking the second byte after a boundary.
     STATE_BOUNDARY_IS_LAST2,
-    /** Consuming linear whitespace after a boundary. */
+    /// Consuming linear whitespace after a boundary.
     STATE_BOUNDARY_EAT_LWS,
-    /** Used after a CR byte is detected in htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS. */
+    /// Used after a CR byte is detected in htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS.
     STATE_BOUNDARY_EAT_LWS_CR,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_multipart_type_t {
-    /** Unknown part. */
+    /// Unknown part.
     MULTIPART_PART_UNKNOWN,
-    /** Text (parameter) part. */
+    /// Text (parameter) part.
     MULTIPART_PART_TEXT,
-    /** File part. */
+    /// File part.
     MULTIPART_PART_FILE,
-    /** Free-text part before the first boundary. */
+    /// Free-text part before the first boundary.
     MULTIPART_PART_PREAMBLE,
-    /** Free-text part after the last boundary. */
+    /// Free-text part after the last boundary.
     MULTIPART_PART_EPILOGUE,
 }
 
-/**
- * Holds information related to a multipart body.
- */
+/// Holds information related to a multipart body.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_multipart_t {
-    /** Multipart boundary. */
+    /// Multipart boundary.
     pub boundary: *mut libc::c_char,
-    /** Boundary length. */
+    /// Boundary length.
     pub boundary_len: size_t,
-    /** How many boundaries were there? */
+    /// How many boundaries were there?
     pub boundary_count: libc::c_int,
-    /** List of parts, in the order in which they appeared in the body. */
+    /// List of parts, in the order in which they appeared in the body.
     pub parts: *mut htp_list::htp_list_array_t,
-    /** Parsing flags. */
+    /// Parsing flags.
     pub flags: MultipartFlags,
 }
 
 pub type htp_time_t = libc::timeval;
-/* *
- * Determines the type of a Content-Disposition parameter.
- *
- * @param[in] data
- * @param[in] startpos
- * @param[in] pos
- * @return CD_PARAM_OTHER, CD_PARAM_NAME or CD_PARAM_FILENAME.
- */
+
+/// Determines the type of a Content-Disposition parameter.
+///
+/// Returns CD_PARAM_OTHER, CD_PARAM_NAME or CD_PARAM_FILENAME.
 unsafe extern "C" fn htp_mpartp_cd_param_type(
     mut data: *mut libc::c_uchar,
     mut startpos: size_t,
@@ -380,28 +351,21 @@ unsafe extern "C" fn htp_mpartp_cd_param_type(
     return 0 as libc::c_int;
 }
 
-/**
- * Returns the multipart structure created by the parser.
- *
- * @param[in] parser
- * @return The main multipart structure.
- */
-#[no_mangle]
+/// Returns the multipart structure created by the parser.
+///
+/// Returns The main multipart structure.
 pub unsafe extern "C" fn htp_mpartp_get_multipart(
     mut parser: *mut htp_mpartp_t,
 ) -> *mut htp_multipart_t {
     return &mut (*parser).multipart;
 }
 
-/* *
- * Decodes a C-D header value. This is impossible to do correctly without a
- * parsing personality because most browsers are broken:
- *  - Firefox encodes " as \", and \ is not encoded.
- *  - Chrome encodes " as %22.
- *  - IE encodes " as \", and \ is not encoded.
- *  - Opera encodes " as \" and \ as \\.
- * @param[in] b
- */
+/// Decodes a C-D header value. This is impossible to do correctly without a
+/// parsing personality because most browsers are broken:
+///  - Firefox encodes " as \", and \ is not encoded.
+///  - Chrome encodes " as %22.
+///  - IE encodes " as \", and \ is not encoded.
+///  - Opera encodes " as \" and \ as \\.
 unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr::bstr_t) {
     let mut s: *mut libc::c_uchar = if (*b).realptr.is_null() {
         (b as *mut libc::c_uchar)
@@ -440,14 +404,10 @@ unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(mut b: *mut bstr::
     );
 }
 
-/* *
- * Parses the Content-Disposition part header.
- *
- * @param[in] part
- * @return HTP_OK on success (header found and parsed), HTP_DECLINED if there is no C-D header or if
- *         it could not be processed, and HTP_ERROR on fatal error.
- */
-#[no_mangle]
+/// Parses the Content-Disposition part header.
+///
+/// Returns HTP_OK on success (header found and parsed), HTP_DECLINED if there is no C-D header or if
+///         it could not be processed, and HTP_ERROR on fatal error.
 pub unsafe extern "C" fn htp_mpart_part_parse_c_d(mut part: *mut htp_multipart_part_t) -> Status {
     // Find the C-D header.
     let mut h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
@@ -665,12 +625,9 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(mut part: *mut htp_multipart_p
     return Status::OK;
 }
 
-/* *
- * Parses the Content-Type part header, if present.
- *
- * @param[in] part
- * @return HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
- */
+/// Parses the Content-Type part header, if present.
+///
+/// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
 unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_t) -> Status {
     let mut h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*part).headers,
@@ -682,13 +639,9 @@ unsafe extern "C" fn htp_mpart_part_parse_c_t(mut part: *mut htp_multipart_part_
     return htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type);
 }
 
-/* *
- * Processes part headers.
- *
- * @param[in] part
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
+/// Processes part headers.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe extern "C" fn htp_mpart_part_process_headers(
     mut part: *mut htp_multipart_part_t,
 ) -> Status {
@@ -701,15 +654,9 @@ pub unsafe extern "C" fn htp_mpart_part_process_headers(
     return Status::OK;
 }
 
-/* *
- * Parses one part header.
- *
- * @param[in] part
- * @param[in] data
- * @param[in] len
- * @return HTP_OK on success, HTP_DECLINED on parsing error, HTP_ERROR on fatal error.
- */
-#[no_mangle]
+/// Parses one part header.
+///
+/// Returns HTP_OK on success, HTP_DECLINED on parsing error, HTP_ERROR on fatal error.
 pub unsafe extern "C" fn htp_mpartp_parse_header(
     mut part: *mut htp_multipart_part_t,
     mut data: *const libc::c_uchar,
@@ -871,13 +818,9 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     return Status::OK;
 }
 
-/* *
- * Creates a new Multipart part.
- *
- * @param[in] parser
- * @return New part instance, or NULL on memory allocation failure.
- */
-#[no_mangle]
+/// Creates a new Multipart part.
+///
+/// Returns New part instance, or NULL on memory allocation failure.
 pub unsafe extern "C" fn htp_mpart_part_create(
     mut parser: *mut htp_mpartp_t,
 ) -> *mut htp_multipart_part_t {
@@ -899,13 +842,7 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     return part;
 }
 
-/* *
- * Destroys a part.
- *
- * @param[in] part
- * @param[in] gave_up_data
- */
-#[no_mangle]
+/// Destroys a part.
 pub unsafe extern "C" fn htp_mpart_part_destroy(
     mut part: *mut htp_multipart_part_t,
     mut gave_up_data: libc::c_int,
@@ -944,13 +881,9 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
     free(part as *mut libc::c_void);
 }
 
-/* *
- * Finalizes part processing.
- *
- * @param[in] part
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
+/// Finalizes part processing.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     mut part: *mut htp_multipart_part_t,
 ) -> Status {
@@ -1012,7 +945,6 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
     return Status::OK;
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     mut part: *mut htp_multipart_part_t,
     mut data: *const libc::c_uchar,
@@ -1045,16 +977,9 @@ pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     return Status::OK;
 }
 
-/* *
- * Handles part data.
- *
- * @param[in] part
- * @param[in] data
- * @param[in] len
- * @param[in] is_line
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
+/// Handles part data.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe extern "C" fn htp_mpart_part_handle_data(
     mut part: *mut htp_multipart_part_t,
     mut data: *const libc::c_uchar,
@@ -1308,15 +1233,9 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
     return Status::OK;
 }
 
-/* *
- * Handles data, creating new parts as necessary.
- *
- * @param[in] mpartp
- * @param[in] data
- * @param[in] len
- * @param[in] is_line
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
+/// Handles data, creating new parts as necessary.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 unsafe extern "C" fn htp_mpartp_handle_data(
     mut parser: *mut htp_mpartp_t,
     mut data: *const libc::c_uchar,
@@ -1352,12 +1271,9 @@ unsafe extern "C" fn htp_mpartp_handle_data(
     return htp_mpart_part_handle_data((*parser).current_part, data, len, is_line);
 }
 
-/* *
- * Handles a boundary event, which means that it will finalize a part if one exists.
- *
- * @param[in] mpartp
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
+/// Handles a boundary event, which means that it will finalize a part if one exists.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 unsafe extern "C" fn htp_mpartp_handle_boundary(mut parser: *mut htp_mpartp_t) -> Status {
     if !(*parser).current_part.is_null() {
         if htp_mpart_part_finalize_data((*parser).current_part) != Status::OK {
@@ -1428,16 +1344,10 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
     return Status::OK;
 }
 
-/**
- * Creates a new multipart/form-data parser. On a successful invocation,
- * the ownership of the boundary parameter is transferred to the parser.
- *
- * @param[in] cfg
- * @param[in] boundary
- * @param[in] flags
- * @return New parser instance, or NULL on memory allocation failure.
- */
-#[no_mangle]
+/// Creates a new multipart/form-data parser. On a successful invocation,
+/// the ownership of the boundary parameter is transferred to the parser.
+///
+/// Returns New parser instance, or NULL on memory allocation failure.
 pub unsafe extern "C" fn htp_mpartp_create(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut boundary: *mut bstr::bstr_t,
@@ -1516,12 +1426,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
     return parser;
 }
 
-/**
- * Destroys the provided parser.
- *
- * @param[in] parser
- */
-#[no_mangle]
+/// Destroys the provided parser.
 pub unsafe extern "C" fn htp_mpartp_destroy(mut parser: *mut htp_mpartp_t) {
     if parser.is_null() {
         return;
@@ -1549,17 +1454,9 @@ pub unsafe extern "C" fn htp_mpartp_destroy(mut parser: *mut htp_mpartp_t) {
     free(parser as *mut libc::c_void);
 }
 
-/* *
- * Processes set-aside data.
- *
- * @param[in] mpartp
- * @param[in] data
- * @param[in] pos
- * @param[in] startpos
- * @param[in] return_pos
- * @param[in] matched
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
+/// Processes set-aside data.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 unsafe extern "C" fn htp_martp_process_aside(
     mut parser: *mut htp_mpartp_t,
     mut matched: libc::c_int,
@@ -1734,13 +1631,9 @@ unsafe extern "C" fn htp_martp_process_aside(
     return Status::OK;
 }
 
-/**
- * Finalize parsing.
- *
- * @param[in] parser
- * @returns HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
+/// Finalize parsing.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> Status {
     if !(*parser).current_part.is_null() {
         // Process buffered data, if any.
@@ -1757,16 +1650,11 @@ pub unsafe extern "C" fn htp_mpartp_finalize(mut parser: *mut htp_mpartp_t) -> S
     bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
     return Status::OK;
 }
-/* *
- * Parses a chunk of multipart/form-data data. This function should be called
- * as many times as necessary until all data has been consumed.
- *
- * @param[in] parser
- * @param[in] data
- * @param[in] len
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
+
+/// Parses a chunk of multipart/form-data data. This function should be called
+/// as many times as necessary until all data has been consumed.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe extern "C" fn htp_mpartp_parse(
     mut parser: *mut htp_mpartp_t,
     mut _data: *const libc::c_void,
@@ -2080,33 +1968,29 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
     mut boundary: *mut bstr::bstr_t,
     mut flags: *mut MultipartFlags,
 ) {
-    /*
-
-    RFC 1341:
-
-    The only mandatory parameter for the multipart  Content-Type
-    is  the  boundary  parameter,  which  consists  of  1  to 70
-    characters from a set of characters known to be very  robust
-    through  email  gateways,  and  NOT ending with white space.
-    (If a boundary appears to end with white  space,  the  white
-    space  must be presumed to have been added by a gateway, and
-    should  be  deleted.)   It  is  formally  specified  by  the
-    following BNF:
-
-    boundary := 0*69<bchars> bcharsnospace
-
-    bchars := bcharsnospace / " "
-
-    bcharsnospace :=    DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_"
-                          / "," / "-" / "." / "/" / ":" / "=" / "?"
-     */
-    /*
-     Chrome: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD
-    Firefox: Content-Type: multipart/form-data; boundary=---------------------------21071316483088
-       MSIE: Content-Type: multipart/form-data; boundary=---------------------------7dd13e11c0452
-      Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
-     Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
-     */
+    //   RFC 1341:
+    //
+    //    The only mandatory parameter for the multipart  Content-Type
+    //    is  the  boundary  parameter,  which  consists  of  1  to 70
+    //    characters from a set of characters known to be very  robust
+    //    through  email  gateways,  and  NOT ending with white space.
+    //    (If a boundary appears to end with white  space,  the  white
+    //    space  must be presumed to have been added by a gateway, and
+    //    should  be  deleted.)   It  is  formally  specified  by  the
+    //    following BNF:
+    //
+    //    boundary := 0*69<bchars> bcharsnospace
+    //
+    //    bchars := bcharsnospace / " "
+    //
+    //    bcharsnospace :=    DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_"
+    //                          / "," / "-" / "." / "/" / ":" / "=" / "?"
+    //
+    //    Chrome: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD
+    //    Firefox: Content-Type: multipart/form-data; boundary=---------------------------21071316483088
+    //       MSIE: Content-Type: multipart/form-data; boundary=---------------------------7dd13e11c0452
+    //      Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
+    //     Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
     let mut data: *mut libc::c_uchar = if (*boundary).realptr.is_null() {
         (boundary as *mut libc::c_uchar)
             .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
@@ -2194,19 +2078,15 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
     };
 }
 
-/* *
- * Looks for boundary in the supplied Content-Type request header. The extracted
- * boundary will be allocated on the heap.
- *
- * @param[in] content_type
- * @param[out] boundary
- * @param[out] multipart_flags Multipart flags, which are not compatible from general LibHTP flags.
- * @return HTP_OK on success (boundary found), HTP_DECLINED if boundary was not found,
- *         and HTP_ERROR on failure. Flags may be set on HTP_OK and HTP_DECLINED. For
- *         example, if a boundary could not be extracted but there is indication that
- *         one is present, HTP_MULTIPART_HBOUNDARY_INVALID will be set.
- */
-#[no_mangle]
+/// Looks for boundary in the supplied Content-Type request header. The extracted
+/// boundary will be allocated on the heap.
+///
+/// Returns in multipart_flags: Multipart flags, which are not compatible from general LibHTP flags.
+///
+/// Returns HTP_OK on success (boundary found), HTP_DECLINED if boundary was not found,
+///         and HTP_ERROR on failure. Flags may be set on HTP_OK and HTP_DECLINED. For
+///         example, if a boundary could not be extracted but there is indication that
+///         one is present, HTP_MULTIPART_HBOUNDARY_INVALID will be set.
 pub unsafe extern "C" fn htp_mpartp_find_boundary(
     mut content_type: *mut bstr::bstr_t,
     mut boundary: *mut *mut bstr::bstr_t,

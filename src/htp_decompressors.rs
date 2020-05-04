@@ -41,19 +41,17 @@ pub type uint64_t = __uint64_t;
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_content_encoding_t {
-    /**
-     * This is the default value, which is used until the presence
-     * of content encoding is determined (e.g., before request headers
-     * are seen.
-     */
+    /// This is the default value, which is used until the presence
+    /// of content encoding is determined (e.g., before request headers
+    /// are seen.
     HTP_COMPRESSION_UNKNOWN,
-    /** No compression. */
+    /// No compression.
     HTP_COMPRESSION_NONE,
-    /** Gzip compression. */
+    /// Gzip compression.
     HTP_COMPRESSION_GZIP,
-    /** Deflate compression. */
+    /// Deflate compression.
     HTP_COMPRESSION_DEFLATE,
-    /** LZMA compression. */
+    /// LZMA compression.
     HTP_COMPRESSION_LZMA,
 }
 
@@ -101,8 +99,8 @@ pub struct z_stream_s {
 }
 pub type z_stream = z_stream_s;
 pub type z_streamp = *mut z_stream;
-/* 7zTypes.h -- Basic types
-2018-08-04 : Igor Pavlov : Public domain */
+// 7zTypes.h -- Basic types
+// 2018-08-04 : Igor Pavlov : Public domain
 pub type SRes = libc::c_int;
 pub type UInt16 = libc::c_ushort;
 pub type UInt32 = libc::c_uint;
@@ -122,37 +120,26 @@ pub struct htp_decompressor_gzip_t {
     pub buffer: *mut libc::c_uchar,
     pub crc: libc::c_ulong,
 }
-unsafe extern "C" fn SzAlloc(
-    mut _p: lzma::LzmaDec::ISzAllocPtr,
-    mut size: size_t,
-) -> *mut libc::c_void {
+unsafe fn SzAlloc(mut _p: lzma::LzmaDec::ISzAllocPtr, mut size: size_t) -> *mut libc::c_void {
     return malloc(size);
 }
-unsafe extern "C" fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, mut address: *mut libc::c_void) {
+unsafe fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, mut address: *mut libc::c_void) {
     free(address);
 }
 #[no_mangle]
 pub static mut lzma_Alloc: lzma::LzmaDec::ISzAlloc = {
     let mut init = lzma::LzmaDec::ISzAlloc {
         Alloc: Some(
-            SzAlloc
-                as unsafe extern "C" fn(
-                    _: lzma::LzmaDec::ISzAllocPtr,
-                    _: size_t,
-                ) -> *mut libc::c_void,
+            SzAlloc as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: size_t) -> *mut libc::c_void,
         ),
-        Free: Some(
-            SzFree
-                as unsafe extern "C" fn(_: lzma::LzmaDec::ISzAllocPtr, _: *mut libc::c_void) -> (),
-        ),
+        Free: Some(SzFree as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: *mut libc::c_void) -> ()),
     };
     init
 };
 
-/* *
- *  @brief See if the header has extensions
- *  @return number of bytes to skip
- */
+///  See if the header has extensions
+///
+///  Returns number of bytes to skip
 unsafe extern "C" fn htp_gzip_decompressor_probe(
     mut data: *const libc::c_uchar,
     mut data_len: size_t,
@@ -172,11 +159,10 @@ unsafe extern "C" fn htp_gzip_decompressor_probe(
                 & (1 as libc::c_int) << 4 as libc::c_int
                 != 0
         {
-            /* skip past
-             * - FNAME extension, which is a name ended in a NUL terminator
-             * or
-             * - FCOMMENT extension, which is a commend ended in a NULL terminator
-             */
+            // skip past
+            // - FNAME extension, which is a name ended in a NUL terminator
+            // or
+            // - FCOMMENT extension, which is a commend ended in a NULL terminator
             let mut len: size_t = 0;
             len = 10 as libc::c_int as size_t;
             while len < data_len && *data.offset(len as isize) as libc::c_int != '\u{0}' as i32 {
@@ -200,10 +186,9 @@ unsafe extern "C" fn htp_gzip_decompressor_probe(
     return consumed;
 }
 
-/* *
- *  @brief restart the decompressor
- *  @return 1 if it restarted, 0 otherwise
- */
+///  restart the decompressor
+///
+///  Returns 1 if it restarted, 0 otherwise
 unsafe extern "C" fn htp_gzip_decompressor_restart(
     mut drec: *mut htp_decompressor_gzip_t,
     mut data: *const libc::c_uchar,
@@ -288,12 +273,8 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
     return 0 as libc::c_int;
 }
 
-/* *
- * Ends decompressor.
- *
- * @param[in] drec
- */
-unsafe extern "C" fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
+/// Ends decompressor.
+unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
     if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA as libc::c_int {
         lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
         (*drec).zlib_initialized = 0 as libc::c_int
@@ -303,14 +284,10 @@ unsafe extern "C" fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_g
     };
 }
 
-/* *
- * Decompress a chunk of gzip-compressed data.
- * If we have more than one decompressor, call this function recursively.
- *
- * @param[in] drec
- * @param[in] d
- * @return HTP_OK on success, HTP_ERROR or some other negative integer on failure.
- */
+/// Decompress a chunk of gzip-compressed data.
+/// If we have more than one decompressor, call this function recursively.
+///
+/// Returns HTP_OK on success, HTP_ERROR or some other negative integer on failure.
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
     mut d: *mut htp_transaction::htp_tx_data_t,
@@ -630,7 +607,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 }
                 (*drec).stream.avail_out = 8192 as libc::c_int as uInt;
                 (*drec).stream.next_out = (*drec).buffer;
-                /* successfully passed through, lets continue doing that */
+                // successfully passed through, lets continue doing that
                 (*drec).passthrough = 1 as libc::c_int as uint8_t;
                 return Status::OK;
             }
@@ -639,11 +616,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     }
 }
 
-/* *
- * Shut down gzip decompressor.
- *
- * @param[in] drec
- */
+/// Shut down gzip decompressor.
 unsafe extern "C" fn htp_gzip_decompressor_destroy(mut drec: *mut htp_decompressor_gzip_t) {
     if drec.is_null() {
         return;
@@ -652,17 +625,13 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(mut drec: *mut htp_decompress
     free((*drec).buffer as *mut libc::c_void);
     free(drec as *mut libc::c_void);
 }
-/* *< deflate restarted to try rfc1950 instead of 1951 */
-/* *< decompression failed, pass through raw data */
-/* *
- * Create a new decompressor instance.
- *
- * @param[in] connp
- * @param[in] format
- * @return New htp_decompressor_t instance on success, or NULL on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_gzip_decompressor_create(
+// *< deflate restarted to try rfc1950 instead of 1951
+// *< decompression failed, pass through raw data
+
+/// Create a new decompressor instance.
+///
+/// Returns New htp_decompressor_t instance on success, or NULL on failure.
+pub unsafe fn htp_gzip_decompressor_create(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut format: htp_content_encoding_t,
 ) -> *mut htp_decompressor_t {

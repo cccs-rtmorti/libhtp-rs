@@ -42,13 +42,7 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Generic response line parser.
- *
- * @param[in] connp
- * @return HTP status
- */
-#[no_mangle]
+/// Generic response line parser.
 pub unsafe extern "C" fn htp_parse_response_line_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -133,16 +127,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     return Status::OK;
 }
 
-/* *
- * Generic response header parser.
- *
- * @param[in] connp
- * @param[in] h
- * @param[in] data
- * @param[in] len
- * @return HTP status
- */
-#[no_mangle]
+/// Generic response header parser.
 pub unsafe extern "C" fn htp_parse_response_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut h: *mut htp_transaction::htp_header_t,
@@ -296,16 +281,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     return Status::OK;
 }
 
-/* *
- * Generic response header line(s) processor, which assembles folded lines
- * into a single buffer before invoking the parsing function.
- *
- * @param[in] connp
- * @param[in] data
- * @param[in] len
- * @return HTP status
- */
-#[no_mangle]
+/// Generic response header line(s) processor, which assembles folded lines
+/// into a single buffer before invoking the parsing function.
 pub unsafe extern "C" fn htp_process_response_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,

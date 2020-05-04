@@ -37,15 +37,11 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
- * function will only understand a properly formatted protocol information. It does
- * not try to be flexible.
- *
- * @param[in] protocol
- * @return Protocol version or PROTOCOL_UNKNOWN.
- */
-#[no_mangle]
+/// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
+/// function will only understand a properly formatted protocol information. It does
+/// not try to be flexible.
+///
+/// Returns Protocol version or PROTOCOL_UNKNOWN.
 pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr::bstr_t) -> Protocol {
     if protocol.is_null() {
         return Protocol::INVALID;
@@ -88,13 +84,9 @@ pub unsafe extern "C" fn htp_parse_protocol(mut protocol: *mut bstr::bstr_t) -> 
     return Protocol::INVALID;
 }
 
-/* *
- * Determines the numerical value of a response status given as a string.
- *
- * @param[in] status
- * @return Status code on success, or HTP_STATUS_INVALID on error.
- */
-#[no_mangle]
+/// Determines the numerical value of a response status given as a string.
+///
+/// Returns Status code on success, or HTP_STATUS_INVALID on error.
 pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr::bstr) -> libc::c_int {
     let mut r: int64_t = htp_util::htp_parse_positive_integer_whitespace(
         if (*status).realptr.is_null() {
@@ -113,13 +105,7 @@ pub unsafe extern "C" fn htp_parse_status(mut status: *mut bstr::bstr) -> libc::
     };
 }
 
-/* *
- * Parses Digest Authorization request header.
- *
- * @param[in] connp
- * @param[in] auth_header
- */
-#[no_mangle]
+/// Parses Digest Authorization request header.
 pub unsafe extern "C" fn htp_parse_authorization_digest(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut auth_header: *mut htp_transaction::htp_header_t,
@@ -163,13 +149,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     );
 }
 
-/* *
- * Parses Basic Authorization request header.
- *
- * @param[in] connp
- * @param[in] auth_header
- */
-#[no_mangle]
+/// Parses Basic Authorization request header.
 pub unsafe extern "C" fn htp_parse_authorization_basic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut auth_header: *mut htp_transaction::htp_header_t,
@@ -232,12 +212,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     return Status::OK;
 }
 
-/* *
- * Parses Authorization request header.
- *
- * @param[in] connp
- */
-#[no_mangle]
+/// Parses Authorization request header.
 pub unsafe extern "C" fn htp_parse_authorization(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {

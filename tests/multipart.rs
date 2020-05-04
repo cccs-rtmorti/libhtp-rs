@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-use libc::calloc;
 use htp::bstr::*;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_config::*;
@@ -10,6 +9,7 @@ use htp::htp_request::*;
 use htp::htp_table::*;
 use htp::htp_transaction::*;
 use htp::Status;
+use libc::calloc;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs;
@@ -1560,7 +1560,7 @@ fn BoundaryNormal() {
         for i in 0..inputs.len() {
             let input: *mut bstr_t;
             input = bstr_dup_c(cstr!(inputs[i]));
-            let mut boundary: *mut bstr_t = 0 as *mut bstr_t;
+            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
             assert_eq!(Status::OK, rc);
@@ -1589,7 +1589,7 @@ fn BoundaryParsing() {
         for i in 0..inputs.len() {
             let input: *mut bstr_t;
             input = bstr_dup_c(cstr!(inputs[i]));
-            let mut boundary: *mut bstr_t = 0 as *mut bstr_t;
+            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
             assert_eq!(Status::OK, rc);
@@ -1628,7 +1628,7 @@ fn BoundaryInvalid() {
         for i in inputs {
             let input: *mut bstr_t;
             input = bstr_dup_c(cstr!(i));
-            let mut boundary: *mut bstr_t = 0 as *mut bstr_t;
+            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
             assert_ne!(Status::ERROR, rc);
@@ -1655,7 +1655,7 @@ fn BoundaryUnusual() {
         for i in inputs {
             let input: *mut bstr_t;
             input = bstr_dup_c(cstr!(i));
-            let mut boundary: *mut bstr_t = 0 as *mut bstr_t;
+            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
             assert_eq!(Status::OK, rc);

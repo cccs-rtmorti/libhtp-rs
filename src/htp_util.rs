@@ -5,6 +5,10 @@ use crate::{
 use ::libc;
 use bitflags;
 
+pub const HTP_VERSION_STRING: &'static str = concat!(env!("CARGO_PKG_VERSION"), "\x00");
+pub const HTP_VERSION_STRING_FULL: &'static str =
+    concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
+
 // Various flag bits. Even though we have a flag field in several places
 // (header, transaction, connection), these fields are all in the same namespace
 // because we may want to set the same flag in several locations. For example, we
@@ -42,18 +46,23 @@ bitflags::bitflags! {
         const HTP_PATH_INVALID           = 0x000020000;
         const HTP_PATH_OVERLONG_U        = 0x000040000;
         const HTP_PATH_ENCODED_SEPARATOR = 0x000080000;
-        const HTP_PATH_UTF8_VALID        = 0x000100000; /* At least one valid UTF-8 character and no invalid ones. */
+        /// At least one valid UTF-8 character and no invalid ones.
+        const HTP_PATH_UTF8_VALID        = 0x000100000;
         const HTP_PATH_UTF8_INVALID      = 0x000200000;
         const HTP_PATH_UTF8_OVERLONG     = 0x000400000;
-        const HTP_PATH_HALF_FULL_RANGE   = 0x000800000; /* Range U+FF00 - U+FFEF detected. */
+        /// Range U+FF00 - U+FFEF detected.
+        const HTP_PATH_HALF_FULL_RANGE   = 0x000800000;
         const HTP_STATUS_LINE_INVALID    = 0x001000000;
-        const HTP_HOSTU_INVALID          = 0x002000000; /* Host in the URI. */
-        const HTP_HOSTH_INVALID          = 0x004000000; /* Host in the Host header. */
+        /// Host in the URI.
+        const HTP_HOSTU_INVALID          = 0x002000000;
+        /// Host in the Host header.
+        const HTP_HOSTH_INVALID          = 0x004000000;
         const HTP_HOST_INVALID           = ( Self::HTP_HOSTU_INVALID.bits | Self::HTP_HOSTH_INVALID.bits );
         const HTP_URLEN_ENCODED_NUL      = 0x008000000;
         const HTP_URLEN_INVALID_ENCODING = 0x010000000;
         const HTP_URLEN_OVERLONG_U       = 0x020000000;
-        const HTP_URLEN_HALF_FULL_RANGE  = 0x040000000; /* Range U+FF00 - U+FFEF detected. */
+        /// Range U+FF00 - U+FFEF detected.
+        const HTP_URLEN_HALF_FULL_RANGE  = 0x040000000;
         const HTP_URLEN_RAW_NUL          = 0x080000000;
         const HTP_REQUEST_INVALID        = 0x100000000;
         const HTP_REQUEST_INVALID_C_L    = 0x200000000;
@@ -145,66 +154,57 @@ pub enum htp_file_source_t {
     HTP_FILE_PUT = 2,
 }
 
-/* *
- * Used to represent files that are seen during the processing of HTTP traffic. Most
- * commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
- * request bodies can be treated as files.
- */
+/// Used to represent files that are seen during the processing of HTTP traffic. Most
+/// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
+/// request bodies can be treated as files.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_file_t {
-    /** Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT. */
+    /// Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT.
     pub source: htp_file_source_t,
-    /** File name, as provided (e.g., in the Content-Disposition multipart part header. */
+    /// File name, as provided (e.g., in the Content-Disposition multipart part header.
     pub filename: *mut bstr::bstr_t,
-    /** File length. */
+    /// File length.
     pub len: int64_t,
-    /** The unique filename in which this file is stored on the filesystem, when applicable.*/
+    /// The unique filename in which this file is stored on the filesystem, when applicable.
     pub tmpname: *mut libc::c_char,
-    /** The file descriptor used for external storage, or -1 if unused. */
+    /// The file descriptor used for external storage, or -1 if unused.
     pub fd: libc::c_int,
 }
 
-/* *
- * URI structure. Each of the fields provides access to a single
- * URI element. Where an element is not present in a URI, the
- * corresponding field will be set to NULL or -1, depending on the
- * field type.
- */
+/// URI structure. Each of the fields provides access to a single
+/// URI element. Where an element is not present in a URI, the
+/// corresponding field will be set to NULL or -1, depending on the
+/// field type.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct htp_uri_t {
-    /** Scheme, e.g., "http". */
+    /// Scheme, e.g., "http".
     pub scheme: *mut bstr::bstr_t,
-    /** Username. */
+    /// Username.
     pub username: *mut bstr::bstr_t,
-    /** Password. */
+    /// Password.
     pub password: *mut bstr::bstr_t,
-    /** Hostname. */
+    /// Hostname.
     pub hostname: *mut bstr::bstr_t,
-    /** Port, as string. */
+    /// Port, as string.
     pub port: *mut bstr::bstr_t,
-    /**
-     * Port, as number. This field will contain HTP_PORT_NONE if there was
-     * no port information in the URI and HTP_PORT_INVALID if the port information
-     * was invalid (e.g., it's not a number or it falls out of range.
-     */
+    /// Port, as number. This field will contain HTP_PORT_NONE if there was
+    /// no port information in the URI and HTP_PORT_INVALID if the port information
+    /// was invalid (e.g., it's not a number or it falls out of range.
     pub port_number: libc::c_int,
-    /** The path part of this URI. */
+    /// The path part of this URI.
     pub path: *mut bstr::bstr_t,
-    /** Query string. */
+    /// Query string.
     pub query: *mut bstr::bstr_t,
-    /**
-     * Fragment identifier. This field will rarely be available in a server-side
-     * setting, but it's not impossible to see it. */
+    /// Fragment identifier. This field will rarely be available in a server-side
+    /// setting, but it's not impossible to see it.
     pub fragment: *mut bstr::bstr_t,
 }
 
 pub type htp_time_t = libc::timeval;
 
-/**
- * Enumerates all log levels.
- */
+/// Enumerates all log levels.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_log_level_t {
@@ -217,50 +217,42 @@ pub enum htp_log_level_t {
     HTP_LOG_DEBUG2,
 }
 
-/* *
- * Represents a single log entry.
- */
+/// Represents a single log entry.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_log_t {
-    /** The connection parser associated with this log message. */
+    /// The connection parser associated with this log message.
     pub connp: *mut htp_connection_parser::htp_connp_t,
-    /** The transaction associated with this log message, if any. */
+    /// The transaction associated with this log message, if any.
     pub tx: *mut htp_transaction::htp_tx_t,
-    /** Log message. */
+    /// Log message.
     pub msg: *const libc::c_char,
-    /** Message level. */
+    /// Message level.
     pub level: htp_log_level_t,
-    /** Message code. */
+    /// Message code.
     pub code: libc::c_int,
-    /** File in which the code that emitted the message resides. */
+    /// File in which the code that emitted the message resides.
     pub file: *const libc::c_char,
-    /** Line number on which the code that emitted the message resides. */
+    /// Line number on which the code that emitted the message resides.
     pub line: libc::c_uint,
 }
 
-/* *
- * Represents a chunk of file data.
- */
+/// Represents a chunk of file data.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_file_data_t {
-    /** File information. */
+    /// File information.
     pub file: *mut htp_file_t,
-    /** Pointer to the data buffer. */
+    /// Pointer to the data buffer.
     pub data: *const libc::c_uchar,
-    /** Buffer length. */
+    /// Buffer length.
     pub len: size_t,
 }
 
-/* *
- * Is character a linear white space character?
- *
- * @param[in] c
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_lws(mut c: libc::c_int) -> libc::c_int {
+/// Is character a linear white space character?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_lws(mut c: libc::c_int) -> libc::c_int {
     if c == ' ' as i32 || c == '\t' as i32 {
         return 1 as libc::c_int;
     } else {
@@ -268,19 +260,15 @@ pub unsafe extern "C" fn htp_is_lws(mut c: libc::c_int) -> libc::c_int {
     };
 }
 
-/* *
- * Is character a separator character?
- *
- * @param[in] c
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_separator(mut c: libc::c_int) -> libc::c_int {
-    /* separators = "(" | ")" | "<" | ">" | "@"
-    | "," | ";" | ":" | "\" | <">
-    | "/" | "[" | "]" | "?" | "="
-    | "{" | "}" | SP | HT         */
-    
+/// Is character a separator character?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_separator(mut c: libc::c_int) -> libc::c_int {
+    // separators = "(" | ")" | "<" | ">" | "@"
+    // | "," | ";" | ":" | "\" | <">
+    // | "/" | "[" | "]" | "?" | "="
+    // | "{" | "}" | SP | HT
+
     match c {
         40 | 41 | 60 | 62 | 64 | 44 | 59 | 58 | 92 | 34 | 47 | 91 | 93 | 63 | 61 | 123 | 125
         | 32 | 9 => return 1 as libc::c_int,
@@ -288,14 +276,10 @@ pub unsafe extern "C" fn htp_is_separator(mut c: libc::c_int) -> libc::c_int {
     };
 }
 
-/* *
- * Is character a text character?
- *
- * @param[in] c
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_text(mut c: libc::c_int) -> libc::c_int {
+/// Is character a text character?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_text(mut c: libc::c_int) -> libc::c_int {
     if c == '\t' as i32 {
         return 1 as libc::c_int;
     }
@@ -305,16 +289,12 @@ pub unsafe extern "C" fn htp_is_text(mut c: libc::c_int) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-/* *
- * Is character a token character?
- *
- * @param[in] c
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_token(mut c: libc::c_int) -> libc::c_int {
-    /* token = 1*<any CHAR except CTLs or separators> */
-    /* CHAR  = <any US-ASCII character (octets 0 - 127)> */
+/// Is character a token character?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_token(mut c: libc::c_int) -> libc::c_int {
+    // token = 1*<any CHAR except CTLs or separators>
+    // CHAR  = <any US-ASCII character (octets 0 - 127)>
     if c < 32 as libc::c_int || c > 126 as libc::c_int {
         return 0 as libc::c_int;
     }
@@ -324,18 +304,12 @@ pub unsafe extern "C" fn htp_is_token(mut c: libc::c_int) -> libc::c_int {
     return 1 as libc::c_int;
 }
 
-/* *
- * Remove all line terminators (LF, CR or CRLF) from
- * the end of the line provided as input.
- *
- * @return 0 if nothing was removed, 1 if one or more LF characters were removed, or
- *         2 if one or more CR and/or LF characters were removed.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_chomp(
-    mut data: *mut libc::c_uchar,
-    mut len: *mut size_t,
-) -> libc::c_int {
+/// Remove all line terminators (LF, CR or CRLF) from
+/// the end of the line provided as input.
+///
+/// Returns 0 if nothing was removed, 1 if one or more LF characters were removed, or
+///         2 if one or more CR and/or LF characters were removed.
+pub unsafe fn htp_chomp(mut data: *mut libc::c_uchar, mut len: *mut size_t) -> libc::c_int {
     let mut r: libc::c_int = 0 as libc::c_int;
     // Loop until there's no more stuff in the buffer
     while *len > 0 as libc::c_int as libc::c_ulong {
@@ -370,30 +344,20 @@ pub unsafe extern "C" fn htp_chomp(
     return r;
 }
 
-/* *
- * Is character a white space character?
- *
- * @param[in] c
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_space(mut c: libc::c_int) -> libc::c_int {
+/// Is character a white space character?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_space(mut c: libc::c_int) -> libc::c_int {
     match c {
         32 | 12 | 11 | 9 | 13 | 10 => return 1 as libc::c_int,
         _ => return 0 as libc::c_int,
     };
 }
 
-/* *
- * Converts request method, given as a string, into a number.
- *
- * @param[in] method
- * @return Method number of M_UNKNOWN
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_convert_method_to_number(
-    mut method: *mut bstr::bstr_t,
-) -> libc::c_int {
+/// Converts request method, given as a string, into a number.
+///
+/// Returns Method number of M_UNKNOWN
+pub unsafe fn htp_convert_method_to_number(mut method: *mut bstr::bstr_t) -> libc::c_int {
     if method.is_null() {
         return htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_int;
     }
@@ -544,18 +508,10 @@ pub unsafe extern "C" fn htp_convert_method_to_number(
     return htp_request::htp_method_t::HTP_M_UNKNOWN as libc::c_int;
 }
 
-/* *
- * Is the given line empty?
- *
- * @param[in] data
- * @param[in] len
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_line_empty(
-    mut data: *mut libc::c_uchar,
-    mut len: size_t,
-) -> libc::c_int {
+/// Is the given line empty?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_line_empty(mut data: *mut libc::c_uchar, mut len: size_t) -> libc::c_int {
     if len == 1 as libc::c_int as libc::c_ulong
         || len == 2 as libc::c_int as libc::c_ulong
             && *data.offset(0 as libc::c_int as isize) as libc::c_int == '\r' as i32
@@ -566,18 +522,10 @@ pub unsafe extern "C" fn htp_is_line_empty(
     return 0 as libc::c_int;
 }
 
-/* *
- * Does line consist entirely of whitespace characters?
- *
- * @param[in] data
- * @param[in] len
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_line_whitespace(
-    mut data: *mut libc::c_uchar,
-    mut len: size_t,
-) -> libc::c_int {
+/// Does line consist entirely of whitespace characters?
+///
+/// Returns 0 or 1
+pub unsafe fn htp_is_line_whitespace(mut data: *mut libc::c_uchar, mut len: size_t) -> libc::c_int {
     let mut i: size_t = 0;
     i = 0 as libc::c_int as size_t;
     while i < len {
@@ -593,15 +541,11 @@ pub unsafe extern "C" fn htp_is_line_whitespace(
     return 1 as libc::c_int;
 }
 
-/* *
- * Parses Content-Length string (positive decimal number).
- * White space is allowed before and after the number.
- *
- * @param[in] b
- * @return Content-Length as a number, or -1 on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_content_length(
+/// Parses Content-Length string (positive decimal number).
+/// White space is allowed before and after the number.
+///
+/// Returns Content-Length as a number, or -1 on error.
+pub unsafe fn htp_parse_content_length(
     b: *const bstr::bstr_t,
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> int64_t {
@@ -662,20 +606,12 @@ pub unsafe extern "C" fn htp_parse_content_length(
     return r;
 }
 
-/* *
- * Parses chunk length (positive hexadecimal number). White space is allowed before
- * and after the number. An error will be returned if the chunk length is greater than
- * INT32_MAX.
- *
- * @param[in] data
- * @param[in] len
- * @return Chunk length, or a negative number on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_chunked_length(
-    mut data: *mut libc::c_uchar,
-    mut len: size_t,
-) -> int64_t {
+/// Parses chunk length (positive hexadecimal number). White space is allowed before
+/// and after the number. An error will be returned if the chunk length is greater than
+/// INT32_MAX.
+///
+/// Returns Chunk length, or a negative number on error.
+pub unsafe fn htp_parse_chunked_length(mut data: *mut libc::c_uchar, mut len: size_t) -> int64_t {
     // skip leading line feeds and other control chars
     while len != 0 {
         let mut c: libc::c_uchar = *data;
@@ -723,17 +659,11 @@ pub unsafe extern "C" fn htp_parse_chunked_length(
     return chunk_len;
 }
 
-/* *
- * A somewhat forgiving parser for a positive integer in a given base.
- * Only LWS is allowed before and after the number.
- *
- * @param[in] data
- * @param[in] len
- * @param[in] base
- * @return The parsed number on success; a negative number on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_positive_integer_whitespace(
+/// A somewhat forgiving parser for a positive integer in a given base.
+/// Only LWS is allowed before and after the number.
+///
+/// Returns The parsed number on success; a negative number on error.
+pub unsafe fn htp_parse_positive_integer_whitespace(
     data: *const libc::c_uchar,
     mut len: size_t,
     mut base: libc::c_int,
@@ -771,17 +701,7 @@ pub unsafe extern "C" fn htp_parse_positive_integer_whitespace(
     return r;
 }
 
-/* *
- * Records one log message.
- *
- * @param[in] connp
- * @param[in] file
- * @param[in] line
- * @param[in] level
- * @param[in] code
- * @param[in] fmt
- */
-#[no_mangle]
+/// Records one log message.
 pub unsafe extern "C" fn htp_log(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut file: *const libc::c_char,
@@ -837,29 +757,21 @@ pub unsafe extern "C" fn htp_log(
     if level == htp_log_level_t::HTP_LOG_ERROR {
         (*connp).last_error = log
     }
-    /* coverity[check_return] */
+    // coverity[check_return]
     htp_hooks::htp_hook_run_all((*(*connp).cfg).hook_log, log as *mut libc::c_void);
 }
 
-/* *
- * Determines if the given line is a continuation (of some previous line).
- *
- * @param[in] data
- * @param[in] len
- * @return 0 or 1 for false and true, respectively. Returns -1 on error (NULL pointer or length zero).
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_is_line_folded(
-    data: *const libc::c_uchar,
-    mut len: size_t,
-) -> libc::c_int {
+/// Determines if the given line is a continuation (of some previous line).
+///
+/// Returns 0 or 1 for false and true, respectively. Returns -1 on error (NULL pointer or length zero).
+pub unsafe fn htp_connp_is_line_folded(data: *const libc::c_uchar, mut len: size_t) -> libc::c_int {
     if data.is_null() || len == 0 as libc::c_int as libc::c_ulong {
         return -(1 as libc::c_int);
     }
     return htp_is_folding_char(*data.offset(0 as libc::c_int as isize) as libc::c_int);
 }
-#[no_mangle]
-pub unsafe extern "C" fn htp_is_folding_char(mut c: libc::c_int) -> libc::c_int {
+
+pub unsafe fn htp_is_folding_char(mut c: libc::c_int) -> libc::c_int {
     if htp_is_lws(c) != 0 || c == 0 as libc::c_int {
         return 1 as libc::c_int;
     } else {
@@ -867,16 +779,10 @@ pub unsafe extern "C" fn htp_is_folding_char(mut c: libc::c_int) -> libc::c_int 
     };
 }
 
-/* *
- * Determines if the given line is a request terminator.
- *
- * @param[in] connp
- * @param[in] data
- * @param[in] len
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_is_line_terminator(
+/// Determines if the given line is a request terminator.
+///
+/// Returns 0 or 1
+pub unsafe fn htp_connp_is_line_terminator(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
@@ -912,16 +818,10 @@ pub unsafe extern "C" fn htp_connp_is_line_terminator(
     return 0 as libc::c_int;
 }
 
-/* *
- * Determines if the given line can be ignored when it appears before a request.
- *
- * @param[in] connp
- * @param[in] data
- * @param[in] len
- * @return 0 or 1
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_is_line_ignorable(
+/// Determines if the given line can be ignored when it appears before a request.
+///
+/// Returns 0 or 1
+pub unsafe fn htp_connp_is_line_ignorable(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
@@ -929,7 +829,7 @@ pub unsafe extern "C" fn htp_connp_is_line_ignorable(
     return htp_connp_is_line_terminator(connp, data, len);
 }
 
-unsafe extern "C" fn htp_parse_port(
+unsafe fn htp_parse_port(
     mut data: *mut libc::c_uchar,
     mut len: size_t,
     mut port: *mut libc::c_int,
@@ -959,20 +859,18 @@ unsafe extern "C" fn htp_parse_port(
     return Status::OK;
 }
 
-/* *
- * Parses an authority string, which consists of a hostname with an optional port number; username
- * and password are not allowed and will not be handled.
- *
- * @param[in] hostport
- * @param[out] hostname A bstring containing the hostname, or NULL if the hostname is invalid. If this value
- *                      is not NULL, the caller assumes responsibility for memory management.
- * @param[out] port Port as text, or NULL if not provided.
- * @param[out] port_number Port number, or -1 if the port is not present or invalid.
- * @param[out] invalid Set to 1 if any part of the authority is invalid.
- * @return HTP_OK on success, HTP_ERROR on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_hostport(
+/// Parses an authority string, which consists of a hostname with an optional port number; username
+/// and password are not allowed and will not be handled.
+///
+/// Returns in hostname: A bstring containing the hostname, or NULL if the hostname is invalid. If
+///                      this value is not NULL, the caller assumes responsibility for memory
+///                      management.
+/// Returns in port: Port as text, or NULL if not provided.
+/// Returns in port_number: Port number, or -1 if the port is not present or invalid.
+/// Returns in invalid: Set to 1 if any part of the authority is invalid.
+///
+/// Returns HTP_OK on success, HTP_ERROR on memory allocation failure.
+pub unsafe fn htp_parse_hostport(
     mut hostport: *mut bstr::bstr_t,
     mut hostname: *mut *mut bstr::bstr_t,
     mut port: *mut *mut bstr::bstr_t,
@@ -1112,16 +1010,10 @@ pub unsafe extern "C" fn htp_parse_hostport(
     return Status::OK;
 }
 
-/* *
- * Parses hostport provided in the URI.
- *
- * @param[in] connp
- * @param[in] hostport
- * @param[in] uri
- * @return HTP_OK on success or HTP_ERROR error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_uri_hostport(
+/// Parses hostport provided in the URI.
+///
+/// Returns HTP_OK on success or HTP_ERROR error.
+pub unsafe fn htp_parse_uri_hostport(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut hostport: *mut bstr::bstr_t,
     mut uri: *mut htp_uri_t,
@@ -1148,18 +1040,10 @@ pub unsafe extern "C" fn htp_parse_uri_hostport(
     return Status::OK;
 }
 
-/* *
- * Parses hostport provided in the Host header.
- *
- * @param[in] hostport
- * @param[out] hostname
- * @param[out] port
- * @param[out] port_number
- * @param[out] flags
- * @return HTP_OK on success or HTP_ERROR error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_header_hostport(
+/// Parses hostport provided in the Host header.
+///
+/// Returns HTP_OK on success or HTP_ERROR error.
+pub unsafe fn htp_parse_header_hostport(
     mut hostport: *mut bstr::bstr_t,
     mut hostname: *mut *mut bstr::bstr_t,
     mut port: *mut *mut bstr::bstr_t,
@@ -1182,18 +1066,10 @@ pub unsafe extern "C" fn htp_parse_header_hostport(
     return Status::OK;
 }
 
-/* *
- * Parses request URI, making no attempt to validate the contents.
- *
- * @param[in] input
- * @param[in] uri
- * @return HTP_ERROR on memory allocation failure, HTP_OK otherwise
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_uri(
-    mut input: *mut bstr::bstr_t,
-    mut uri: *mut *mut htp_uri_t,
-) -> Status {
+/// Parses request URI, making no attempt to validate the contents.
+///
+/// Returns HTP_ERROR on memory allocation failure, HTP_OK otherwise
+pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri_t) -> Status {
     // Allow a htp_uri_t structure to be provided on input,
     // but allocate a new one if the structure is NULL.
     if (*uri).is_null() {
@@ -1485,15 +1361,12 @@ pub unsafe extern "C" fn htp_parse_uri(
     return Status::OK;
 }
 
-/* *
- * Convert two input bytes, pointed to by the pointer parameter,
- * into a single byte by assuming the input consists of hexadecimal
- * characters. This function will happily convert invalid input.
- *
- * @param[in] what
- * @return hex-decoded byte
- */
-unsafe extern "C" fn x2c(mut what: *mut libc::c_uchar) -> libc::c_uchar {
+/// Convert two input bytes, pointed to by the pointer parameter,
+/// into a single byte by assuming the input consists of hexadecimal
+/// characters. This function will happily convert invalid input.
+///
+/// Returns hex-decoded byte
+unsafe fn x2c(mut what: *mut libc::c_uchar) -> libc::c_uchar {
     let mut digit: libc::c_uchar = 0;
     digit = if *what.offset(0 as libc::c_int as isize) as libc::c_int >= 'A' as i32 {
         ((*what.offset(0 as libc::c_int as isize) as libc::c_int & 0xdf as libc::c_int)
@@ -1514,15 +1387,11 @@ unsafe extern "C" fn x2c(mut what: *mut libc::c_uchar) -> libc::c_uchar {
     return digit;
 }
 
-/* *
- * Convert a Unicode codepoint into a single-byte, using best-fit
- * mapping (as specified in the provided configuration structure).
- *
- * @param[in] cfg
- * @param[in] codepoint
- * @return converted single byte
- */
-unsafe extern "C" fn bestfit_codepoint(
+/// Convert a Unicode codepoint into a single-byte, using best-fit
+/// mapping (as specified in the provided configuration structure).
+///
+/// Returns converted single byte
+unsafe fn bestfit_codepoint(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut ctx: htp_config::htp_decoder_ctx_t,
     mut codepoint: uint32_t,
@@ -1553,17 +1422,10 @@ unsafe extern "C" fn bestfit_codepoint(
     }
 }
 
-/* *
- * Decode a UTF-8 encoded path. Overlong characters will be decoded, invalid
- * characters will be left as-is. Best-fit mapping will be used to convert
- * UTF-8 into a single-byte stream.
- *
- * @param[in] cfg
- * @param[in] tx
- * @param[in] path
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
+/// Decode a UTF-8 encoded path. Overlong characters will be decoded, invalid
+/// characters will be left as-is. Best-fit mapping will be used to convert
+/// UTF-8 into a single-byte stream.
+pub unsafe fn htp_utf8_decode_path_inplace(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut tx: *mut htp_transaction::htp_tx_t,
     mut path: *mut bstr::bstr_t,
@@ -1685,14 +1547,8 @@ pub unsafe extern "C" fn htp_utf8_decode_path_inplace(
     bstr::bstr_adjust_len(path, wpos);
 }
 
-/* *
- * Validate a path that is quite possibly UTF-8 encoded.
- *
- * @param[in] tx
- * @param[in] path
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_utf8_validate_path(
+/// Validate a path that is quite possibly UTF-8 encoded.
+pub unsafe fn htp_utf8_validate_path(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut path: *mut bstr::bstr_t,
 ) {
@@ -1771,15 +1627,10 @@ pub unsafe extern "C" fn htp_utf8_validate_path(
     };
 }
 
-/* *
- * Decode a %u-encoded character, using best-fit mapping as necessary. Path version.
- *
- * @param[in] cfg
- * @param[in] tx
- * @param[in] data
- * @return decoded byte
- */
-unsafe extern "C" fn decode_u_encoding_path(
+/// Decode a %u-encoded character, using best-fit mapping as necessary. Path version.
+///
+/// Returns decoded byte
+unsafe fn decode_u_encoding_path(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut tx: *mut htp_transaction::htp_tx_t,
     mut data: *mut libc::c_uchar,
@@ -1838,15 +1689,10 @@ unsafe extern "C" fn decode_u_encoding_path(
     return r;
 }
 
-/* *
- * Decode a %u-encoded character, using best-fit mapping as necessary. Params version.
- *
- * @param[in] cfg
- * @param[in] tx
- * @param[in] data
- * @return decoded byte
- */
-unsafe extern "C" fn decode_u_encoding_params(
+/// Decode a %u-encoded character, using best-fit mapping as necessary. Params version.
+///
+/// Returns decoded byte
+unsafe fn decode_u_encoding_params(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut ctx: htp_config::htp_decoder_ctx_t,
     mut data: *mut libc::c_uchar,
@@ -1887,16 +1733,9 @@ unsafe extern "C" fn decode_u_encoding_params(
     return r;
 }
 
-/* *
- * Decode a request path according to the settings in the
- * provided configuration structure.
- *
- * @param[in] cfg
- * @param[in] tx
- * @param[in] path
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_decode_path_inplace(
+/// Decode a request path according to the settings in the
+/// provided configuration structure.
+pub unsafe fn htp_decode_path_inplace(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut path: *mut bstr::bstr_t,
 ) -> libc::c_int {
@@ -2444,8 +2283,7 @@ pub unsafe extern "C" fn htp_decode_path_inplace(
     return 1 as libc::c_int;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
+pub unsafe fn htp_tx_urldecode_uri_inplace(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut input: *mut bstr::bstr_t,
 ) -> Status {
@@ -2469,8 +2307,7 @@ pub unsafe extern "C" fn htp_tx_urldecode_uri_inplace(
     return rc;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
+pub unsafe fn htp_tx_urldecode_params_inplace(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut input: *mut bstr::bstr_t,
 ) -> Status {
@@ -2483,19 +2320,11 @@ pub unsafe extern "C" fn htp_tx_urldecode_params_inplace(
     );
 }
 
-/**
- * Performs in-place decoding of the input string, according to the configuration specified
- * by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] input
- * @param[out] flags
- *
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urldecode_inplace(
+/// Performs in-place decoding of the input string, according to the configuration specified
+/// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_urldecode_inplace(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut ctx: htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr::bstr_t,
@@ -2505,22 +2334,14 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     return htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code);
 }
 
-/**
- * Performs in-place decoding of the input string, according to the configuration specified
- * by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set. If something in the
- * input would cause a particular server to respond with an error, the appropriate status
- * code will be set.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] input
- * @param[out] flags
- * @param[out] expected_status_code 0 by default, or status code as necessary
- *
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urldecode_inplace_ex(
+/// Performs in-place decoding of the input string, according to the configuration specified
+/// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set. If something in the
+/// input would cause a particular server to respond with an error, the appropriate status
+/// code will be set.
+///
+/// Returns in expected_status_code: 0 by default, or status code as necessary
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_urldecode_inplace_ex(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut ctx: htp_config::htp_decoder_ctx_t,
     mut input: *mut bstr::bstr_t,
@@ -2993,16 +2814,10 @@ pub unsafe extern "C" fn htp_urldecode_inplace_ex(
     return Status::OK;
 }
 
-/* *
- * Normalize a previously-parsed request URI.
- *
- * @param[in] connp
- * @param[in] incomplete
- * @param[in] normalized
- * @return HTP_OK or HTP_ERROR
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_normalize_parsed_uri(
+/// Normalize a previously-parsed request URI.
+///
+/// Returns HTP_OK or HTP_ERROR
+pub unsafe fn htp_normalize_parsed_uri(
     mut tx: *mut htp_transaction::htp_tx_t,
     mut incomplete: *mut htp_uri_t,
     mut normalized: *mut htp_uri_t,
@@ -3113,17 +2928,11 @@ pub unsafe extern "C" fn htp_normalize_parsed_uri(
     return 1 as libc::c_int;
 }
 
-/* *
- * Normalize request hostname. Convert all characters to lowercase and
- * remove trailing dots from the end, if present.
- *
- * @param[in] hostname
- * @return Normalized hostname.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_normalize_hostname_inplace(
-    mut hostname: *mut bstr::bstr_t,
-) -> *mut bstr::bstr_t {
+/// Normalize request hostname. Convert all characters to lowercase and
+/// remove trailing dots from the end, if present.
+///
+/// Returns Normalized hostname.
+pub unsafe fn htp_normalize_hostname_inplace(mut hostname: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
     if hostname.is_null() {
         return 0 as *mut bstr::bstr_t;
     }
@@ -3135,14 +2944,9 @@ pub unsafe extern "C" fn htp_normalize_hostname_inplace(
     return hostname;
 }
 
-/* *
- * Normalize URL path. This function implements the remove dot segments algorithm
- * specified in RFC 3986, section 5.2.4.
- *
- * @param[in] s
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_normalize_uri_path_inplace(mut s: *mut bstr::bstr_t) {
+/// Normalize URL path. This function implements the remove dot segments algorithm
+/// specified in RFC 3986, section 5.2.4.
+pub unsafe fn htp_normalize_uri_path_inplace(mut s: *mut bstr::bstr_t) {
     if s.is_null() {
         return;
     }
@@ -3292,8 +3096,7 @@ pub unsafe extern "C" fn htp_normalize_uri_path_inplace(mut s: *mut bstr::bstr_t
     bstr::bstr_adjust_len(s, wpos);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn fprint_bstr(
+pub unsafe fn fprint_bstr(
     mut stream: *mut libc::FILE,
     mut name: *const libc::c_char,
     mut b: *mut bstr::bstr_t,
@@ -3322,8 +3125,7 @@ pub unsafe extern "C" fn fprint_bstr(
     );
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn fprint_raw_data(
+pub unsafe fn fprint_raw_data(
     mut stream: *mut libc::FILE,
     mut name: *const libc::c_char,
     mut data: *const libc::c_void,
@@ -3332,8 +3134,7 @@ pub unsafe extern "C" fn fprint_raw_data(
     fprint_raw_data_ex(stream, name, data, 0 as libc::c_int as size_t, len);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn fprint_raw_data_ex(
+pub unsafe fn fprint_raw_data_ex(
     mut stream: *mut libc::FILE,
     mut name: *const libc::c_char,
     mut _data: *const libc::c_void,
@@ -3458,8 +3259,7 @@ pub unsafe extern "C" fn fprint_raw_data_ex(
     fprintf(stream, b"\n\x00" as *const u8 as *const libc::c_char);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_in_state_as_string(
+pub unsafe fn htp_connp_in_state_as_string(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut libc::c_char {
     if connp.is_null() {
@@ -3577,8 +3377,7 @@ pub unsafe extern "C" fn htp_connp_in_state_as_string(
     return b"UNKNOWN\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_out_state_as_string(
+pub unsafe fn htp_connp_out_state_as_string(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut libc::c_char {
     if connp.is_null() {
@@ -3672,8 +3471,7 @@ pub unsafe extern "C" fn htp_connp_out_state_as_string(
     return b"UNKNOWN\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_request_progress_as_string(
+pub unsafe fn htp_tx_request_progress_as_string(
     mut tx: *mut htp_transaction::htp_tx_t,
 ) -> *mut libc::c_char {
     if tx.is_null() {
@@ -3691,8 +3489,7 @@ pub unsafe extern "C" fn htp_tx_request_progress_as_string(
     return b"INVALID\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_response_progress_as_string(
+pub unsafe fn htp_tx_response_progress_as_string(
     mut tx: *mut htp_transaction::htp_tx_t,
 ) -> *mut libc::c_char {
     if tx.is_null() {
@@ -3710,8 +3507,7 @@ pub unsafe extern "C" fn htp_tx_response_progress_as_string(
     return b"INVALID\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_unparse_uri_noencode(mut uri: *mut htp_uri_t) -> *mut bstr::bstr_t {
+pub unsafe fn htp_unparse_uri_noencode(mut uri: *mut htp_uri_t) -> *mut bstr::bstr_t {
     if uri.is_null() {
         return 0 as *mut bstr::bstr_t;
     }
@@ -3789,20 +3585,19 @@ pub unsafe extern "C" fn htp_unparse_uri_noencode(mut uri: *mut htp_uri_t) -> *m
     if !(*uri).query.is_null() {
         bstr::bstr_add_c_noex(r, b"?\x00" as *const u8 as *const libc::c_char);
         bstr::bstr_add_noex(r, (*uri).query);
-        /*
-        bstr::bstr *query = bstr::bstr_dup(uri->query);
-        if (query == NULL) {
-            bstr::bstr_free(r);
-            return NULL;
-        }
 
-        htp_uriencoding_normalize_inplace(query);
+        //bstr::bstr *query = bstr::bstr_dup(uri->query);
+        //if (query == NULL) {
+        //    bstr::bstr_free(r);
+        //    return NULL;
+        //}
 
-        bstr::bstr_add_c_noex(r, "?");
-        bstr::bstr_add_noex(r, query);
+        //htp_uriencoding_normalize_inplace(query);
 
-        bstr::bstr_free(query);
-        */
+        //bstr::bstr_add_c_noex(r, "?");
+        //bstr::bstr_add_noex(r, query);
+
+        //bstr::bstr_free(query);
     }
     if !(*uri).fragment.is_null() {
         bstr::bstr_add_c_noex(r, b"#\x00" as *const u8 as *const libc::c_char);
@@ -3811,18 +3606,13 @@ pub unsafe extern "C" fn htp_unparse_uri_noencode(mut uri: *mut htp_uri_t) -> *m
     return r;
 }
 
-/* *
- * Determine if the information provided on the response line
- * is good enough. Browsers are lax when it comes to response
- * line parsing. In most cases they will only look for the
- * words "http" at the beginning.
- *
- * @param[in] data pointer to bytearray
- * @param[in] len length in bytes of data
- * @return 1 for good enough or 0 for not good enough
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_treat_response_line_as_body(
+/// Determine if the information provided on the response line
+/// is good enough. Browsers are lax when it comes to response
+/// line parsing. In most cases they will only look for the
+/// words "http" at the beginning.
+///
+/// Returns 1 for good enough or 0 for not good enough
+pub unsafe fn htp_treat_response_line_as_body(
     mut data: *const uint8_t,
     mut len: size_t,
 ) -> libc::c_int {
@@ -3872,14 +3662,8 @@ pub unsafe extern "C" fn htp_treat_response_line_as_body(
     return 0 as libc::c_int;
 }
 
-/* *
- * Run the REQUEST_BODY_DATA hook.
- *
- * @param[in] connp
- * @param[in] d
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_req_run_hook_body_data(
+/// Run the REQUEST_BODY_DATA hook.
+pub unsafe fn htp_req_run_hook_body_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
@@ -3930,14 +3714,8 @@ pub unsafe extern "C" fn htp_req_run_hook_body_data(
     return Status::OK;
 }
 
-/* *
- * Run the RESPONSE_BODY_DATA hook.
- *
- * @param[in] connp
- * @param[in] d
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_res_run_hook_body_data(
+/// Run the RESPONSE_BODY_DATA hook.
+pub unsafe fn htp_res_run_hook_body_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
@@ -3964,17 +3742,11 @@ pub unsafe extern "C" fn htp_res_run_hook_body_data(
     return Status::OK;
 }
 
-/* *
- * Parses the provided memory region, extracting the double-quoted string.
- *
- * @param[in] data
- * @param[in] len
- * @param[out] out
- * @param[out] endoffset
- * @return HTP_OK on success, HTP_DECLINED if the input is not well formed, and HTP_ERROR on fatal errors.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
+/// Parses the provided memory region, extracting the double-quoted string.
+///
+/// Returns HTP_OK on success, HTP_DECLINED if the input is not well formed,
+///         and HTP_ERROR on fatal errors.
+pub unsafe fn htp_extract_quoted_string_as_bstr(
     mut data: *mut libc::c_uchar,
     mut len: size_t,
     mut out: *mut *mut bstr::bstr_t,
@@ -4060,8 +3832,7 @@ pub unsafe extern "C" fn htp_extract_quoted_string_as_bstr(
     return Status::OK;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_ct_header(
+pub unsafe fn htp_parse_ct_header(
     mut header: *mut bstr::bstr_t,
     mut ct: *mut *mut bstr::bstr_t,
 ) -> Status {
@@ -4096,14 +3867,10 @@ pub unsafe extern "C" fn htp_parse_ct_header(
     return Status::OK;
 }
 
-/* *
- * Implements relaxed (not strictly RFC) hostname validation.
- *
- * @param[in] hostname
- * @return 1 if the supplied hostname is valid; 0 if it is not.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_validate_hostname(mut hostname: *mut bstr::bstr_t) -> libc::c_int {
+/// Implements relaxed (not strictly RFC) hostname validation.
+///
+/// Returns 1 if the supplied hostname is valid; 0 if it is not.
+pub unsafe fn htp_validate_hostname(mut hostname: *mut bstr::bstr_t) -> libc::c_int {
     let mut data: *mut libc::c_uchar = if (*hostname).realptr.is_null() {
         (hostname as *mut libc::c_uchar)
             .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
@@ -4153,13 +3920,8 @@ pub unsafe extern "C" fn htp_validate_hostname(mut hostname: *mut bstr::bstr_t) 
     return 1 as libc::c_int;
 }
 
-/**
- * Frees all data contained in the uri, and then the uri itself.
- *
- * @param[in] uri
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_uri_free(mut uri: *mut htp_uri_t) {
+/// Frees all data contained in the uri, and then the uri itself.
+pub unsafe fn htp_uri_free(mut uri: *mut htp_uri_t) {
     if uri.is_null() {
         return;
     }
@@ -4174,13 +3936,10 @@ pub unsafe extern "C" fn htp_uri_free(mut uri: *mut htp_uri_t) {
     free(uri as *mut libc::c_void);
 }
 
-/**
- * Allocates and initializes a new htp_uri_t structure.
- *
- * @return New structure, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_uri_alloc() -> *mut htp_uri_t {
+/// Allocates and initializes a new htp_uri_t structure.
+///
+/// Returns New structure, or NULL on memory allocation failure.
+pub unsafe fn htp_uri_alloc() -> *mut htp_uri_t {
     let mut u: *mut htp_uri_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_uri_t>() as libc::c_ulong,
@@ -4192,12 +3951,7 @@ pub unsafe extern "C" fn htp_uri_alloc() -> *mut htp_uri_t {
     return u;
 }
 
-/* *
- * Returns the LibHTP version string.
- *
- * @return LibHTP version, for example "LibHTP v0.5.x".
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_get_version() -> *mut libc::c_char {
-    return b"LibHTP v0.5.32\x00" as *const u8 as *const libc::c_char as *mut libc::c_char;
+/// Returns the LibHTP version string.
+pub unsafe fn htp_get_version() -> *const libc::c_char {
+    HTP_VERSION_STRING_FULL.as_ptr() as *const libc::c_char
 }

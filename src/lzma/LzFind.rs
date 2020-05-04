@@ -17,9 +17,8 @@ pub type UInt64 = libc::c_ulonglong;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ISeqInStream {
-    pub Read: Option<
-        unsafe extern "C" fn(_: *const ISeqInStream, _: *mut libc::c_void, _: *mut size_t) -> SRes,
-    >,
+    pub Read:
+        Option<unsafe fn(_: *const ISeqInStream, _: *mut libc::c_void, _: *mut size_t) -> SRes>,
 }
 
 pub type ISzAllocPtr = *const LzmaDec::ISzAlloc;
@@ -60,14 +59,11 @@ pub struct _CMatchFinder {
     pub expectedDataSize: UInt64,
 }
 pub type CMatchFinder = _CMatchFinder;
-pub type Mf_Init_Func = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>;
-pub type Mf_GetNumAvailableBytes_Func =
-    Option<unsafe extern "C" fn(_: *mut libc::c_void) -> UInt32>;
-pub type Mf_GetPointerToCurrentPos_Func =
-    Option<unsafe extern "C" fn(_: *mut libc::c_void) -> *const Byte>;
-pub type Mf_GetMatches_Func =
-    Option<unsafe extern "C" fn(_: *mut libc::c_void, _: *mut UInt32) -> UInt32>;
-pub type Mf_Skip_Func = Option<unsafe extern "C" fn(_: *mut libc::c_void, _: UInt32) -> ()>;
+pub type Mf_Init_Func = Option<unsafe fn(_: *mut libc::c_void) -> ()>;
+pub type Mf_GetNumAvailableBytes_Func = Option<unsafe fn(_: *mut libc::c_void) -> UInt32>;
+pub type Mf_GetPointerToCurrentPos_Func = Option<unsafe fn(_: *mut libc::c_void) -> *const Byte>;
+pub type Mf_GetMatches_Func = Option<unsafe fn(_: *mut libc::c_void, _: *mut UInt32) -> UInt32>;
+pub type Mf_Skip_Func = Option<unsafe fn(_: *mut libc::c_void, _: UInt32) -> ()>;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -79,7 +75,7 @@ pub struct _IMatchFinder {
     pub Skip: Mf_Skip_Func,
 }
 pub type IMatchFinder = _IMatchFinder;
-unsafe extern "C" fn LzInWindow_Free(mut p: *mut CMatchFinder, mut alloc: ISzAllocPtr) {
+unsafe fn LzInWindow_Free(mut p: *mut CMatchFinder, mut alloc: ISzAllocPtr) {
     if (*p).directInput == 0 {
         (*alloc).Free.expect("non-null function pointer")(
             alloc,
@@ -89,7 +85,7 @@ unsafe extern "C" fn LzInWindow_Free(mut p: *mut CMatchFinder, mut alloc: ISzAll
     };
 }
 /* keepSizeBefore + keepSizeAfter + keepSizeReserv must be < 4G) */
-unsafe extern "C" fn LzInWindow_Create(
+unsafe fn LzInWindow_Create(
     mut p: *mut CMatchFinder,
     mut keepSizeReserv: UInt32,
     mut alloc: ISzAllocPtr,
@@ -111,20 +107,20 @@ unsafe extern "C" fn LzInWindow_Create(
     }
     return ((*p).bufferBase != 0 as *mut libc::c_void as *mut Byte) as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_GetPointerToCurrentPos(mut p: *mut CMatchFinder) -> *mut Byte {
+
+pub unsafe fn MatchFinder_GetPointerToCurrentPos(mut p: *mut CMatchFinder) -> *mut Byte {
     return (*p).buffer;
 }
-unsafe extern "C" fn MatchFinder_GetNumAvailableBytes(mut p: *mut CMatchFinder) -> UInt32 {
+unsafe fn MatchFinder_GetNumAvailableBytes(mut p: *mut CMatchFinder) -> UInt32 {
     return (*p).streamPos.wrapping_sub((*p).pos);
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_ReduceOffsets(mut p: *mut CMatchFinder, mut subValue: UInt32) {
+
+pub unsafe fn MatchFinder_ReduceOffsets(mut p: *mut CMatchFinder, mut subValue: UInt32) {
     (*p).posLimit = ((*p).posLimit as libc::c_uint).wrapping_sub(subValue) as UInt32 as UInt32;
     (*p).pos = ((*p).pos as libc::c_uint).wrapping_sub(subValue) as UInt32 as UInt32;
     (*p).streamPos = ((*p).streamPos as libc::c_uint).wrapping_sub(subValue) as UInt32 as UInt32;
 }
-unsafe extern "C" fn MatchFinder_ReadBlock(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_ReadBlock(mut p: *mut CMatchFinder) {
     if (*p).streamEndWasReached as libc::c_int != 0 || (*p).result != 0 as libc::c_int {
         return;
     }
@@ -174,8 +170,8 @@ unsafe extern "C" fn MatchFinder_ReadBlock(mut p: *mut CMatchFinder) {
         }
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_MoveBlock(mut p: *mut CMatchFinder) {
+
+pub unsafe fn MatchFinder_MoveBlock(mut p: *mut CMatchFinder) {
     memmove(
         (*p).bufferBase as *mut libc::c_void,
         (*p).buffer.offset(-((*p).keepSizeBefore as isize)) as *const libc::c_void,
@@ -184,8 +180,8 @@ pub unsafe extern "C" fn MatchFinder_MoveBlock(mut p: *mut CMatchFinder) {
     );
     (*p).buffer = (*p).bufferBase.offset((*p).keepSizeBefore as isize);
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_NeedMove(mut p: *mut CMatchFinder) -> libc::c_int {
+
+pub unsafe fn MatchFinder_NeedMove(mut p: *mut CMatchFinder) -> libc::c_int {
     if (*p).directInput != 0 {
         return 0 as libc::c_int;
     }
@@ -196,8 +192,8 @@ pub unsafe extern "C" fn MatchFinder_NeedMove(mut p: *mut CMatchFinder) -> libc:
         .wrapping_offset_from((*p).buffer) as libc::c_long as size_t
         <= (*p).keepSizeAfter as libc::c_ulong) as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_ReadIfRequired(mut p: *mut CMatchFinder) {
+
+pub unsafe fn MatchFinder_ReadIfRequired(mut p: *mut CMatchFinder) {
     if (*p).streamEndWasReached != 0 {
         return;
     }
@@ -205,20 +201,20 @@ pub unsafe extern "C" fn MatchFinder_ReadIfRequired(mut p: *mut CMatchFinder) {
         MatchFinder_ReadBlock(p);
     };
 }
-unsafe extern "C" fn MatchFinder_CheckAndMoveAndRead(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_CheckAndMoveAndRead(mut p: *mut CMatchFinder) {
     if MatchFinder_NeedMove(p) != 0 {
         MatchFinder_MoveBlock(p);
     }
     MatchFinder_ReadBlock(p);
 }
-unsafe extern "C" fn MatchFinder_SetDefaultSettings(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_SetDefaultSettings(mut p: *mut CMatchFinder) {
     (*p).cutValue = 32 as libc::c_int as UInt32;
     (*p).btMode = 1 as libc::c_int as Byte;
     (*p).numHashBytes = 4 as libc::c_int as UInt32;
     (*p).bigHash = 0 as libc::c_int as Byte;
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Construct(mut p: *mut CMatchFinder) {
+
+pub unsafe fn MatchFinder_Construct(mut p: *mut CMatchFinder) {
     let mut i: libc::c_uint = 0;
     (*p).bufferBase = 0 as *mut Byte;
     (*p).directInput = 0 as libc::c_int as Byte;
@@ -241,19 +237,16 @@ pub unsafe extern "C" fn MatchFinder_Construct(mut p: *mut CMatchFinder) {
         i = i.wrapping_add(1)
     }
 }
-unsafe extern "C" fn MatchFinder_FreeThisClassMemory(
-    mut p: *mut CMatchFinder,
-    mut alloc: ISzAllocPtr,
-) {
+unsafe fn MatchFinder_FreeThisClassMemory(mut p: *mut CMatchFinder, mut alloc: ISzAllocPtr) {
     (*alloc).Free.expect("non-null function pointer")(alloc, (*p).hash as *mut libc::c_void);
     (*p).hash = 0 as *mut CLzRef;
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Free(mut p: *mut CMatchFinder, mut alloc: ISzAllocPtr) {
+
+pub unsafe fn MatchFinder_Free(mut p: *mut CMatchFinder, mut alloc: ISzAllocPtr) {
     MatchFinder_FreeThisClassMemory(p, alloc);
     LzInWindow_Free(p, alloc);
 }
-unsafe extern "C" fn AllocRefs(mut num: size_t, mut alloc: ISzAllocPtr) -> *mut CLzRef {
+unsafe fn AllocRefs(mut num: size_t, mut alloc: ISzAllocPtr) -> *mut CLzRef {
     let mut sizeInBytes: size_t =
         num.wrapping_mul(::std::mem::size_of::<CLzRef>() as libc::c_ulong);
     if sizeInBytes.wrapping_div(::std::mem::size_of::<CLzRef>() as libc::c_ulong) != num {
@@ -261,8 +254,8 @@ unsafe extern "C" fn AllocRefs(mut num: size_t, mut alloc: ISzAllocPtr) -> *mut 
     }
     return (*alloc).Alloc.expect("non-null function pointer")(alloc, sizeInBytes) as *mut CLzRef;
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Create(
+
+pub unsafe fn MatchFinder_Create(
     mut p: *mut CMatchFinder,
     mut historySize: UInt32,
     mut keepAddBufferBefore: UInt32,
@@ -366,7 +359,7 @@ pub unsafe extern "C" fn MatchFinder_Create(
     MatchFinder_Free(p, alloc);
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn MatchFinder_SetLimits(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_SetLimits(mut p: *mut CMatchFinder) {
     let mut limit: UInt32 = (0xffffffff as libc::c_uint).wrapping_sub((*p).pos);
     let mut limit2: UInt32 = (*p).cyclicBufferSize.wrapping_sub((*p).cyclicBufferPos);
     if limit2 < limit {
@@ -390,8 +383,8 @@ unsafe extern "C" fn MatchFinder_SetLimits(mut p: *mut CMatchFinder) {
     (*p).lenLimit = lenLimit;
     (*p).posLimit = (*p).pos.wrapping_add(limit);
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Init_LowHash(mut p: *mut CMatchFinder) {
+
+pub unsafe fn MatchFinder_Init_LowHash(mut p: *mut CMatchFinder) {
     let mut i: size_t = 0;
     let mut items: *mut CLzRef = (*p).hash;
     let mut numItems: size_t = (*p).fixedHashSize as size_t;
@@ -401,8 +394,8 @@ pub unsafe extern "C" fn MatchFinder_Init_LowHash(mut p: *mut CMatchFinder) {
         i = i.wrapping_add(1)
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Init_HighHash(mut p: *mut CMatchFinder) {
+
+pub unsafe fn MatchFinder_Init_HighHash(mut p: *mut CMatchFinder) {
     let mut i: size_t = 0;
     let mut items: *mut CLzRef = (*p).hash.offset((*p).fixedHashSize as isize);
     let mut numItems: size_t =
@@ -413,8 +406,8 @@ pub unsafe extern "C" fn MatchFinder_Init_HighHash(mut p: *mut CMatchFinder) {
         i = i.wrapping_add(1)
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Init_3(mut p: *mut CMatchFinder, mut readData: libc::c_int) {
+
+pub unsafe fn MatchFinder_Init_3(mut p: *mut CMatchFinder, mut readData: libc::c_int) {
     (*p).cyclicBufferPos = 0 as libc::c_int as UInt32;
     (*p).buffer = (*p).bufferBase;
     (*p).streamPos = (*p).cyclicBufferSize;
@@ -426,21 +419,21 @@ pub unsafe extern "C" fn MatchFinder_Init_3(mut p: *mut CMatchFinder, mut readDa
     }
     MatchFinder_SetLimits(p);
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Init(mut p: *mut CMatchFinder) {
+
+pub unsafe fn MatchFinder_Init(mut p: *mut CMatchFinder) {
     MatchFinder_Init_HighHash(p);
     MatchFinder_Init_LowHash(p);
     MatchFinder_Init_3(p, 1 as libc::c_int);
 }
-unsafe extern "C" fn MatchFinder_GetSubValue(mut p: *mut CMatchFinder) -> UInt32 {
+unsafe fn MatchFinder_GetSubValue(mut p: *mut CMatchFinder) -> UInt32 {
     return (*p)
         .pos
         .wrapping_sub((*p).historySize)
         .wrapping_sub(1 as libc::c_int as libc::c_uint)
         & !((((1 as libc::c_int) << 10 as libc::c_int) - 1 as libc::c_int) as UInt32);
 }
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_Normalize3(
+
+pub unsafe fn MatchFinder_Normalize3(
     mut subValue: UInt32,
     mut items: *mut CLzRef,
     mut numItems: size_t,
@@ -458,12 +451,12 @@ pub unsafe extern "C" fn MatchFinder_Normalize3(
         i = i.wrapping_add(1)
     }
 }
-unsafe extern "C" fn MatchFinder_Normalize(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_Normalize(mut p: *mut CMatchFinder) {
     let mut subValue: UInt32 = MatchFinder_GetSubValue(p);
     MatchFinder_Normalize3(subValue, (*p).hash, (*p).numRefs);
     MatchFinder_ReduceOffsets(p, subValue);
 }
-unsafe extern "C" fn MatchFinder_CheckLimits(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_CheckLimits(mut p: *mut CMatchFinder) {
     if (*p).pos == 0xffffffff as libc::c_uint {
         MatchFinder_Normalize(p);
     }
@@ -479,7 +472,7 @@ unsafe extern "C" fn MatchFinder_CheckLimits(mut p: *mut CMatchFinder) {
 /*
   (lenLimit > maxLen)
 */
-unsafe extern "C" fn Hc_GetMatchesSpec(
+unsafe fn Hc_GetMatchesSpec(
     mut lenLimit: libc::c_uint,
     mut curMatch: UInt32,
     mut pos: UInt32,
@@ -565,8 +558,8 @@ unsafe extern "C" fn Hc_GetMatchesSpec(
     }
     return distances;
 }
-#[no_mangle]
-pub unsafe extern "C" fn GetMatchesSpec1(
+
+pub unsafe fn GetMatchesSpec1(
     mut lenLimit: UInt32,
     mut curMatch: UInt32,
     mut pos: UInt32,
@@ -653,7 +646,7 @@ pub unsafe extern "C" fn GetMatchesSpec1(
         }
     }
 }
-unsafe extern "C" fn SkipMatchesSpec(
+unsafe fn SkipMatchesSpec(
     mut lenLimit: UInt32,
     mut curMatch: UInt32,
     mut pos: UInt32,
@@ -722,7 +715,7 @@ unsafe extern "C" fn SkipMatchesSpec(
         }
     }
 }
-unsafe extern "C" fn MatchFinder_MovePos(mut p: *mut CMatchFinder) {
+unsafe fn MatchFinder_MovePos(mut p: *mut CMatchFinder) {
     (*p).cyclicBufferPos = (*p).cyclicBufferPos.wrapping_add(1);
     (*p).buffer = (*p).buffer.offset(1);
     (*p).pos = (*p).pos.wrapping_add(1);
@@ -730,7 +723,7 @@ unsafe extern "C" fn MatchFinder_MovePos(mut p: *mut CMatchFinder) {
         MatchFinder_CheckLimits(p);
     };
 }
-unsafe extern "C" fn Bt2_MatchFinder_GetMatches(
+unsafe fn Bt2_MatchFinder_GetMatches(
     mut p: *mut CMatchFinder,
     mut distances: *mut UInt32,
 ) -> UInt32 {
@@ -771,8 +764,8 @@ unsafe extern "C" fn Bt2_MatchFinder_GetMatches(
     }
     return offset;
 }
-#[no_mangle]
-pub unsafe extern "C" fn Bt3Zip_MatchFinder_GetMatches(
+
+pub unsafe fn Bt3Zip_MatchFinder_GetMatches(
     mut p: *mut CMatchFinder,
     mut distances: *mut UInt32,
 ) -> UInt32 {
@@ -815,7 +808,7 @@ pub unsafe extern "C" fn Bt3Zip_MatchFinder_GetMatches(
     }
     return offset;
 }
-unsafe extern "C" fn Bt3_MatchFinder_GetMatches(
+unsafe fn Bt3_MatchFinder_GetMatches(
     mut p: *mut CMatchFinder,
     mut distances: *mut UInt32,
 ) -> UInt32 {
@@ -910,7 +903,7 @@ unsafe extern "C" fn Bt3_MatchFinder_GetMatches(
     }
     return offset;
 }
-unsafe extern "C" fn Bt4_MatchFinder_GetMatches(
+unsafe fn Bt4_MatchFinder_GetMatches(
     mut p: *mut CMatchFinder,
     mut distances: *mut UInt32,
 ) -> UInt32 {
@@ -1119,7 +1112,7 @@ static UInt32 Bt5_MatchFinder_GetMatches(CMatchFinder *p, UInt32 *distances)
   GET_MATCHES_FOOTER(offset, maxLen)
 }
 */
-unsafe extern "C" fn Hc4_MatchFinder_GetMatches(
+unsafe fn Hc4_MatchFinder_GetMatches(
     mut p: *mut CMatchFinder,
     mut distances: *mut UInt32,
 ) -> UInt32 {
@@ -1321,8 +1314,8 @@ static UInt32 Hc5_MatchFinder_GetMatches(CMatchFinder *p, UInt32 *distances)
   MOVE_POS_RET
 }
 */
-#[no_mangle]
-pub unsafe extern "C" fn Hc3Zip_MatchFinder_GetMatches(
+
+pub unsafe fn Hc3Zip_MatchFinder_GetMatches(
     mut p: *mut CMatchFinder,
     mut distances: *mut UInt32,
 ) -> UInt32 {
@@ -1364,7 +1357,7 @@ pub unsafe extern "C" fn Hc3Zip_MatchFinder_GetMatches(
     }
     return offset;
 }
-unsafe extern "C" fn Bt2_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
+unsafe fn Bt2_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
     loop {
         let mut lenLimit: libc::c_uint = 0;
         let mut hv: UInt32 = 0;
@@ -1402,8 +1395,8 @@ unsafe extern "C" fn Bt2_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UIn
         }
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn Bt3Zip_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
+
+pub unsafe fn Bt3Zip_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
     loop {
         let mut lenLimit: libc::c_uint = 0;
         let mut hv: UInt32 = 0;
@@ -1443,7 +1436,7 @@ pub unsafe extern "C" fn Bt3Zip_MatchFinder_Skip(mut p: *mut CMatchFinder, mut n
         }
     }
 }
-unsafe extern "C" fn Bt3_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
+unsafe fn Bt3_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
     loop {
         let mut h2: UInt32 = 0;
         let mut hash: *mut UInt32 = 0 as *mut UInt32;
@@ -1494,7 +1487,7 @@ unsafe extern "C" fn Bt3_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UIn
         }
     }
 }
-unsafe extern "C" fn Bt4_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
+unsafe fn Bt4_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
     loop {
         let mut h2: UInt32 = 0;
         let mut h3: UInt32 = 0;
@@ -1580,7 +1573,7 @@ static void Bt5_MatchFinder_Skip(CMatchFinder *p, UInt32 num)
   while (--num != 0);
 }
 */
-unsafe extern "C" fn Hc4_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
+unsafe fn Hc4_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
     loop {
         let mut h2: UInt32 = 0;
         let mut h3: UInt32 = 0;
@@ -1658,8 +1651,8 @@ static void Hc5_MatchFinder_Skip(CMatchFinder *p, UInt32 num)
   while (--num != 0);
 }
 */
-#[no_mangle]
-pub unsafe extern "C" fn Hc3Zip_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
+
+pub unsafe fn Hc3Zip_MatchFinder_Skip(mut p: *mut CMatchFinder, mut num: UInt32) {
     loop {
         let mut lenLimit: libc::c_uint = 0;
         let mut hv: UInt32 = 0;
@@ -1702,44 +1695,37 @@ Conditions:
   Mf_GetNumAvailableBytes_Func must be called before each Mf_GetMatchLen_Func.
   Mf_GetPointerToCurrentPos_Func's result must be used only before any other function
 */
-#[no_mangle]
-pub unsafe extern "C" fn MatchFinder_CreateVTable(
-    mut p: *mut CMatchFinder,
-    mut vTable: *mut IMatchFinder,
-) {
-    (*vTable).Init = ::std::mem::transmute::<
-        Option<unsafe extern "C" fn(_: *mut CMatchFinder) -> ()>,
-        Mf_Init_Func,
-    >(Some(
-        MatchFinder_Init as unsafe extern "C" fn(_: *mut CMatchFinder) -> (),
-    ));
+
+pub unsafe fn MatchFinder_CreateVTable(mut p: *mut CMatchFinder, mut vTable: *mut IMatchFinder) {
+    (*vTable).Init =
+        ::std::mem::transmute::<Option<unsafe fn(_: *mut CMatchFinder) -> ()>, Mf_Init_Func>(Some(
+            MatchFinder_Init as unsafe fn(_: *mut CMatchFinder) -> (),
+        ));
     (*vTable).GetNumAvailableBytes = ::std::mem::transmute::<
-        Option<unsafe extern "C" fn(_: *mut CMatchFinder) -> UInt32>,
+        Option<unsafe fn(_: *mut CMatchFinder) -> UInt32>,
         Mf_GetNumAvailableBytes_Func,
     >(Some(
-        MatchFinder_GetNumAvailableBytes as unsafe extern "C" fn(_: *mut CMatchFinder) -> UInt32,
+        MatchFinder_GetNumAvailableBytes as unsafe fn(_: *mut CMatchFinder) -> UInt32,
     ));
     (*vTable).GetPointerToCurrentPos = ::std::mem::transmute::<
-        Option<unsafe extern "C" fn(_: *mut CMatchFinder) -> *mut Byte>,
+        Option<unsafe fn(_: *mut CMatchFinder) -> *mut Byte>,
         Mf_GetPointerToCurrentPos_Func,
     >(Some(
-        MatchFinder_GetPointerToCurrentPos
-            as unsafe extern "C" fn(_: *mut CMatchFinder) -> *mut Byte,
+        MatchFinder_GetPointerToCurrentPos as unsafe fn(_: *mut CMatchFinder) -> *mut Byte,
     ));
     if (*p).btMode == 0 {
         /* if (p->numHashBytes <= 4) */
         (*vTable).GetMatches = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
             Mf_GetMatches_Func,
         >(Some(
-            Hc4_MatchFinder_GetMatches
-                as unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
+            Hc4_MatchFinder_GetMatches as unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
         ));
         (*vTable).Skip = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
             Mf_Skip_Func,
         >(Some(
-            Hc4_MatchFinder_Skip as unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> (),
+            Hc4_MatchFinder_Skip as unsafe fn(_: *mut CMatchFinder, _: UInt32) -> (),
         ))
     /*
     else
@@ -1750,46 +1736,43 @@ pub unsafe extern "C" fn MatchFinder_CreateVTable(
     */
     } else if (*p).numHashBytes == 2 as libc::c_int as libc::c_uint {
         (*vTable).GetMatches = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
             Mf_GetMatches_Func,
         >(Some(
-            Bt2_MatchFinder_GetMatches
-                as unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
+            Bt2_MatchFinder_GetMatches as unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
         ));
         (*vTable).Skip = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
             Mf_Skip_Func,
         >(Some(
-            Bt2_MatchFinder_Skip as unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> (),
+            Bt2_MatchFinder_Skip as unsafe fn(_: *mut CMatchFinder, _: UInt32) -> (),
         ))
     } else if (*p).numHashBytes == 3 as libc::c_int as libc::c_uint {
         (*vTable).GetMatches = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
             Mf_GetMatches_Func,
         >(Some(
-            Bt3_MatchFinder_GetMatches
-                as unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
+            Bt3_MatchFinder_GetMatches as unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
         ));
         (*vTable).Skip = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
             Mf_Skip_Func,
         >(Some(
-            Bt3_MatchFinder_Skip as unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> (),
+            Bt3_MatchFinder_Skip as unsafe fn(_: *mut CMatchFinder, _: UInt32) -> (),
         ))
     } else {
         /* if (p->numHashBytes == 4) */
         (*vTable).GetMatches = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32>,
             Mf_GetMatches_Func,
         >(Some(
-            Bt4_MatchFinder_GetMatches
-                as unsafe extern "C" fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
+            Bt4_MatchFinder_GetMatches as unsafe fn(_: *mut CMatchFinder, _: *mut UInt32) -> UInt32,
         ));
         (*vTable).Skip = ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
+            Option<unsafe fn(_: *mut CMatchFinder, _: UInt32) -> ()>,
             Mf_Skip_Func,
         >(Some(
-            Bt4_MatchFinder_Skip as unsafe extern "C" fn(_: *mut CMatchFinder, _: UInt32) -> (),
+            Bt4_MatchFinder_Skip as unsafe fn(_: *mut CMatchFinder, _: UInt32) -> (),
         ))
     };
     /*

@@ -17,8 +17,8 @@ pub type BoolInt = libc::c_int;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ISzAlloc {
-    pub Alloc: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void>,
-    pub Free: Option<unsafe extern "C" fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()>,
+    pub Alloc: Option<unsafe fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void>,
+    pub Free: Option<unsafe fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()>,
 }
 pub type ISzAllocPtr = *const ISzAlloc;
 pub type CLzmaProb = UInt16;
@@ -120,7 +120,7 @@ Out:
     < kMatchSpecLenStart : normal remain
     = kMatchSpecLenStart : finished
 */
-unsafe extern "C" fn LzmaDec_DecodeReal_3(
+unsafe fn LzmaDec_DecodeReal_3(
     mut p: *mut CLzmaDec,
     mut limit: SizeT,
     mut bufLimit: *const Byte,
@@ -1722,7 +1722,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal_3(
     (*p).state = state;
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn LzmaDec_WriteRem(mut p: *mut CLzmaDec, mut limit: SizeT) {
+unsafe fn LzmaDec_WriteRem(mut p: *mut CLzmaDec, mut limit: SizeT) {
     if (*p).remainLen != 0 as libc::c_int as libc::c_uint
         && (*p).remainLen
             < (2 as libc::c_int
@@ -1759,7 +1759,7 @@ unsafe extern "C" fn LzmaDec_WriteRem(mut p: *mut CLzmaDec, mut limit: SizeT) {
         (*p).dicPos = dicPos
     };
 }
-unsafe extern "C" fn LzmaDec_DecodeReal2(
+unsafe fn LzmaDec_DecodeReal2(
     mut p: *mut CLzmaDec,
     mut limit: SizeT,
     mut bufLimit: *const Byte,
@@ -1822,7 +1822,7 @@ unsafe extern "C" fn LzmaDec_DecodeReal2(
     }
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn LzmaDec_TryDummy(
+unsafe fn LzmaDec_TryDummy(
     mut p: *const CLzmaDec,
     mut buf: *const Byte,
     mut inSize: SizeT,
@@ -2434,7 +2434,7 @@ unsafe extern "C" fn LzmaDec_TryDummy(
     }
     return res;
 }
-unsafe extern "C" fn LzmaDec_InitDicAndState(
+unsafe fn LzmaDec_InitDicAndState(
     mut p: *mut CLzmaDec,
     mut initDic: BoolInt,
     mut initState: BoolInt,
@@ -2459,13 +2459,14 @@ unsafe extern "C" fn LzmaDec_InitDicAndState(
             + 2 as libc::c_int) as UInt32
     };
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn LzmaDec_Init(mut p: *mut CLzmaDec) {
     (*p).dicPos = 0 as libc::c_int as SizeT;
     LzmaDec_InitDicAndState(p, 1 as libc::c_int, 1 as libc::c_int);
 }
-#[no_mangle]
-pub unsafe extern "C" fn LzmaDec_DecodeToDic(
+
+pub unsafe fn LzmaDec_DecodeToDic(
     mut p: *mut CLzmaDec,
     mut dicLimit: SizeT,
     mut src: *const Byte,
@@ -2664,6 +2665,7 @@ pub unsafe extern "C" fn LzmaDec_DecodeToDic(
     *status = ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK;
     return 0 as libc::c_int;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
     mut p: *mut CLzmaDec,
@@ -2747,22 +2749,23 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
         }
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn LzmaDec_FreeProbs(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
+
+pub unsafe fn LzmaDec_FreeProbs(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
     (*alloc).Free.expect("non-null function pointer")(alloc, (*p).probs as *mut libc::c_void);
     (*p).probs = 0 as *mut CLzmaProb;
 }
-unsafe extern "C" fn LzmaDec_FreeDict(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
+unsafe fn LzmaDec_FreeDict(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
     (*alloc).Free.expect("non-null function pointer")(alloc, (*p).dic as *mut libc::c_void);
     (*p).dic = 0 as *mut Byte;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn LzmaDec_Free(mut p: *mut CLzmaDec, mut alloc: ISzAllocPtr) {
     LzmaDec_FreeProbs(p, alloc);
     LzmaDec_FreeDict(p, alloc);
 }
-#[no_mangle]
-pub unsafe extern "C" fn LzmaProps_Decode(
+
+pub unsafe fn LzmaProps_Decode(
     mut p: *mut CLzmaProps,
     mut data: *const Byte,
     mut size: libc::c_uint,
@@ -2792,7 +2795,7 @@ pub unsafe extern "C" fn LzmaProps_Decode(
     (*p)._pad_ = 0 as libc::c_int as Byte;
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn LzmaDec_AllocateProbs2(
+unsafe fn LzmaDec_AllocateProbs2(
     mut p: *mut CLzmaDec,
     mut propNew: *const CLzmaProps,
     mut alloc: ISzAllocPtr,
@@ -2833,8 +2836,8 @@ unsafe extern "C" fn LzmaDec_AllocateProbs2(
     }
     return 0 as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn LzmaDec_AllocateProbs(
+
+pub unsafe fn LzmaDec_AllocateProbs(
     mut p: *mut CLzmaDec,
     mut props: *const Byte,
     mut propsSize: libc::c_uint,
@@ -2858,6 +2861,7 @@ pub unsafe extern "C" fn LzmaDec_AllocateProbs(
     (*p).prop = propNew;
     return 0 as libc::c_int;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn LzmaDec_Allocate(
     mut p: *mut CLzmaDec,
@@ -3037,8 +3041,8 @@ Returns:
   SZ_ERROR_UNSUPPORTED - Unsupported properties
   SZ_ERROR_INPUT_EOF - It needs more bytes in input buffer (src).
 */
-#[no_mangle]
-pub unsafe extern "C" fn LzmaDecode(
+
+pub unsafe fn LzmaDecode(
     mut dest: *mut Byte,
     mut destLen: *mut SizeT,
     mut src: *const Byte,

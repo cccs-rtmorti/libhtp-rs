@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
-use libc;
 use htp::bstr::*;
 use htp::bstr_builder::*;
+use libc;
 use std::ffi::CString;
 
 macro_rules! cstr {
@@ -763,7 +763,7 @@ fn Bstr_ToPint() {
             )
         );
         assert_eq!(
-            0x7fffffffffffffff,
+            0x7fff_ffff_ffff_ffff,
             bstr_util_mem_to_pint(
                 cstr!("7fffffffffffffff") as *const core::ffi::c_void,
                 16,

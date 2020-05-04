@@ -34,16 +34,10 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Parses a single v0 request cookie and places the results into tx->request_cookies.
- *
- * @param[in] connp
- * @param[in] data
- * @param[in] len
- * @return HTP_OK on success, HTP_ERROR on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_single_cookie_v0(
+/// Parses a single v0 request cookie and places the results into tx->request_cookies.
+///
+/// Returns HTP_OK on success, HTP_ERROR on error.
+pub unsafe fn htp_parse_single_cookie_v0(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
@@ -87,16 +81,10 @@ pub unsafe extern "C" fn htp_parse_single_cookie_v0(
     return Status::OK;
 }
 
-/* *
- * Parses the Cookie request header in v0 format.
- *
- * @param[in] connp
- * @return HTP_OK on success, HTP_ERROR on error
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_parse_cookies_v0(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> Status {
+/// Parses the Cookie request header in v0 format.
+///
+/// Returns HTP_OK on success, HTP_ERROR on error
+pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_connp_t) -> Status {
     let mut cookie_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*(*connp).in_tx).request_headers,
         b"cookie\x00" as *const u8 as *const libc::c_char,

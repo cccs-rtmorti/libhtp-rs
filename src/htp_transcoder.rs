@@ -38,15 +38,8 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Transcode all parameters supplied in the table.
- *
- * @param[in] connp
- * @param[in] params
- * @param[in] destroy_old
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_transcode_params(
+/// Transcode all parameters supplied in the table.
+pub unsafe fn htp_transcode_params(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut params: *mut *mut htp_table::htp_table_t,
     mut destroy_old: libc::c_int,
@@ -146,15 +139,8 @@ pub unsafe extern "C" fn htp_transcode_params(
     return Status::OK;
 }
 
-/* *
- * Transcode one bstr.
- *
- * @param[in] cd
- * @param[in] input
- * @param[in] output
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_transcode_bstr(
+/// Transcode one bstr.
+pub unsafe fn htp_transcode_bstr(
     mut cd: iconv_t,
     mut input: *mut bstr::bstr_t,
     mut output: *mut *mut bstr::bstr_t,

@@ -22,17 +22,13 @@ pub struct htp_callback_t {
 }
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> Status>;
 
-/**
- * Creates a copy of the provided hook. The hook is allowed to be NULL,
- * in which case this function simply returns a NULL.
- *
- * @param[in] hook
- * @return A copy of the hook, or NULL (if the provided hook was NULL
- *         or, if it wasn't, if there was a memory allocation problem while
- *         constructing a copy).
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_hook_copy(mut hook: *const htp_hook_t) -> *mut htp_hook_t {
+/// Creates a copy of the provided hook. The hook is allowed to be NULL,
+/// in which case this function simply returns a NULL.
+///
+/// Returns A copy of the hook, or NULL (if the provided hook was NULL
+///         or, if it wasn't, if there was a memory allocation problem while
+///         constructing a copy).
+pub unsafe fn htp_hook_copy(mut hook: *const htp_hook_t) -> *mut htp_hook_t {
     if hook.is_null() {
         return 0 as *mut htp_hook_t;
     }
@@ -54,13 +50,10 @@ pub unsafe extern "C" fn htp_hook_copy(mut hook: *const htp_hook_t) -> *mut htp_
     return copy;
 }
 
-/**
- * Creates a new hook.
- *
- * @return New htp_hook_t structure on success, NULL on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_hook_create() -> *mut htp_hook_t {
+/// Creates a new hook.
+///
+/// Returns New htp_hook_t structure on success, NULL on failure.
+pub unsafe fn htp_hook_create() -> *mut htp_hook_t {
     let mut hook: *mut htp_hook_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_hook_t>() as libc::c_ulong,
@@ -76,14 +69,9 @@ pub unsafe extern "C" fn htp_hook_create() -> *mut htp_hook_t {
     return hook;
 }
 
-/**
- * Destroys an existing hook. It is all right to send a NULL
- * to this method because it will simply return straight away.
- *
- * @param[in] hook
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_hook_destroy(mut hook: *mut htp_hook_t) {
+/// Destroys an existing hook. It is all right to send a NULL
+/// to this method because it will simply return straight away.
+pub unsafe fn htp_hook_destroy(mut hook: *mut htp_hook_t) {
     if hook.is_null() {
         return;
     }
@@ -100,15 +88,10 @@ pub unsafe extern "C" fn htp_hook_destroy(mut hook: *mut htp_hook_t) {
     free(hook as *mut libc::c_void);
 }
 
-/**
- * Registers a new callback with the hook.
- *
- * @param[in] hook
- * @param[in] callback_fn
- * @return HTP_OK on success, HTP_ERROR on memory allocation error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_hook_register(
+/// Registers a new callback with the hook.
+///
+/// Returns HTP_OK on success, HTP_ERROR on memory allocation error.
+pub unsafe fn htp_hook_register(
     mut hook: *mut *mut htp_hook_t,
     callback_fn: htp_callback_fn_t,
 ) -> Status {
@@ -146,18 +129,13 @@ pub unsafe extern "C" fn htp_hook_register(
     return Status::OK;
 }
 
-/**
- * Runs all the callbacks associated with a given hook. Only stops if
- * one of the callbacks returns an error (HTP_ERROR) or stop (HTP_STOP).
- *
- * @param[in] hook
- * @param[in] user_data
- * @return HTP_OK if at least one hook ran successfully, HTP_STOP if there was
- *         no error but processing should stop, and HTP_ERROR or any other value
- *         less than zero on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_hook_run_all(
+/// Runs all the callbacks associated with a given hook. Only stops if
+/// one of the callbacks returns an error (HTP_ERROR) or stop (HTP_STOP).
+///
+/// Returns HTP_OK if at least one hook ran successfully, HTP_STOP if there was
+///         no error but processing should stop, and HTP_ERROR or any other value
+///         less than zero on error.
+pub unsafe fn htp_hook_run_all(
     mut hook: *mut htp_hook_t,
     mut user_data: *mut libc::c_void,
 ) -> Status {
@@ -182,17 +160,12 @@ pub unsafe extern "C" fn htp_hook_run_all(
     return Status::OK;
 }
 
-/* *
- * Run callbacks one by one until one of them accepts to service the hook.
- *
- * @param[in] hook
- * @param[in] user_data
- * @return HTP_OK if a hook was found to process the callback, HTP_DECLINED if
- *         no hook could be found, HTP_STOP if a hook signalled the processing
- *         to stop, and HTP_ERROR or any other value less than zero on error.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_hook_run_one(
+/// Run callbacks one by one until one of them accepts to service the hook.
+///
+/// Returns HTP_OK if a hook was found to process the callback, HTP_DECLINED if
+///         no hook could be found, HTP_STOP if a hook signalled the processing
+///         to stop, and HTP_ERROR or any other value less than zero on error.
+pub unsafe fn htp_hook_run_one(
     mut hook: *mut htp_hook_t,
     mut user_data: *mut libc::c_void,
 ) -> Status {

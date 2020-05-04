@@ -28,42 +28,38 @@ pub type uint64_t = __uint64_t;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_conn_t {
-    /** Client IP address. */
+    /// Client IP address.
     pub client_addr: *mut libc::c_char,
-    /** Client port. */
+    /// Client port.
     pub client_port: libc::c_int,
-    /** Server IP address. */
+    /// Server IP address.
     pub server_addr: *mut libc::c_char,
-    /** Server port. */
+    /// Server port.
     pub server_port: libc::c_int,
-    /**
-     * Transactions carried out on this connection. The list may contain
-     * NULL elements when some of the transactions are deleted (and then
-     * removed from a connection by calling htp_conn_remove_tx().
-     */
+
+    /// Transactions carried out on this connection. The list may contain
+    /// NULL elements when some of the transactions are deleted (and then
+    /// removed from a connection by calling htp_conn_remove_tx().
     pub transactions: *mut htp_list::htp_list_array_t,
-    /** Log messages associated with this connection. */
+    /// Log messages associated with this connection.
     pub messages: *mut htp_list::htp_list_array_t,
-    /** Parsing flags: HTP_CONN_PIPELINED. */
+    /// Parsing flags: HTP_CONN_PIPELINED.
     pub flags: htp_util::ConnectionFlags,
-    /** When was this connection opened? Can be NULL. */
+    /// When was this connection opened? Can be NULL.
     pub open_timestamp: htp_time_t,
-    /** When was this connection closed? Can be NULL. */
+    /// When was this connection closed? Can be NULL.
     pub close_timestamp: htp_time_t,
-    /** Inbound data counter. */
+    /// Inbound data counter.
     pub in_data_counter: int64_t,
-    /** Outbound data counter. */
+    /// Outbound data counter.
     pub out_data_counter: int64_t,
 }
 pub type htp_time_t = libc::timeval;
 
-/**
- * Creates a new connection structure.
- *
- * @return A new connection structure on success, NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_create() -> *mut htp_conn_t {
+/// Creates a new connection structure.
+///
+/// Returns A new connection structure on success, NULL on memory allocation failure.
+pub unsafe fn htp_conn_create() -> *mut htp_conn_t {
     let mut conn: *mut htp_conn_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_conn_t>() as libc::c_ulong,
@@ -86,17 +82,8 @@ pub unsafe extern "C" fn htp_conn_create() -> *mut htp_conn_t {
     return conn;
 }
 
-/**
- * Closes the connection.
- *
- * @param[in] conn
- * @param[in] timestamp
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_close(
-    mut conn: *mut htp_conn_t,
-    mut timestamp: *const htp_time_t,
-) {
+/// Closes the connection.
+pub unsafe fn htp_conn_close(mut conn: *mut htp_conn_t, mut timestamp: *const htp_time_t) {
     if conn.is_null() {
         return;
     }
@@ -110,17 +97,12 @@ pub unsafe extern "C" fn htp_conn_close(
     };
 }
 
-/**
- * Destroys a connection, as well as all the transactions it contains. It is
- * not possible to destroy a connection structure yet leave any of its
- * transactions intact. This is because transactions need its connection and
- * connection structures hold little data anyway. The opposite is true, though
- * it is possible to delete a transaction but leave its connection alive.
- *
- * @param[in] conn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
+/// Destroys a connection, as well as all the transactions it contains. It is
+/// not possible to destroy a connection structure yet leave any of its
+/// transactions intact. This is because transactions need its connection and
+/// connection structures hold little data anyway. The opposite is true, though
+/// it is possible to delete a transaction but leave its connection alive.
+pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
     if conn.is_null() {
         return;
     }
@@ -166,20 +148,9 @@ pub unsafe extern "C" fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
     free(conn as *mut libc::c_void);
 }
 
-/**
- * Opens a connection. This function will essentially only store the provided data
- * for future reference. The timestamp parameter is optional.
- *
- * @param[in] conn
- * @param[in] remote_addr
- * @param[in] remote_port
- * @param[in] local_addr
- * @param[in] local_port
- * @param[in] timestamp
- * @return
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_open(
+/// Opens a connection. This function will essentially only store the provided data
+/// for future reference. The timestamp parameter is optional.
+pub unsafe fn htp_conn_open(
     mut conn: *mut htp_conn_t,
     mut client_addr: *const libc::c_char,
     mut client_port: libc::c_int,
@@ -218,17 +189,12 @@ pub unsafe extern "C" fn htp_conn_open(
     return Status::OK;
 }
 
-/**
- * Removes the given transaction structure, which makes it possible to
- * safely destroy it. It is safe to destroy transactions in this way
- * because the index of the transactions (in a connection) is preserved.
- *
- * @param[in] conn
- * @param[in] tx
- * @return HTP_OK if transaction was removed (replaced with NULL) or HTP_ERROR if it wasn't found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_remove_tx(
+/// Removes the given transaction structure, which makes it possible to
+/// safely destroy it. It is safe to destroy transactions in this way
+/// because the index of the transactions (in a connection) is preserved.
+///
+/// Returns HTP_OK if transaction was removed (replaced with NULL) or HTP_ERROR if it wasn't found.
+pub unsafe fn htp_conn_remove_tx(
     mut conn: *mut htp_conn_t,
     mut tx: *const htp_transaction::htp_tx_t,
 ) -> Status {
@@ -245,15 +211,8 @@ pub unsafe extern "C" fn htp_conn_remove_tx(
     );
 }
 
-/**
- * Keeps track of inbound packets and data.
- *
- * @param[in] conn
- * @param[in] len
- * @param[in] timestamp
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_track_inbound_data(
+/// Keeps track of inbound packets and data.
+pub unsafe fn htp_conn_track_inbound_data(
     mut conn: *mut htp_conn_t,
     mut len: size_t,
     mut _timestamp: *const htp_time_t,
@@ -265,15 +224,8 @@ pub unsafe extern "C" fn htp_conn_track_inbound_data(
         ((*conn).in_data_counter as libc::c_ulong).wrapping_add(len) as int64_t as int64_t;
 }
 
-/**
- * Keeps track of outbound packets and data.
- *
- * @param[in] conn
- * @param[in] len
- * @param[in] timestamp
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_track_outbound_data(
+/// Keeps track of outbound packets and data.
+pub unsafe fn htp_conn_track_outbound_data(
     mut conn: *mut htp_conn_t,
     mut len: size_t,
     mut _timestamp: *const htp_time_t,

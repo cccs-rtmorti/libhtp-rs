@@ -29,13 +29,10 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * This callback function feeds request body data to a Urlencoded parser
- * and, later, feeds the parsed parameters to the correct structures.
- *
- * @param[in] d
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
+/// This callback function feeds request body data to a Urlencoded parser
+/// and, later, feeds the parsed parameters to the correct structures.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
     mut d: *mut htp_transaction::htp_tx_data_t,
@@ -92,14 +89,11 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
     return Status::OK;
 }
 
-/* *
- * Determine if the request has a Urlencoded body, and, if it does, create and
- * attach an instance of the Urlencoded parser to the transaction.
- *
- * @param[in] connp
- * @return HTP_OK if a new parser has been setup, HTP_DECLINED if the MIME type
- *         is not appropriate for this parser, and HTP_ERROR on failure.
- */
+/// Determine if the request has a Urlencoded body, and, if it does, create and
+/// attach an instance of the Urlencoded parser to the transaction.
+///
+/// Returns HTP_OK if a new parser has been setup, HTP_DECLINED if the MIME type
+///         is not appropriate for this parser, and HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
     mut tx: *mut htp_transaction::htp_tx_t,
@@ -129,15 +123,10 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
     return Status::OK;
 }
 
-/* *
- * Parses request query string, if present.
- *
- * @param[in] connp
- * @param[in] raw_data
- * @param[in] raw_len
- * @return HTP_OK if query string was parsed, HTP_DECLINED if there was no query
- *         string, and HTP_ERROR on failure.
- */
+/// Parses request query string, if present.
+///
+/// Returns HTP_OK if query string was parsed, HTP_DECLINED if there was no query
+///         string, and HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     mut tx: *mut htp_transaction::htp_tx_t,
@@ -207,12 +196,9 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     return Status::OK;
 }
 
-/* *
- * Finalize Multipart processing.
- *
- * @param[in] d
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
+/// Finalize Multipart processing.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     mut d: *mut htp_transaction::htp_tx_data_t,
@@ -269,14 +255,11 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     return Status::OK;
 }
 
-/* *
- * Inspect request headers and register the Multipart request data hook
- * if it contains a multipart/form-data body.
- *
- * @param[in] connp
- * @return HTP_OK if a new parser has been setup, HTP_DECLINED if the MIME type
- *         is not appropriate for this parser, and HTP_ERROR on failure.
- */
+/// Inspect request headers and register the Multipart request data hook
+/// if it contains a multipart/form-data body.
+///
+/// Returns HTP_OK if a new parser has been setup, HTP_DECLINED if the MIME type
+///         is not appropriate for this parser, and HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     mut tx: *mut htp_transaction::htp_tx_t,

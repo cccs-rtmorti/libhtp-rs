@@ -43,16 +43,10 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Extract one request header. A header can span multiple lines, in
- * which case they will be folded into one before parsing is attempted.
- *
- * @param[in] connp
- * @param[in] data
- * @param[in] len
- * @return HTP_OK or HTP_ERROR
- */
-#[no_mangle]
+/// Extract one request header. A header can span multiple lines, in
+/// which case they will be folded into one before parsing is attempted.
+///
+/// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_process_request_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
@@ -171,16 +165,9 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
     return Status::OK;
 }
 
-/* *
- * Generic request header parser.
- *
- * @param[in] connp
- * @param[in] h
- * @param[in] data
- * @param[in] len
- * @return HTP_OK or HTP_ERROR
- */
-#[no_mangle]
+/// Generic request header parser.
+///
+/// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut h: *mut htp_transaction::htp_header_t,
@@ -343,20 +330,15 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     return Status::OK;
 }
 
-/* *
- * Generic request line parser.
- *
- * @param[in] connp
- * @return HTP_OK or HTP_ERROR
- */
-#[no_mangle]
+/// Generic request line parser.
+///
+/// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_line_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     return htp_parse_request_line_generic_ex(connp, 0 as libc::c_int);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut nul_terminates: libc::c_int,
@@ -478,7 +460,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         }
         pos = pos.wrapping_add(1)
     }
-    /* if we've seen some 'bad' delimiters, we retry with those */
+    // if we've seen some 'bad' delimiters, we retry with those
     if bad_delim != 0 && pos == len {
         // special case: even though RFC's allow only SP (0x20), many
         // implementations allow other delimiters, like tab or other

@@ -47,14 +47,10 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Sends outstanding connection data to the currently active data receiver hook.
- *
- * @param[in] connp
- * @param[in] is_last
- * @return HTP_OK, or a value returned from a callback.
- */
-unsafe extern "C" fn htp_connp_res_receiver_send_data(
+/// Sends outstanding connection data to the currently active data receiver hook.
+///
+/// Returns HTP_OK, or a value returned from a callback.
+unsafe fn htp_connp_res_receiver_send_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut is_last: libc::c_int,
 ) -> Status {
@@ -84,15 +80,11 @@ unsafe extern "C" fn htp_connp_res_receiver_send_data(
     return Status::OK;
 }
 
-/* *
- * Finalizes an existing data receiver hook by sending any outstanding data to it. The
- * hook is then removed so that it receives no more data.
- *
- * @param[in] connp
- * @return HTP_OK, or a value returned from a callback.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_res_receiver_finalize_clear(
+/// Finalizes an existing data receiver hook by sending any outstanding data to it. The
+/// hook is then removed so that it receives no more data.
+///
+/// Returns HTP_OK, or a value returned from a callback.
+pub unsafe fn htp_connp_res_receiver_finalize_clear(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     if (*connp).out_data_receiver_hook.is_null() {
@@ -103,14 +95,10 @@ pub unsafe extern "C" fn htp_connp_res_receiver_finalize_clear(
     return rc;
 }
 
-/* *
- * Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
- *
- * @param[in] connp
- * @param[in] data_receiver_hook
- * @return HTP_OK, or a value returned from a callback.
- */
-unsafe extern "C" fn htp_connp_res_receiver_set(
+/// Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
+///
+/// Returns HTP_OK, or a value returned from a callback.
+unsafe fn htp_connp_res_receiver_set(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data_receiver_hook: *mut htp_hooks::htp_hook_t,
 ) -> Status {
@@ -120,14 +108,11 @@ unsafe extern "C" fn htp_connp_res_receiver_set(
     return Status::OK;
 }
 
-/* *
- * Handles request parser state changes. At the moment, this function is used only
- * to configure data receivers, which are sent raw connection data.
- *
- * @param[in] connp
- * @return HTP_OK, or a value returned from a callback.
- */
-unsafe extern "C" fn htp_res_handle_state_change(
+/// Handles request parser state changes. At the moment, this function is used only
+/// to configure data receivers, which are sent raw connection data.
+///
+/// Returns HTP_OK, or a value returned from a callback.
+unsafe fn htp_res_handle_state_change(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     if (*connp).out_state_previous == (*connp).out_state {
@@ -170,17 +155,12 @@ unsafe extern "C" fn htp_res_handle_state_change(
     return Status::OK;
 }
 
-/* *
- * If there is any data left in the outbound data chunk, this function will preserve
- * it for later consumption. The maximum amount accepted for buffering is controlled
- * by htp_config_t::field_limit_hard.
- *
- * @param[in] connp
- * @return HTP_OK, or HTP_ERROR on fatal failure.
- */
-unsafe extern "C" fn htp_connp_res_buffer(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> Status {
+/// If there is any data left in the outbound data chunk, this function will preserve
+/// it for later consumption. The maximum amount accepted for buffering is controlled
+/// by htp_config_t::field_limit_hard.
+///
+/// Returns HTP_OK, or HTP_ERROR on fatal failure.
+unsafe fn htp_connp_res_buffer(mut connp: *mut htp_connection_parser::htp_connp_t) -> Status {
     if (*connp).out_current_data.is_null() {
         return Status::OK;
     }
@@ -243,17 +223,12 @@ unsafe extern "C" fn htp_connp_res_buffer(
     return Status::OK;
 }
 
-/* *
- * Returns to the caller the memory region that should be processed next. This function
- * hides away the buffering process from the rest of the code, allowing it to work with
- * non-buffered data that's in the outbound chunk, or buffered data that's in our structures.
- *
- * @param[in] connp
- * @param[out] data
- * @param[out] len
- * @return HTP_OK
- */
-unsafe extern "C" fn htp_connp_res_consolidate_data(
+/// Returns to the caller the memory region that should be processed next. This function
+/// hides away the buffering process from the rest of the code, allowing it to work with
+/// non-buffered data that's in the outbound chunk, or buffered data that's in our structures.
+///
+/// Returns HTP_OK
+unsafe fn htp_connp_res_consolidate_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut *mut libc::c_uchar,
     mut len: *mut size_t,
@@ -276,14 +251,8 @@ unsafe extern "C" fn htp_connp_res_consolidate_data(
     Status::OK
 }
 
-/* *
- * Clears buffered outbound data and resets the consumer position to the reader position.
- *
- * @param[in] connp
- */
-unsafe extern "C" fn htp_connp_res_clear_buffer(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-) {
+/// Clears buffered outbound data and resets the consumer position to the reader position.
+unsafe fn htp_connp_res_clear_buffer(mut connp: *mut htp_connection_parser::htp_connp_t) {
     (*connp).out_current_consume_offset = (*connp).out_current_read_offset;
     if !(*connp).out_buf.is_null() {
         free((*connp).out_buf as *mut libc::c_void);
@@ -292,13 +261,9 @@ unsafe extern "C" fn htp_connp_res_clear_buffer(
     };
 }
 
-/* *
- * Consumes bytes until the end of the current line.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Consumes bytes until the end of the current line.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA_END(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -328,13 +293,9 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA_END(
     }
 }
 
-/* *
- * Processes a chunk of data.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Processes a chunk of data.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -381,14 +342,12 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA(
     return Status::DATA;
 }
 
-/* *
- * Peeks ahead into the data to try to see if it starts with a valid Chunked
- * length field.
- *
- * @returns 1 if it looks valid, 0 if it looks invalid
- */
+/// Peeks ahead into the data to try to see if it starts with a valid Chunked
+/// length field.
+///
+/// Returns 1 if it looks valid, 0 if it looks invalid
 #[inline]
-unsafe extern "C" fn data_probe_chunk_length(
+unsafe fn data_probe_chunk_length(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> libc::c_int {
     if (*connp).out_current_read_offset - (*connp).out_current_consume_offset
@@ -429,13 +388,9 @@ unsafe extern "C" fn data_probe_chunk_length(
     return 1 as libc::c_int;
 }
 
-/* *
- * Extracts chunk length.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Extracts chunk length.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -516,13 +471,9 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
     }
 }
 
-/* *
- * Processes an identity response body of known length.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Processes an identity response body of known length.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_CL_KNOWN(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -588,14 +539,10 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_CL_KNOWN(
     return Status::DATA;
 }
 
-/* *
- * Processes identity response body of unknown length. In this case, we assume the
- * response body consumes all data until the end of the stream.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Processes identity response body of unknown length. In this case, we assume the
+/// response body consumes all data until the end of the stream.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -636,13 +583,9 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(
     return Status::DATA;
 }
 
-/* *
- * Determines presence (and encoding) of a response body.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Determines presence (and encoding) of a response body.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -986,13 +929,9 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     return Status::OK;
 }
 
-/* *
- * Parses response headers.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Parses response headers.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_HEADERS(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -1352,13 +1291,9 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
     }
 }
 
-/* *
- * Parses response line.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// Parses response line.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_LINE(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -1507,23 +1442,18 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
     }
 }
 
-/* *
- * Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
- * of htp_connp_res_data() will consume all data from the supplied buffer, but there are circumstances
- * where only partial consumption is possible. In such cases HTP_STREAM_DATA_OTHER will be returned.
- * Consumed bytes are no longer necessary, but the remainder of the buffer will be need to be saved
- * for later.
- *
- * @param[in] connp
- * @return The number of bytes consumed from the last data chunk sent for outbound processing.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_res_data_consumed(
+/// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an
+/// invocation of htp_connp_res_data() will consume all data from the supplied buffer, but there
+/// are circumstances where only partial consumption is possible. In such cases
+/// HTP_STREAM_DATA_OTHER will be returned.  Consumed bytes are no longer necessary, but the
+/// remainder of the buffer will be need to be saved for later.
+///
+/// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
+pub unsafe fn htp_connp_res_data_consumed(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> size_t {
     return (*connp).out_current_read_offset as size_t;
 }
-#[no_mangle]
 pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -1609,14 +1539,10 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     return htp_transaction::htp_tx_state_response_complete_ex((*connp).out_tx, 0 as libc::c_int);
 }
 
-/* *
- * The response idle state will initialize response processing, as well as
- * finalize each transactions after we are done with it.
- *
- * @param[in] connp
- * @returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
- */
-#[no_mangle]
+/// The response idle state will initialize response processing, as well as
+/// finalize each transactions after we are done with it.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_IDLE(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
@@ -1693,17 +1619,12 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
     return Status::OK;
 }
 
-/* *
- * Process a chunk of outbound (server or response) data.
- *
- * @param[in] connp
- * @param[in] timestamp Optional.
- * @param[in] data
- * @param[in] len
- * @return HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_res_data(
+/// Process a chunk of outbound (server or response) data.
+///
+/// timestamp: Optional.
+///
+/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed
+pub unsafe fn htp_connp_res_data(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut timestamp: *const htp_time_t,
     mut data: *const libc::c_void,

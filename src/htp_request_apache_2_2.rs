@@ -17,16 +17,10 @@ pub type uint64_t = __uint64_t;
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Extract one request header. A header can span multiple lines, in
- * which case they will be folded into one before parsing is attempted.
- *
- * @param[in] connp
- * @param[in] data
- * @param[in] len
- * @return HTP_OK or HTP_ERROR
- */
-#[no_mangle]
+/// Extract one request header. A header can span multiple lines, in
+/// which case they will be folded into one before parsing is attempted.
+///
+/// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_process_request_header_apache_2_2(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
@@ -34,13 +28,10 @@ pub unsafe extern "C" fn htp_process_request_header_apache_2_2(
 ) -> Status {
     return htp_request_generic::htp_process_request_header_generic(connp, data, len);
 }
-/* *
- * Parse request line as Apache 2.2 does.
- *
- * @param[in] connp
- * @return HTP_OK or HTP_ERROR
- */
-#[no_mangle]
+
+/// Parse request line as Apache 2.2 does.
+///
+/// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_line_apache_2_2(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {

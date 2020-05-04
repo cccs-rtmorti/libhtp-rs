@@ -1,38 +1,34 @@
 use ::libc;
 pub type size_t = libc::c_ulong;
 
-/*
- * Copyright (c) 1998 Todd C. Miller <Todd.Miller@courtesan.com>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL
- * THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
- * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright (c) 1998 Todd C. Miller <Todd.Miller@courtesan.com>
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. The name of the author may not be used to endorse or promote products
+//    derived from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+// INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+// AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL
+// THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+// OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+// OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+// ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/*
- * Copy src to string dst of size siz.  At most siz-1 characters
- * will be copied.  Always NUL terminates (unless siz == 0).
- * Returns strlen(src); if retval >= siz, truncation occurred.
- */
+/// Copy src to string dst of size siz.  At most siz-1 characters
+/// will be copied.  Always NUL terminates (unless siz == 0).
+/// Returns strlen(src); if retval >= siz, truncation occurred.
 #[no_mangle]
 pub unsafe extern "C" fn strlcpy(
     mut dst: *mut libc::c_char,
@@ -42,7 +38,7 @@ pub unsafe extern "C" fn strlcpy(
     let mut d: *mut libc::c_char = dst;
     let mut s: *const libc::c_char = src;
     let mut n: size_t = siz;
-    /* Copy as many bytes as will fit */
+    // Copy as many bytes as will fit
     if n != 0 as libc::c_int as libc::c_ulong && {
         n = n.wrapping_sub(1);
         (n) != 0 as libc::c_int as libc::c_ulong
@@ -62,11 +58,11 @@ pub unsafe extern "C" fn strlcpy(
             }
         }
     }
-    /* Not enough room in dst, add NUL and traverse rest of src */
+    // Not enough room in dst, add NUL and traverse rest of src
     if n == 0 as libc::c_int as libc::c_ulong {
         if siz != 0 as libc::c_int as libc::c_ulong {
             *d = '\u{0}' as i32 as libc::c_char
-        } /* NUL-terminate dst */
+        } // NUL-terminate dst
         loop {
             let fresh2 = s;
             s = s.offset(1);
@@ -77,5 +73,5 @@ pub unsafe extern "C" fn strlcpy(
     }
     return (s.wrapping_offset_from(src) as libc::c_long - 1 as libc::c_int as libc::c_long)
         as size_t;
-    /* count does not include NUL */
+    // count does not include NUL
 }

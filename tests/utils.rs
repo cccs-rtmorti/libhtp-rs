@@ -378,9 +378,9 @@ struct uri_test {
 fn bstr_equal_c(b: *const bstr_t, c: *const libc::c_char) -> bool {
     unsafe {
         if (c == std::ptr::null()) || (b == std::ptr::null()) {
-            return (c == std::ptr::null()) && (b == std::ptr::null());
+            (c == std::ptr::null()) && (b == std::ptr::null())
         } else {
-            return 0 == bstr_cmp_c(b, c);
+            0 == bstr_cmp_c(b, c)
         }
     }
 }
@@ -486,12 +486,12 @@ fn UriIsExpected(expected: uri_expected, actual: *const htp_uri_t) -> Result<(),
         }
 
         if equal {
-            return Ok(());
+            Ok(())
         } else {
-            return Err(std::io::Error::new(
+            Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 std::str::from_utf8(&msg).unwrap(),
-            ));
+            ))
         }
     }
 }

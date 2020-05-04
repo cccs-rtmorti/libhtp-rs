@@ -1,4 +1,4 @@
-/* Adapted from the libb64 project (http://sourceforge.net/projects/libb64), which is in public domain. */
+// Adapted from the libb64 project (http://sourceforge.net/projects/libb64), which is in public domain.
 use ::libc;
 
 use crate::bstr;
@@ -24,14 +24,10 @@ pub struct htp_base64_decoder {
     pub plainchar: libc::c_char,
 }
 
-/* *
- * Decode single base64-encoded character.
- *
- * @param[in] value_in
- * @return decoded character
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_base64_decode_single(mut value_in: libc::c_schar) -> libc::c_int {
+/// Decode single base64-encoded character.
+///
+/// Returns decoded character
+pub unsafe fn htp_base64_decode_single(mut value_in: libc::c_schar) -> libc::c_int {
     static mut decoding: [libc::c_schar; 80] = [
         62 as libc::c_int as libc::c_schar,
         -(1 as libc::c_int) as libc::c_schar,
@@ -125,29 +121,16 @@ pub unsafe extern "C" fn htp_base64_decode_single(mut value_in: libc::c_schar) -
     return decoding[value_in as libc::c_int as usize] as libc::c_int;
 }
 
-/* *
- * Initialize base64 decoder.
- *
- * @param[in] decoder
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_base64_decoder_init(mut decoder: *mut htp_base64_decoder) {
+/// Initialize base64 decoder.
+pub unsafe fn htp_base64_decoder_init(mut decoder: *mut htp_base64_decoder) {
     (*decoder).step = step_a;
     (*decoder).plainchar = 0 as libc::c_int as libc::c_char;
 }
 
-/* *
- * Feed the supplied memory range to the decoder.
- *
- * @param[in] decoder
- * @param[in] _code_in
- * @param[in] length_in
- * @param[in] _plaintext_out
- * @param[in] length_out
- * @return how many bytes were placed into plaintext output
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_base64_decode(
+/// Feed the supplied memory range to the decoder.
+///
+/// Returns how many bytes were placed into plaintext output
+pub unsafe fn htp_base64_decode(
     mut decoder: *mut htp_base64_decoder,
     mut _code_in: *const libc::c_void,
     mut length_in: libc::c_int,
@@ -203,10 +186,10 @@ pub unsafe extern "C" fn htp_base64_decode(
                     *plainchar = ((fragment as libc::c_int & 0x3f as libc::c_int)
                         << 2 as libc::c_int) as libc::c_uchar;
                     current_block_49 = 12054049053955448585;
-                    /* fall through */
+                    // fall through
                 }
                 11653228657089272161 =>
-                /* fall through */
+                // fall through
                 {
                     loop {
                         if codechar == code_in.offset(length_in as isize) {
@@ -238,7 +221,7 @@ pub unsafe extern "C" fn htp_base64_decode(
                     current_block_49 = 10238358027875099957;
                 }
                 12054049053955448585 =>
-                /* fall through */
+                // fall through
                 {
                     loop {
                         if codechar == code_in.offset(length_in as isize) {
@@ -270,7 +253,7 @@ pub unsafe extern "C" fn htp_base64_decode(
                     current_block_49 = 11653228657089272161;
                 }
                 _ =>
-                /* fall through */
+                // fall through
                 {
                     loop {
                         if codechar == code_in.offset(length_in as isize) {
@@ -302,18 +285,14 @@ pub unsafe extern "C" fn htp_base64_decode(
             }
         }
     }
-    /* control should not reach here */
+    // control should not reach here
     return plainchar.wrapping_offset_from(plaintext_out) as libc::c_long as libc::c_int;
 }
 
-/* *
- * Base64-decode input, given as bstring.
- *
- * @param[in] input
- * @return new base64-decoded bstring
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_base64_decode_bstr(mut input: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
+/// Base64-decode input, given as bstring.
+///
+/// Returns new base64-decoded bstring
+pub unsafe fn htp_base64_decode_bstr(mut input: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
     return htp_base64_decode_mem(
         if (*input).realptr.is_null() {
             (input as *mut libc::c_uchar)
@@ -325,15 +304,10 @@ pub unsafe extern "C" fn htp_base64_decode_bstr(mut input: *mut bstr::bstr_t) ->
     );
 }
 
-/* *
- * Base64-decode input, given as memory range.
- *
- * @param[in] data
- * @param[in] len
- * @return new base64-decoded bstring
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_base64_decode_mem(
+/// Base64-decode input, given as memory range.
+///
+/// Returns new base64-decoded bstring
+pub unsafe fn htp_base64_decode_mem(
     mut data: *const libc::c_void,
     mut len: size_t,
 ) -> *mut bstr::bstr_t {

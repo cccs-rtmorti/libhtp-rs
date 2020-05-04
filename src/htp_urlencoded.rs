@@ -21,22 +21,19 @@ pub type uint8_t = __uint8_t;
 pub type uint16_t = __uint16_t;
 pub type uint64_t = __uint64_t;
 
-/**
- * This is the main URLENCODED parser structure. It is used to store
- * parser configuration, temporary parsing data, as well as the parameters.
- */
+/// This is the main URLENCODED parser structure. It is used to store
+/// parser configuration, temporary parsing data, as well as the parameters.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_urlenp_t {
-    /** The transaction this parser belongs to. */
+    /// The transaction this parser belongs to.
     pub tx: *mut htp_transaction::htp_tx_t,
-    /** The character used to separate parameters. Defaults to & and should
-     *  not be changed without good reason.
-     */
+    /// The character used to separate parameters. Defaults to & and should
+    /// not be changed without good reason.
     pub argument_separator: libc::c_uchar,
-    /** Whether to perform URL-decoding on parameters. */
+    /// Whether to perform URL-decoding on parameters.
     pub decode_url_encoding: libc::c_int,
-    /** This table contains the list of parameters, indexed by name. */
+    /// This table contains the list of parameters, indexed by name.
     pub params: *mut htp_table::htp_table_t,
     // Private fields; these are used during the parsing process only
     pub _state: libc::c_int,
@@ -47,19 +44,13 @@ pub struct htp_urlenp_t {
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * This method is invoked whenever a piece of data, belonging to a single field (name or value)
- * becomes available. It will either create a new parameter or store the transient information
- * until a parameter can be created.
- *
- * @param[in] urlenp
- * @param[in] data
- * @param[in] startpos
- * @param[in] endpos
- * @param[in] c Should contain -1 if the reason this function is called is because the end of
- *          the current data chunk is reached.
- */
-unsafe extern "C" fn htp_urlenp_add_field_piece(
+/// This method is invoked whenever a piece of data, belonging to a single field (name or value)
+/// becomes available. It will either create a new parameter or store the transient information
+/// until a parameter can be created.
+///
+/// last_char: Should contain -1 if the reason this function is called is because the end of
+///            the current data chunk is reached.
+unsafe fn htp_urlenp_add_field_piece(
     mut urlenp: *mut htp_urlenp_t,
     mut data: *const libc::c_uchar,
     mut startpos: size_t,
@@ -169,15 +160,10 @@ unsafe extern "C" fn htp_urlenp_add_field_piece(
     };
 }
 
-/* *
- * Creates a new URLENCODED parser.
- *
- * @return New parser, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urlenp_create(
-    mut tx: *mut htp_transaction::htp_tx_t,
-) -> *mut htp_urlenp_t {
+/// Creates a new URLENCODED parser.
+///
+/// Returns New parser, or NULL on memory allocation failure.
+pub unsafe fn htp_urlenp_create(mut tx: *mut htp_transaction::htp_tx_t) -> *mut htp_urlenp_t {
     let mut urlenp: *mut htp_urlenp_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_urlenp_t>() as libc::c_ulong,
@@ -203,13 +189,8 @@ pub unsafe extern "C" fn htp_urlenp_create(
     return urlenp;
 }
 
-/* *
- * Destroys an existing URLENCODED parser.
- *
- * @param[in] urlenp
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
+/// Destroys an existing URLENCODED parser.
+pub unsafe fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
     if urlenp.is_null() {
         return;
     }
@@ -234,33 +215,21 @@ pub unsafe extern "C" fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
     free(urlenp as *mut libc::c_void);
 }
 
-/* *
- * Finalizes parsing, forcing the parser to convert any outstanding
- * data into parameters. This method should be invoked at the end
- * of a parsing operation that used htp_urlenp_parse_partial().
- *
- * @param[in] urlenp
- * @return Success indication
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urlenp_finalize(mut urlenp: *mut htp_urlenp_t) -> Status {
+/// Finalizes parsing, forcing the parser to convert any outstanding
+/// data into parameters. This method should be invoked at the end
+/// of a parsing operation that used htp_urlenp_parse_partial().
+///
+/// Returns Success indication
+pub unsafe fn htp_urlenp_finalize(mut urlenp: *mut htp_urlenp_t) -> Status {
     (*urlenp)._complete = 1 as libc::c_int;
     return htp_urlenp_parse_partial(urlenp, 0 as *const libc::c_void, 0 as libc::c_int as size_t);
 }
 
-/* *
- * Parses the provided data chunk under the assumption
- * that it contains all the data that will be parsed. When this
- * method is used for parsing the finalization method should not
- * be invoked.
- *
- * @param[in] urlenp
- * @param[in] data
- * @param[in] len
- * @return
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urlenp_parse_complete(
+/// Parses the provided data chunk under the assumption
+/// that it contains all the data that will be parsed. When this
+/// method is used for parsing the finalization method should not
+/// be invoked.
+pub unsafe fn htp_urlenp_parse_complete(
     mut urlenp: *mut htp_urlenp_t,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -269,18 +238,10 @@ pub unsafe extern "C" fn htp_urlenp_parse_complete(
     return htp_urlenp_finalize(urlenp);
 }
 
-/* *
- * Parses the provided data chunk, keeping state to allow streaming parsing, i.e., the
- * parsing where only partial information is available at any one time. The method
- * htp_urlenp_finalize() must be invoked at the end to finalize parsing.
- *
- * @param[in] urlenp
- * @param[in] _data
- * @param[in] len
- * @return
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_urlenp_parse_partial(
+/// Parses the provided data chunk, keeping state to allow streaming parsing, i.e., the
+/// parsing where only partial information is available at any one time. The method
+/// htp_urlenp_finalize() must be invoked at the end to finalize parsing.
+pub unsafe fn htp_urlenp_parse_partial(
     mut urlenp: *mut htp_urlenp_t,
     mut _data: *const libc::c_void,
     mut len: size_t,

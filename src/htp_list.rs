@@ -26,18 +26,10 @@ pub struct htp_list_array_t {
 
 // Array-backed list
 
-/**
- * Initialize an array-backed list.
- *
- * @param[in] l
- * @param[in] size
- * @return HTP_OK or HTP_ERROR if allocation failed
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_init(
-    mut l: *mut htp_list_array_t,
-    mut size: size_t,
-) -> Status {
+/// Initialize an array-backed list.
+///
+/// Returns HTP_OK or HTP_ERROR if allocation failed
+pub unsafe fn htp_list_array_init(mut l: *mut htp_list_array_t, mut size: size_t) -> Status {
     // Allocate the initial batch of elements.
     (*l).elements =
         malloc(size.wrapping_mul(::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong))
@@ -53,14 +45,10 @@ pub unsafe extern "C" fn htp_list_array_init(
     return Status::OK;
 }
 
-/**
- * Create new array-backed list.
- *
- * @param[in] size
- * @return Newly created list.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_create(mut size: size_t) -> *mut htp_list_array_t {
+/// Create new array-backed list.
+///
+/// Returns Newly created list.
+pub unsafe fn htp_list_array_create(mut size: size_t) -> *mut htp_list_array_t {
     // It makes no sense to create a zero-size list.
     if size == 0 as libc::c_int as libc::c_ulong {
         return 0 as *mut htp_list_array_t;
@@ -80,15 +68,10 @@ pub unsafe extern "C" fn htp_list_array_create(mut size: size_t) -> *mut htp_lis
     return l;
 }
 
-/**
- * Remove all elements from the list. It is the responsibility of the caller
- * to iterate over list elements and deallocate them if necessary, prior to
- * invoking this function.
- *
- * @param[in] l
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_clear(mut l: *mut htp_list_array_t) {
+/// Remove all elements from the list. It is the responsibility of the caller
+/// to iterate over list elements and deallocate them if necessary, prior to
+/// invoking this function.
+pub unsafe fn htp_list_array_clear(mut l: *mut htp_list_array_t) {
     if l.is_null() {
         return;
     }
@@ -98,14 +81,9 @@ pub unsafe extern "C" fn htp_list_array_clear(mut l: *mut htp_list_array_t) {
     (*l).current_size = 0 as libc::c_int as size_t;
 }
 
-/**
- * Free the memory occupied by this list. This function assumes
- * the elements held by the list were freed beforehand.
- *
- * @param[in] l
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
+/// Free the memory occupied by this list. This function assumes
+/// the elements held by the list were freed beforehand.
+pub unsafe fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
     if l.is_null() {
         return;
     }
@@ -113,31 +91,21 @@ pub unsafe extern "C" fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
     free(l as *mut libc::c_void);
 }
 
-/**
- * Free the memory occupied by this list, except itself.
- * This function assumes the elements held by the list
- * were freed beforehand.
- *
- * @param[in] l
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_release(mut l: *mut htp_list_array_t) {
+/// Free the memory occupied by this list, except itself.
+/// This function assumes the elements held by the list
+/// were freed beforehand.
+pub unsafe fn htp_list_array_release(mut l: *mut htp_list_array_t) {
     if l.is_null() {
         return;
     }
     free((*l).elements as *mut libc::c_void);
 }
 
-/**
- * Find the element at the given index.
- *
- * @param[in] l
- * @param[in] idx
- * @return the desired element, or NULL if the list is too small, or
- *         if the element at that position carries a NULL
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_get(
+/// Find the element at the given index.
+///
+/// Returns the desired element, or NULL if the list is too small, or
+///         if the element at that position carries a NULL
+pub unsafe fn htp_list_array_get(
     mut l: *const htp_list_array_t,
     mut idx: size_t,
 ) -> *mut libc::c_void {
@@ -156,14 +124,10 @@ pub unsafe extern "C" fn htp_list_array_get(
     };
 }
 
-/**
- * Remove one element from the end of the list.
- *
- * @param[in] l
- * @return The removed element, or NULL if the list is empty.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mut libc::c_void {
+/// Remove one element from the end of the list.
+///
+/// Returns The removed element, or NULL if the list is empty.
+pub unsafe fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mut libc::c_void {
     if l.is_null() {
         return 0 as *mut libc::c_void;
     }
@@ -188,16 +152,10 @@ pub unsafe extern "C" fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mu
     return r as *mut libc::c_void;
 }
 
-/**
- * Add new element to the end of the list, expanding the list as necessary.
- *
- * @param[in] l
- * @param[in] e
- * @return HTP_OK on success or HTP_ERROR on failure.
- *
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_push(
+/// Add new element to the end of the list, expanding the list as necessary.
+///
+/// Returns HTP_OK on success or HTP_ERROR on failure.
+pub unsafe fn htp_list_array_push(
     mut l: *mut htp_list_array_t,
     mut e: *mut libc::c_void,
 ) -> Status {
@@ -226,7 +184,7 @@ pub unsafe extern "C" fn htp_list_array_push(
             // When the first element is not in the first
             // memory slot, we need to rearrange the order
             // of the elements in order to expand the storage area.
-            /* coverity[suspicious_sizeof] */
+            // coverity[suspicious_sizeof]
             newblock = malloc(
                 new_size.wrapping_mul(::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong),
             );
@@ -234,7 +192,7 @@ pub unsafe extern "C" fn htp_list_array_push(
                 return Status::ERROR;
             }
             // Copy the beginning of the list to the beginning of the new memory block
-            /* coverity[suspicious_sizeof] */
+            // coverity[suspicious_sizeof]
             memcpy(
                 newblock,
                 ((*l).elements as *mut libc::c_char).offset(
@@ -275,18 +233,11 @@ pub unsafe extern "C" fn htp_list_array_push(
     return Status::OK;
 }
 
-/**
- * Replace the element at the given index with the provided element.
- *
- * @param[in] l
- * @param[in] idx
- * @param[in] e
- *
- * @return HTP_OK if an element with the given index was replaced; HTP_ERROR
- *         if the desired index does not exist.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_replace(
+/// Replace the element at the given index with the provided element.
+///
+/// Returns HTP_OK if an element with the given index was replaced; HTP_ERROR
+///         if the desired index does not exist.
+pub unsafe fn htp_list_array_replace(
     mut l: *mut htp_list_array_t,
     mut idx: size_t,
     mut e: *mut libc::c_void,
@@ -304,27 +255,20 @@ pub unsafe extern "C" fn htp_list_array_replace(
     return Status::OK;
 }
 
-/**
- * Returns the size of the list.
- *
- * @param[in] l
- * @return List size.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_size(mut l: *const htp_list_array_t) -> size_t {
+/// Returns the size of the list.
+///
+/// Returns List size.
+pub unsafe fn htp_list_array_size(mut l: *const htp_list_array_t) -> size_t {
     if l.is_null() {
         return -(1 as libc::c_int) as size_t;
     }
     return (*l).current_size;
 }
-/* *
- * Remove one element from the beginning of the list.
- *
- * @param[in] l
- * @return The removed element, or NULL if the list is empty.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_array_shift(mut l: *mut htp_list_array_t) -> *mut libc::c_void {
+
+/// Remove one element from the beginning of the list.
+///
+/// Returns The removed element, or NULL if the list is empty.
+pub unsafe fn htp_list_array_shift(mut l: *mut htp_list_array_t) -> *mut libc::c_void {
     if l.is_null() {
         return 0 as *mut libc::c_void;
     }

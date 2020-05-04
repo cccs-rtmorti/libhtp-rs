@@ -1,13 +1,13 @@
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_request::*;
 use htp::htp_response::*;
 use std::ffi::CString;
+use std::fmt;
 use std::iter::IntoIterator;
 use std::ops::Drop;
-use std::fmt;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 macro_rules! cstr {
     ( $x:expr ) => {{
@@ -202,18 +202,24 @@ pub fn small_transaction(c: &mut Criterion) {
     let input = TestInput {
         chunks: {
             vec![
-                Chunk::Client(b"GET /?p=%20 HTTP/1.0\r\n\
-                               User-Agent: Mozilla\r\n\r\n".to_vec()),
-                Chunk::Server(b"HTTP/1.0 200 OK\r\n\
-                               Date: Mon, 31 Aug 2009 20:25:50 GMT\r\n\
-                               Server: Apache\r\n\
-                               Connection: close\r\n\
-                               Content-Type: text/html\r\n\
-                               Content-Length: 12\r\n\
-                               \r\n\
-                               Hello World!\r\n".to_vec())
+                Chunk::Client(
+                    b"GET /?p=%20 HTTP/1.0\r\n\
+                      User-Agent: Mozilla\r\n\r\n"
+                        .to_vec(),
+                ),
+                Chunk::Server(
+                    b"HTTP/1.0 200 OK\r\n\
+                      Date: Mon, 31 Aug 2009 20:25:50 GMT\r\n\
+                      Server: Apache\r\n\
+                      Connection: close\r\n\
+                      Content-Type: text/html\r\n\
+                      Content-Length: 12\r\n\
+                      \r\n\
+                      Hello World!\r\n"
+                        .to_vec(),
+                ),
             ]
-        }
+        },
     };
 
     c.bench_with_input(

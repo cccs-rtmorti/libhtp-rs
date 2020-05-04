@@ -11,11 +11,6 @@ extern "C" {
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
     fn free(__ptr: *mut libc::c_void);
-    #[no_mangle]
-    fn htp_hook_register(
-        hook: *mut *mut htp_hooks::htp_hook_t,
-        callback_fn: htp_callback_fn_t,
-    ) -> Status;
 }
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
@@ -33,378 +28,308 @@ pub type uint64_t = __uint64_t;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-// A collection of possible data sources.
+/// A collection of possible data sources.
 pub enum htp_data_source_t {
-    /** Embedded in the URL. */
+    /// Embedded in the URL.
     HTP_SOURCE_URL,
-    /** Transported in the query string. */
+    /// Transported in the query string.
     HTP_SOURCE_QUERY_STRING,
-    /** Cookies. */
+    /// Cookies.
     HTP_SOURCE_COOKIE,
-    /** Transported in the request body. */
+    /// Transported in the request body.
     HTP_SOURCE_BODY,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-// A collection of unique parser IDs.
+/// A collection of unique parser IDs.
 pub enum htp_parser_id_t {
-    /** application/x-www-form-urlencoded parser. */
+    /// application/x-www-form-urlencoded parser.
     HTP_PARSER_URLENCODED,
-    /** multipart/form-data parser. */
+    /// multipart/form-data parser.
     HTP_PARSER_MULTIPART,
 }
 
-/* *
- * Represents a single request parameter.
- */
+/// Represents a single request parameter.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_param_t {
-    /** Parameter name. */
+    /// Parameter name.
     pub name: *mut bstr::bstr_t,
-    /** Parameter value. */
+    /// Parameter value.
     pub value: *mut bstr::bstr_t,
-    /** Source of the parameter, for example HTP_SOURCE_QUERY_STRING. */
+    /// Source of the parameter, for example HTP_SOURCE_QUERY_STRING.
     pub source: htp_data_source_t,
-    /** Type of the data structure referenced below. */
+    /// Type of the data structure referenced below.
     pub parser_id: htp_parser_id_t,
-    /**
-     * Pointer to the parser data structure that contains
-     * complete information about the parameter. Can be NULL.
-     */
+    /// Pointer to the parser data structure that contains
+    /// complete information about the parameter. Can be NULL.
     pub parser_data: *mut libc::c_void,
 }
 
-/* *
- * This structure is used to pass transaction data (for example
- * request and response body buffers) to callbacks.
- */
+/// This structure is used to pass transaction data (for example
+/// request and response body buffers) to callbacks.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_tx_data_t {
-    /** Transaction pointer. */
+    /// Transaction pointer.
     pub tx: *mut htp_tx_t,
-    /** Pointer to the data buffer. */
+    /// Pointer to the data buffer.
     pub data: *const libc::c_uchar,
-    /** Buffer length. */
+    /// Buffer length.
     pub len: size_t,
-    /**
-     * Indicator if this chunk of data is the last in the series. Currently
-     * used only by REQUEST_HEADER_DATA, REQUEST_TRAILER_DATA, RESPONSE_HEADER_DATA,
-     * and RESPONSE_TRAILER_DATA callbacks.
-     */
+    /// Indicator if this chunk of data is the last in the series. Currently
+    /// used only by REQUEST_HEADER_DATA, REQUEST_TRAILER_DATA, RESPONSE_HEADER_DATA,
+    /// and RESPONSE_TRAILER_DATA callbacks.
     pub is_last: libc::c_int,
 }
 
-/**
- * Enumerates the possible request and response body codings.
- */
+/// Enumerates the possible request and response body codings.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_transfer_coding_t {
-    /** Body coding not determined yet. */
+    /// Body coding not determined yet.
     HTP_CODING_UNKNOWN,
-    /** No body. */
+    /// No body.
     HTP_CODING_NO_BODY,
-    /** Identity coding is used, which means that the body was sent as is. */
+    /// Identity coding is used, which means that the body was sent as is.
     HTP_CODING_IDENTITY,
-    /** Chunked encoding. */
+    /// Chunked encoding.
     HTP_CODING_CHUNKED,
-    /** We could not recognize the encoding. */
+    /// We could not recognize the encoding.
     HTP_CODING_INVALID,
 }
 
-/* *
- * Represents a single HTTP transaction, which is a combination of a request and a response.
- */
+/// Represents a single HTTP transaction, which is a combination of a request and a response.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_tx_t {
-    /** The connection parser associated with this transaction. */
+    /// The connection parser associated with this transaction.
     pub connp: *mut htp_connection_parser::htp_connp_t,
-    /** The connection to which this transaction belongs. */
+    /// The connection to which this transaction belongs.
     pub conn: *mut htp_connection::htp_conn_t,
-    /** The configuration structure associated with this transaction. */
+    /// The configuration structure associated with this transaction.
     pub cfg: *mut htp_config::htp_cfg_t,
-    /**
-     * Is the configuration structure shared with other transactions or connections? If
-     * this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
-     */
+    /// Is the configuration structure shared with other transactions or connections? If
+    /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
     pub is_config_shared: libc::c_int,
-    /** The user data associated with this transaction. */
+    /// The user data associated with this transaction.
     pub user_data: *mut libc::c_void,
 
     // Request fields
-    /** Contains a count of how many empty lines were skipped before the request line. */
+    /// Contains a count of how many empty lines were skipped before the request line.
     pub request_ignored_lines: libc::c_uint,
-    /** The first line of this request. */
+    /// The first line of this request.
     pub request_line: *mut bstr::bstr_t,
-    /** Request method. */
+    /// Request method.
     pub request_method: *mut bstr::bstr_t,
-    /** Request method, as number. Available only if we were able to recognize the request method. */
+    /// Request method, as number. Available only if we were able to recognize the request method.
     pub request_method_number: libc::c_uint,
-    /**
-     * Request URI, raw, as given to us on the request line. This field can take different forms,
-     * for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
-     * string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
-     * URI elements. Can be NULL if the request line contains only a request method (which is
-     * an extreme case of HTTP/0.9, but passes in practice.
-     */
+    /// Request URI, raw, as given to us on the request line. This field can take different forms,
+    /// for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
+    /// string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
+    /// URI elements. Can be NULL if the request line contains only a request method (which is
+    /// an extreme case of HTTP/0.9, but passes in practice.
     pub request_uri: *mut bstr::bstr_t,
-    /** Request protocol, as text. Can be NULL if no protocol was specified. */
+    /// Request protocol, as text. Can be NULL if no protocol was specified.
     pub request_protocol: *mut bstr::bstr_t,
-    /**
-     * Protocol version as a number. Multiply the high version number by 100, then add the low
-     * version number. You should prefer to work the pre-defined Protocol constants.
-     */
+    /// Protocol version as a number. Multiply the high version number by 100, then add the low
+    /// version number. You should prefer to work the pre-defined Protocol constants.
     pub request_protocol_number: libc::c_int,
-    /**
-     * Is this request using HTTP/0.9? We need a separate field for this purpose because
-     * the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
-     * example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
-     * as HTTP/0.9.
-     */
+    /// Is this request using HTTP/0.9? We need a separate field for this purpose because
+    /// the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
+    /// example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
+    /// as HTTP/0.9.
     pub is_protocol_0_9: libc::c_int,
-    /**
-     * This structure holds the individual components parsed out of the request URI, with
-     * appropriate normalization and transformation applied, per configuration. No information
-     * is added. In extreme cases when no URI is provided on the request line, all fields
-     * will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
-     * htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
-     */
+    /// This structure holds the individual components parsed out of the request URI, with
+    /// appropriate normalization and transformation applied, per configuration. No information
+    /// is added. In extreme cases when no URI is provided on the request line, all fields
+    /// will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
+    /// htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
     pub parsed_uri: *mut htp_util::htp_uri_t,
-    /**
-     * This structure holds the individual components parsed out of the request URI, but
-     * without any modification. The purpose of this field is to allow you to look at the data as it
-     * was supplied on the request line. Fields can be NULL, depending on what data was supplied.
-     * The port_number field is always -1.
-     */
+    /// This structure holds the individual components parsed out of the request URI, but
+    /// without any modification. The purpose of this field is to allow you to look at the data as it
+    /// was supplied on the request line. Fields can be NULL, depending on what data was supplied.
+    /// The port_number field is always -1.
     pub parsed_uri_raw: *mut htp_util::htp_uri_t,
-    /* HTTP 1.1 RFC
-     *
-     * 4.3 Message Body
-     *
-     * The message-body (if any) of an HTTP message is used to carry the
-     * entity-body associated with the request or response. The message-body
-     * differs from the entity-body only when a transfer-coding has been
-     * applied, as indicated by the Transfer-Encoding header field (section
-     * 14.41).
-     *
-     *     message-body = entity-body
-     *                  | <entity-body encoded as per Transfer-Encoding>
-     */
-    /**
-     * The length of the request message-body. In most cases, this value
-     * will be the same as request_entity_len. The values will be different
-     * if request compression or chunking were applied. In that case,
-     * request_message_len contains the length of the request body as it
-     * has been seen over TCP; request_entity_len contains length after
-     * de-chunking and decompression.
-     */
+    /// HTTP 1.1 RFC
+    ///
+    /// 4.3 Message Body
+    ///
+    /// The message-body (if any) of an HTTP message is used to carry the
+    /// entity-body associated with the request or response. The message-body
+    /// differs from the entity-body only when a transfer-coding has been
+    /// applied, as indicated by the Transfer-Encoding header field (section
+    /// 14.41).
+    ///
+    /// ```text
+    ///     message-body = entity-body
+    ///                  | <entity-body encoded as per Transfer-Encoding>
+    /// ```
+    ///
+    /// The length of the request message-body. In most cases, this value
+    /// will be the same as request_entity_len. The values will be different
+    /// if request compression or chunking were applied. In that case,
+    /// request_message_len contains the length of the request body as it
+    /// has been seen over TCP; request_entity_len contains length after
+    /// de-chunking and decompression.
     pub request_message_len: int64_t,
-    /**
-     * The length of the request entity-body. In most cases, this value
-     * will be the same as request_message_len. The values will be different
-     * if request compression or chunking were applied. In that case,
-     * request_message_len contains the length of the request body as it
-     * has been seen over TCP; request_entity_len contains length after
-     * de-chunking and decompression.
-     */
+    /// The length of the request entity-body. In most cases, this value
+    /// will be the same as request_message_len. The values will be different
+    /// if request compression or chunking were applied. In that case,
+    /// request_message_len contains the length of the request body as it
+    /// has been seen over TCP; request_entity_len contains length after
+    /// de-chunking and decompression.
     pub request_entity_len: int64_t,
-    /** Parsed request headers. */
+    /// Parsed request headers.
     pub request_headers: *mut htp_table::htp_table_t,
-    /**
-     * Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
-     * determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
-     * and HTP_CODING_UNRECOGNIZED.
-     */
+    /// Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
+    /// determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
+    /// and HTP_CODING_UNRECOGNIZED.
     pub request_transfer_coding: htp_transfer_coding_t,
-    /** Request body compression. */
+    /// Request body compression.
     pub request_content_encoding: htp_decompressors::htp_content_encoding_t,
-    /**
-     * This field contain the request content type when that information is
-     * available in request headers. The contents of the field will be converted
-     * to lowercase and any parameters (e.g., character set information) removed.
-     */
+    /// This field contain the request content type when that information is
+    /// available in request headers. The contents of the field will be converted
+    /// to lowercase and any parameters (e.g., character set information) removed.
     pub request_content_type: *mut bstr::bstr_t,
-    /**
-     * Contains the value specified in the Content-Length header. The value of this
-     * field will be -1 from the beginning of the transaction and until request
-     * headers are processed. It will stay -1 if the C-L header was not provided,
-     * or if the value in it cannot be parsed.
-     */
+    /// Contains the value specified in the Content-Length header. The value of this
+    /// field will be -1 from the beginning of the transaction and until request
+    /// headers are processed. It will stay -1 if the C-L header was not provided,
+    /// or if the value in it cannot be parsed.
     pub request_content_length: int64_t,
-    /**
-     * Transaction-specific REQUEST_BODY_DATA hook. Behaves as
-     * the configuration hook with the same name.
-     */
+    /// Transaction-specific REQUEST_BODY_DATA hook. Behaves as
+    /// the configuration hook with the same name.
     pub hook_request_body_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
-     * the configuration hook with the same name.
-     */
+    /// Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
+    /// the configuration hook with the same name.
     pub hook_response_body_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Query string URLENCODED parser. Available only
-     * when the query string is not NULL and not empty.
-     */
+    /// Query string URLENCODED parser. Available only
+    /// when the query string is not NULL and not empty.
     pub request_urlenp_query: *mut htp_urlencoded::htp_urlenp_t,
-    /**
-     * Request body URLENCODED parser. Available only when the request body is in the
-     * application/x-www-form-urlencoded format and the parser was configured to run.
-     */
+    /// Request body URLENCODED parser. Available only when the request body is in the
+    /// application/x-www-form-urlencoded format and the parser was configured to run.
     pub request_urlenp_body: *mut htp_urlencoded::htp_urlenp_t,
-    /**
-     * Request body MULTIPART parser. Available only when the body is in the
-     * multipart/form-data format and the parser was configured to run.
-     */
+    /// Request body MULTIPART parser. Available only when the body is in the
+    /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: *mut htp_multipart::htp_mpartp_t,
-    /** Request parameters. */
+    /// Request parameters.
     pub request_params: *mut htp_table::htp_table_t,
-    /** Request cookies */
+    /// Request cookies
     pub request_cookies: *mut htp_table::htp_table_t,
-    /** Authentication type used in the request. */
+    /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
-    /** Authentication username. */
+    /// Authentication username.
     pub request_auth_username: *mut bstr::bstr_t,
-    /** Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC. */
+    /// Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC.
     pub request_auth_password: *mut bstr::bstr_t,
-    /**
-     * Request hostname. Per the RFC, the hostname will be taken from the Host header
-     * when available. If the host information is also available in the URI, it is used
-     * instead of whatever might be in the Host header. Can be NULL. This field does
-     * not contain port information.
-     */
+    /// Request hostname. Per the RFC, the hostname will be taken from the Host header
+    /// when available. If the host information is also available in the URI, it is used
+    /// instead of whatever might be in the Host header. Can be NULL. This field does
+    /// not contain port information.
     pub request_hostname: *mut bstr::bstr_t,
-    /**
-     * Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
-     * -1 by default.
-     */
+    /// Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
+    /// -1 by default.
     pub request_port_number: libc::c_int,
 
     // Response fields
-    /** How many empty lines did we ignore before reaching the status line? */
+    /// How many empty lines did we ignore before reaching the status line?
     pub response_ignored_lines: libc::c_uint,
-    /** Response line. */
+    /// Response line.
     pub response_line: *mut bstr::bstr_t,
-    /** Response protocol, as text. Can be NULL. */
+    /// Response protocol, as text. Can be NULL.
     pub response_protocol: *mut bstr::bstr_t,
-    /**
-     * Response protocol as number. Available only if we were able to parse the protocol version,
-     * INVALID otherwise. UNKNOWN until parsing is attempted.
-     */
+    /// Response protocol as number. Available only if we were able to parse the protocol version,
+    /// INVALID otherwise. UNKNOWN until parsing is attempted.
     pub response_protocol_number: libc::c_int,
-    /**
-     * Response status code, as text. Starts as NULL and can remain NULL on
-     * an invalid response that does not specify status code.
-     */
+    /// Response status code, as text. Starts as NULL and can remain NULL on
+    /// an invalid response that does not specify status code.
     pub response_status: *mut bstr::bstr_t,
-    /**
-     * Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
-     * otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
-     */
+    /// Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
+    /// otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
     pub response_status_number: libc::c_int,
-    /**
-     * This field is set by the protocol decoder with it thinks that the
-     * backend server will reject a request with a particular status code.
-     */
+    /// This field is set by the protocol decoder with it thinks that the
+    /// backend server will reject a request with a particular status code.
     pub response_status_expected_number: libc::c_int,
-    /** The message associated with the response status code. Can be NULL. */
+    /// The message associated with the response status code. Can be NULL.
     pub response_message: *mut bstr::bstr_t,
-    /** Have we seen the server respond with a 100 response? */
+    /// Have we seen the server respond with a 100 response?
     pub seen_100continue: libc::c_int,
-    /** Parsed response headers. Contains instances of htp_header_t. */
+    /// Parsed response headers. Contains instances of htp_header_t.
     pub response_headers: *mut htp_table::htp_table_t,
 
-    /* HTTP 1.1 RFC
-     *
-     * 4.3 Message Body
-     *
-     * The message-body (if any) of an HTTP message is used to carry the
-     * entity-body associated with the request or response. The message-body
-     * differs from the entity-body only when a transfer-coding has been
-     * applied, as indicated by the Transfer-Encoding header field (section
-     * 14.41).
-     *
-     *     message-body = entity-body
-     *                  | <entity-body encoded as per Transfer-Encoding>
-     */
-    /**
-     * The length of the response message-body. In most cases, this value
-     * will be the same as response_entity_len. The values will be different
-     * if response compression or chunking were applied. In that case,
-     * response_message_len contains the length of the response body as it
-     * has been seen over TCP; response_entity_len contains the length after
-     * de-chunking and decompression.
-     */
+    /// HTTP 1.1 RFC
+    ///
+    /// 4.3 Message Body
+    ///
+    /// The message-body (if any) of an HTTP message is used to carry the
+    /// entity-body associated with the request or response. The message-body
+    /// differs from the entity-body only when a transfer-coding has been
+    /// applied, as indicated by the Transfer-Encoding header field (section
+    /// 14.41).
+    ///
+    /// ```text
+    ///     message-body = entity-body
+    ///                  | <entity-body encoded as per Transfer-Encoding>
+    /// ```
+    ///
+    /// The length of the response message-body. In most cases, this value
+    /// will be the same as response_entity_len. The values will be different
+    /// if response compression or chunking were applied. In that case,
+    /// response_message_len contains the length of the response body as it
+    /// has been seen over TCP; response_entity_len contains the length after
+    /// de-chunking and decompression.
     pub response_message_len: int64_t,
-    /**
-     * The length of the response entity-body. In most cases, this value
-     * will be the same as response_message_len. The values will be different
-     * if request compression or chunking were applied. In that case,
-     * response_message_len contains the length of the response body as it
-     * has been seen over TCP; response_entity_len contains length after
-     * de-chunking and decompression.
-     */
+    /// The length of the response entity-body. In most cases, this value
+    /// will be the same as response_message_len. The values will be different
+    /// if request compression or chunking were applied. In that case,
+    /// response_message_len contains the length of the response body as it
+    /// has been seen over TCP; response_entity_len contains length after
+    /// de-chunking and decompression.
     pub response_entity_len: int64_t,
-    /**
-     * Contains the value specified in the Content-Length header. The value of this
-     * field will be -1 from the beginning of the transaction and until response
-     * headers are processed. It will stay -1 if the C-L header was not provided,
-     * or if the value in it cannot be parsed.
-     */
+    /// Contains the value specified in the Content-Length header. The value of this
+    /// field will be -1 from the beginning of the transaction and until response
+    /// headers are processed. It will stay -1 if the C-L header was not provided,
+    /// or if the value in it cannot be parsed.
     pub response_content_length: int64_t,
-    /**
-     * Response transfer coding, which indicates if there is a response body,
-     * and how it is transported (e.g., as-is, or chunked).
-     */
+    /// Response transfer coding, which indicates if there is a response body,
+    /// and how it is transported (e.g., as-is, or chunked).
     pub response_transfer_coding: htp_transfer_coding_t,
-    /**
-     * Response body compression, which indicates if compression is used
-     * for the response body. This field is an interpretation of the information
-     * available in response headers.
-     */
+    /// Response body compression, which indicates if compression is used
+    /// for the response body. This field is an interpretation of the information
+    /// available in response headers.
     pub response_content_encoding: htp_decompressors::htp_content_encoding_t,
-    /**
-     * Response body compression processing information, which is related to how
-     * the library is going to process (or has processed) a response body. Changing
-     * this field mid-processing can influence library actions. For example, setting
-     * this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
-     * decompression.
-     */
+    /// Response body compression processing information, which is related to how
+    /// the library is going to process (or has processed) a response body. Changing
+    /// this field mid-processing can influence library actions. For example, setting
+    /// this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
+    /// decompression.
     pub response_content_encoding_processing: htp_decompressors::htp_content_encoding_t,
-    /**
-     * This field will contain the response content type when that information
-     * is available in response headers. The contents of the field will be converted
-     * to lowercase and any parameters (e.g., character set information) removed.
-     */
+    /// This field will contain the response content type when that information
+    /// is available in response headers. The contents of the field will be converted
+    /// to lowercase and any parameters (e.g., character set information) removed.
     pub response_content_type: *mut bstr::bstr_t,
 
     // Common fields
-    /**
-     * Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
-     * HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
-     */
+    /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
+    /// HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
     pub flags: Flags,
-    /** Request progress. */
+    /// Request progress.
     pub request_progress: htp_tx_req_progress_t,
-    /** Response progress. */
+    /// Response progress.
     pub response_progress: htp_tx_res_progress_t,
-    /** Transaction index on the connection. */
+    /// Transaction index on the connection.
     pub index: size_t,
-    /** Total repetitions for headers in request. */
+    /// Total repetitions for headers in request.
     pub req_header_repetitions: uint16_t,
-    /** Total repetitions for headers in response. */
+    /// Total repetitions for headers in response.
     pub res_header_repetitions: uint16_t,
 }
 
-/* *
- * Possible states of a progressing transaction. Internally, progress will change
- * to the next state when the processing activities associated with that state
- * begin. For example, when we start to process request line bytes, the request
- * state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
- */
+/// Possible states of a progressing transaction. Internally, progress will change
+/// to the next state when the processing activities associated with that state
+/// begin. For example, when we start to process request line bytes, the request
+/// state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum htp_tx_res_progress_t {
@@ -427,29 +352,26 @@ pub enum htp_tx_req_progress_t {
     HTP_REQUEST_COMPLETE,
 }
 
-/**
- * Enumerates the possible values for authentication type.
- */
+/// Enumerates the possible values for authentication type.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_auth_type_t {
-    /**
-     * This is the default value that is used before
-     * the presence of authentication is determined (e.g.,
-     * before request headers are seen).
-     */
+    /// This is the default value that is used before
+    /// the presence of authentication is determined (e.g.,
+    /// before request headers are seen).
     HTP_AUTH_UNKNOWN,
-    /** No authentication. */
+    /// No authentication.
     HTP_AUTH_NONE,
-    /** HTTP Basic authentication used. */
+    /// HTTP Basic authentication used.
     HTP_AUTH_BASIC,
-    /** HTTP Digest authentication used. */
+    /// HTTP Digest authentication used.
     HTP_AUTH_DIGEST,
-    /** Unrecognized authentication method. */
+    /// Unrecognized authentication method.
     HTP_AUTH_UNRECOGNIZED = 9,
 }
 
-// Protocol version constants
+/// Protocol version constants
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Protocol {
@@ -462,25 +384,23 @@ pub enum Protocol {
 
 pub type htp_time_t = libc::timeval;
 
-/* *
- * Represents a single request or response header.
- */
+/// Represents a single request or response header.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_header_t {
-    /** Header name. */
+    /// Header name.
     pub name: *mut bstr::bstr_t,
-    /** Header value. */
+    /// Header value.
     pub value: *mut bstr::bstr_t,
-    /** Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED. */
+    /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
     pub flags: Flags,
 }
-pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> libc::c_int>;
+pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> Status>;
 pub type htp_alloc_strategy_t = libc::c_uint;
 pub const HTP_ALLOC_REUSE: htp_alloc_strategy_t = 2;
 pub const HTP_ALLOC_COPY: htp_alloc_strategy_t = 1;
 
-unsafe extern "C" fn copy_or_wrap_mem(
+unsafe fn copy_or_wrap_mem(
     mut data: *const libc::c_void,
     mut len: size_t,
     mut alloc: htp_alloc_strategy_t,
@@ -495,16 +415,12 @@ unsafe extern "C" fn copy_or_wrap_mem(
     };
 }
 
-/**
- * Creates a new transaction structure.
- *
- * @param[in] connp Connection parser pointer. Must not be NULL.
- * @return The newly created transaction, or NULL on memory allocation failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_create(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> *mut htp_tx_t {
+/// Creates a new transaction structure.
+///
+/// connp: Connection parser pointer. Must not be NULL.
+///
+/// Returns The newly created transaction, or NULL on memory allocation failure.
+pub unsafe fn htp_tx_create(mut connp: *mut htp_connection_parser::htp_connp_t) -> *mut htp_tx_t {
     if connp.is_null() {
         return 0 as *mut htp_tx_t;
     }
@@ -554,13 +470,8 @@ pub unsafe extern "C" fn htp_tx_create(
     return tx;
 }
 
-/**
- * Destroys the supplied transaction.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy(mut tx: *mut htp_tx_t) -> Status {
+/// Destroys the supplied transaction.
+pub unsafe fn htp_tx_destroy(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -571,8 +482,7 @@ pub unsafe extern "C" fn htp_tx_destroy(mut tx: *mut htp_tx_t) -> Status {
     Status::OK
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy_incomplete(mut tx: *mut htp_tx_t) {
+pub unsafe fn htp_tx_destroy_incomplete(mut tx: *mut htp_tx_t) {
     if tx.is_null() {
         return;
     }
@@ -670,53 +580,42 @@ pub unsafe extern "C" fn htp_tx_destroy_incomplete(mut tx: *mut htp_tx_t) {
     free(tx as *mut libc::c_void);
 }
 
-/**
- * Determines if the transaction used a shared configuration structure. See the
- * documentation for htp_tx_set_config() for more information why you might want
- * to know that.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_CFG_SHARED or HTP_CFG_PRIVATE.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_get_is_config_shared(mut tx: *const htp_tx_t) -> libc::c_int {
+/// Determines if the transaction used a shared configuration structure. See the
+/// documentation for htp_tx_set_config() for more information why you might want
+/// to know that.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_CFG_SHARED or HTP_CFG_PRIVATE.
+pub unsafe fn htp_tx_get_is_config_shared(mut tx: *const htp_tx_t) -> libc::c_int {
     if tx.is_null() {
         return -(1 as libc::c_int);
     }
     return (*tx).is_config_shared;
 }
 
-/**
- * Returns the user data associated with this transaction.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return A pointer to user data or NULL.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_get_user_data(mut tx: *const htp_tx_t) -> *mut libc::c_void {
+/// Returns the user data associated with this transaction.
+pub unsafe fn htp_tx_get_user_data(mut tx: *const htp_tx_t) -> *mut libc::c_void {
     if tx.is_null() {
         return 0 as *mut libc::c_void;
     }
     return (*tx).user_data;
 }
 
-/**
- * Sets the configuration that is to be used for this transaction. If the
- * second parameter is set to HTP_CFG_PRIVATE, the transaction will adopt
- * the configuration structure and destroy it when appropriate. This function is
- * useful if you need to make changes to configuration on per-transaction basis.
- * Initially, all transactions will share the configuration with that of the
- * connection; if you were to make changes on it, they would affect all
- * current and future connections. To work around that, you make a copy of the
- * configuration object, call this function with the second parameter set to
- * HTP_CFG_PRIVATE, and modify configuration at will.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] cfg Configuration pointer. Must not be NULL.
- * @param[in] is_cfg_shared HTP_CFG_SHARED or HTP_CFG_PRIVATE
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_set_config(
+/// Sets the configuration that is to be used for this transaction. If the
+/// second parameter is set to HTP_CFG_PRIVATE, the transaction will adopt
+/// the configuration structure and destroy it when appropriate. This function is
+/// useful if you need to make changes to configuration on per-transaction basis.
+/// Initially, all transactions will share the configuration with that of the
+/// connection; if you were to make changes on it, they would affect all
+/// current and future connections. To work around that, you make a copy of the
+/// configuration object, call this function with the second parameter set to
+/// HTP_CFG_PRIVATE, and modify configuration at will.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// cfg: Configuration pointer. Must not be NULL.
+/// is_cfg_shared: HTP_CFG_SHARED or HTP_CFG_PRIVATE
+pub unsafe fn htp_tx_set_config(
     mut tx: *mut htp_tx_t,
     mut cfg: *mut htp_config::htp_cfg_t,
     mut is_cfg_shared: libc::c_int,
@@ -735,36 +634,22 @@ pub unsafe extern "C" fn htp_tx_set_config(
     (*tx).is_config_shared = is_cfg_shared;
 }
 
-/**
- * Associates user data with this transaction.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] user_data Opaque user data pointer.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_set_user_data(
-    mut tx: *mut htp_tx_t,
-    mut user_data: *mut libc::c_void,
-) {
+/// Associates user data with this transaction.
+pub unsafe fn htp_tx_set_user_data(mut tx: *mut htp_tx_t, mut user_data: *mut libc::c_void) {
     if tx.is_null() {
         return;
     }
     (*tx).user_data = user_data;
 }
 
-/**
- * Adds one parameter to the request. THis function will take over the
- * responsibility for the provided htp_param_t structure.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] param Parameter pointer. Must not be NULL.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_add_param(
-    mut tx: *mut htp_tx_t,
-    mut param: *mut htp_param_t,
-) -> Status {
+/// Adds one parameter to the request. THis function will take over the
+/// responsibility for the provided htp_param_t structure.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// param: Parameter pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_add_param(mut tx: *mut htp_tx_t, mut param: *mut htp_param_t) -> Status {
     if tx.is_null() || param.is_null() {
         return Status::ERROR;
     }
@@ -784,16 +669,14 @@ pub unsafe extern "C" fn htp_tx_req_add_param(
     );
 }
 
-/**
- * Returns the first request parameter that matches the given name, using case-insensitive matching.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] name Name data pointer. Must not be NULL.
- * @param[in] name_len Name data length.
- * @return htp_param_t instance, or NULL if parameter not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_get_param(
+/// Returns the first request parameter that matches the given name, using case-insensitive matching.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// name: Name data pointer. Must not be NULL.
+/// name_len: Name data length.
+///
+/// Returns htp_param_t instance, or NULL if parameter not found.
+pub unsafe fn htp_tx_req_get_param(
     mut tx: *mut htp_tx_t,
     mut name: *const libc::c_char,
     mut name_len: size_t,
@@ -805,18 +688,16 @@ pub unsafe extern "C" fn htp_tx_req_get_param(
         as *mut htp_param_t;
 }
 
-/**
- * Returns the first request parameter from the given source that matches the given name,
- * using case-insensitive matching.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] source Parameter source (where in request the parameter was located).
- * @param[in] name Name data pointer. Must not be NULL.
- * @param[in] name_len Name data length.
- * @return htp_param_t instance, or NULL if parameter not found.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_get_param_ex(
+/// Returns the first request parameter from the given source that matches the given name,
+/// using case-insensitive matching.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// source: Parameter source (where in request the parameter was located).
+/// name: Name data pointer. Must not be NULL.
+/// name_len: Name data length.
+///
+/// Returns htp_param_t instance, or NULL if parameter not found.
+pub unsafe fn htp_tx_req_get_param_ex(
     mut tx: *mut htp_tx_t,
     mut source: htp_data_source_t,
     mut name: *const libc::c_char,
@@ -843,14 +724,12 @@ pub unsafe extern "C" fn htp_tx_req_get_param_ex(
     return 0 as *mut htp_param_t;
 }
 
-/**
- * Determine if the request has a body.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return 1 if there is a body, 0 otherwise.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_has_body(mut tx: *const htp_tx_t) -> libc::c_int {
+/// Determine if the request has a body.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns 1 if there is a body, 0 otherwise.
+pub unsafe fn htp_tx_req_has_body(mut tx: *const htp_tx_t) -> libc::c_int {
     if tx.is_null() {
         return -(1 as libc::c_int);
     }
@@ -862,21 +741,19 @@ pub unsafe extern "C" fn htp_tx_req_has_body(mut tx: *const htp_tx_t) -> libc::c
     return 0 as libc::c_int;
 }
 
-/**
- * Set one request header. This function should be invoked once for
- * each available header, and in the order in which headers were
- * seen in the request.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] name Name data pointer. Must not be NULL.
- * @param[in] name_len Name data length.
- * @param[in] value Value data pointer. Must not be NULL.
- * @param[in] value_len Value data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_header(
+/// Set one request header. This function should be invoked once for
+/// each available header, and in the order in which headers were
+/// seen in the request.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// name: Name data pointer. Must not be NULL.
+/// name_len: Name data length.
+/// value: Value data pointer. Must not be NULL.
+/// value_len: Value data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_set_header(
     mut tx: *mut htp_tx_t,
     mut name: *const libc::c_char,
     mut name_len: size_t,
@@ -916,18 +793,16 @@ pub unsafe extern "C" fn htp_tx_req_set_header(
     Status::OK
 }
 
-/**
- * Set transaction request method. This function will enable you to keep
- * track of the text representation of the method.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] method Method data pointer. Must not be NULL.
- * @param[in] method_len Method data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_method(
+/// Set transaction request method. This function will enable you to keep
+/// track of the text representation of the method.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// method: Method data pointer. Must not be NULL.
+/// method_len: Method data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_set_method(
     mut tx: *mut htp_tx_t,
     mut method: *const libc::c_char,
     mut method_len: size_t,
@@ -943,39 +818,31 @@ pub unsafe extern "C" fn htp_tx_req_set_method(
     return Status::OK;
 }
 
-/**
- * Set transaction request method number. This function enables you to
- * keep track how a particular method string is interpreted. This function
- * is useful with web servers that ignore invalid methods; for example, some
- * web servers will treat them as a GET.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] method_number Method number.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_method_number(
-    mut tx: *mut htp_tx_t,
-    mut method_number: libc::c_uint,
-) {
+/// Set transaction request method number. This function enables you to
+/// keep track how a particular method string is interpreted. This function
+/// is useful with web servers that ignore invalid methods; for example, some
+/// web servers will treat them as a GET.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// method_number: Method number.
+pub unsafe fn htp_tx_req_set_method_number(mut tx: *mut htp_tx_t, mut method_number: libc::c_uint) {
     if tx.is_null() {
         return;
     }
     (*tx).request_method_number = method_number;
 }
 
-/**
- * Set transaction request URI. The value provided here will be stored in htp_tx_t::request_uri
- * and subsequently parsed. If htp_tx_req_set_line() was previously used, the uri provided
- * when calling this function will overwrite any previously parsed value.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] uri URI data pointer. Must not be NULL.
- * @param[in] uri_len URI data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_uri(
+/// Set transaction request URI. The value provided here will be stored in htp_tx_t::request_uri
+/// and subsequently parsed. If htp_tx_req_set_line() was previously used, the uri provided
+/// when calling this function will overwrite any previously parsed value.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// uri: URI data pointer. Must not be NULL.
+/// uri_len: URI data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_set_uri(
     mut tx: *mut htp_tx_t,
     mut uri: *const libc::c_char,
     mut uri_len: size_t,
@@ -991,19 +858,17 @@ pub unsafe extern "C" fn htp_tx_req_set_uri(
     return Status::OK;
 }
 
-/**
- * Sets the request protocol string (e.g., "HTTP/1.0"). The information provided
- * is only stored, not parsed. Use htp_tx_req_set_protocol_number() to set the
- * actual protocol number, as interpreted by the container.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] protocol Protocol data pointer. Must not be NULL.
- * @param[in] protocol_len Protocol data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_protocol(
+/// Sets the request protocol string (e.g., "HTTP/1.0"). The information provided
+/// is only stored, not parsed. Use htp_tx_req_set_protocol_number() to set the
+/// actual protocol number, as interpreted by the container.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// protocol: Protocol data pointer. Must not be NULL.
+/// protocol_len: Protocol data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_set_protocol(
     mut tx: *mut htp_tx_t,
     mut protocol: *const libc::c_char,
     mut protocol_len: size_t,
@@ -1019,23 +884,20 @@ pub unsafe extern "C" fn htp_tx_req_set_protocol(
     return Status::OK;
 }
 
-/**
- * Set request protocol version number. Must be invoked after
- * htp_txh_set_req_protocol(), because it will overwrite the previously
- * extracted version number. Convert the protocol version number to an integer
- * by multiplying it with 100. For example, 1.1 becomes 101. Alternatively,
- * use the V0_9, V1_0, and V1_1 constants.
- * Note: setting protocol to V0_9 alone will _not_ get the library to
- * treat the transaction as HTTP/0.9. You need to also invoke htp_tx_req_set_protocol_0_9().
- * This is because HTTP 0.9 is used only when protocol information is absent from the
- * request line, and not when it is explicitly stated (as "HTTP/0.9"). This behavior is
- * consistent with that of Apache httpd.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] protocol_number Protocol number.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_protocol_number(
+/// Set request protocol version number. Must be invoked after
+/// htp_txh_set_req_protocol(), because it will overwrite the previously
+/// extracted version number. Convert the protocol version number to an integer
+/// by multiplying it with 100. For example, 1.1 becomes 101. Alternatively,
+/// use the V0_9, V1_0, and V1_1 constants.
+/// Note: setting protocol to V0_9 alone will _not_ get the library to
+/// treat the transaction as HTTP/0.9. You need to also invoke htp_tx_req_set_protocol_0_9().
+/// This is because HTTP 0.9 is used only when protocol information is absent from the
+/// request line, and not when it is explicitly stated (as "HTTP/0.9"). This behavior is
+/// consistent with that of Apache httpd.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// protocol_number: Protocol number.
+pub unsafe fn htp_tx_req_set_protocol_number(
     mut tx: *mut htp_tx_t,
     mut protocol_number: libc::c_int,
 ) {
@@ -1045,19 +907,13 @@ pub unsafe extern "C" fn htp_tx_req_set_protocol_number(
     (*tx).request_protocol_number = protocol_number;
 }
 
-/**
- * Forces HTTP/0.9 as the transaction protocol. This method exists to ensure
- * that both LibHTP and the container treat the transaction as HTTP/0.9, despite
- * potential differences in how the protocol version is determined.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] is_protocol_0_9 Zero if protocol is not HTTP/0.9, or 1 if it is.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_protocol_0_9(
-    mut tx: *mut htp_tx_t,
-    mut is_protocol_0_9: libc::c_int,
-) {
+/// Forces HTTP/0.9 as the transaction protocol. This method exists to ensure
+/// that both LibHTP and the container treat the transaction as HTTP/0.9, despite
+/// potential differences in how the protocol version is determined.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// is_protocol_0_9: Zero if protocol is not HTTP/0.9, or 1 if it is.
+pub unsafe fn htp_tx_req_set_protocol_0_9(mut tx: *mut htp_tx_t, mut is_protocol_0_9: libc::c_int) {
     if tx.is_null() {
         return;
     }
@@ -1067,7 +923,7 @@ pub unsafe extern "C" fn htp_tx_req_set_protocol_0_9(
         (*tx).is_protocol_0_9 = 0 as libc::c_int
     };
 }
-unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
+unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1283,22 +1139,20 @@ unsafe extern "C" fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> St
     return Status::OK;
 }
 
-/**
- * Process a chunk of request body data. This function assumes that
- * handling of chunked encoding is implemented by the container. When
- * you're done submitting body data, invoke a state change (to REQUEST)
- * to finalize any processing that might be pending. The supplied data is
- * fully consumed and there is no expectation that it will be available
- * afterwards. The protocol parsing code makes no copies of the data,
- * but some parsers might.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] data Data pointer. Must not be NULL.
- * @param[in] len Data length.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_process_body_data(
+/// Process a chunk of request body data. This function assumes that
+/// handling of chunked encoding is implemented by the container. When
+/// you're done submitting body data, invoke a state change (to REQUEST)
+/// to finalize any processing that might be pending. The supplied data is
+/// fully consumed and there is no expectation that it will be available
+/// afterwards. The protocol parsing code makes no copies of the data,
+/// but some parsers might.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// data: Data pointer. Must not be NULL.
+/// len: Data length.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_process_body_data(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -1312,8 +1166,7 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data(
     return htp_tx_req_process_body_data_ex(tx, data, len);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
+pub unsafe fn htp_tx_req_process_body_data_ex(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -1353,20 +1206,18 @@ pub unsafe extern "C" fn htp_tx_req_process_body_data_ex(
     return Status::OK;
 }
 
-/**
- * Removes all request headers associated with this transaction. This
- * function is needed because in some cases the container does not
- * differentiate between standard and trailing headers. In that case,
- * you set request headers once at the beginning of the transaction,
- * read the body (at this point the request headers should contain the
- * mix of regular and trailing headers), clear all headers, and then set
- * them all again.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
+/// Removes all request headers associated with this transaction. This
+/// function is needed because in some cases the container does not
+/// differentiate between standard and trailing headers. In that case,
+/// you set request headers once at the beginning of the transaction,
+/// read the body (at this point the request headers should contain the
+/// mix of regular and trailing headers), clear all headers, and then set
+/// them all again.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() || (*tx).request_headers.is_null() {
         return Status::ERROR;
     }
@@ -1389,18 +1240,16 @@ pub unsafe extern "C" fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> 
     return Status::OK;
 }
 
-/**
- * Set request line. When used, this function should always be called first,
- * with more specific functions following. Must not contain line terminators.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] line Line data pointer. Must not be NULL.
- * @param[in] line_len Line data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_line(
+/// Set request line. When used, this function should always be called first,
+/// with more specific functions following. Must not contain line terminators.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// line: Line data pointer. Must not be NULL.
+/// line_len: Line data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_req_set_line(
     mut tx: *mut htp_tx_t,
     mut line: *const libc::c_char,
     mut line_len: size_t,
@@ -1423,18 +1272,15 @@ pub unsafe extern "C" fn htp_tx_req_set_line(
     return Status::OK;
 }
 
-/**
- * Set parsed request URI. You don't need to use this function if you are already providing
- * the request line or request URI. But if your container already has this data available,
- * feeding it to LibHTP will minimize any potential data differences. This function assumes
- * management of the data provided in parsed_uri. This function will not change htp_tx_t::parsed_uri_raw
- * (which may have data in it from the parsing of the request URI).
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] parsed_uri URI pointer. Must not be NULL.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_req_set_parsed_uri(
+/// Set parsed request URI. You don't need to use this function if you are already providing
+/// the request line or request URI. But if your container already has this data available,
+/// feeding it to LibHTP will minimize any potential data differences. This function assumes
+/// management of the data provided in parsed_uri. This function will not change htp_tx_t::parsed_uri_raw
+/// (which may have data in it from the parsing of the request URI).
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// parsed_uri: URI pointer. Must not be NULL.
+pub unsafe fn htp_tx_req_set_parsed_uri(
     mut tx: *mut htp_tx_t,
     mut parsed_uri: *mut htp_util::htp_uri_t,
 ) {
@@ -1447,19 +1293,17 @@ pub unsafe extern "C" fn htp_tx_req_set_parsed_uri(
     (*tx).parsed_uri = parsed_uri;
 }
 
-/**
- * Set response line. Use this function is you have a single buffer containing
- * the entire line. If you have individual request line pieces, use the other
- * available functions.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] line Line data pointer. Must not be NULL.
- * @param[in] line_len Line data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_status_line(
+/// Set response line. Use this function is you have a single buffer containing
+/// the entire line. If you have individual request line pieces, use the other
+/// available functions.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// line: Line data pointer. Must not be NULL.
+/// line_len: Line data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_set_status_line(
     mut tx: *mut htp_tx_t,
     mut line: *const libc::c_char,
     mut line_len: size_t,
@@ -1482,16 +1326,14 @@ pub unsafe extern "C" fn htp_tx_res_set_status_line(
     return Status::OK;
 }
 
-/**
- * Set response protocol number. See htp_tx_res_set_protocol_number() for more information
- * about the correct format of the protocol_parameter parameter.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] protocol_number Protocol number.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_protocol_number(
+/// Set response protocol number. See htp_tx_res_set_protocol_number() for more information
+/// about the correct format of the protocol_parameter parameter.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// protocol_number: Protocol number.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_set_protocol_number(
     mut tx: *mut htp_tx_t,
     mut protocol_number: libc::c_int,
 ) {
@@ -1501,36 +1343,29 @@ pub unsafe extern "C" fn htp_tx_res_set_protocol_number(
     (*tx).response_protocol_number = protocol_number;
 }
 
-/**
- * Set response status code.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] status_code Response status code.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_status_code(
-    mut tx: *mut htp_tx_t,
-    mut status_code: libc::c_int,
-) {
+/// Set response status code.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// status_code: Response status code.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_set_status_code(mut tx: *mut htp_tx_t, mut status_code: libc::c_int) {
     if tx.is_null() {
         return;
     }
     (*tx).response_status_number = status_code;
 }
 
-/**
- * Set response status message, which is the part of the response
- * line that comes after the status code.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] msg Message data pointer. Must not be NULL.
- * @param[in] msg_len Message data length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_status_message(
+/// Set response status message, which is the part of the response
+/// line that comes after the status code.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// msg: Message data pointer. Must not be NULL.
+/// msg_len: Message data length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_set_status_message(
     mut tx: *mut htp_tx_t,
     mut msg: *const libc::c_char,
     mut msg_len: size_t,
@@ -1549,15 +1384,13 @@ pub unsafe extern "C" fn htp_tx_res_set_status_message(
     return Status::OK;
 }
 
-/**
- * Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1601,21 +1434,19 @@ pub unsafe extern "C" fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> St
     return Status::OK;
 }
 
-/**
- * Set one response header. This function should be invoked once for
- * each available header, and in the order in which headers were
- * seen in the response.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] name Name data pointer. Must not be NULL.
- * @param[in] name_len Name data length.
- * @param[in] value Value data pointer. Must not be NULL.
- * @param[in] value_len Value length.
- * @param[in] alloc Desired allocation strategy.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_header(
+/// Set one response header. This function should be invoked once for
+/// each available header, and in the order in which headers were
+/// seen in the response.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// name: Name data pointer. Must not be NULL.
+/// name_len: Name data length.
+/// value: Value data pointer. Must not be NULL.
+/// value_len: Value length.
+/// alloc: Desired allocation strategy.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_set_header(
     mut tx: *mut htp_tx_t,
     mut name: *const libc::c_char,
     mut name_len: size_t,
@@ -1655,20 +1486,18 @@ pub unsafe extern "C" fn htp_tx_res_set_header(
     return Status::OK;
 }
 
-/**
- * Removes all response headers associated with this transaction. This
- * function is needed because in some cases the container does not
- * differentiate between standard and trailing headers. In that case,
- * you set response headers once at the beginning of the transaction,
- * read the body, clear all headers, and then set them all again. After
- * the headers are set for the second time, they will potentially contain
- * a mixture of standard and trailing headers.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
+/// Removes all response headers associated with this transaction. This
+/// function is needed because in some cases the container does not
+/// differentiate between standard and trailing headers. In that case,
+/// you set response headers once at the beginning of the transaction,
+/// read the body, clear all headers, and then set them all again. After
+/// the headers are set for the second time, they will potentially contain
+/// a mixture of standard and trailing headers.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() || (*tx).response_headers.is_null() {
         return Status::ERROR;
     }
@@ -1691,10 +1520,7 @@ pub unsafe extern "C" fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> 
     return Status::OK;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_destroy_decompressors(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-) {
+pub unsafe fn htp_connp_destroy_decompressors(mut connp: *mut htp_connection_parser::htp_connp_t) {
     let mut comp: *mut htp_decompressors::htp_decompressor_t = (*connp).out_decompressor;
     while !comp.is_null() {
         let mut next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
@@ -1704,12 +1530,8 @@ pub unsafe extern "C" fn htp_connp_destroy_decompressors(
     (*connp).out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
 }
 
-/* *
- * Clean up decompressor(s).
- *
- * @param[in] tx
- */
-unsafe extern "C" fn htp_tx_res_destroy_decompressors(mut tx: *mut htp_tx_t) {
+/// Clean up decompressor(s).
+unsafe fn htp_tx_res_destroy_decompressors(mut tx: *mut htp_tx_t) {
     htp_connp_destroy_decompressors((*tx).connp);
 }
 
@@ -1748,26 +1570,24 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     return Status::OK;
 }
 
-/**
- * Process a chunk of response body data. This function assumes that
- * handling of chunked encoding is implemented by the container. When
- * you're done submitting body data, invoking a state change (to RESPONSE)
- * will finalize any processing that might be pending.
- *
- * The response body data will be decompressed if two conditions are met: one,
- * decompression is enabled in configuration and two, if the response headers
- * indicate compression. Alternatively, you can control decompression from
- * a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
- * to COMPRESSION_NONE (to disable compression), or to one of the supported
- * decompression algorithms.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @param[in] data Data pointer. Must not be NULL.
- * @param[in] len Data length.
- * @return HTP_OK on success, HTP_ERROR on failure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_process_body_data(
+/// Process a chunk of response body data. This function assumes that
+/// handling of chunked encoding is implemented by the container. When
+/// you're done submitting body data, invoking a state change (to RESPONSE)
+/// will finalize any processing that might be pending.
+///
+/// The response body data will be decompressed if two conditions are met: one,
+/// decompression is enabled in configuration and two, if the response headers
+/// indicate compression. Alternatively, you can control decompression from
+/// a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
+/// to COMPRESSION_NONE (to disable compression), or to one of the supported
+/// decompression algorithms.
+///
+/// tx: Transaction pointer. Must not be NULL.
+/// data: Data pointer. Must not be NULL.
+/// len: Data length.
+///
+/// Returns HTP_OK on success, HTP_ERROR on failure.
+pub unsafe fn htp_tx_res_process_body_data(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -1781,8 +1601,7 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data(
     return htp_tx_res_process_body_data_ex(tx, data, len);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
+pub unsafe fn htp_tx_res_process_body_data_ex(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
     mut len: size_t,
@@ -1853,8 +1672,7 @@ pub unsafe extern "C" fn htp_tx_res_process_body_data_ex(
     return Status::OK;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete_partial(mut tx: *mut htp_tx_t) -> Status {
+pub unsafe fn htp_tx_state_request_complete_partial(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1887,15 +1705,13 @@ pub unsafe extern "C" fn htp_tx_state_request_complete_partial(mut tx: *mut htp_
     return Status::OK;
 }
 
-/**
- * Change transaction state to REQUEST and invoke registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to REQUEST and invoke registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1929,16 +1745,14 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(mut tx: *mut htp_tx_t) ->
     return Status::OK;
 }
 
-/**
- * Initialize hybrid parsing mode, change state to TRANSACTION_START,
- * and invoke all registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
+/// Initialize hybrid parsing mode, change state to TRANSACTION_START,
+/// and invoke all registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1959,16 +1773,14 @@ pub unsafe extern "C" fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> St
     return Status::OK;
 }
 
-/**
- * Change transaction state to REQUEST_HEADERS and invoke all
- * registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to REQUEST_HEADERS and invoke all
+/// registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -2024,16 +1836,14 @@ pub unsafe extern "C" fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> 
     return Status::OK;
 }
 
-/**
- * Change transaction state to REQUEST_LINE and invoke all
- * registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to REQUEST_LINE and invoke all
+/// registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -2092,23 +1902,20 @@ pub unsafe extern "C" fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Sta
     return Status::OK;
 }
 
-/**
- * Change transaction state to RESPONSE and invoke registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_complete(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to RESPONSE and invoke registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_response_complete(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
     return htp_tx_state_response_complete_ex(tx, 1 as libc::c_int);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_finalize(mut tx: *mut htp_tx_t) -> Status {
+pub unsafe fn htp_tx_finalize(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -2130,8 +1937,7 @@ pub unsafe extern "C" fn htp_tx_finalize(mut tx: *mut htp_tx_t) -> Status {
     return Status::OK;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
+pub unsafe fn htp_tx_state_response_complete_ex(
     mut tx: *mut htp_tx_t,
     mut hybrid_mode: libc::c_int,
 ) -> Status {
@@ -2201,12 +2007,11 @@ pub unsafe extern "C" fn htp_tx_state_response_complete_ex(
     );
     return Status::OK;
 }
-/* *
- *  @internal
- *  @brief split input into tokens separated by "seps"
- *  @param seps nul-terminated string: each character is a separator
- */
-unsafe extern "C" fn get_token(
+
+///  split input into tokens separated by "seps"
+///
+///  seps: nul-terminated string: each character is a separator
+unsafe fn get_token(
     mut in_0: *const libc::c_uchar,
     mut in_len: size_t,
     mut seps: *const libc::c_char,
@@ -2214,7 +2019,7 @@ unsafe extern "C" fn get_token(
     mut ret_tok_len: *mut size_t,
 ) -> libc::c_int {
     let mut i: size_t = 0 as libc::c_int as size_t;
-    /* skip leading 'separators' */
+    // skip leading 'separators'
     while i < in_len {
         let mut match_0: libc::c_int = 0 as libc::c_int;
         let mut s: *const libc::c_char = seps;
@@ -2254,15 +2059,13 @@ unsafe extern "C" fn get_token(
     return 1 as libc::c_int;
 }
 
-/**
- * Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -2276,7 +2079,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         b"content-encoding\x00" as *const u8 as *const libc::c_char,
     ) as *mut htp_header_t;
     if !ce.is_null() {
-        /* fast paths: regular gzip and friends */
+        // fast paths: regular gzip and friends
         if bstr::bstr_cmp_c_nocasenorzero(
             (*ce).value,
             b"gzip\x00" as *const u8 as *const libc::c_char,
@@ -2311,7 +2114,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
             b"inflate\x00" as *const u8 as *const libc::c_char,
         ) == 0 as libc::c_int)
         {
-            /* exceptional cases: enter slow path */
+            // exceptional cases: enter slow path
             ce_multi_comp = 1 as libc::c_int
         }
     }
@@ -2358,7 +2161,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
         if !(*(*tx).connp).out_decompressor.is_null() {
             htp_tx_res_destroy_decompressors(tx);
         }
-        /* normal case */
+        // normal case
         if ce_multi_comp == 0 {
             (*(*tx).connp).out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
                 (*tx).connp,
@@ -2371,7 +2174,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
                 htp_tx_res_process_body_data_decompressor_callback
                     as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
             )
-        /* multiple ce value case */
+        // multiple ce value case
         } else {
             let mut layers: libc::c_int = 0 as libc::c_int;
             let mut comp: *mut htp_decompressors::htp_decompressor_t =
@@ -2396,7 +2199,7 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
             {
                 let mut cetype: htp_decompressors::htp_content_encoding_t =
                     htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-                /* check depth limit (0 means no limit) */
+                // check depth limit (0 means no limit)
                 if (*(*(*tx).connp).cfg).response_decompression_layer_limit != 0 as libc::c_int && {
                     layers += 1;
                     (layers) > (*(*(*tx).connp).cfg).response_decompression_layer_limit
@@ -2552,15 +2355,13 @@ pub unsafe extern "C" fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) ->
     return Status::OK;
 }
 
-/* *
- * Change transaction state to RESPONSE_START and invoke registered callbacks.
- *
- * @param[in] tx Transaction pointer. Must not be NULL.
- * @return HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
- *         callbacks does not want to follow the transaction any more.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
+/// Change transaction state to RESPONSE_START and invoke registered callbacks.
+///
+/// tx: Transaction pointer. Must not be NULL.
+///
+/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+///         callbacks does not want to follow the transaction any more.
+pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -2592,9 +2393,9 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> S
         );
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
     }
-    /* If at this point we have no method and no uri and our status
-     * is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
-     * or a overly long request */
+    // If at this point we have no method and no uri and our status
+    // is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
+    // or a overly long request
     if (*tx).request_method.is_null()
         && (*tx).request_uri.is_null()
         && (*(*tx).connp).in_state
@@ -2618,21 +2419,16 @@ pub unsafe extern "C" fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> S
     return Status::OK;
 }
 
-/* *
- * Register callback for the transaction-specific REQUEST_BODY_DATA hook.
- *
- * @param[in] tx
- * @param[in] callback_fn
- */
+/// Register callback for the transaction-specific REQUEST_BODY_DATA hook.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_register_request_body_data(
+pub unsafe fn htp_tx_register_request_body_data(
     mut tx: *mut htp_tx_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> libc::c_int>,
 ) {
     if tx.is_null() || callback_fn.is_none() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*tx).hook_request_body_data,
         ::std::mem::transmute::<
             Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> libc::c_int>,
@@ -2641,21 +2437,16 @@ pub unsafe extern "C" fn htp_tx_register_request_body_data(
     );
 }
 
-/* *
- * Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
- *
- * @param[in] tx
- * @param[in] callback_fn
- */
+/// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_register_response_body_data(
+pub unsafe fn htp_tx_register_response_body_data(
     mut tx: *mut htp_tx_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> libc::c_int>,
 ) {
     if tx.is_null() || callback_fn.is_none() {
         return;
     }
-    htp_hook_register(
+    htp_hooks::htp_hook_register(
         &mut (*tx).hook_response_body_data,
         ::std::mem::transmute::<
             Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> libc::c_int>,
@@ -2664,8 +2455,7 @@ pub unsafe extern "C" fn htp_tx_register_response_body_data(
     );
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_is_complete(mut tx: *mut htp_tx_t) -> libc::c_int {
+pub unsafe fn htp_tx_is_complete(mut tx: *mut htp_tx_t) -> libc::c_int {
     if tx.is_null() {
         return -(1 as libc::c_int);
     }

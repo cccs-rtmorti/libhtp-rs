@@ -31,38 +31,28 @@ pub type uint64_t = __uint64_t;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_cfg_t {
-    /**
-     * The maximum size of the buffer that is used when the current
-     * input chunk does not contain all the necessary data (e.g., a very header
-     * line that spans several packets).
-     */
+    /// The maximum size of the buffer that is used when the current
+    /// input chunk does not contain all the necessary data (e.g., a very header
+    /// line that spans several packets).
     pub field_limit_hard: size_t,
-    /**
-     * Soft field limit length. If this limit is reached the parser will issue
-     * a warning but continue to run. NOT IMPLEMENTED.
-     */
+    /// Soft field limit length. If this limit is reached the parser will issue
+    /// a warning but continue to run. NOT IMPLEMENTED.
     pub field_limit_soft: size_t,
-    /**
-     * Log level, which will be used when deciding whether to store or
-     * ignore the messages issued by the parser.
-     */
+    /// Log level, which will be used when deciding whether to store or
+    /// ignore the messages issued by the parser.
     pub log_level: htp_util::htp_log_level_t,
-    /**
-     * Whether to delete each transaction after the last hook is invoked. This
-     * feature should be used when parsing traffic streams in real time.
-     */
+    /// Whether to delete each transaction after the last hook is invoked. This
+    /// feature should be used when parsing traffic streams in real time.
     pub tx_auto_destroy: libc::c_int,
-    /**
-     * Server personality identifier.
-     */
+    /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
-    /** The function used for request line parsing. Depends on the personality. */
+    /// The function used for request line parsing. Depends on the personality.
     pub parse_request_line:
         Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status>,
-    /** The function used for response line parsing. Depends on the personality. */
+    /// The function used for response line parsing. Depends on the personality.
     pub parse_response_line:
         Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status>,
-    /** The function used for request header parsing. Depends on the personality. */
+    /// The function used for request header parsing. Depends on the personality.
     pub process_request_header: Option<
         unsafe extern "C" fn(
             _: *mut htp_connection_parser::htp_connp_t,
@@ -70,7 +60,7 @@ pub struct htp_cfg_t {
             _: size_t,
         ) -> Status,
     >,
-    /** The function used for response header parsing. Depends on the personality. */
+    /// The function used for response header parsing. Depends on the personality.
     pub process_response_header: Option<
         unsafe extern "C" fn(
             _: *mut htp_connection_parser::htp_connp_t,
@@ -78,153 +68,111 @@ pub struct htp_cfg_t {
             _: size_t,
         ) -> Status,
     >,
-    /** The function to use to transform parameters after parsing. */
+    /// The function to use to transform parameters after parsing.
     pub parameter_processor:
         Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> Status>,
-    /** Decoder configuration array, one per context. */
+    /// Decoder configuration array, one per context.
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
-    /** Whether to generate the request_uri_normalized field. */
+    /// Whether to generate the request_uri_normalized field.
     pub generate_request_uri_normalized: libc::c_int,
-    /** Whether to decompress compressed response bodies. */
+    /// Whether to decompress compressed response bodies.
     pub response_decompression_enabled: libc::c_int,
-    /** Not fully implemented at the moment. */
+    /// Not fully implemented at the moment.
     pub request_encoding: *mut libc::c_char,
-    /** Not fully implemented at the moment. */
+    /// Not fully implemented at the moment.
     pub internal_encoding: *mut libc::c_char,
-    /** Whether to parse request cookies. */
+    /// Whether to parse request cookies.
     pub parse_request_cookies: libc::c_int,
-    /** Whether to parse HTTP Authentication headers. */
+    /// Whether to parse HTTP Authentication headers.
     pub parse_request_auth: libc::c_int,
-    /** Whether to extract files from requests using Multipart encoding. */
+    /// Whether to extract files from requests using Multipart encoding.
     pub extract_request_files: libc::c_int,
-    /** How many extracted files are allowed in a single Multipart request? */
+    /// How many extracted files are allowed in a single Multipart request?
     pub extract_request_files_limit: libc::c_int,
-    /** The location on disk where temporary files will be created. */
+    /// The location on disk where temporary files will be created.
     pub tmpdir: *mut libc::c_char,
-    /**
-     * Request start hook, invoked when the parser receives the first byte of a new
-     * request. Because in HTTP a transaction always starts with a request, this hook
-     * doubles as a transaction start hook.
-     */
+    /// Request start hook, invoked when the parser receives the first byte of a new
+    /// request. Because in HTTP a transaction always starts with a request, this hook
+    /// doubles as a transaction start hook.
     pub hook_request_start: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request line hook, invoked after a request line has been parsed.
-     */
+    /// Request line hook, invoked after a request line has been parsed.
     pub hook_request_line: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request URI normalization hook, for overriding default normalization of URI.
-     */
+    /// Request URI normalization hook, for overriding default normalization of URI.
     pub hook_request_uri_normalize: *mut htp_hooks::htp_hook_t,
-    /**
-     * Receives raw request header data, starting immediately after the request line,
-     * including all headers as they are seen on the TCP connection, and including the
-     * terminating empty line. Not available on genuine HTTP/0.9 requests (because
-     * they don't use headers).
-     */
+    /// Receives raw request header data, starting immediately after the request line,
+    /// including all headers as they are seen on the TCP connection, and including the
+    /// terminating empty line. Not available on genuine HTTP/0.9 requests (because
+    /// they don't use headers).
     pub hook_request_header_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request headers hook, invoked after all request headers are seen.
-     */
+    /// Request headers hook, invoked after all request headers are seen.
     pub hook_request_headers: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request body data hook, invoked every time body data is available. Each
-     * invocation will provide a htp_tx_data_t instance. Chunked data
-     * will be dechunked before the data is passed to this hook. Decompression
-     * is not currently implemented. At the end of the request body
-     * there will be a call with the data pointer set to NULL.
-     */
+    /// Request body data hook, invoked every time body data is available. Each
+    /// invocation will provide a htp_tx_data_t instance. Chunked data
+    /// will be dechunked before the data is passed to this hook. Decompression
+    /// is not currently implemented. At the end of the request body
+    /// there will be a call with the data pointer set to NULL.
     pub hook_request_body_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request file data hook, which is invoked whenever request file data is
-     * available. Currently used only by the Multipart parser.
-     */
+    /// Request file data hook, which is invoked whenever request file data is
+    /// available. Currently used only by the Multipart parser.
     pub hook_request_file_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Receives raw request trailer data, which can be available on requests that have
-     * chunked bodies. The data starts immediately after the zero-length chunk
-     * and includes the terminating empty line.
-     */
+    /// Receives raw request trailer data, which can be available on requests that have
+    /// chunked bodies. The data starts immediately after the zero-length chunk
+    /// and includes the terminating empty line.
     pub hook_request_trailer_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request trailer hook, invoked after all trailer headers are seen,
-     * and if they are seen (not invoked otherwise).
-     */
+    /// Request trailer hook, invoked after all trailer headers are seen,
+    /// and if they are seen (not invoked otherwise).
     pub hook_request_trailer: *mut htp_hooks::htp_hook_t,
-    /**
-     * Request hook, invoked after a complete request is seen.
-     */
+    /// Request hook, invoked after a complete request is seen.
     pub hook_request_complete: *mut htp_hooks::htp_hook_t,
-    /**
-     * Response startup hook, invoked when a response transaction is found and
-     * processing started.
-     */
+    /// Response startup hook, invoked when a response transaction is found and
+    /// processing started.
     pub hook_response_start: *mut htp_hooks::htp_hook_t,
-    /**
-     * Response line hook, invoked after a response line has been parsed.
-     */
+    /// Response line hook, invoked after a response line has been parsed.
     pub hook_response_line: *mut htp_hooks::htp_hook_t,
-    /**
-     * Receives raw response header data, starting immediately after the status line
-     * and including all headers as they are seen on the TCP connection, and including the
-     * terminating empty line. Not available on genuine HTTP/0.9 responses (because
-     * they don't have response headers).
-     */
+    /// Receives raw response header data, starting immediately after the status line
+    /// and including all headers as they are seen on the TCP connection, and including the
+    /// terminating empty line. Not available on genuine HTTP/0.9 responses (because
+    /// they don't have response headers).
     pub hook_response_header_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Response headers book, invoked after all response headers have been seen.
-     */
+    /// Response headers book, invoked after all response headers have been seen.
     pub hook_response_headers: *mut htp_hooks::htp_hook_t,
-    /**
-     * Response body data hook, invoked every time body data is available. Each
-     * invocation will provide a htp_tx_data_t instance. Chunked data
-     * will be dechunked before the data is passed to this hook. By default,
-     * compressed data will be decompressed, but decompression can be disabled
-     * in configuration. At the end of the response body there will be a call
-     * with the data pointer set to NULL.
-     */
+    /// Response body data hook, invoked every time body data is available. Each
+    /// invocation will provide a htp_tx_data_t instance. Chunked data
+    /// will be dechunked before the data is passed to this hook. By default,
+    /// compressed data will be decompressed, but decompression can be disabled
+    /// in configuration. At the end of the response body there will be a call
+    /// with the data pointer set to NULL.
     pub hook_response_body_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Receives raw response trailer data, which can be available on responses that have
-     * chunked bodies. The data starts immediately after the zero-length chunk
-     * and includes the terminating empty line.
-     */
+    /// Receives raw response trailer data, which can be available on responses that have
+    /// chunked bodies. The data starts immediately after the zero-length chunk
+    /// and includes the terminating empty line.
     pub hook_response_trailer_data: *mut htp_hooks::htp_hook_t,
-    /**
-     * Response trailer hook, invoked after all trailer headers have been processed,
-     * and only if the trailer exists.
-     */
+    /// Response trailer hook, invoked after all trailer headers have been processed,
+    /// and only if the trailer exists.
     pub hook_response_trailer: *mut htp_hooks::htp_hook_t,
-    /**
-     * Response hook, invoked after a response has been seen. Because sometimes servers
-     * respond before receiving complete requests, a response_complete callback may be
-     * invoked prior to a request_complete callback.
-     */
+    /// Response hook, invoked after a response has been seen. Because sometimes servers
+    /// respond before receiving complete requests, a response_complete callback may be
+    /// invoked prior to a request_complete callback.
     pub hook_response_complete: *mut htp_hooks::htp_hook_t,
-    /**
-     * Transaction complete hook, which is invoked once the entire transaction is
-     * considered complete (request and response are both complete). This is always
-     * the last hook to be invoked.
-     */
+    /// Transaction complete hook, which is invoked once the entire transaction is
+    /// considered complete (request and response are both complete). This is always
+    /// the last hook to be invoked.
     pub hook_transaction_complete: *mut htp_hooks::htp_hook_t,
-    /**
-     * Log hook, invoked every time the library wants to log.
-     */
+    /// Log hook, invoked every time the library wants to log.
     pub hook_log: *mut htp_hooks::htp_hook_t,
-    /**
-     * Opaque user data associated with this configuration structure.
-     */
+    /// Opaque user data associated with this configuration structure.
     pub user_data: *mut libc::c_void,
     // Request Line parsing options.
 
     // TODO this was added here to maintain a stable ABI, once we can break that
     // we may want to move this into htp_decoder_cfg_t (VJ)
-    /** Reaction to leading whitespace on the request line */
+    /// Reaction to leading whitespace on the request line
     pub requestline_leading_whitespace_unwanted: htp_unwanted_t,
-    /** How many layers of compression we will decompress (0 => no limit). */
+    /// How many layers of compression we will decompress (0 => no limit).
     pub response_decompression_layer_limit: libc::c_int,
-    /** max memory use by a the lzma decompressor. */
+    /// max memory use by a the lzma decompressor.
     pub lzma_memlimit: size_t,
-    /** max output size for a compression bomb. */
+    /// max output size for a compression bomb.
     pub compression_bomb_limit: int32_t,
 }
 
@@ -232,126 +180,116 @@ pub struct htp_cfg_t {
 #[derive(Copy, Clone)]
 pub struct htp_decoder_cfg_t {
     // Path-specific decoding options.
-    /** Convert backslash characters to slashes. */
+    /// Convert backslash characters to slashes.
     pub backslash_convert_slashes: libc::c_int,
-    /** Convert to lowercase. */
+    /// Convert to lowercase.
     pub convert_lowercase: libc::c_int,
-    /** Compress slash characters. */
+    /// Compress slash characters.
     pub path_separators_compress: libc::c_int,
-    /** Should we URL-decode encoded path segment separators? */
+    /// Should we URL-decode encoded path segment separators?
     pub path_separators_decode: libc::c_int,
-    /** Should we decode '+' characters to spaces? */
+    /// Should we decode '+' characters to spaces?
     pub plusspace_decode: libc::c_int,
-    /** Reaction to encoded path separators. */
+    /// Reaction to encoded path separators.
     pub path_separators_encoded_unwanted: htp_unwanted_t,
     // Special characters options.
-    /** Controls how raw NUL bytes are handled. */
+    /// Controls how raw NUL bytes are handled.
     pub nul_raw_terminates: libc::c_int,
-    /** Determines server response to a raw NUL byte in the path. */
+    /// Determines server response to a raw NUL byte in the path.
     pub nul_raw_unwanted: htp_unwanted_t,
-    /** Reaction to control characters. */
+    /// Reaction to control characters.
     pub control_chars_unwanted: htp_unwanted_t,
     // URL encoding options.
-    /** Should we decode %u-encoded characters? */
+    /// Should we decode %u-encoded characters?
     pub u_encoding_decode: libc::c_int,
-    /** Reaction to %u encoding. */
+    /// Reaction to %u encoding.
     pub u_encoding_unwanted: htp_unwanted_t,
-    /** Handling of invalid URL encodings. */
+    /// Handling of invalid URL encodings.
     pub url_encoding_invalid_handling: htp_url_encoding_handling_t,
-    /** Reaction to invalid URL encoding. */
+    /// Reaction to invalid URL encoding.
     pub url_encoding_invalid_unwanted: htp_unwanted_t,
-    /** Controls how encoded NUL bytes are handled. */
+    /// Controls how encoded NUL bytes are handled.
     pub nul_encoded_terminates: libc::c_int,
-    /** How are we expected to react to an encoded NUL byte? */
+    /// How are we expected to react to an encoded NUL byte?
     pub nul_encoded_unwanted: htp_unwanted_t,
     // UTF-8 options.
-    /** Controls how invalid UTF-8 characters are handled. */
+    /// Controls how invalid UTF-8 characters are handled.
     pub utf8_invalid_unwanted: htp_unwanted_t,
-    /** Convert UTF-8 characters into bytes using best-fit mapping. */
+    /// Convert UTF-8 characters into bytes using best-fit mapping.
     pub utf8_convert_bestfit: libc::c_int,
     // Best-fit mapping options.
-    /** The best-fit map to use to decode %u-encoded characters. */
+    /// The best-fit map to use to decode %u-encoded characters.
     pub bestfit_map: *mut libc::c_uchar,
-    /** The replacement byte used when there is no best-fit mapping. */
+    /// The replacement byte used when there is no best-fit mapping.
     pub bestfit_replacement_byte: libc::c_uchar,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_decoder_ctx_t {
-    /** Default settings. Settings applied to this context are propagated to all other contexts. */
+    /// Default settings. Settings applied to this context are propagated to all other contexts.
     HTP_DECODER_DEFAULTS,
-    /** Urlencoded decoder settings. */
+    /// Urlencoded decoder settings.
     HTP_DECODER_URLENCODED,
-    /** URL path decoder settings. */
+    /// URL path decoder settings.
     HTP_DECODER_URL_PATH,
 }
 
 pub type htp_time_t = libc::timeval;
-/* *
- * Enumerates the possible server personalities.
- */
+/// Enumerates the possible server personalities.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_server_personality_t {
-    /* *
-     * Minimal personality that performs at little work as possible. All optional
-     * features are disabled. This personality is a good starting point for customization.
-     */
+    /// Minimal personality that performs at little work as possible. All optional
+    /// features are disabled. This personality is a good starting point for customization.
     HTP_SERVER_MINIMAL,
-    /* * A generic personality that aims to work reasonably well for all server types. */
+    /// A generic personality that aims to work reasonably well for all server types.
     HTP_SERVER_GENERIC,
-    /* * The IDS personality tries to perform as much decoding as possible. */
+    /// The IDS personality tries to perform as much decoding as possible.
     HTP_SERVER_IDS,
-    /* * Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0. */
+    /// Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0.
     HTP_SERVER_IIS_4_0,
-    /* * Mimics the behavior of IIS 5.0, as shipped with Windows 2000. */
+    /// Mimics the behavior of IIS 5.0, as shipped with Windows 2000.
     HTP_SERVER_IIS_5_0,
-    /* * Mimics the behavior of IIS 5.1, as shipped with Windows XP Professional. */
+    /// Mimics the behavior of IIS 5.1, as shipped with Windows XP Professional.
     HTP_SERVER_IIS_5_1,
-    /* * Mimics the behavior of IIS 6.0, as shipped with Windows 2003. */
+    /// Mimics the behavior of IIS 6.0, as shipped with Windows 2003.
     HTP_SERVER_IIS_6_0,
-    /* * Mimics the behavior of IIS 7.0, as shipped with Windows 2008. */
+    /// Mimics the behavior of IIS 7.0, as shipped with Windows 2008.
     HTP_SERVER_IIS_7_0,
-    /* Mimics the behavior of IIS 7.5, as shipped with Windows 7. */
+    /// Mimics the behavior of IIS 7.5, as shipped with Windows 7.
     HTP_SERVER_IIS_7_5,
-    /* Mimics the behavior of Apache 2.x. */
+    /// Mimics the behavior of Apache 2.x.
     HTP_SERVER_APACHE_2,
 }
 
-/**
- * Enumerates the ways in which servers respond to malformed data.
- */
+/// Enumerates the ways in which servers respond to malformed data.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_unwanted_t {
-    /** Ignores problem. */
+    /// Ignores problem.
     HTP_UNWANTED_IGNORE,
-    /** Responds with HTTP 400 status code. */
+    /// Responds with HTTP 400 status code.
     HTP_UNWANTED_400 = 400,
-    /** Responds with HTTP 404 status code. */
+    /// Responds with HTTP 404 status code.
     HTP_UNWANTED_404 = 404,
 }
 
-/**
- * Enumerates the possible approaches to handling invalid URL-encodings.
- */
+/// Enumerates the possible approaches to handling invalid URL-encodings.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_url_encoding_handling_t {
-    /** Ignore invalid URL encodings and leave the % in the data. */
+    /// Ignore invalid URL encodings and leave the % in the data.
     HTP_URL_DECODE_PRESERVE_PERCENT,
-    /** Ignore invalid URL encodings, but remove the % from the data. */
+    /// Ignore invalid URL encodings, but remove the % from the data.
     HTP_URL_DECODE_REMOVE_PERCENT,
-    /** Decode invalid URL encodings. */
+    /// Decode invalid URL encodings.
     HTP_URL_DECODE_PROCESS_INVALID,
 }
 
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> Status>;
-/* *
- * This map is used by default for best-fit mapping from the Unicode
- * values U+0100-FFFF.
- */
+/// This map is used by default for best-fit mapping from the Unicode
+/// values U+0100-FFFF.
 static mut bestfit_1252: [libc::c_uchar; 1173] = [
     0x1 as libc::c_int as libc::c_uchar,
     0 as libc::c_int as libc::c_uchar,
@@ -1528,15 +1466,10 @@ static mut bestfit_1252: [libc::c_uchar; 1173] = [
     0 as libc::c_int as libc::c_uchar,
 ];
 
-/**
- * Creates a new configuration structure. Configuration structures created at
- * configuration time must not be changed afterwards in order to support lock-less
- * copying.
- *
- * @return New configuration structure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_create() -> *mut htp_cfg_t {
+/// Creates a new configuration structure. Configuration structures created at
+/// configuration time must not be changed afterwards in order to support lock-less
+/// copying.
+pub unsafe fn htp_config_create() -> *mut htp_cfg_t {
     let mut cfg: *mut htp_cfg_t = calloc(
         1 as libc::c_int as libc::c_ulong,
         ::std::mem::size_of::<htp_cfg_t>() as libc::c_ulong,
@@ -1595,19 +1528,13 @@ pub unsafe extern "C" fn htp_config_create() -> *mut htp_cfg_t {
     return cfg;
 }
 
-/**
- * Creates a copy of the supplied configuration structure. The idea is to create
- * one or more configuration objects at configuration-time, but to use this
- * function to create per-connection copies. That way it will be possible to
- * adjust per-connection configuration as necessary, without affecting the
- * global configuration. Make sure no other thread changes the configuration
- * object while this function is operating.
- *
- * @param[in] cfg
- * @return A copy of the configuration structure.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_copy(mut cfg: *mut htp_cfg_t) -> *mut htp_cfg_t {
+/// Creates a copy of the supplied configuration structure. The idea is to create
+/// one or more configuration objects at configuration-time, but to use this
+/// function to create per-connection copies. That way it will be possible to
+/// adjust per-connection configuration as necessary, without affecting the
+/// global configuration. Make sure no other thread changes the configuration
+/// object while this function is operating.
+pub unsafe fn htp_config_copy(mut cfg: *mut htp_cfg_t) -> *mut htp_cfg_t {
     if cfg.is_null() {
         return 0 as *mut htp_cfg_t;
     }
@@ -1773,13 +1700,8 @@ pub unsafe extern "C" fn htp_config_copy(mut cfg: *mut htp_cfg_t) -> *mut htp_cf
     return copy;
 }
 
-/**
- * Destroy a configuration structure.
- *
- * @param[in] cfg
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
+/// Destroy a configuration structure.
+pub unsafe fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
     if cfg.is_null() {
         return;
     }
@@ -1806,29 +1728,18 @@ pub unsafe extern "C" fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
     free(cfg as *mut libc::c_void);
 }
 
-/**
- * Retrieves user data associated with this configuration.
- *
- * @param[in] cfg
- * @return User data pointer, or NULL if not set.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_get_user_data(mut cfg: *mut htp_cfg_t) -> *mut libc::c_void {
+/// Retrieves user data associated with this configuration.
+/// Returns the user data pointer, or NULL if not set.
+pub unsafe fn htp_config_get_user_data(mut cfg: *mut htp_cfg_t) -> *mut libc::c_void {
     if cfg.is_null() {
         return 0 as *mut libc::c_void;
     }
     return (*cfg).user_data;
 }
 
-/**
- * Registers a callback that is invoked every time there is a log message with
- * severity equal and higher than the configured log level.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_log(
+/// Registers a callback that is invoked every time there is a log message with
+/// severity equal and higher than the configured log level.
+pub unsafe fn htp_config_register_log(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
 ) {
@@ -1844,14 +1755,9 @@ pub unsafe extern "C" fn htp_config_register_log(
     );
 }
 
-/**
- * Adds the built-in Multipart parser to the configuration. This parser will extract information
- * stored in request bodies, when they are in multipart/form-data format.
- *
- * @param[in] cfg
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_multipart_parser(mut cfg: *mut htp_cfg_t) {
+/// Adds the built-in Multipart parser to the configuration. This parser will extract information
+/// stored in request bodies, when they are in multipart/form-data format.
+pub unsafe fn htp_config_register_multipart_parser(mut cfg: *mut htp_cfg_t) {
     if cfg.is_null() {
         return;
     }
@@ -1864,14 +1770,8 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(mut cfg: *mut htp_
     );
 }
 
-/**
- * Registers a REQUEST_COMPLETE callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_complete(
+/// Registers a REQUEST_COMPLETE callback.
+pub unsafe fn htp_config_register_request_complete(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -1887,14 +1787,8 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
     );
 }
 
-/**
- * Registers a REQUEST_BODY_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_body_data(
+/// Registers a REQUEST_BODY_DATA callback.
+pub unsafe fn htp_config_register_request_body_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
@@ -1910,14 +1804,8 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
     );
 }
 
-/**
- * Registers a REQUEST_FILE_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_file_data(
+/// Registers a REQUEST_FILE_DATA callback.
+pub unsafe fn htp_config_register_request_file_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> Status>,
 ) {
@@ -1933,14 +1821,8 @@ pub unsafe extern "C" fn htp_config_register_request_file_data(
     );
 }
 
-/**
- * Registers a REQUEST_URI_NORMALIZE callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
+/// Registers a REQUEST_URI_NORMALIZE callback.
+pub unsafe fn htp_config_register_request_uri_normalize(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -1956,14 +1838,8 @@ pub unsafe extern "C" fn htp_config_register_request_uri_normalize(
     );
 }
 
-/**
- * Registers a REQUEST_HEADER_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_header_data(
+/// Registers a REQUEST_HEADER_DATA callback.
+pub unsafe fn htp_config_register_request_header_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
@@ -1979,14 +1855,8 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
     );
 }
 
-/**
- * Registers a REQUEST_HEADERS callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_headers(
+/// Registers a REQUEST_HEADERS callback.
+pub unsafe fn htp_config_register_request_headers(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2002,14 +1872,8 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
     );
 }
 
-/**
- * Registers a REQUEST_LINE callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_line(
+/// Registers a REQUEST_LINE callback.
+pub unsafe fn htp_config_register_request_line(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2025,15 +1889,9 @@ pub unsafe extern "C" fn htp_config_register_request_line(
     );
 }
 
-/**
- * Registers a REQUEST_START callback, which is invoked every time a new
- * request begins and before any parsing is done.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_start(
+/// Registers a REQUEST_START callback, which is invoked every time a new
+/// request begins and before any parsing is done.
+pub unsafe fn htp_config_register_request_start(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2049,14 +1907,8 @@ pub unsafe extern "C" fn htp_config_register_request_start(
     );
 }
 
-/**
- * Registers a HTP_REQUEST_TRAILER callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_trailer(
+/// Registers a HTP_REQUEST_TRAILER callback.
+pub unsafe fn htp_config_register_request_trailer(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2072,14 +1924,8 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
     );
 }
 
-/**
- * Registers a REQUEST_TRAILER_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_request_trailer_data(
+/// Registers a REQUEST_TRAILER_DATA callback.
+pub unsafe fn htp_config_register_request_trailer_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
@@ -2095,14 +1941,8 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
     );
 }
 
-/**
- * Registers a RESPONSE_BODY_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_body_data(
+/// Registers a RESPONSE_BODY_DATA callback.
+pub unsafe fn htp_config_register_response_body_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
@@ -2118,14 +1958,8 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
     );
 }
 
-/**
- * Registers a RESPONSE_COMPLETE callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_complete(
+/// Registers a RESPONSE_COMPLETE callback.
+pub unsafe fn htp_config_register_response_complete(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2141,14 +1975,8 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
     );
 }
 
-/**
- * Registers a RESPONSE_HEADER_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_header_data(
+/// Registers a RESPONSE_HEADER_DATA callback.
+pub unsafe fn htp_config_register_response_header_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
@@ -2164,14 +1992,8 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
     );
 }
 
-/**
- * Registers a RESPONSE_HEADERS callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_headers(
+/// Registers a RESPONSE_HEADERS callback.
+pub unsafe fn htp_config_register_response_headers(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2187,14 +2009,8 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
     );
 }
 
-/**
- * Registers a RESPONSE_LINE callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_line(
+/// Registers a RESPONSE_LINE callback.
+pub unsafe fn htp_config_register_response_line(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2210,14 +2026,8 @@ pub unsafe extern "C" fn htp_config_register_response_line(
     );
 }
 
-/**
- * Registers a RESPONSE_START callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_start(
+/// Registers a RESPONSE_START callback.
+pub unsafe fn htp_config_register_response_start(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2233,14 +2043,8 @@ pub unsafe extern "C" fn htp_config_register_response_start(
     );
 }
 
-/**
- * Registers a RESPONSE_TRAILER callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_trailer(
+/// Registers a RESPONSE_TRAILER callback.
+pub unsafe fn htp_config_register_response_trailer(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2256,14 +2060,8 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
     );
 }
 
-/**
- * Registers a RESPONSE_TRAILER_DATA callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_response_trailer_data(
+/// Registers a RESPONSE_TRAILER_DATA callback.
+pub unsafe fn htp_config_register_response_trailer_data(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
@@ -2279,14 +2077,8 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
     );
 }
 
-/**
- * Registers a TRANSACTION_COMPLETE callback.
- *
- * @param[in] cfg
- * @param[in] callback_fn
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_transaction_complete(
+/// Registers a TRANSACTION_COMPLETE callback.
+pub unsafe fn htp_config_register_transaction_complete(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
@@ -2302,14 +2094,9 @@ pub unsafe extern "C" fn htp_config_register_transaction_complete(
     );
 }
 
-/**
- * Adds the built-in Urlencoded parser to the configuration. The parser will
- * parse query strings and request bodies with the appropriate MIME type.
- *
- * @param[in] cfg
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_register_urlencoded_parser(mut cfg: *mut htp_cfg_t) {
+/// Adds the built-in Urlencoded parser to the configuration. The parser will
+/// parse query strings and request bodies with the appropriate MIME type.
+pub unsafe fn htp_config_register_urlencoded_parser(mut cfg: *mut htp_cfg_t) {
     if cfg.is_null() {
         return;
     }
@@ -2329,24 +2116,20 @@ pub unsafe extern "C" fn htp_config_register_urlencoded_parser(mut cfg: *mut htp
     );
 }
 
-/**
- * Enables or disables Multipart file extraction. This function can be invoked only
- * after a previous htp_config_set_tmpdir() invocation. Otherwise, the configuration
- * change will fail, and extraction will not be enabled. Disabled by default. Please
- * note that the built-in file extraction implementation uses synchronous I/O, which
- * means that it is not suitable for use in an event-driven container. There's an
- * upper limit to how many files can be created on the filesystem during a single
- * request. The limit exists in order to mitigate against a DoS attack with a
- * Multipart payload that contains hundreds and thousands of files (it's cheap for the
- * attacker to do this, but costly for the server to support it). The default limit
- * may be pretty conservative.
- *
- * @param[in] cfg
- * @param[in] extract_files 1 if you wish extraction to be enabled, 0 otherwise
- * @param[in] limit the maximum number of files allowed; use -1 to use the parser default.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_extract_request_files(
+/// Enables or disables Multipart file extraction. This function can be invoked only
+/// after a previous htp_config_set_tmpdir() invocation. Otherwise, the configuration
+/// change will fail, and extraction will not be enabled. Disabled by default. Please
+/// note that the built-in file extraction implementation uses synchronous I/O, which
+/// means that it is not suitable for use in an event-driven container. There's an
+/// upper limit to how many files can be created on the filesystem during a single
+/// request. The limit exists in order to mitigate against a DoS attack with a
+/// Multipart payload that contains hundreds and thousands of files (it's cheap for the
+/// attacker to do this, but costly for the server to support it). The default limit
+/// may be pretty conservative.
+///
+/// extract_request_files: set to 1 if you wish extraction to be enabled, 0 otherwise
+/// limit: the maximum number of files allowed; use -1 to use the parser default.
+pub unsafe fn htp_config_set_extract_request_files(
     mut cfg: *mut htp_cfg_t,
     mut extract_request_files: libc::c_int,
     mut limit: libc::c_int,
@@ -2362,17 +2145,11 @@ pub unsafe extern "C" fn htp_config_set_extract_request_files(
     return Status::OK;
 }
 
-/**
- * Configures the maximum size of the buffer LibHTP will use when all data is not available
- * in the current buffer (e.g., a very long header line that might span several packets). This
- * limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
- *
- * @param[in] cfg
- * @param[in] soft_limit NOT IMPLEMENTED.
- * @param[in] hard_limit
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_field_limits(
+/// Configures the maximum size of the buffer LibHTP will use when all data is not available
+/// in the current buffer (e.g., a very long header line that might span several packets). This
+/// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
+/// soft_limit is NOT IMPLEMENTED.
+pub unsafe fn htp_config_set_field_limits(
     mut cfg: *mut htp_cfg_t,
     mut soft_limit: size_t,
     mut hard_limit: size_t,
@@ -2384,31 +2161,16 @@ pub unsafe extern "C" fn htp_config_set_field_limits(
     (*cfg).field_limit_hard = hard_limit;
 }
 
-/**
- * Configures the maximum memlimit LibHTP will pass to liblzma.
- *
- * @param[in] cfg
- * @param[in] memlimit
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_lzma_memlimit(
-    mut cfg: *mut htp_cfg_t,
-    mut memlimit: size_t,
-) {
+/// Configures the maximum memlimit LibHTP will pass to liblzma.
+pub unsafe fn htp_config_set_lzma_memlimit(mut cfg: *mut htp_cfg_t, mut memlimit: size_t) {
     if cfg.is_null() {
         return;
     }
     (*cfg).lzma_memlimit = memlimit;
 }
 
-/**
- * Configures the maximum compression bomb size LibHTP will decompress.
- *
- * @param[in] cfg
- * @param[in] bomblimit
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
+/// Configures the maximum compression bomb size LibHTP will decompress.
+pub unsafe fn htp_config_set_compression_bomb_limit(
     mut cfg: *mut htp_cfg_t,
     mut bomblimit: size_t,
 ) {
@@ -2422,14 +2184,8 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
     };
 }
 
-/**
- * Configures the desired log level.
- *
- * @param[in] cfg
- * @param[in] log_level
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_log_level(
+/// Configures the desired log level.
+pub unsafe fn htp_config_set_log_level(
     mut cfg: *mut htp_cfg_t,
     mut log_level: htp_util::htp_log_level_t,
 ) {
@@ -2439,14 +2195,8 @@ pub unsafe extern "C" fn htp_config_set_log_level(
     (*cfg).log_level = log_level;
 }
 
-/**
- * Enable or disable request HTTP Authentication parsing. Enabled by default.
- *
- * @param[in] cfg
- * @param[in] parse_request_auth
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_parse_request_auth(
+/// Enable or disable request HTTP Authentication parsing. Enabled by default.
+pub unsafe fn htp_config_set_parse_request_auth(
     mut cfg: *mut htp_cfg_t,
     mut parse_request_auth: libc::c_int,
 ) {
@@ -2456,14 +2206,8 @@ pub unsafe extern "C" fn htp_config_set_parse_request_auth(
     (*cfg).parse_request_auth = parse_request_auth;
 }
 
-/**
- * Enable or disable request cookie parsing. Enabled by default.
- *
- * @param[in] cfg
- * @param[in] parse_request_cookies
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
+/// Enable or disable request cookie parsing. Enabled by default.
+pub unsafe fn htp_config_set_parse_request_cookies(
     mut cfg: *mut htp_cfg_t,
     mut parse_request_cookies: libc::c_int,
 ) {
@@ -2473,14 +2217,9 @@ pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
     (*cfg).parse_request_cookies = parse_request_cookies;
 }
 
-/**
- * Controls whether compressed response bodies will be automatically decompressed.
- *
- * @param[in] cfg
- * @param[in] enabled set to 1 to enable decompression, 0 otherwise
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_response_decompression(
+/// Controls whether compressed response bodies will be automatically decompressed.
+/// enabled: set to 1 to enable decompression, 0 otherwise
+pub unsafe fn htp_config_set_response_decompression(
     mut cfg: *mut htp_cfg_t,
     mut enabled: libc::c_int,
 ) {
@@ -2490,15 +2229,9 @@ pub unsafe extern "C" fn htp_config_set_response_decompression(
     (*cfg).response_decompression_enabled = enabled;
 }
 
-/**
- * Configure desired server personality.
- *
- * @param[in] cfg
- * @param[in] personality
- * @return HTP_OK if the personality is supported, HTP_ERROR if it isn't.
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_server_personality(
+/// Configure desired server personality.
+/// Returns Status::OK if the personality is supported, Status::ERROR if it isn't.
+pub unsafe fn htp_config_set_server_personality(
     mut cfg: *mut htp_cfg_t,
     mut personality: htp_server_personality_t,
 ) -> Status {
@@ -2900,34 +2633,19 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
     return Status::OK;
 }
 
-/**
- * Configures the path where temporary files should be stored. Must be set
- * in order to use the Multipart file extraction functionality.
- *
- * @param[in] cfg
- * @param[in] tmpdir
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_tmpdir(
-    mut cfg: *mut htp_cfg_t,
-    mut tmpdir: *mut libc::c_char,
-) {
+/// Configures the path where temporary files should be stored. Must be set
+/// in order to use the Multipart file extraction functionality.
+pub unsafe fn htp_config_set_tmpdir(mut cfg: *mut htp_cfg_t, mut tmpdir: *mut libc::c_char) {
     if cfg.is_null() {
         return;
     }
     (*cfg).tmpdir = tmpdir;
 }
 
-/**
- * Configures whether transactions will be automatically destroyed once they
- * are processed and all callbacks invoked. This option is appropriate for
- * programs that process transactions as they are processed.
- *
- * @param[in] cfg
- * @param[in] tx_auto_destroy
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
+/// Configures whether transactions will be automatically destroyed once they
+/// are processed and all callbacks invoked. This option is appropriate for
+/// programs that process transactions as they are processed.
+pub unsafe fn htp_config_set_tx_auto_destroy(
     mut cfg: *mut htp_cfg_t,
     mut tx_auto_destroy: libc::c_int,
 ) {
@@ -2937,43 +2655,27 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
     (*cfg).tx_auto_destroy = tx_auto_destroy;
 }
 
-/**
- * Associates provided opaque user data with the configuration.
- *
- * @param[in] cfg
- * @param[in] user_data
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_user_data(
-    mut cfg: *mut htp_cfg_t,
-    mut user_data: *mut libc::c_void,
-) {
+/// Associates provided opaque user data with the configuration.
+pub unsafe fn htp_config_set_user_data(mut cfg: *mut htp_cfg_t, mut user_data: *mut libc::c_void) {
     if cfg.is_null() {
         return;
     }
     (*cfg).user_data = user_data;
 }
-unsafe extern "C" fn convert_to_0_or_1(mut b: libc::c_int) -> libc::c_int {
+unsafe fn convert_to_0_or_1(mut b: libc::c_int) -> libc::c_int {
     if b != 0 {
         return 1 as libc::c_int;
     }
     return 0 as libc::c_int;
 }
 
-/**
- * Configures a best-fit map, which is used whenever characters longer than one byte
- * need to be converted to a single-byte. By default a Windows 1252 best-fit map is used.
- * The map is an list of triplets, the first 2 bytes being an UCS-2 character to map from,
- * and the third byte being the single byte to map to. Make sure that your map contains
- * the mappings to cover the full-width and half-width form characters (U+FF00-FFEF). The
- * last triplet in the map must be all zeros (3 NUL bytes).
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] map
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_bestfit_map(
+/// Configures a best-fit map, which is used whenever characters longer than one byte
+/// need to be converted to a single-byte. By default a Windows 1252 best-fit map is used.
+/// The map is an list of triplets, the first 2 bytes being an UCS-2 character to map from,
+/// and the third byte being the single byte to map to. Make sure that your map contains
+/// the mappings to cover the full-width and half-width form characters (U+FF00-FFEF). The
+/// last triplet in the map must be all zeros (3 NUL bytes).
+pub unsafe fn htp_config_set_bestfit_map(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut map: *mut libc::c_void,
@@ -2991,17 +2693,10 @@ pub unsafe extern "C" fn htp_config_set_bestfit_map(
     };
 }
 
-/**
- * Sets the replacement character that will be used to in the lossy best-fit
- * mapping from multi-byte to single-byte streams. The question mark character
- * is used as the default replacement byte.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] replacement_byte
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
+/// Sets the replacement character that will be used to in the lossy best-fit
+/// mapping from multi-byte to single-byte streams. The question mark character
+/// is used as the default replacement byte.
+pub unsafe fn htp_config_set_bestfit_replacement_byte(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut b: libc::c_int,
@@ -3019,15 +2714,8 @@ pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
     };
 }
 
-/**
- * Configures how the server handles to invalid URL encoding.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] handling
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
+/// Configures how the server handles to invalid URL encoding.
+pub unsafe fn htp_config_set_url_encoding_invalid_handling(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut handling: htp_url_encoding_handling_t,
@@ -3045,15 +2733,8 @@ pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
     };
 }
 
-/**
- * Configures the handling of raw NUL bytes. If enabled, raw NUL terminates strings.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
+/// Configures the handling of raw NUL bytes. If enabled, raw NUL terminates strings.
+pub unsafe fn htp_config_set_nul_raw_terminates(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3071,17 +2752,10 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
     };
 }
 
-/**
- * Configures how the server reacts to encoded NUL bytes. Some servers will stop at
- * at NUL, while some will respond with 400 or 404. When the termination option is not
- * used, the NUL byte will remain in the path.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
+/// Configures how the server reacts to encoded NUL bytes. Some servers will stop at
+/// at NUL, while some will respond with 400 or 404. When the termination option is not
+/// used, the NUL byte will remain in the path.
+pub unsafe fn htp_config_set_nul_encoded_terminates(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3099,16 +2773,9 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
     };
 }
 
-/**
- * Configures whether %u-encoded sequences are decoded. Such sequences
- * will be treated as invalid URL encoding if decoding is not desirable.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
+/// Configures whether %u-encoded sequences are decoded. Such sequences
+/// will be treated as invalid URL encoding if decoding is not desirable.
+pub unsafe fn htp_config_set_u_encoding_decode(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3126,17 +2793,11 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
     };
 }
 
-/**
- * Configures whether backslash characters are treated as path segment separators. They
- * are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
- * such as "/one\two/three" will be converted to "/one/two/three". Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
+/// Configures whether backslash characters are treated as path segment separators. They
+/// are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
+/// such as "/one\two/three" will be converted to "/one/two/three".
+/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_backslash_convert_slashes(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3154,19 +2815,12 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
     };
 }
 
-/**
- * Configures whether encoded path segment separators will be decoded. Apache does not do
- * this by default, but IIS does. If enabled, a path such as "/one%2ftwo" will be normalized
- * to "/one/two". If the backslash_separators option is also enabled, encoded backslash
- * characters will be converted too (and subsequently normalized to forward slashes). Implemented
- * only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_path_separators_decode(
+/// Configures whether encoded path segment separators will be decoded. Apache does not do
+/// this by default, but IIS does. If enabled, a path such as "/one%2ftwo" will be normalized
+/// to "/one/two". If the backslash_separators option is also enabled, encoded backslash
+/// characters will be converted too (and subsequently normalized to forward slashes). Implemented
+/// only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_path_separators_decode(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3184,19 +2838,12 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
     };
 }
 
-/**
- * Configures whether consecutive path segment separators will be compressed. When enabled, a path
- * such as "/one//two" will be normalized to "/one/two". Backslash conversion and path segment separator
- * decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
- * will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
- * htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_path_separators_compress(
+/// Configures whether consecutive path segment separators will be compressed. When enabled, a path
+/// such as "/one//two" will be normalized to "/one/two". Backslash conversion and path segment separator
+/// decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
+/// will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
+/// htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_path_separators_compress(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3214,17 +2861,10 @@ pub unsafe extern "C" fn htp_config_set_path_separators_compress(
     };
 }
 
-/**
- * Configures whether plus characters are converted to spaces when decoding URL-encoded strings. This
- * is appropriate to do for parameters, but not for URLs. Only applies to contexts where decoding
- * is taking place.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_plusspace_decode(
+/// Configures whether plus characters are converted to spaces when decoding URL-encoded strings. This
+/// is appropriate to do for parameters, but not for URLs. Only applies to contexts where decoding
+/// is taking place.
+pub unsafe fn htp_config_set_plusspace_decode(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3242,17 +2882,11 @@ pub unsafe extern "C" fn htp_config_set_plusspace_decode(
     };
 }
 
-/**
- * Configures whether input data will be converted to lowercase. Useful when set on the
- * htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with case-insensitive filesystems.
- * Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_convert_lowercase(
+/// Configures whether input data will be converted to lowercase. Useful when set on the
+/// htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with
+/// case-insensitive filesystems.
+/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_convert_lowercase(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3270,16 +2904,9 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
     };
 }
 
-/**
- * Controls whether the data should be treated as UTF-8 and converted to a single-byte
- * stream using best-fit mapping. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] enabled
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
+/// Controls whether the data should be treated as UTF-8 and converted to a single-byte
+/// stream using best-fit mapping. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_utf8_convert_bestfit(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut enabled: libc::c_int,
@@ -3297,15 +2924,8 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
     };
 }
 
-/**
- * Configures reaction to %u-encoded sequences in input data.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_u_encoding_unwanted(
+/// Configures reaction to %u-encoded sequences in input data.
+pub unsafe fn htp_config_set_u_encoding_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3323,15 +2943,8 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_unwanted(
     };
 }
 
-/**
- * Controls reaction to raw control characters in the data.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_control_chars_unwanted(
+/// Controls reaction to raw control characters in the data.
+pub unsafe fn htp_config_set_control_chars_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3349,15 +2962,8 @@ pub unsafe extern "C" fn htp_config_set_control_chars_unwanted(
     };
 }
 
-/**
- * Configures how the server reacts to invalid URL encoding.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_unwanted(
+/// Configures how the server reacts to invalid URL encoding.
+pub unsafe fn htp_config_set_url_encoding_invalid_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3375,15 +2981,8 @@ pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_unwanted(
     };
 }
 
-/**
- * Configures reaction to encoded NUL bytes in input data.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_nul_encoded_unwanted(
+/// Configures reaction to encoded NUL bytes in input data.
+pub unsafe fn htp_config_set_nul_encoded_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3401,17 +3000,10 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_unwanted(
     };
 }
 
-/**
- * Configures how the server reacts to raw NUL bytes. Some servers will terminate
- * path at NUL, while some will respond with 400 or 404. When the termination option
- * is not used, the NUL byte will remain in the data.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_nul_raw_unwanted(
+/// Configures how the server reacts to raw NUL bytes. Some servers will terminate
+/// path at NUL, while some will respond with 400 or 404. When the termination option
+/// is not used, the NUL byte will remain in the data.
+pub unsafe fn htp_config_set_nul_raw_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3429,15 +3021,9 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_unwanted(
     };
 }
 
-/**
- * Configures reaction to encoded path separator characters (e.g., %2f). Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_path_separators_encoded_unwanted(
+/// Configures reaction to encoded path separator characters (e.g., %2f).
+/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_path_separators_encoded_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3455,17 +3041,11 @@ pub unsafe extern "C" fn htp_config_set_path_separators_encoded_unwanted(
     };
 }
 
-/**
- * Configures how the server reacts to invalid UTF-8 characters. This setting does
- * not affect path normalization; it only controls what response status will be expect for
- * a request that contains invalid UTF-8 characters. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_utf8_invalid_unwanted(
+/// Configures how the server reacts to invalid UTF-8 characters. This setting does
+/// not affect path normalization; it only controls what response status will be expect for
+/// a request that contains invalid UTF-8 characters.
+/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+pub unsafe fn htp_config_set_utf8_invalid_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3483,15 +3063,8 @@ pub unsafe extern "C" fn htp_config_set_utf8_invalid_unwanted(
     };
 }
 
-/**
- * Configures how the server reacts to leading whitespace on the request line.
- *
- * @param[in] cfg
- * @param[in] ctx
- * @param[in] unwanted
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_requestline_leading_whitespace_unwanted(
+/// Configures how the server reacts to leading whitespace on the request line.
+pub unsafe fn htp_config_set_requestline_leading_whitespace_unwanted(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
@@ -3502,14 +3075,9 @@ pub unsafe extern "C" fn htp_config_set_requestline_leading_whitespace_unwanted(
     (*cfg).requestline_leading_whitespace_unwanted = unwanted;
 }
 
-/* *
- * Configures many layers of compression we try to decompress.
- *
- * @param[in] cfg
- * @param[in] limit 0 disables limit
- */
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
+/// Configures many layers of compression we try to decompress.
+/// limit: 0 disables limit
+pub unsafe fn htp_config_set_response_decompression_layer_limit(
     mut cfg: *mut htp_cfg_t,
     mut limit: libc::c_int,
 ) {
