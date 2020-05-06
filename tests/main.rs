@@ -1644,30 +1644,10 @@ fn Util() {
         let response_progress: *mut libc::c_char = htp_tx_response_progress_as_string(tx);
         assert!(!response_progress.is_null());
 
-        let null: *mut libc::FILE = libc::fopen(cstr!("/dev/null"), cstr!("w"));
-        assert!(!null.is_null());
-
-        fprint_bstr(null, cstr!("test"), std::ptr::null_mut());
-
-        fprint_bstr(null, cstr!("test"), (*tx).request_line);
-
         dbg!((*tx).request_line);
         dbg!((*(*tx).request_line).len);
         dbg!(bstr_ptr((*tx).request_line));
-        fprint_raw_data(
-            null,
-            cstr!("test"),
-            bstr_ptr((*tx).request_line) as *const core::ffi::c_void,
-            bstr_len((*tx).request_line),
-        );
 
-        fprint_raw_data_ex(
-            null,
-            cstr!("test"),
-            bstr_ptr((*tx).request_line) as *const core::ffi::c_void,
-            0,
-            bstr_len((*tx).request_line),
-        );
         // Message too long.
         (*(*(*tx).connp).cfg).log_level = HTP_LOG_ERROR;
         let mut long_message: [i8; 1300] = [b'X' as i8; 1300];
