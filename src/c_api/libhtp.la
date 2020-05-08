@@ -1,0 +1,35 @@
+# The name that we can dlopen(3).
+dlname='libhtp.so.2'
+
+# Names of this library.
+library_names='libhtp.so.2.0.0 libhtp.so.2 libhtp.so'
+
+# The name of the static archive.
+old_library='libhtp.a'
+
+# Linker flags that cannot go in dependency_libs.
+inherited_linker_flags=''
+
+# Libraries that this one depends upon.
+dependency_libs=' -lz'
+
+# Names of additional weak libraries provided by this library
+weak_library_names=''
+
+# Version information for libhtp.
+current=2
+age=0
+revision=0
+
+# Is this an already installed library?
+installed=no
+
+# Should we warn about portability when linking against -modules?
+shouldnotlink=no
+
+# Files to dlopen/dlpreopen
+dlopen=''
+dlpreopen=''
+
+# Directory that this library needs to be installed in:
+libdir='/usr/local/lib'

@@ -5,7 +5,7 @@ members = [
 [package]
 name = "htp"
 authors = ["C2Rust"]
-version = "0.0.0"
+version = "2.0.0"
 publish = false
 edition = "2018"
 autobins = false
@@ -14,6 +14,8 @@ license-file = "LICENSE"
 [lib]
 crate-type = ["staticlib", "rlib", "cdylib"]
 
+[features]
+default = []
 
 [dependencies]
 libc = "0.2"
@@ -21,6 +23,10 @@ bitflags = "1.2.1"
 
 [dev-dependencies]
 criterion = "0.3"
+
+[build-dependencies]
+cbindgen = { version = "0.14.1", optional = true }
+cdylib-link-lines = "0.1.1"
 
 [[bench]]
 name = "transactions"

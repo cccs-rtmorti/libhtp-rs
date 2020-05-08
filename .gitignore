@@ -1,3 +1,5 @@
 target/
 Cargo.lock
 htp.h
+version.h
+htp/*
