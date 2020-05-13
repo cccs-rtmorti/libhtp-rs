@@ -1,0 +1,67 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  batch: true
+  branches:
+    include:
+      - master
+
+pr:
+- master
+
+jobs:
+- job: install
+  displayName: Install Rust
+  pool: builders
+# Can't figure out strategies right now so just build nightly. See below
+#  strategy:
+#    matrix:
+#      stable:
+#        rustup_toolchain: stable
+#      nightly:
+#        rustup_toolchain: nightly
+  steps:
+    - script: |
+        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
+        echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+#        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
+      displayName: Install Rust
+
+- job: rustfmt
+  displayName: Format Check
+  dependsOn: install
+  pool: builders
+  steps:
+    - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+    - script: rustup component add rustfmt
+      displayName: Install Rustfmt
+    - script: cargo fmt -- --check
+      displayName: Run Rustfmt
+
+# Uncomment when clippy works
+#- job: clippy
+#  displayName: Clippy Check
+#  dependsOn: install
+#  pool: builders
+#  steps:
+#    - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+#    - script: rustup component add clippy
+#      displayName: Install Clippy
+#    - script: cargo clippy --all-targets -- -D warnings
+#      displayName: Running Clippy
+
+- job: tests
+  displayName: Run Tests
+  dependsOn: install
+  pool: builders
+  steps:
+  - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+  - script: cargo build
+    displayName: Build
+  - script: cargo test
+    displayName: Tests
+  - script: cargo bench
+    displayName: Benchmarks
