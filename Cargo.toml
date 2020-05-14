@@ -10,6 +10,7 @@ publish = false
 edition = "2018"
 autobins = false
 license-file = "LICENSE"
+description = "libhtp-rs"
 
 [lib]
 crate-type = ["staticlib", "rlib", "cdylib"]
