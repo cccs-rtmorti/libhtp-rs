@@ -15,6 +15,7 @@ resources:
     type: bitbucket
     endpoint: rtmorti
     name: cse-nbs/cyberdeck
+    ref: refs/heads/libhtp-rs-fixes
 
 jobs:
 - job: install_rust
@@ -34,11 +35,11 @@ jobs:
     - checkout: self
     - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
     - script: . /opt/gcc-9/enable
-    - script: cargo build --release
+    - script: make rpm
       displayName: Build
     - script: |
-        mkdir -p /usr/local/include/htp && cp htp.h /usr/local/include/htp/
-        mkdir -p /usr/local/lib/ && cp target/release/libhtp.so /usr/local/lib/
+        sudo yum remove -y libhtp
+        sudo yum install -y target/centos/RPMS/x86_64/libhtp*.rpm
       displayName: Install
 
 - job: build_cyberdeck
@@ -54,5 +55,5 @@ jobs:
         cmake3 -DTARGET_NATIVE_ARCH=Off -DCMAKE_BUILD_TYPE=Release -DENABLE_MANPAGES=Off -DENABLE_STREAMMAP=Off -DENABLE_SNF=Off ..
         make -j4
       displayName: Build Cyberdeck
-
-# TODO: Test Cyberdeck - won't work until previous step builds (PR to be opened)
+    - script: build/ice/HTTP/test/http_unit_tests
+      displayName: Run HTTP tests

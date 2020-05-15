@@ -1,3 +1,4 @@
+$(shell cargo generate-lockfile)
 $(eval CRATE_VERSION=$(shell cargo pkgid | cut -d: -f 3))
 $(eval CRATE_VERSION_MAJOR=$(shell cargo pkgid | cut -d: -f 3 | cut -d. -f 1))
 
