@@ -666,7 +666,7 @@ pub unsafe extern "C" fn htp_connp_get_in_tx(
 /// Clears the most recent error, if any.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_clear_error(mut connp: *mut htp_connection_parser::htp_connp_t) {
-    (*connp).last_error = 0 as *mut htp_util::htp_log_t;
+    htp_connection_parser::htp_connp_clear_error(connp)
 }
 
 /// Returns the last error that occurred with this connection parser. Do note, however,

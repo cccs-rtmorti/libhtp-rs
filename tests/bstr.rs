@@ -405,18 +405,6 @@ fn Bstr_CmpNocaseEx() {
 }
 
 #[test]
-fn Bstr_CmpMem() {
-    unsafe {
-        let s: *mut bstr_t = bstr_dup_c(cstr!("arfArf"));
-        assert_eq!(
-            0,
-            bstr_cmp_mem(s, cstr!("arfArf") as *const core::ffi::c_void, 6)
-        );
-        bstr_free(s);
-    }
-}
-
-#[test]
 fn Bstr_ToLowercase() {
     unsafe {
         let p1: *mut bstr_t;
@@ -429,42 +417,6 @@ fn Bstr_ToLowercase() {
         assert_eq!(0, bstr_cmp_c(p1, cstr!("arf3arf")));
 
         bstr_free(p1);
-    }
-}
-
-#[test]
-fn Bstr_Add() {
-    unsafe {
-        let src1: *mut bstr_t;
-        let src2: *mut bstr_t;
-        let dest: *mut bstr_t;
-
-        src1 = bstr_dup_c(cstr!("testtest"));
-        src2 = bstr_dup_c(cstr!("0123456789abcdefghijklmnopqrstuvwxyz"));
-        dest = bstr_add(src1, src2);
-
-        assert_eq!(
-            0,
-            bstr_cmp_c(dest, cstr!("testtest0123456789abcdefghijklmnopqrstuvwxyz"))
-        );
-
-        // src1 is either invalid or the same as dest after bstr_add
-        bstr_free(src2);
-        bstr_free(dest);
-    }
-}
-
-#[test]
-fn Bstr_AddC() {
-    unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
-        p1 = bstr_dup_c(cstr!("testtest"));
-        p2 = bstr_add_c(p1, cstr!("1234"));
-
-        assert_eq!(0, bstr_cmp_c(p2, cstr!("testtest1234")));
-
-        bstr_free(p2);
     }
 }
 
@@ -489,7 +441,7 @@ fn Bstr_AddNoex() {
         let p2: *mut bstr_t;
         let p3: *mut bstr_t;
         p1 = bstr_alloc(10);
-        p1 = bstr_add_c(p1, cstr!("12345"));
+        p1 = bstr_add_c_noex(p1, cstr!("12345"));
         p2 = bstr_dup_c(cstr!("abcdef"));
         p3 = bstr_add_noex(p1, p2);
 
@@ -506,7 +458,7 @@ fn Bstr_AddCNoex() {
         let mut p1: *mut bstr_t;
         let p2: *mut bstr_t;
         p1 = bstr_alloc(10);
-        p1 = bstr_add_c(p1, cstr!("12345"));
+        p1 = bstr_add_c_noex(p1, cstr!("12345"));
         p2 = bstr_add_c_noex(p1, cstr!("abcdefghijk"));
 
         assert_eq!(p1, p2);
@@ -522,123 +474,13 @@ fn Bstr_AddMemNoex() {
         let mut p1: *mut bstr_t;
         let p2: *mut bstr_t;
         p1 = bstr_alloc(10);
-        p1 = bstr_add_c(p1, cstr!("12345"));
+        p1 = bstr_add_c_noex(p1, cstr!("12345"));
         p2 = bstr_add_mem_noex(p1, cstr!("abcdefghijklmnop") as *const core::ffi::c_void, 6);
 
         assert_eq!(p1, p2);
         assert_eq!(0, bstr_cmp_c(p2, cstr!("12345abcde")));
 
         bstr_free(p1);
-    }
-}
-
-#[test]
-fn Bstr_IndexOf() {
-    unsafe {
-        let haystack: *mut bstr_t = bstr_dup_mem(
-            b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-            20,
-        );
-        let p1: *mut bstr_t = bstr_dup_c(cstr!("NOPQ"));
-        let p2: *mut bstr_t = bstr_dup_c(cstr!("siej"));
-        let p3: *mut bstr_t = bstr_dup_c(cstr!("TUVWXYZ"));
-        let p4: *mut bstr_t = bstr_dup_c(cstr!("nopq"));
-        assert_eq!(13, bstr_index_of(haystack, p1));
-        assert_eq!(-1, bstr_index_of(haystack, p2));
-        assert_eq!(-1, bstr_index_of(haystack, p3));
-
-        assert_eq!(-1, bstr_index_of(haystack, p4));
-        assert_eq!(13, bstr_index_of_nocase(haystack, p4));
-
-        assert_eq!(16, bstr_index_of_c(haystack, cstr!("QRS")));
-        assert_eq!(-1, bstr_index_of_c(haystack, cstr!("qrs")));
-        assert_eq!(16, bstr_index_of_c_nocase(haystack, cstr!("qrs")));
-
-        assert_eq!(
-            16,
-            bstr_index_of_mem(haystack, cstr!("QRSSDF") as *const core::ffi::c_void, 3)
-        );
-        assert_eq!(
-            -1,
-            bstr_index_of_mem(haystack, cstr!("qrssdf") as *const core::ffi::c_void, 3)
-        );
-        assert_eq!(
-            16,
-            bstr_index_of_mem_nocase(haystack, cstr!("qrssdf") as *const core::ffi::c_void, 3)
-        );
-
-        bstr_free(p1);
-        bstr_free(p2);
-        bstr_free(p3);
-        bstr_free(p4);
-        bstr_free(haystack);
-    }
-}
-
-#[test]
-fn Bstr_MemIndexOf() {
-    unsafe {
-        assert_eq!(
-            0,
-            bstr_util_mem_index_of_c(
-                b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-                20,
-                cstr!("ABC")
-            )
-        );
-        assert_eq!(
-            -1,
-            bstr_util_mem_index_of_c(
-                b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-                20,
-                cstr!("ABD")
-            )
-        );
-        assert_eq!(
-            -1,
-            bstr_util_mem_index_of_c(
-                b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-                20,
-                cstr!("CBA")
-            )
-        );
-    }
-}
-
-#[test]
-fn Bstr_BeginsWith() {
-    unsafe {
-        let haystack: *mut bstr_t = bstr_dup_mem(
-            b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-            20,
-        );
-        let p1: *mut bstr_t = bstr_dup_c(cstr!("ABCD"));
-        let p2: *mut bstr_t = bstr_dup_c(cstr!("aBcD"));
-
-        assert_eq!(1, bstr_begins_with(haystack, p1));
-        assert_ne!(1, bstr_begins_with(haystack, p2));
-        assert_eq!(1, bstr_begins_with_nocase(haystack, p2));
-
-        assert_eq!(1, bstr_begins_with_c(haystack, cstr!("AB")));
-        assert_ne!(1, bstr_begins_with_c(haystack, cstr!("ab")));
-        assert_eq!(1, bstr_begins_with_c_nocase(haystack, cstr!("ab")));
-
-        assert_eq!(
-            1,
-            bstr_begins_with_mem(haystack, cstr!("ABq") as *const core::ffi::c_void, 2)
-        );
-        assert_ne!(
-            1,
-            bstr_begins_with_mem(haystack, cstr!("abq") as *const core::ffi::c_void, 2)
-        );
-        assert_eq!(
-            1,
-            bstr_begins_with_mem_nocase(haystack, cstr!("abq") as *const core::ffi::c_void, 2)
-        );
-
-        bstr_free(p1);
-        bstr_free(p2);
-        bstr_free(haystack);
     }
 }
 
@@ -677,20 +519,6 @@ fn Bstr_BeginsWith2() {
         bstr_free(p1);
         bstr_free(p2);
         bstr_free(haystack);
-    }
-}
-
-#[test]
-fn Bstr_CharAt() {
-    unsafe {
-        let str: *mut bstr_t = bstr_dup_mem(
-            b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-            20,
-        );
-        assert_eq!(0, bstr_char_at(str, 12));
-        assert_eq!(-1, bstr_char_at(str, 45));
-
-        bstr_free(str);
     }
 }
 
@@ -873,33 +701,6 @@ fn Bstr_DupToC() {
 }
 
 #[test]
-fn Bstr_RChr() {
-    unsafe {
-        let b: *mut bstr_t = bstr_dup_c(cstr!("---I---I---"));
-
-        assert_eq!(bstr_rchr(b, b'I' as i32), 7);
-        assert_eq!(bstr_rchr(b, b'M' as i32), -1);
-
-        bstr_free(b);
-    }
-}
-
-#[test]
-fn Bstr_AdjustRealPtr() {
-    unsafe {
-        let b: *mut bstr_t = bstr_dup_c(cstr!("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
-        let c = CString::new("0123456789").unwrap();
-
-        bstr_adjust_realptr(b, c.as_ptr() as *mut core::ffi::c_void);
-        bstr_adjust_len(b, libc::strlen(c.as_ptr()) as u64);
-
-        assert_eq!(bstr_ptr(b) as *const libc::c_char, c.as_ptr());
-
-        bstr_free(b);
-    }
-}
-
-#[test]
 fn Bstr_UtilMemTrim() {
     unsafe {
         let d = CString::new(" \r\t0123456789\x0c\x0b  ").unwrap();
@@ -922,26 +723,10 @@ fn Bstr_UtilMemTrim() {
 }
 
 #[test]
-fn Bstr_Wrap() {
-    unsafe {
-        let _s = CString::new("ABC").unwrap();
-        let s: *mut bstr_t = bstr_wrap_c(_s.as_ptr());
-        assert_eq!(
-            0,
-            bstr_cmp_mem(s, cstr!("ABC") as *const core::ffi::c_void, 3)
-        );
-        bstr_free(s);
-    }
-}
-
-#[test]
 fn Bstr_CreateDestroy() {
     unsafe {
         let bb: *mut bstr_builder_t = bstr_builder_create();
         assert_eq!(0, bstr_builder_size(bb));
-
-        bstr_builder_append_c(bb, cstr!("ABC"));
-
         bstr_builder_destroy(bb);
     }
 }
@@ -950,28 +735,22 @@ fn Bstr_CreateDestroy() {
 fn Bstr_Append() {
     unsafe {
         let bb: *mut bstr_builder_t = bstr_builder_create();
-        let str1: *mut bstr_t = bstr_dup_c(cstr!("0123456789"));
-        let str2: *mut bstr_t = bstr_dup_c(cstr!("abcdefghijklmnopqrstuvwxyz"));
 
         assert_eq!(0, bstr_builder_size(bb));
 
-        bstr_builder_appendn(bb, str1);
-        bstr_builder_append_c(bb, cstr!("#"));
-        bstr_builder_appendn(bb, str2);
-        bstr_builder_append_c(bb, cstr!("#"));
         bstr_builder_append_mem(bb, cstr!("!@#$%^&*()") as *const core::ffi::c_void, 4);
 
-        assert_eq!(5, bstr_builder_size(bb));
+        assert_eq!(1, bstr_builder_size(bb));
 
         let result: *mut bstr_t = bstr_builder_to_str(bb);
-        assert_eq!(42, bstr_len(result));
+        assert_eq!(4, bstr_len(result));
 
         assert_eq!(
             0,
             libc::memcmp(
-                cstr!("0123456789#abcdefghijklmnopqrstuvwxyz#!@#$") as *const core::ffi::c_void,
+                cstr!("!@#$") as *const core::ffi::c_void,
                 bstr_ptr(result) as *const core::ffi::c_void,
-                42
+                4
             )
         );
         bstr_free(result);

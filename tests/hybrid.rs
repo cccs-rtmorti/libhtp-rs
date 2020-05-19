@@ -5,8 +5,6 @@ use htp::htp_base64::*;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_config::*;
 use htp::htp_connection_parser::*;
-use htp::htp_decompressors::htp_content_encoding_t::*;
-use htp::htp_request::htp_method_t::*;
 use htp::htp_table::*;
 use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::*;
@@ -305,12 +303,7 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        htp_tx_req_set_method(tx, cstr!("GET"), 3, HTP_ALLOC_COPY);
-        htp_tx_req_set_method_number(tx, HTP_M_GET as u32);
-        htp_tx_req_set_uri(tx, cstr!("/?p=1&q=2"), 9, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol(tx, cstr!("HTTP/1.1"), 8, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol_number(tx, Protocol::V1_1 as libc::c_int);
-        htp_tx_req_set_protocol_0_9(tx, 0);
+        htp_tx_req_set_line(tx, cstr!("GET /?p=1&q=2 HTTP/1.1"), 22, HTP_ALLOC_COPY);
 
         // Request line complete
         htp_tx_state_request_line(tx);
@@ -404,21 +397,6 @@ fn GetTest() {
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(0, bstr_cmp_c((*tx).response_message, cstr!("OK")));
 
-        htp_tx_res_set_protocol_number(tx, Protocol::V1_0 as libc::c_int);
-        assert_eq!(
-            Protocol::V1_0 as libc::c_int,
-            (*tx).response_protocol_number
-        );
-
-        htp_tx_res_set_status_code(tx, 500);
-        assert_eq!(500, (*tx).response_status_number);
-
-        htp_tx_res_set_status_message(tx, cstr!("Internal Server Error"), 21, HTP_ALLOC_COPY);
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx).response_message, cstr!("Internal Server Error"))
-        );
-
         // Response line complete
         htp_tx_state_response_line(tx);
         assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
@@ -461,10 +439,6 @@ fn GetTest() {
             htp_tx_res_process_body_data(tx, std::ptr::null_mut(), 1)
         );
 
-        // Trailing response headers
-        htp_tx_res_set_headers_clear(tx);
-        assert_eq!(0, htp_table_size((*tx).response_headers));
-
         htp_tx_res_set_header(
             tx,
             cstr!("Content-Type"),
@@ -503,12 +477,7 @@ fn PostUrlecodedTest() {
         htp_tx_state_request_start(tx);
 
         // Request line data
-        htp_tx_req_set_method(tx, cstr!("POST"), 4, HTP_ALLOC_COPY);
-        htp_tx_req_set_method_number(tx, HTP_M_GET as libc::c_uint);
-        htp_tx_req_set_uri(tx, cstr!("/"), 1, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol(tx, cstr!("HTTP/1.1"), 8, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol_number(tx, Protocol::V1_1 as libc::c_int);
-        htp_tx_req_set_protocol_0_9(tx, 0);
+        htp_tx_req_set_line(tx, cstr!("POST / HTTP/1.1"), 15, HTP_ALLOC_COPY);
 
         // Request line complete
         htp_tx_state_request_line(tx);
@@ -545,10 +514,6 @@ fn PostUrlecodedTest() {
             Status::ERROR,
             htp_tx_req_process_body_data(tx, std::ptr::null_mut(), 1)
         );
-
-        // Trailing request headers
-        htp_tx_req_set_headers_clear(tx);
-        assert_eq!(0, htp_table_size((*tx).request_headers));
 
         htp_tx_req_set_header(
             tx,
@@ -614,20 +579,14 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
         htp_tx_state_request_start(tx);
 
         // We need owned versions of these because we use HTP_ALLOC_REUSE below.
-        let get = CString::new("GET").unwrap();
-        let version = CString::new("HTTP/1.1").unwrap();
+        let request_line = CString::new("GET / HTTP/1.1").unwrap();
         let response_line = CString::new("HTTP/1.1 200 OK").unwrap();
         let content_encoding = CString::new("Content-Encoding").unwrap();
         let content_encoding_value = CString::new("gzip").unwrap();
         let content_length = CString::new("Content-Length").unwrap();
         let content_length_value = CString::new("187").unwrap();
 
-        htp_tx_req_set_method(tx, get.as_ptr(), 3, HTP_ALLOC_REUSE);
-        htp_tx_req_set_method_number(tx, HTP_M_GET as libc::c_uint);
-        htp_tx_req_set_uri(tx, cstr!("/"), 1, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol(tx, version.as_ptr(), 8, HTP_ALLOC_REUSE);
-        htp_tx_req_set_protocol_number(tx, Protocol::V1_1 as libc::c_int);
-        htp_tx_req_set_protocol_0_9(tx, 0);
+        htp_tx_req_set_line(tx, request_line.as_ptr(), 14, HTP_ALLOC_REUSE);
 
         htp_tx_state_request_line(tx);
         htp_tx_state_request_headers(tx);
@@ -688,93 +647,6 @@ fn CompressedResponse() {
     }
 }
 
-/// Test with a compressed response body and decompression disabled.
-#[test]
-fn CompressedResponseNoDecompression() {
-    unsafe {
-        let t = HybridParsingTest::new();
-        // Disable decompression
-        htp_config_set_response_decompression(t.cfg, 0);
-
-        // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
-        assert!(!tx.is_null());
-
-        HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx);
-
-        assert_eq!(187, (*tx).response_message_len);
-        assert_eq!(187, (*tx).response_entity_len);
-    }
-}
-
-extern "C" fn HybridParsing_ForcedDecompressionTest_Callback_RESPONSE_HEADERS(
-    tx: *mut htp_tx_t,
-) -> Status {
-    unsafe {
-        (*tx).response_content_encoding_processing = HTP_COMPRESSION_GZIP;
-        Status::OK
-    }
-}
-
-/// Test forced decompression.
-#[test]
-fn ForcedDecompression() {
-    unsafe {
-        let t = HybridParsingTest::new();
-        // Disable decompression
-        htp_config_set_response_decompression(t.cfg, 0);
-
-        // Register a callback that will force decompression
-        htp_config_register_response_headers(
-            t.cfg,
-            Some(HybridParsing_ForcedDecompressionTest_Callback_RESPONSE_HEADERS),
-        );
-
-        // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
-        assert!(!tx.is_null());
-
-        HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx);
-
-        assert_eq!(187, (*tx).response_message_len);
-        assert_eq!(225, (*tx).response_entity_len);
-    }
-}
-
-extern "C" fn HybridParsing_DisableDecompressionTest_Callback_RESPONSE_HEADERS(
-    tx: *mut htp_tx_t,
-) -> Status {
-    unsafe {
-        (*tx).response_content_encoding_processing = HTP_COMPRESSION_NONE;
-        Status::OK
-    }
-}
-
-/// Test disabling decompression from a callback.
-#[test]
-fn DisableDecompression() {
-    unsafe {
-        let t = HybridParsingTest::new();
-        // Disable decompression
-        htp_config_set_response_decompression(t.cfg, 0);
-
-        // Register a callback that will force decompression
-        htp_config_register_response_headers(
-            t.cfg,
-            Some(HybridParsing_DisableDecompressionTest_Callback_RESPONSE_HEADERS),
-        );
-
-        // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
-        assert!(!tx.is_null());
-
-        HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx);
-
-        assert_eq!(187, (*tx).response_message_len);
-        assert_eq!(187, (*tx).response_entity_len);
-    }
-}
-
 #[test]
 fn ParamCaseSensitivity() {
     unsafe {
@@ -787,12 +659,7 @@ fn ParamCaseSensitivity() {
         htp_tx_state_request_start(tx);
 
         // Request line data
-        htp_tx_req_set_method(tx, cstr!("GET"), 3, HTP_ALLOC_COPY);
-        htp_tx_req_set_method_number(tx, HTP_M_GET as libc::c_uint);
-        htp_tx_req_set_uri(tx, cstr!("/?p=1&Q=2"), 9, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol(tx, cstr!("HTTP/1.1"), 8, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol_number(tx, Protocol::V1_1 as libc::c_int);
-        htp_tx_req_set_protocol_0_9(tx, 0);
+        htp_tx_req_set_line(tx, cstr!("GET /?p=1&Q=2 HTTP/1.1"), 22, HTP_ALLOC_COPY);
 
         // Request line complete
         htp_tx_state_request_line(tx);
@@ -835,12 +702,7 @@ fn PostUrlecodedChunked() {
         htp_tx_state_request_start(tx);
 
         // Request line data.
-        htp_tx_req_set_method(tx, cstr!("POST"), 4, HTP_ALLOC_COPY);
-        htp_tx_req_set_method_number(tx, HTP_M_GET as libc::c_uint);
-        htp_tx_req_set_uri(tx, cstr!("/"), 1, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol(tx, cstr!("HTTP/1.1"), 8, HTP_ALLOC_COPY);
-        htp_tx_req_set_protocol_number(tx, Protocol::V1_1 as libc::c_int);
-        htp_tx_req_set_protocol_0_9(tx, 0);
+        htp_tx_req_set_line(tx, cstr!("POST / HTTP/1.1"), 15, HTP_ALLOC_COPY);
         htp_tx_state_request_line(tx);
 
         // Configure headers to trigger the URLENCODED parser.

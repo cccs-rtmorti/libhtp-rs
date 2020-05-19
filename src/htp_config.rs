@@ -1528,178 +1528,6 @@ pub unsafe fn htp_config_create() -> *mut htp_cfg_t {
     return cfg;
 }
 
-/// Creates a copy of the supplied configuration structure. The idea is to create
-/// one or more configuration objects at configuration-time, but to use this
-/// function to create per-connection copies. That way it will be possible to
-/// adjust per-connection configuration as necessary, without affecting the
-/// global configuration. Make sure no other thread changes the configuration
-/// object while this function is operating.
-pub unsafe fn htp_config_copy(mut cfg: *mut htp_cfg_t) -> *mut htp_cfg_t {
-    if cfg.is_null() {
-        return 0 as *mut htp_cfg_t;
-    }
-    // Start by making a copy of the entire structure,
-    // which is essentially a shallow copy.
-    let mut copy: *mut htp_cfg_t =
-        malloc(::std::mem::size_of::<htp_cfg_t>() as libc::c_ulong) as *mut htp_cfg_t;
-    if copy.is_null() {
-        return 0 as *mut htp_cfg_t;
-    }
-    memcpy(
-        copy as *mut libc::c_void,
-        cfg as *const libc::c_void,
-        ::std::mem::size_of::<htp_cfg_t>() as libc::c_ulong,
-    );
-    // Now create copies of the hooks' structures.
-    if !(*cfg).hook_request_start.is_null() {
-        (*copy).hook_request_start = htp_hooks::htp_hook_copy((*cfg).hook_request_start);
-        if (*copy).hook_request_start.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_line.is_null() {
-        (*copy).hook_request_line = htp_hooks::htp_hook_copy((*cfg).hook_request_line);
-        if (*copy).hook_request_line.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_uri_normalize.is_null() {
-        (*copy).hook_request_uri_normalize =
-            htp_hooks::htp_hook_copy((*cfg).hook_request_uri_normalize);
-        if (*copy).hook_request_uri_normalize.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_header_data.is_null() {
-        (*copy).hook_request_header_data =
-            htp_hooks::htp_hook_copy((*cfg).hook_request_header_data);
-        if (*copy).hook_request_header_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_headers.is_null() {
-        (*copy).hook_request_headers = htp_hooks::htp_hook_copy((*cfg).hook_request_headers);
-        if (*copy).hook_request_headers.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_body_data.is_null() {
-        (*copy).hook_request_body_data = htp_hooks::htp_hook_copy((*cfg).hook_request_body_data);
-        if (*copy).hook_request_body_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_file_data.is_null() {
-        (*copy).hook_request_file_data = htp_hooks::htp_hook_copy((*cfg).hook_request_file_data);
-        if (*copy).hook_request_file_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_trailer.is_null() {
-        (*copy).hook_request_trailer = htp_hooks::htp_hook_copy((*cfg).hook_request_trailer);
-        if (*copy).hook_request_trailer.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_trailer_data.is_null() {
-        (*copy).hook_request_trailer_data =
-            htp_hooks::htp_hook_copy((*cfg).hook_request_trailer_data);
-        if (*copy).hook_request_trailer_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_request_complete.is_null() {
-        (*copy).hook_request_complete = htp_hooks::htp_hook_copy((*cfg).hook_request_complete);
-        if (*copy).hook_request_complete.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_start.is_null() {
-        (*copy).hook_response_start = htp_hooks::htp_hook_copy((*cfg).hook_response_start);
-        if (*copy).hook_response_start.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_line.is_null() {
-        (*copy).hook_response_line = htp_hooks::htp_hook_copy((*cfg).hook_response_line);
-        if (*copy).hook_response_line.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_header_data.is_null() {
-        (*copy).hook_response_header_data =
-            htp_hooks::htp_hook_copy((*cfg).hook_response_header_data);
-        if (*copy).hook_response_header_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_headers.is_null() {
-        (*copy).hook_response_headers = htp_hooks::htp_hook_copy((*cfg).hook_response_headers);
-        if (*copy).hook_response_headers.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_body_data.is_null() {
-        (*copy).hook_response_body_data = htp_hooks::htp_hook_copy((*cfg).hook_response_body_data);
-        if (*copy).hook_response_body_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_trailer.is_null() {
-        (*copy).hook_response_trailer = htp_hooks::htp_hook_copy((*cfg).hook_response_trailer);
-        if (*copy).hook_response_trailer.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_trailer_data.is_null() {
-        (*copy).hook_response_trailer_data =
-            htp_hooks::htp_hook_copy((*cfg).hook_response_trailer_data);
-        if (*copy).hook_response_trailer_data.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_response_complete.is_null() {
-        (*copy).hook_response_complete = htp_hooks::htp_hook_copy((*cfg).hook_response_complete);
-        if (*copy).hook_response_complete.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_transaction_complete.is_null() {
-        (*copy).hook_transaction_complete =
-            htp_hooks::htp_hook_copy((*cfg).hook_transaction_complete);
-        if (*copy).hook_transaction_complete.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    if !(*cfg).hook_log.is_null() {
-        (*copy).hook_log = htp_hooks::htp_hook_copy((*cfg).hook_log);
-        if (*copy).hook_log.is_null() {
-            htp_config_destroy(copy);
-            return 0 as *mut htp_cfg_t;
-        }
-    }
-    return copy;
-}
-
 /// Destroy a configuration structure.
 pub unsafe fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
     if cfg.is_null() {
@@ -1726,15 +1554,6 @@ pub unsafe fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
     htp_hooks::htp_hook_destroy((*cfg).hook_transaction_complete);
     htp_hooks::htp_hook_destroy((*cfg).hook_log);
     free(cfg as *mut libc::c_void);
-}
-
-/// Retrieves user data associated with this configuration.
-/// Returns the user data pointer, or NULL if not set.
-pub unsafe fn htp_config_get_user_data(mut cfg: *mut htp_cfg_t) -> *mut libc::c_void {
-    if cfg.is_null() {
-        return 0 as *mut libc::c_void;
-    }
-    return (*cfg).user_data;
 }
 
 /// Registers a callback that is invoked every time there is a log message with
@@ -1799,40 +1618,6 @@ pub unsafe fn htp_config_register_request_body_data(
         &mut (*cfg).hook_request_body_data,
         ::std::mem::transmute::<
             Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_FILE_DATA callback.
-pub unsafe fn htp_config_register_request_file_data(
-    mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_file_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_util::htp_file_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_URI_NORMALIZE callback.
-pub unsafe fn htp_config_register_request_uri_normalize(
-    mut cfg: *mut htp_cfg_t,
-    mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_uri_normalize,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -1993,6 +1778,7 @@ pub unsafe fn htp_config_register_response_header_data(
 }
 
 /// Registers a RESPONSE_HEADERS callback.
+#[allow(dead_code)]
 pub unsafe fn htp_config_register_response_headers(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
@@ -2010,6 +1796,7 @@ pub unsafe fn htp_config_register_response_headers(
 }
 
 /// Registers a RESPONSE_LINE callback.
+#[allow(dead_code)]
 pub unsafe fn htp_config_register_response_line(
     mut cfg: *mut htp_cfg_t,
     mut callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
@@ -2096,6 +1883,7 @@ pub unsafe fn htp_config_register_transaction_complete(
 
 /// Adds the built-in Urlencoded parser to the configuration. The parser will
 /// parse query strings and request bodies with the appropriate MIME type.
+#[allow(dead_code)]
 pub unsafe fn htp_config_register_urlencoded_parser(mut cfg: *mut htp_cfg_t) {
     if cfg.is_null() {
         return;
@@ -2114,35 +1902,6 @@ pub unsafe fn htp_config_register_urlencoded_parser(mut cfg: *mut htp_cfg_t) {
                 as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
         ),
     );
-}
-
-/// Enables or disables Multipart file extraction. This function can be invoked only
-/// after a previous htp_config_set_tmpdir() invocation. Otherwise, the configuration
-/// change will fail, and extraction will not be enabled. Disabled by default. Please
-/// note that the built-in file extraction implementation uses synchronous I/O, which
-/// means that it is not suitable for use in an event-driven container. There's an
-/// upper limit to how many files can be created on the filesystem during a single
-/// request. The limit exists in order to mitigate against a DoS attack with a
-/// Multipart payload that contains hundreds and thousands of files (it's cheap for the
-/// attacker to do this, but costly for the server to support it). The default limit
-/// may be pretty conservative.
-///
-/// extract_request_files: set to 1 if you wish extraction to be enabled, 0 otherwise
-/// limit: the maximum number of files allowed; use -1 to use the parser default.
-pub unsafe fn htp_config_set_extract_request_files(
-    mut cfg: *mut htp_cfg_t,
-    mut extract_request_files: libc::c_int,
-    mut limit: libc::c_int,
-) -> Status {
-    if cfg.is_null() {
-        return Status::ERROR;
-    }
-    if (*cfg).tmpdir.is_null() {
-        return Status::ERROR;
-    }
-    (*cfg).extract_request_files = extract_request_files;
-    (*cfg).extract_request_files_limit = limit;
-    return Status::OK;
 }
 
 /// Configures the maximum size of the buffer LibHTP will use when all data is not available
@@ -2184,28 +1943,6 @@ pub unsafe fn htp_config_set_compression_bomb_limit(
     };
 }
 
-/// Configures the desired log level.
-pub unsafe fn htp_config_set_log_level(
-    mut cfg: *mut htp_cfg_t,
-    mut log_level: htp_util::htp_log_level_t,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).log_level = log_level;
-}
-
-/// Enable or disable request HTTP Authentication parsing. Enabled by default.
-pub unsafe fn htp_config_set_parse_request_auth(
-    mut cfg: *mut htp_cfg_t,
-    mut parse_request_auth: libc::c_int,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).parse_request_auth = parse_request_auth;
-}
-
 /// Enable or disable request cookie parsing. Enabled by default.
 pub unsafe fn htp_config_set_parse_request_cookies(
     mut cfg: *mut htp_cfg_t,
@@ -2215,18 +1952,6 @@ pub unsafe fn htp_config_set_parse_request_cookies(
         return;
     }
     (*cfg).parse_request_cookies = parse_request_cookies;
-}
-
-/// Controls whether compressed response bodies will be automatically decompressed.
-/// enabled: set to 1 to enable decompression, 0 otherwise
-pub unsafe fn htp_config_set_response_decompression(
-    mut cfg: *mut htp_cfg_t,
-    mut enabled: libc::c_int,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).response_decompression_enabled = enabled;
 }
 
 /// Configure desired server personality.
@@ -2633,15 +2358,6 @@ pub unsafe fn htp_config_set_server_personality(
     return Status::OK;
 }
 
-/// Configures the path where temporary files should be stored. Must be set
-/// in order to use the Multipart file extraction functionality.
-pub unsafe fn htp_config_set_tmpdir(mut cfg: *mut htp_cfg_t, mut tmpdir: *mut libc::c_char) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).tmpdir = tmpdir;
-}
-
 /// Configures whether transactions will be automatically destroyed once they
 /// are processed and all callbacks invoked. This option is appropriate for
 /// programs that process transactions as they are processed.
@@ -2655,13 +2371,6 @@ pub unsafe fn htp_config_set_tx_auto_destroy(
     (*cfg).tx_auto_destroy = tx_auto_destroy;
 }
 
-/// Associates provided opaque user data with the configuration.
-pub unsafe fn htp_config_set_user_data(mut cfg: *mut htp_cfg_t, mut user_data: *mut libc::c_void) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).user_data = user_data;
-}
 unsafe fn convert_to_0_or_1(mut b: libc::c_int) -> libc::c_int {
     if b != 0 {
         return 1 as libc::c_int;
@@ -2976,88 +2685,6 @@ pub unsafe fn htp_config_set_url_encoding_invalid_unwanted(
         let mut i: size_t = 0 as libc::c_int as size_t;
         while i < 3 as libc::c_int as libc::c_ulong {
             (*cfg).decoder_cfgs[i as usize].url_encoding_invalid_unwanted = unwanted;
-            i = i.wrapping_add(1)
-        }
-    };
-}
-
-/// Configures reaction to encoded NUL bytes in input data.
-pub unsafe fn htp_config_set_nul_encoded_unwanted(
-    mut cfg: *mut htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
-    mut unwanted: htp_unwanted_t,
-) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
-        return;
-    }
-    (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
-            (*cfg).decoder_cfgs[i as usize].nul_encoded_unwanted = unwanted;
-            i = i.wrapping_add(1)
-        }
-    };
-}
-
-/// Configures how the server reacts to raw NUL bytes. Some servers will terminate
-/// path at NUL, while some will respond with 400 or 404. When the termination option
-/// is not used, the NUL byte will remain in the data.
-pub unsafe fn htp_config_set_nul_raw_unwanted(
-    mut cfg: *mut htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
-    mut unwanted: htp_unwanted_t,
-) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
-        return;
-    }
-    (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
-            (*cfg).decoder_cfgs[i as usize].nul_raw_unwanted = unwanted;
-            i = i.wrapping_add(1)
-        }
-    };
-}
-
-/// Configures reaction to encoded path separator characters (e.g., %2f).
-/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub unsafe fn htp_config_set_path_separators_encoded_unwanted(
-    mut cfg: *mut htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
-    mut unwanted: htp_unwanted_t,
-) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
-        return;
-    }
-    (*cfg).decoder_cfgs[ctx as usize].path_separators_encoded_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
-            (*cfg).decoder_cfgs[i as usize].path_separators_encoded_unwanted = unwanted;
-            i = i.wrapping_add(1)
-        }
-    };
-}
-
-/// Configures how the server reacts to invalid UTF-8 characters. This setting does
-/// not affect path normalization; it only controls what response status will be expect for
-/// a request that contains invalid UTF-8 characters.
-/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub unsafe fn htp_config_set_utf8_invalid_unwanted(
-    mut cfg: *mut htp_cfg_t,
-    mut ctx: htp_decoder_ctx_t,
-    mut unwanted: htp_unwanted_t,
-) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
-        return;
-    }
-    (*cfg).decoder_cfgs[ctx as usize].utf8_invalid_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
-            (*cfg).decoder_cfgs[i as usize].utf8_invalid_unwanted = unwanted;
             i = i.wrapping_add(1)
         }
     };

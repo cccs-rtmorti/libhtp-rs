@@ -14,7 +14,6 @@ use htp::htp_request::*;
 use htp::htp_table::*;
 use htp::htp_transaction::*;
 use htp::htp_urlencoded::*;
-use htp::htp_utf8_decoder::*;
 use htp::htp_util::*;
 use htp::Status;
 
@@ -25,19 +24,6 @@ macro_rules! cstr {
 }
 
 // UTF8 tests
-#[test]
-fn SingleByte() {
-    unsafe {
-        let mut state = 0; // HTP_UTF8_ACCEPT
-        let mut codep = 0;
-
-        let result = htp_utf8_decode(&mut state, &mut codep, 0x00);
-        assert_eq!(result, 0);
-        assert_eq!(state, 0); // HTP_UTF8_ACCEPT
-        assert_eq!(codep, 0);
-    }
-}
-
 #[test]
 fn Single() {
     unsafe {
@@ -78,20 +64,6 @@ fn Separator() {
         assert_eq!(1, htp_is_separator('/' as i32));
         assert_eq!(1, htp_is_separator('=' as i32));
         assert_eq!(1, htp_is_separator('\t' as i32));
-    }
-}
-
-#[test]
-fn Text() {
-    unsafe {
-        assert_eq!(1, htp_is_text('\t' as i32));
-        assert_eq!(1, htp_is_text('a' as i32));
-        assert_eq!(1, htp_is_text('~' as i32));
-        assert_eq!(1, htp_is_text(' ' as i32));
-        assert_eq!(0, htp_is_text('\n' as i32));
-        assert_eq!(0, htp_is_text('\r' as i32));
-        assert_eq!(0, htp_is_text('\r' as i32));
-        assert_eq!(0, htp_is_text(31));
     }
 }
 
@@ -2393,44 +2365,16 @@ fn List_Misc() {
 
         assert_eq!(2, htp_list_array_size(l));
 
-        p = htp_list_array_shift(l) as *mut libc::c_char;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
-
-        assert_eq!(1, htp_list_array_size(l));
-
-        p = htp_list_array_shift(l) as *mut libc::c_char;
+        p = htp_list_array_pop(l) as *mut libc::c_char;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
 
-        p = htp_list_array_shift(l) as *mut libc::c_char;
-        assert!(p.is_null());
+        p = htp_list_array_pop(l) as *mut libc::c_char;
+        assert!(!p.is_null());
+        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
 
         p = htp_list_array_pop(l) as *mut libc::c_char;
         assert!(p.is_null());
-
-        htp_list_array_destroy(l);
-    }
-}
-
-#[test]
-fn List_Misc2() {
-    unsafe {
-        let l: *mut htp_list_array_t = htp_list_array_create(1);
-
-        htp_list_array_push(l, "1".as_ptr() as *mut libc::c_void);
-
-        let mut p: *mut libc::c_char = htp_list_array_shift(l) as *mut libc::c_char;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
-
-        htp_list_array_push(l, "2".as_ptr() as *mut libc::c_void);
-
-        p = htp_list_array_shift(l) as *mut libc::c_char;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
-
-        assert_eq!(0, htp_list_array_size(l));
 
         htp_list_array_destroy(l);
     }
@@ -2443,20 +2387,15 @@ fn List_Misc3() {
 
         htp_list_array_push(l, "1".as_ptr() as *mut libc::c_void);
         htp_list_array_push(l, "2".as_ptr() as *mut libc::c_void);
-
-        let mut p: *mut libc::c_char = htp_list_array_shift(l) as *mut libc::c_char;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
-
         htp_list_array_push(l, "3".as_ptr() as *mut libc::c_void);
 
-        p = htp_list_array_get(l, 1) as *mut libc::c_char;
+        let mut p: *mut libc::c_char = htp_list_array_get(l, 2) as *mut libc::c_char;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
 
-        assert_eq!(2, htp_list_array_size(l));
+        assert_eq!(3, htp_list_array_size(l));
 
-        htp_list_array_replace(l, 1, "4".as_ptr() as *mut libc::c_void);
+        htp_list_array_replace(l, 2, "4".as_ptr() as *mut libc::c_void);
 
         p = htp_list_array_pop(l) as *mut libc::c_char;
         assert!(!p.is_null());
@@ -2506,24 +2445,24 @@ fn List_Expand2() {
 
         assert_eq!(2, htp_list_array_size(l));
 
-        htp_list_array_shift(l);
-
-        assert_eq!(1, htp_list_array_size(l));
-
         htp_list_array_push(l, "3".as_ptr() as *mut libc::c_void);
         htp_list_array_push(l, "4".as_ptr() as *mut libc::c_void);
 
-        assert_eq!(3, htp_list_array_size(l));
+        assert_eq!(4, htp_list_array_size(l));
 
         let mut p: *mut libc::c_char = htp_list_array_get(l, 0) as *mut libc::c_char;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
 
         p = htp_list_array_get(l, 1) as *mut libc::c_char;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
 
         p = htp_list_array_get(l, 2) as *mut libc::c_char;
+        assert!(!p.is_null());
+        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
+
+        p = htp_list_array_pop(l) as *mut libc::c_char;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("4".as_ptr() as *mut libc::c_char, p));
 
@@ -2549,8 +2488,6 @@ fn Table_Misc() {
         p = htp_table_get(t, pkey) as *mut libc::c_char;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp(cstr!("1") as *mut libc::c_char, p));
-
-        htp_table_clear_ex(t);
 
         bstr_free(qkey);
         bstr_free(pkey);

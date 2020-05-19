@@ -57,27 +57,6 @@ static mut utf8d_allow_overlong: [uint8_t; 400] = [
     1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 ];
 
-/// Process one byte of UTF-8 data and return a code point if one is available.
-///
-/// Returns HTP_UTF8_ACCEPT for a valid character, HTP_UTF8_REJECT for an invalid character,
-///         or something else if the character has not yet been formed
-pub unsafe fn htp_utf8_decode(
-    mut state: *mut uint32_t,
-    mut codep: *mut uint32_t,
-    mut byte: uint32_t,
-) -> uint32_t {
-    let mut type_0: uint32_t = utf8d[byte as usize] as uint32_t;
-    *codep = if *state != 0 as libc::c_int as libc::c_uint {
-        (byte & 0x3f as libc::c_uint) | *codep << 6 as libc::c_int
-    } else {
-        ((0xff as libc::c_int >> type_0) as libc::c_uint) & byte
-    };
-    *state = utf8d[(256 as libc::c_int as libc::c_uint)
-        .wrapping_add((*state).wrapping_mul(16 as libc::c_int as libc::c_uint))
-        .wrapping_add(type_0) as usize] as uint32_t;
-    return *state;
-}
-
 /// Process one byte of UTF-8 data and return a code point if one is available. Allows
 /// overlong characters in input.
 ///

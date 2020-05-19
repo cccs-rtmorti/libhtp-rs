@@ -76,12 +76,6 @@ pub unsafe fn bstr_ptr(x: *const bstr) -> *mut libc::c_uchar {
     }
 }
 
-/// This function was a macro in libhtp
-/// #define bstr_realptr(X) ((*(X)).realptr)
-pub unsafe fn bstr_realptr(x: *const bstr) -> *mut libc::c_uchar {
-    (*x).realptr
-}
-
 /// Allocate a zero-length bstring, reserving space for at least size bytes.
 ///
 /// Returns New string instance
@@ -95,42 +89,6 @@ pub unsafe fn bstr_alloc(mut len: size_t) -> *mut bstr {
     (*b).size = len;
     (*b).realptr = 0 as *mut libc::c_uchar;
     return b;
-}
-
-/// Append source bstring to destination bstring, growing destination if
-/// necessary. If the destination bstring is expanded, the pointer will change.
-/// You must replace the original destination pointer with the returned one.
-/// Destination is not changed on memory allocation failure.
-///
-/// Returns Updated bstring, or NULL on memory allocation failure.
-pub unsafe fn bstr_add(mut destination: *mut bstr, mut source: *const bstr) -> *mut bstr {
-    return bstr_add_mem(
-        destination,
-        if (*source).realptr.is_null() {
-            (source as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-        } else {
-            (*source).realptr
-        } as *const libc::c_void,
-        (*source).len,
-    );
-}
-
-/// Append a NUL-terminated source to destination, growing destination if
-/// necessary. If the string is expanded, the pointer will change. You must
-/// replace the original destination pointer with the returned one. Destination
-/// is not changed on memory allocation failure.
-///
-/// Returns Updated bstring, or NULL on memory allocation failure.
-pub unsafe fn bstr_add_c(
-    mut bdestination: *mut bstr,
-    mut csource: *const libc::c_char,
-) -> *mut bstr {
-    return bstr_add_mem(
-        bdestination,
-        csource as *const libc::c_void,
-        strlen(csource),
-    );
 }
 
 /// Append as many bytes from the source to destination bstring. The
@@ -236,34 +194,12 @@ pub unsafe fn bstr_adjust_len(mut b: *mut bstr, mut newlen: size_t) {
     (*b).len = newlen;
 }
 
-/// Change the external pointer used by bstring. You will need to use this
-/// function only if you're messing with bstr internals. Use with caution.
-pub unsafe fn bstr_adjust_realptr(mut b: *mut bstr, mut newrealptr: *mut libc::c_void) {
-    (*b).realptr = newrealptr as *mut libc::c_uchar;
-}
-
 /// Adjust bstring size. This does not change the size of the storage behind
 /// the bstring, just changes the field that keeps track of how many bytes
 /// there are in the storage. You will need to use this function only if
 /// you're messing with bstr internals. Use with caution.
 pub unsafe fn bstr_adjust_size(mut b: *mut bstr, mut newsize: size_t) {
     (*b).size = newsize;
-}
-
-/// Checks whether bstring begins with another bstring. Case sensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with(mut haystack: *const bstr, mut needle: *const bstr) -> libc::c_int {
-    return bstr_begins_with_mem(
-        haystack,
-        if (*needle).realptr.is_null() {
-            (needle as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-        } else {
-            (*needle).realptr
-        } as *const libc::c_void,
-        (*needle).len,
-    );
 }
 
 /// Checks whether bstring begins with NUL-terminated string. Case sensitive.
@@ -284,25 +220,6 @@ pub unsafe fn bstr_begins_with_c_nocase(
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
     return bstr_begins_with_mem_nocase(haystack, needle as *const libc::c_void, strlen(needle));
-}
-
-/// Checks whether bstring begins with another bstring. Case insensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with_nocase(
-    mut haystack: *const bstr,
-    mut needle: *const bstr,
-) -> libc::c_int {
-    return bstr_begins_with_mem_nocase(
-        haystack,
-        if (*needle).realptr.is_null() {
-            (needle as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-        } else {
-            (*needle).realptr
-        } as *const libc::c_void,
-        (*needle).len,
-    );
 }
 
 /// Checks whether the bstring begins with the given memory block. Case sensitive.
@@ -367,22 +284,6 @@ pub unsafe fn bstr_begins_with_mem_nocase(
     };
 }
 
-/// Return the byte at the given position.
-///
-/// Returns The byte at the given location, or -1 if the position is out of range.
-pub unsafe fn bstr_char_at(mut b: *const bstr, mut pos: size_t) -> libc::c_int {
-    let mut data: *mut libc::c_uchar = if (*b).realptr.is_null() {
-        (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-    } else {
-        (*b).realptr
-    };
-    let mut len: size_t = (*b).len;
-    if pos >= len {
-        return -(1 as libc::c_int);
-    }
-    return *data.offset(pos as isize) as libc::c_int;
-}
-
 /// Return the byte at the given position, counting from the end of the string (e.g.,
 /// byte at position 0 is the last byte in the string.)
 ///
@@ -436,6 +337,7 @@ pub unsafe fn bstr_chr(mut b: *const bstr, mut c: libc::c_int) -> libc::c_int {
 ///
 /// Returns Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
 ///         greater than b1.
+#[allow(dead_code)]
 pub unsafe fn bstr_cmp(mut b1: *const bstr, mut b2: *const bstr) -> libc::c_int {
     return bstr_util_cmp_mem(
         if (*b1).realptr.is_null() {
@@ -504,27 +406,6 @@ pub unsafe fn bstr_cmp_c_nocasenorzero(
         (*b).len,
         c as *const libc::c_void,
         strlen(c),
-    );
-}
-
-/// Performs a case-sensitive comparison of a bstring with a memory region.
-///
-/// Returns Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
-pub unsafe fn bstr_cmp_mem(
-    mut b: *const bstr,
-    mut data: *const libc::c_void,
-    mut len: size_t,
-) -> libc::c_int {
-    return bstr_util_cmp_mem(
-        if (*b).realptr.is_null() {
-            (b as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-        } else {
-            (*b).realptr
-        } as *const libc::c_void,
-        (*b).len,
-        data,
-        len,
     );
 }
 
@@ -678,22 +559,6 @@ pub unsafe fn bstr_free(mut b: *mut bstr) {
     free(b as *mut libc::c_void);
 }
 
-/// Find the needle in the haystack.
-///
-/// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of(mut haystack: *const bstr, mut needle: *const bstr) -> libc::c_int {
-    return bstr_index_of_mem(
-        haystack,
-        if (*needle).realptr.is_null() {
-            (needle as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-        } else {
-            (*needle).realptr
-        } as *const libc::c_void,
-        (*needle).len,
-    );
-}
-
 /// Find the needle in the haystack, with the needle being a NUL-terminated
 /// string.
 ///
@@ -778,47 +643,6 @@ pub unsafe fn bstr_index_of_mem_nocase(
         _data2,
         len2,
     );
-}
-
-/// Find the needle in the haystack, ignoring case differences.
-///
-/// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_nocase(
-    mut haystack: *const bstr,
-    mut needle: *const bstr,
-) -> libc::c_int {
-    return bstr_index_of_mem_nocase(
-        haystack,
-        if (*needle).realptr.is_null() {
-            (needle as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-        } else {
-            (*needle).realptr
-        } as *const libc::c_void,
-        (*needle).len,
-    );
-}
-
-/// Return the last position of a character (byte).
-///
-/// Returns The last position of the character, or -1 if it could not be found.
-pub unsafe fn bstr_rchr(mut b: *const bstr, mut c: libc::c_int) -> libc::c_int {
-    let mut data: *const libc::c_uchar = if (*b).realptr.is_null() {
-        (b as *mut libc::c_uchar).offset(::std::mem::size_of::<bstr>() as libc::c_ulong as isize)
-    } else {
-        (*b).realptr
-    };
-    let mut len: size_t = (*b).len;
-    let mut i: size_t = len;
-    while i > 0 as libc::c_int as libc::c_ulong {
-        if *data.offset(i.wrapping_sub(1 as libc::c_int as libc::c_ulong) as isize) as libc::c_int
-            == c
-        {
-            return i.wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_int;
-        }
-        i = i.wrapping_sub(1)
-    }
-    return -(1 as libc::c_int);
 }
 
 /// Convert bstring to lowercase. This function converts the supplied string,
@@ -1032,17 +856,6 @@ pub unsafe fn bstr_util_mem_to_pint(
     }
     *lastlen = i.wrapping_add(1 as libc::c_int as libc::c_ulong);
     return rval;
-}
-
-/// Searches a memory block for the given NUL-terminated string. Case sensitive.
-///
-/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
-pub unsafe fn bstr_util_mem_index_of_c(
-    mut _data1: *const libc::c_void,
-    mut len1: size_t,
-    mut cstr: *const libc::c_char,
-) -> libc::c_int {
-    return bstr_util_mem_index_of_mem(_data1, len1, cstr as *const libc::c_void, strlen(cstr));
 }
 
 /// Searches a memory block for the given NUL-terminated string. Case insensitive.
@@ -1283,18 +1096,6 @@ pub unsafe fn bstr_util_strdup_to_c(mut b: *const bstr) -> *mut libc::c_char {
             (*b).realptr
         } as *const libc::c_void,
         (*b).len,
-    );
-}
-
-/// Create a new bstring from the provided NUL-terminated string and without
-/// copying the data. The caller must ensure that the input string continues
-/// to point to a valid memory location for as long as the bstring is used.
-///
-/// Returns New bstring, or NULL on memory allocation failure.
-pub unsafe fn bstr_wrap_c(mut cstr: *const libc::c_char) -> *mut bstr {
-    return bstr_wrap_mem(
-        cstr as *mut libc::c_uchar as *const libc::c_void,
-        strlen(cstr),
     );
 }
 

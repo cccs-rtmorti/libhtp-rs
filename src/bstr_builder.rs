@@ -16,32 +16,6 @@ pub struct bstr_builder_t {
     pub pieces: *mut htp_list::htp_list_array_t,
 }
 
-/// Adds one new string to the builder. This function will adopt the
-/// string and destroy it when the builder itself is destroyed.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn bstr_builder_appendn(
-    mut bb: *mut bstr_builder_t,
-    mut b: *mut bstr::bstr_t,
-) -> Status {
-    return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
-}
-
-/// Adds one new piece, in the form of a NUL-terminated string, to
-/// the builder. This function will make a copy of the provided string.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn bstr_builder_append_c(
-    mut bb: *mut bstr_builder_t,
-    mut cstr: *const libc::c_char,
-) -> Status {
-    let mut b: *mut bstr::bstr_t = bstr::bstr_dup_c(cstr);
-    if b.is_null() {
-        return Status::ERROR;
-    }
-    return htp_list::htp_list_array_push((*bb).pieces, b as *mut libc::c_void);
-}
-
 /// Adds one new piece, defined with the supplied pointer and
 /// length, to the builder. This function will make a copy of the
 /// provided data region.

@@ -154,17 +154,6 @@ pub unsafe fn htp_table_clear(mut table: *mut htp_table_t) {
     htp_list::htp_list_array_clear(&mut (*table).list);
 }
 
-/// Remove all elements from the table without freeing any of the keys, even
-/// if the table is using an allocation strategy where keys belong to it. This
-/// function is useful if all the keys have been adopted by some other structure.
-pub unsafe fn htp_table_clear_ex(mut table: *mut htp_table_t) {
-    if table.is_null() {
-        return;
-    }
-    // This function does not free table keys.
-    htp_list::htp_list_array_clear(&mut (*table).list);
-}
-
 /// Create a new table structure. The table will grow automatically as needed,
 /// but you are required to provide a starting size.
 ///

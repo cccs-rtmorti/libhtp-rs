@@ -264,23 +264,3 @@ pub unsafe fn htp_list_array_size(mut l: *const htp_list_array_t) -> size_t {
     }
     return (*l).current_size;
 }
-
-/// Remove one element from the beginning of the list.
-///
-/// Returns The removed element, or NULL if the list is empty.
-pub unsafe fn htp_list_array_shift(mut l: *mut htp_list_array_t) -> *mut libc::c_void {
-    if l.is_null() {
-        return 0 as *mut libc::c_void;
-    }
-    let mut r: *mut libc::c_void = 0 as *mut libc::c_void;
-    if (*l).current_size == 0 as libc::c_int as libc::c_ulong {
-        return 0 as *mut libc::c_void;
-    }
-    r = *(*l).elements.offset((*l).first as isize);
-    (*l).first = (*l).first.wrapping_add(1);
-    if (*l).first == (*l).max_size {
-        (*l).first = 0 as libc::c_int as size_t
-    }
-    (*l).current_size = (*l).current_size.wrapping_sub(1);
-    return r;
-}

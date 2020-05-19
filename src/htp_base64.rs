@@ -289,21 +289,6 @@ pub unsafe fn htp_base64_decode(
     return plainchar.wrapping_offset_from(plaintext_out) as libc::c_long as libc::c_int;
 }
 
-/// Base64-decode input, given as bstring.
-///
-/// Returns new base64-decoded bstring
-pub unsafe fn htp_base64_decode_bstr(mut input: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
-    return htp_base64_decode_mem(
-        if (*input).realptr.is_null() {
-            (input as *mut libc::c_uchar)
-                .offset(::std::mem::size_of::<bstr::bstr_t>() as libc::c_ulong as isize)
-        } else {
-            (*input).realptr
-        } as *const libc::c_void,
-        (*input).len,
-    );
-}
-
 /// Base64-decode input, given as memory range.
 ///
 /// Returns new base64-decoded bstring

@@ -5,7 +5,6 @@ use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_list::*;
-use htp::htp_php::*;
 use htp::htp_request::*;
 use htp::htp_response::*;
 use htp::htp_table::*;
@@ -838,33 +837,6 @@ fn Http_0_9() {
 }
 
 #[test]
-fn PhpParamProcessing() {
-    let mut t = Test::new();
-    unsafe {
-        (*t.cfg).parameter_processor = Some(htp_php_parameter_processor);
-        assert!(t.run("22-php-param-processing.t").is_ok());
-
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
-
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
-        assert!(!tx.is_null());
-
-        let p1: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("p_q_"), 4) as *mut htp_param_t;
-        assert!(!p1.is_null());
-        assert_eq!(0, bstr_cmp_c((*p1).value, cstr!("1")));
-
-        let p2: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("q"), 1) as *mut htp_param_t;
-        assert!(!p2.is_null());
-        assert_eq!(0, bstr_cmp_c((*p2).value, cstr!("2")));
-
-        let p3: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("z_w"), 3) as *mut htp_param_t;
-        assert!(!p3.is_null());
-        assert_eq!(0, bstr_cmp_c((*p3).value, cstr!("3")));
-    }
-}
-
-#[test]
 fn Http11HostMissing() {
     let mut t = Test::new();
     unsafe {
@@ -1631,18 +1603,6 @@ fn Util() {
         let tx: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
-
-        let in_state: *mut libc::c_char = htp_connp_in_state_as_string((*tx).connp);
-        assert!(!in_state.is_null());
-
-        let out_state: *mut libc::c_char = htp_connp_out_state_as_string((*tx).connp);
-        assert!(!out_state.is_null());
-
-        let request_progress: *mut libc::c_char = htp_tx_request_progress_as_string(tx);
-        assert!(!request_progress.is_null());
-
-        let response_progress: *mut libc::c_char = htp_tx_response_progress_as_string(tx);
-        assert!(!response_progress.is_null());
 
         dbg!((*tx).request_line);
         dbg!((*(*tx).request_line).len);

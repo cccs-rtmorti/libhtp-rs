@@ -580,58 +580,12 @@ pub unsafe fn htp_tx_destroy_incomplete(mut tx: *mut htp_tx_t) {
     free(tx as *mut libc::c_void);
 }
 
-/// Determines if the transaction used a shared configuration structure. See the
-/// documentation for htp_tx_set_config() for more information why you might want
-/// to know that.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_CFG_SHARED or HTP_CFG_PRIVATE.
-pub unsafe fn htp_tx_get_is_config_shared(mut tx: *const htp_tx_t) -> libc::c_int {
-    if tx.is_null() {
-        return -(1 as libc::c_int);
-    }
-    return (*tx).is_config_shared;
-}
-
 /// Returns the user data associated with this transaction.
 pub unsafe fn htp_tx_get_user_data(mut tx: *const htp_tx_t) -> *mut libc::c_void {
     if tx.is_null() {
         return 0 as *mut libc::c_void;
     }
     return (*tx).user_data;
-}
-
-/// Sets the configuration that is to be used for this transaction. If the
-/// second parameter is set to HTP_CFG_PRIVATE, the transaction will adopt
-/// the configuration structure and destroy it when appropriate. This function is
-/// useful if you need to make changes to configuration on per-transaction basis.
-/// Initially, all transactions will share the configuration with that of the
-/// connection; if you were to make changes on it, they would affect all
-/// current and future connections. To work around that, you make a copy of the
-/// configuration object, call this function with the second parameter set to
-/// HTP_CFG_PRIVATE, and modify configuration at will.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// cfg: Configuration pointer. Must not be NULL.
-/// is_cfg_shared: HTP_CFG_SHARED or HTP_CFG_PRIVATE
-pub unsafe fn htp_tx_set_config(
-    mut tx: *mut htp_tx_t,
-    mut cfg: *mut htp_config::htp_cfg_t,
-    mut is_cfg_shared: libc::c_int,
-) {
-    if tx.is_null() || cfg.is_null() {
-        return;
-    }
-    if is_cfg_shared != 0 as libc::c_int && is_cfg_shared != 1 as libc::c_int {
-        return;
-    }
-    // If we're using a private configuration, destroy it.
-    if (*tx).is_config_shared == 0 as libc::c_int {
-        htp_config::htp_config_destroy((*tx).cfg);
-    }
-    (*tx).cfg = cfg;
-    (*tx).is_config_shared = is_cfg_shared;
 }
 
 /// Associates user data with this transaction.
@@ -676,6 +630,7 @@ pub unsafe fn htp_tx_req_add_param(mut tx: *mut htp_tx_t, mut param: *mut htp_pa
 /// name_len: Name data length.
 ///
 /// Returns htp_param_t instance, or NULL if parameter not found.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_req_get_param(
     mut tx: *mut htp_tx_t,
     mut name: *const libc::c_char,
@@ -697,6 +652,7 @@ pub unsafe fn htp_tx_req_get_param(
 /// name_len: Name data length.
 ///
 /// Returns htp_param_t instance, or NULL if parameter not found.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_req_get_param_ex(
     mut tx: *mut htp_tx_t,
     mut source: htp_data_source_t,
@@ -753,6 +709,7 @@ pub unsafe fn htp_tx_req_has_body(mut tx: *const htp_tx_t) -> libc::c_int {
 /// alloc: Desired allocation strategy.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_req_set_header(
     mut tx: *mut htp_tx_t,
     mut name: *const libc::c_char,
@@ -793,136 +750,6 @@ pub unsafe fn htp_tx_req_set_header(
     Status::OK
 }
 
-/// Set transaction request method. This function will enable you to keep
-/// track of the text representation of the method.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// method: Method data pointer. Must not be NULL.
-/// method_len: Method data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_req_set_method(
-    mut tx: *mut htp_tx_t,
-    mut method: *const libc::c_char,
-    mut method_len: size_t,
-    mut alloc: htp_alloc_strategy_t,
-) -> Status {
-    if tx.is_null() || method.is_null() {
-        return Status::ERROR;
-    }
-    (*tx).request_method = copy_or_wrap_mem(method as *const libc::c_void, method_len, alloc);
-    if (*tx).request_method.is_null() {
-        return Status::ERROR;
-    }
-    return Status::OK;
-}
-
-/// Set transaction request method number. This function enables you to
-/// keep track how a particular method string is interpreted. This function
-/// is useful with web servers that ignore invalid methods; for example, some
-/// web servers will treat them as a GET.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// method_number: Method number.
-pub unsafe fn htp_tx_req_set_method_number(mut tx: *mut htp_tx_t, mut method_number: libc::c_uint) {
-    if tx.is_null() {
-        return;
-    }
-    (*tx).request_method_number = method_number;
-}
-
-/// Set transaction request URI. The value provided here will be stored in htp_tx_t::request_uri
-/// and subsequently parsed. If htp_tx_req_set_line() was previously used, the uri provided
-/// when calling this function will overwrite any previously parsed value.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// uri: URI data pointer. Must not be NULL.
-/// uri_len: URI data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_req_set_uri(
-    mut tx: *mut htp_tx_t,
-    mut uri: *const libc::c_char,
-    mut uri_len: size_t,
-    mut alloc: htp_alloc_strategy_t,
-) -> Status {
-    if tx.is_null() || uri.is_null() {
-        return Status::ERROR;
-    }
-    (*tx).request_uri = copy_or_wrap_mem(uri as *const libc::c_void, uri_len, alloc);
-    if (*tx).request_uri.is_null() {
-        return Status::ERROR;
-    }
-    return Status::OK;
-}
-
-/// Sets the request protocol string (e.g., "HTTP/1.0"). The information provided
-/// is only stored, not parsed. Use htp_tx_req_set_protocol_number() to set the
-/// actual protocol number, as interpreted by the container.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// protocol: Protocol data pointer. Must not be NULL.
-/// protocol_len: Protocol data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_req_set_protocol(
-    mut tx: *mut htp_tx_t,
-    mut protocol: *const libc::c_char,
-    mut protocol_len: size_t,
-    mut alloc: htp_alloc_strategy_t,
-) -> Status {
-    if tx.is_null() || protocol.is_null() {
-        return Status::ERROR;
-    }
-    (*tx).request_protocol = copy_or_wrap_mem(protocol as *const libc::c_void, protocol_len, alloc);
-    if (*tx).request_protocol.is_null() {
-        return Status::ERROR;
-    }
-    return Status::OK;
-}
-
-/// Set request protocol version number. Must be invoked after
-/// htp_txh_set_req_protocol(), because it will overwrite the previously
-/// extracted version number. Convert the protocol version number to an integer
-/// by multiplying it with 100. For example, 1.1 becomes 101. Alternatively,
-/// use the V0_9, V1_0, and V1_1 constants.
-/// Note: setting protocol to V0_9 alone will _not_ get the library to
-/// treat the transaction as HTTP/0.9. You need to also invoke htp_tx_req_set_protocol_0_9().
-/// This is because HTTP 0.9 is used only when protocol information is absent from the
-/// request line, and not when it is explicitly stated (as "HTTP/0.9"). This behavior is
-/// consistent with that of Apache httpd.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// protocol_number: Protocol number.
-pub unsafe fn htp_tx_req_set_protocol_number(
-    mut tx: *mut htp_tx_t,
-    mut protocol_number: libc::c_int,
-) {
-    if tx.is_null() {
-        return;
-    }
-    (*tx).request_protocol_number = protocol_number;
-}
-
-/// Forces HTTP/0.9 as the transaction protocol. This method exists to ensure
-/// that both LibHTP and the container treat the transaction as HTTP/0.9, despite
-/// potential differences in how the protocol version is determined.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// is_protocol_0_9: Zero if protocol is not HTTP/0.9, or 1 if it is.
-pub unsafe fn htp_tx_req_set_protocol_0_9(mut tx: *mut htp_tx_t, mut is_protocol_0_9: libc::c_int) {
-    if tx.is_null() {
-        return;
-    }
-    if is_protocol_0_9 != 0 {
-        (*tx).is_protocol_0_9 = 1 as libc::c_int
-    } else {
-        (*tx).is_protocol_0_9 = 0 as libc::c_int
-    };
-}
 unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
@@ -1152,6 +979,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
 /// len: Data length.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_req_process_body_data(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,
@@ -1206,40 +1034,6 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
     return Status::OK;
 }
 
-/// Removes all request headers associated with this transaction. This
-/// function is needed because in some cases the container does not
-/// differentiate between standard and trailing headers. In that case,
-/// you set request headers once at the beginning of the transaction,
-/// read the body (at this point the request headers should contain the
-/// mix of regular and trailing headers), clear all headers, and then set
-/// them all again.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
-    if tx.is_null() || (*tx).request_headers.is_null() {
-        return Status::ERROR;
-    }
-    let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
-    let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_table::htp_table_size((*tx).request_headers);
-    while i < n {
-        h = htp_table::htp_table_get_index((*tx).request_headers, i, 0 as *mut *mut bstr::bstr)
-            as *mut htp_header_t;
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut libc::c_void);
-        i = i.wrapping_add(1)
-    }
-    htp_table::htp_table_destroy((*tx).request_headers);
-    (*tx).request_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
-    if (*tx).request_headers.is_null() {
-        return Status::ERROR;
-    }
-    return Status::OK;
-}
-
 /// Set request line. When used, this function should always be called first,
 /// with more specific functions following. Must not contain line terminators.
 ///
@@ -1249,6 +1043,7 @@ pub unsafe fn htp_tx_req_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
 /// alloc: Desired allocation strategy.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_req_set_line(
     mut tx: *mut htp_tx_t,
     mut line: *const libc::c_char,
@@ -1280,6 +1075,7 @@ pub unsafe fn htp_tx_req_set_line(
 ///
 /// tx: Transaction pointer. Must not be NULL.
 /// parsed_uri: URI pointer. Must not be NULL.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_req_set_parsed_uri(
     mut tx: *mut htp_tx_t,
     mut parsed_uri: *mut htp_util::htp_uri_t,
@@ -1303,6 +1099,7 @@ pub unsafe fn htp_tx_req_set_parsed_uri(
 /// alloc: Desired allocation strategy.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_res_set_status_line(
     mut tx: *mut htp_tx_t,
     mut line: *const libc::c_char,
@@ -1321,64 +1118,6 @@ pub unsafe fn htp_tx_res_set_status_line(
         .expect("non-null function pointer")((*tx).connp)
         != Status::OK
     {
-        return Status::ERROR;
-    }
-    return Status::OK;
-}
-
-/// Set response protocol number. See htp_tx_res_set_protocol_number() for more information
-/// about the correct format of the protocol_parameter parameter.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// protocol_number: Protocol number.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_res_set_protocol_number(
-    mut tx: *mut htp_tx_t,
-    mut protocol_number: libc::c_int,
-) {
-    if tx.is_null() {
-        return;
-    }
-    (*tx).response_protocol_number = protocol_number;
-}
-
-/// Set response status code.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// status_code: Response status code.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_res_set_status_code(mut tx: *mut htp_tx_t, mut status_code: libc::c_int) {
-    if tx.is_null() {
-        return;
-    }
-    (*tx).response_status_number = status_code;
-}
-
-/// Set response status message, which is the part of the response
-/// line that comes after the status code.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// msg: Message data pointer. Must not be NULL.
-/// msg_len: Message data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_res_set_status_message(
-    mut tx: *mut htp_tx_t,
-    mut msg: *const libc::c_char,
-    mut msg_len: size_t,
-    mut alloc: htp_alloc_strategy_t,
-) -> Status {
-    if tx.is_null() || msg.is_null() {
-        return Status::ERROR;
-    }
-    if !(*tx).response_message.is_null() {
-        bstr::bstr_free((*tx).response_message);
-    }
-    (*tx).response_message = copy_or_wrap_mem(msg as *const libc::c_void, msg_len, alloc);
-    if (*tx).response_message.is_null() {
         return Status::ERROR;
     }
     return Status::OK;
@@ -1446,6 +1185,7 @@ pub unsafe fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
 /// alloc: Desired allocation strategy.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_res_set_header(
     mut tx: *mut htp_tx_t,
     mut name: *const libc::c_char,
@@ -1481,40 +1221,6 @@ pub unsafe fn htp_tx_res_set_header(
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut libc::c_void);
-        return Status::ERROR;
-    }
-    return Status::OK;
-}
-
-/// Removes all response headers associated with this transaction. This
-/// function is needed because in some cases the container does not
-/// differentiate between standard and trailing headers. In that case,
-/// you set response headers once at the beginning of the transaction,
-/// read the body, clear all headers, and then set them all again. After
-/// the headers are set for the second time, they will potentially contain
-/// a mixture of standard and trailing headers.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_res_set_headers_clear(mut tx: *mut htp_tx_t) -> Status {
-    if tx.is_null() || (*tx).response_headers.is_null() {
-        return Status::ERROR;
-    }
-    let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
-    let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_table::htp_table_size((*tx).response_headers);
-    while i < n {
-        h = htp_table::htp_table_get_index((*tx).response_headers, i, 0 as *mut *mut bstr::bstr)
-            as *mut htp_header_t;
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut libc::c_void);
-        i = i.wrapping_add(1)
-    }
-    htp_table::htp_table_destroy((*tx).response_headers);
-    (*tx).response_headers = htp_table::htp_table_create(32 as libc::c_int as size_t);
-    if (*tx).response_headers.is_null() {
         return Status::ERROR;
     }
     return Status::OK;
@@ -1587,6 +1293,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
 /// len: Data length.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
+#[allow(dead_code)]
 pub unsafe fn htp_tx_res_process_body_data(
     mut tx: *mut htp_tx_t,
     mut data: *const libc::c_void,

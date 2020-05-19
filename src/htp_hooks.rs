@@ -22,34 +22,6 @@ pub struct htp_callback_t {
 }
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> Status>;
 
-/// Creates a copy of the provided hook. The hook is allowed to be NULL,
-/// in which case this function simply returns a NULL.
-///
-/// Returns A copy of the hook, or NULL (if the provided hook was NULL
-///         or, if it wasn't, if there was a memory allocation problem while
-///         constructing a copy).
-pub unsafe fn htp_hook_copy(mut hook: *const htp_hook_t) -> *mut htp_hook_t {
-    if hook.is_null() {
-        return 0 as *mut htp_hook_t;
-    }
-    let mut copy: *mut htp_hook_t = htp_hook_create();
-    if copy.is_null() {
-        return 0 as *mut htp_hook_t;
-    }
-    let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list::htp_list_array_size((*hook).callbacks);
-    while i < n {
-        let mut callback: *mut htp_callback_t =
-            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
-        if htp_hook_register(&mut copy, (*callback).fn_0) != Status::OK {
-            htp_hook_destroy(copy);
-            return 0 as *mut htp_hook_t;
-        }
-        i = i.wrapping_add(1)
-    }
-    return copy;
-}
-
 /// Creates a new hook.
 ///
 /// Returns New htp_hook_t structure on success, NULL on failure.
@@ -158,36 +130,4 @@ pub unsafe fn htp_hook_run_all(
         i = i.wrapping_add(1)
     }
     return Status::OK;
-}
-
-/// Run callbacks one by one until one of them accepts to service the hook.
-///
-/// Returns HTP_OK if a hook was found to process the callback, HTP_DECLINED if
-///         no hook could be found, HTP_STOP if a hook signalled the processing
-///         to stop, and HTP_ERROR or any other value less than zero on error.
-pub unsafe fn htp_hook_run_one(
-    mut hook: *mut htp_hook_t,
-    mut user_data: *mut libc::c_void,
-) -> Status {
-    if hook.is_null() {
-        return Status::DECLINED;
-    }
-    let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_list::htp_list_array_size((*hook).callbacks);
-    while i < n {
-        let mut callback: *mut htp_callback_t =
-            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
-        let mut rc: Status = (*callback).fn_0.expect("non-null function pointer")(user_data);
-        // A hook can return HTP_DECLINED to say that it did no work,
-        // and we'll ignore that. If we see HTP_OK or anything else,
-        // we stop processing (because it was either a successful
-        // handling or an error).
-        if rc != Status::DECLINED {
-            // Return HTP_OK or an error.
-            return rc;
-        }
-        i = i.wrapping_add(1)
-    }
-    // No hook wanted to process the callback.
-    return Status::DECLINED;
 }
