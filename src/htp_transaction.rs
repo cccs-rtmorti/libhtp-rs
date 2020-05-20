@@ -1241,6 +1241,30 @@ unsafe fn htp_tx_res_destroy_decompressors(mut tx: *mut htp_tx_t) {
     htp_connp_destroy_decompressors((*tx).connp);
 }
 
+unsafe fn htp_timer_track(
+    mut time_spent: *mut int32_t,
+    mut after: *mut libc::timeval,
+    mut before: *mut libc::timeval,
+) -> Status {
+    if (*after).tv_sec < (*before).tv_sec {
+        return Status::ERROR;
+    } else {
+        if (*after).tv_sec == (*before).tv_sec {
+            if (*after).tv_usec < (*before).tv_usec {
+                return Status::ERROR;
+            }
+            *time_spent =
+                (*time_spent as libc::c_long + ((*after).tv_usec - (*before).tv_usec)) as int32_t
+        } else {
+            *time_spent = (*time_spent as libc::c_long
+                + (((*after).tv_sec - (*before).tv_sec) * 1000000 as libc::c_int as libc::c_long
+                    + (*after).tv_usec
+                    - (*before).tv_usec)) as int32_t
+        }
+    }
+    return Status::OK;
+}
+
 unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     mut d: *mut htp_tx_data_t,
 ) -> Status {
@@ -1254,6 +1278,45 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     let mut rc: Status = htp_util::htp_res_run_hook_body_data((*(*d).tx).connp, d);
     if rc != Status::OK {
         return Status::ERROR;
+    }
+    (*(*(*(*d).tx).connp).out_decompressor).nb_callbacks = (*(*(*(*d).tx).connp).out_decompressor)
+        .nb_callbacks
+        .wrapping_add(1);
+    if (*(*(*(*d).tx).connp).out_decompressor)
+        .nb_callbacks
+        .wrapping_rem(256 as libc::c_int as libc::c_uint)
+        == 0 as libc::c_int as libc::c_uint
+    {
+        let mut after: libc::timeval = libc::timeval {
+            tv_sec: 0,
+            tv_usec: 0,
+        };
+        libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
+        // sanity check for race condition if system time changed
+        if htp_timer_track(
+            &mut (*(*(*(*d).tx).connp).out_decompressor).time_spent,
+            &mut after,
+            &mut (*(*(*(*d).tx).connp).out_decompressor).time_before,
+        ) == Status::OK
+        {
+            // updates last tracked time
+            (*(*(*(*d).tx).connp).out_decompressor).time_before = after;
+            if (*(*(*(*d).tx).connp).out_decompressor).time_spent
+                > (*(*(*(*d).tx).connp).cfg).compression_time_limit
+            {
+                htp_util::htp_log(
+                    (*(*d).tx).connp,
+                    b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
+                    814 as libc::c_int,
+                    htp_util::htp_log_level_t::HTP_LOG_ERROR,
+                    0 as libc::c_int,
+                    b"Compression bomb: spent %ld us decompressing\x00" as *const u8
+                        as *const libc::c_char,
+                    (*(*(*(*d).tx).connp).out_decompressor).time_spent,
+                );
+                return Status::ERROR;
+            }
+        }
     }
     if (*(*d).tx).response_entity_len
         > (*(*(*(*d).tx).connp).cfg).compression_bomb_limit as libc::c_long
@@ -1340,12 +1403,44 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
             {
                 return Status::ERROR;
             }
+            let mut after: libc::timeval = libc::timeval {
+                tv_sec: 0,
+                tv_usec: 0,
+            };
+            libc::gettimeofday(
+                &mut (*(*(*tx).connp).out_decompressor).time_before,
+                0 as *mut libc::timezone,
+            );
             // Send data buffer to the decompressor.
             (*(*(*tx).connp).out_decompressor)
                 .decompress
                 .expect("non-null function pointer")(
                 (*(*tx).connp).out_decompressor, &mut d
             );
+            libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
+            // sanity check for race condition if system time changed
+            if htp_timer_track(
+                &mut (*(*(*tx).connp).out_decompressor).time_spent,
+                &mut after,
+                &mut (*(*(*tx).connp).out_decompressor).time_before,
+            ) == Status::OK
+            {
+                if (*(*(*tx).connp).out_decompressor).time_spent
+                    > (*(*(*tx).connp).cfg).compression_time_limit
+                {
+                    htp_util::htp_log(
+                        (*tx).connp,
+                        b"htp_transaction.c\x00" as *const u8 as *const libc::c_char,
+                        876 as libc::c_int,
+                        htp_util::htp_log_level_t::HTP_LOG_ERROR,
+                        0 as libc::c_int,
+                        b"Compression bomb: spent %ld us decompressing\x00" as *const u8
+                            as *const libc::c_char,
+                        (*(*(*tx).connp).out_decompressor).time_spent,
+                    );
+                    return Status::ERROR;
+                }
+            }
             if data == 0 as *mut libc::c_void {
                 // Shut down the decompressor, if we used one.
                 htp_tx_res_destroy_decompressors(tx);
@@ -2119,9 +2214,6 @@ pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
             0 as libc::c_int,
             b"Request line incomplete\x00" as *const u8 as *const libc::c_char,
         );
-        if htp_request::htp_connp_REQ_LINE_complete((*tx).connp) != Status::OK {
-            return Status::ERROR;
-        }
     }
     return Status::OK;
 }

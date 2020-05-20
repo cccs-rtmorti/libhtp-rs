@@ -1092,8 +1092,18 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
             if endwithcr != 0 && len < 2 as libc::c_int as libc::c_ulong {
                 continue;
             }
+            let mut next_no_lf: libc::c_int = 0 as libc::c_int;
+            if (*connp).out_current_read_offset < (*connp).out_current_len
+                && *(*connp)
+                    .out_current_data
+                    .offset((*connp).out_current_read_offset as isize)
+                    as libc::c_int
+                    != '\n' as i32
+            {
+                next_no_lf = 1 as libc::c_int
+            }
             // Should we terminate headers?
-            if htp_util::htp_connp_is_line_terminator(connp, data, len) != 0 {
+            if htp_util::htp_connp_is_line_terminator(connp, data, len, next_no_lf) != 0 {
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
                     if (*(*connp).cfg)

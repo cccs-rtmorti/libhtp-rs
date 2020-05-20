@@ -174,6 +174,8 @@ pub struct htp_cfg_t {
     pub lzma_memlimit: size_t,
     /// max output size for a compression bomb.
     pub compression_bomb_limit: int32_t,
+    /// max time for a decompression bomb.
+    pub compression_time_limit: int32_t,
 }
 
 #[repr(C)]
@@ -1488,6 +1490,7 @@ pub unsafe fn htp_config_create() -> *mut htp_cfg_t {
     (*cfg).response_decompression_layer_limit = 2 as libc::c_int;
     (*cfg).lzma_memlimit = 1048576 as libc::c_int as size_t;
     (*cfg).compression_bomb_limit = 1048576 as libc::c_int;
+    (*cfg).compression_time_limit = 100000 as libc::c_int;
     // Default settings for URL-encoded data.
     htp_config_set_bestfit_map(
         cfg,

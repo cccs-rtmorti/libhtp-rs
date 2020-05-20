@@ -67,6 +67,9 @@ pub struct htp_decompressor_t {
     pub callback: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
     pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
+    pub time_before: libc::timeval,
+    pub time_spent: int32_t,
+    pub nb_callbacks: libc::c_uint,
 }
 
 pub type htp_time_t = libc::timeval;

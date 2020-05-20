@@ -750,7 +750,7 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 return Status::ERROR;
             }
             // Should we terminate headers?
-            if htp_util::htp_connp_is_line_terminator(connp, data, len) != 0 {
+            if htp_util::htp_connp_is_line_terminator(connp, data, len, 0) != 0 {
                 // Parse previous header, if any.
                 if !(*connp).in_header.is_null() {
                     if (*(*connp).cfg)
@@ -980,6 +980,21 @@ pub unsafe extern "C" fn htp_connp_REQ_LINE(
 ) -> Status {
     loop {
         // Get one byte
+        if (*connp).in_current_read_offset >= (*connp).in_current_len {
+            (*connp).in_next_byte = -(1 as libc::c_int)
+        } else {
+            (*connp).in_next_byte = *(*connp)
+                .in_current_data
+                .offset((*connp).in_current_read_offset as isize)
+                as libc::c_int
+        }
+        if (*connp).in_status as libc::c_uint
+            == htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED as libc::c_int
+                as libc::c_uint
+            && (*connp).in_next_byte == -(1 as libc::c_int)
+        {
+            return htp_connp_REQ_LINE_complete(connp);
+        }
         if (*connp).in_current_read_offset < (*connp).in_current_len {
             (*connp).in_next_byte = *(*connp)
                 .in_current_data
@@ -1059,7 +1074,16 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as libc::c_int) == 0 {
         pos = pos.wrapping_add(1)
     }
-    if pos > mstart {
+    if pos <= mstart {
+        //empty whitespace line
+        let mut rc: Status = htp_transaction::htp_tx_req_process_body_data_ex(
+            (*connp).in_tx,
+            data as *const libc::c_void,
+            len,
+        );
+        htp_connp_req_clear_buffer(connp);
+        return rc;
+    } else {
         let mut methodi: libc::c_int = htp_method_t::HTP_M_UNKNOWN as libc::c_int;
         let mut method: *mut bstr::bstr = bstr::bstr_dup_mem(
             data.offset(mstart as isize) as *const libc::c_void,
@@ -1070,25 +1094,25 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
             bstr::bstr_free(method);
         }
         if methodi == htp_method_t::HTP_M_UNKNOWN as libc::c_int {
+            // else continue
             // Interpret remaining bytes as body data
             htp_util::htp_log(
                 connp,
                 b"htp_request.c\x00" as *const u8 as *const libc::c_char,
-                881 as libc::c_int,
+                890 as libc::c_int,
                 htp_util::htp_log_level_t::HTP_LOG_WARNING,
                 0 as libc::c_int,
                 b"Unexpected request body\x00" as *const u8 as *const libc::c_char,
             );
-            let mut rc: Status = htp_transaction::htp_tx_req_process_body_data_ex(
+            let mut rc_0: Status = htp_transaction::htp_tx_req_process_body_data_ex(
                 (*connp).in_tx,
                 data as *const libc::c_void,
                 len,
             );
             htp_connp_req_clear_buffer(connp);
-            return rc;
+            return rc_0;
         }
     }
-    //else
     //unread last end of line so that REQ_LINE works
     if (*connp).in_current_read_offset < len as int64_t {
         (*connp).in_current_read_offset = 0 as libc::c_int as int64_t

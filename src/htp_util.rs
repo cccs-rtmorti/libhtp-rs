@@ -770,6 +770,7 @@ pub unsafe fn htp_connp_is_line_terminator(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     mut data: *mut libc::c_uchar,
     mut len: size_t,
+    mut next_no_lf: libc::c_int,
 ) -> libc::c_int {
     // Is this the end of request headers?
     match (*(*connp).cfg).server_personality as libc::c_uint {
@@ -790,14 +791,7 @@ pub unsafe fn htp_connp_is_line_terminator(
         && htp_is_lws(*data.offset(0 as libc::c_int as isize) as libc::c_int) != 0
         && *data.offset(1 as libc::c_int as isize) as libc::c_int == '\n' as i32
     {
-        if (*connp).out_current_read_offset < (*connp).out_current_len
-            && *(*connp)
-                .out_current_data
-                .offset((*connp).out_current_read_offset as isize) as libc::c_int
-                != '\n' as i32
-        {
-            return 1 as libc::c_int;
-        }
+        return next_no_lf;
     }
     return 0 as libc::c_int;
 }
@@ -810,7 +804,7 @@ pub unsafe fn htp_connp_is_line_ignorable(
     mut data: *mut libc::c_uchar,
     mut len: size_t,
 ) -> libc::c_int {
-    return htp_connp_is_line_terminator(connp, data, len);
+    return htp_connp_is_line_terminator(connp, data, len, 0);
 }
 
 unsafe fn htp_parse_port(
