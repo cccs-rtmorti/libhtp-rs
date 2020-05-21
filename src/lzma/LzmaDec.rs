@@ -1,23 +1,23 @@
 use ::libc;
 extern "C" {
     #[no_mangle]
-    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
+    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: SizeT) -> *mut libc::c_void;
     #[no_mangle]
-    fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
+    fn realloc(_: *mut libc::c_void, _: SizeT) -> *mut libc::c_void;
 }
-pub type size_t = libc::c_ulong;
-pub type ptrdiff_t = libc::c_long;
-pub type Byte = libc::c_uchar;
-pub type SRes = libc::c_int;
-pub type UInt16 = libc::c_ushort;
-pub type UInt32 = libc::c_uint;
+pub type size_t = usize;
+pub type ptrdiff_t = isize;
+pub type Byte = u8;
+pub type SRes = i32;
+pub type UInt16 = u16;
+pub type UInt32 = u32;
 pub type SizeT = size_t;
-pub type BoolInt = libc::c_int;
+pub type BoolInt = i32;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ISzAlloc {
-    pub Alloc: Option<unsafe fn(_: ISzAllocPtr, _: size_t) -> *mut libc::c_void>,
+    pub Alloc: Option<unsafe fn(_: ISzAllocPtr, _: SizeT) -> *mut libc::c_void>,
     pub Free: Option<unsafe fn(_: ISzAllocPtr, _: *mut libc::c_void) -> ()>,
 }
 pub type ISzAllocPtr = *const ISzAlloc;
@@ -64,7 +64,7 @@ pub enum ELzmaFinishMode {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ELzmaStatus {
     LZMA_STATUS_NOT_SPECIFIED,
     LZMA_STATUS_FINISHED_WITH_MARK,
@@ -206,22 +206,14 @@ unsafe fn LzmaDec_DecodeReal_3(
             if processedPos != 0 as libc::c_int as libc::c_uint
                 || checkDicSize != 0 as libc::c_int as libc::c_uint
             {
-                prob = prob.offset(
-                    (3 as libc::c_int as UInt32).wrapping_mul(
-                        ((processedPos << 8 as libc::c_int).wrapping_add(
-                            *dic.offset(
-                                (if dicPos == 0 as libc::c_int as libc::c_ulong {
-                                    dicBufSize
-                                } else {
-                                    dicPos
-                                })
-                                .wrapping_sub(1 as libc::c_int as libc::c_ulong)
-                                    as isize,
-                            ) as libc::c_uint,
-                        ) & lpMask)
-                            << lc,
-                    ) as isize,
-                )
+                prob = prob.offset((3 as libc::c_int as UInt32).wrapping_mul(
+                    ((processedPos << 8 as libc::c_int).wrapping_add(*dic.offset(
+                        (if dicPos == 0 { dicBufSize } else { dicPos }).wrapping_sub(1) as isize,
+                    )
+                        as libc::c_uint)
+                        & lpMask)
+                        << lc,
+                ) as isize)
             }
             processedPos = processedPos.wrapping_add(1);
             if state < 7 as libc::c_int as libc::c_uint {
@@ -433,11 +425,11 @@ unsafe fn LzmaDec_DecodeReal_3(
                 }
             } else {
                 let mut matchByte: libc::c_uint =
-                    *dic.offset(dicPos.wrapping_sub(rep0 as libc::c_ulong).wrapping_add(
-                        if dicPos < rep0 as libc::c_ulong {
+                    *dic.offset(dicPos.wrapping_sub(rep0 as SizeT).wrapping_add(
+                        if dicPos < rep0 as SizeT {
                             dicBufSize
                         } else {
-                            0 as libc::c_int as libc::c_ulong
+                            0
                         },
                     ) as isize) as libc::c_uint;
                 let mut offs: libc::c_uint = 0x100 as libc::c_int as libc::c_uint;
@@ -799,11 +791,11 @@ unsafe fn LzmaDec_DecodeReal_3(
                                 >> 5 as libc::c_int,
                         ) as CLzmaProb;
                         *dic.offset(dicPos as isize) =
-                            *dic.offset(dicPos.wrapping_sub(rep0 as libc::c_ulong).wrapping_add(
-                                if dicPos < rep0 as libc::c_ulong {
+                            *dic.offset(dicPos.wrapping_sub(rep0 as SizeT).wrapping_add(
+                                if dicPos < rep0 as SizeT {
                                     dicBufSize
                                 } else {
-                                    0 as libc::c_int as libc::c_ulong
+                                    0
                                 },
                             ) as isize);
                         dicPos = dicPos.wrapping_add(1);
@@ -1649,31 +1641,30 @@ unsafe fn LzmaDec_DecodeReal_3(
                     let mut curLen: libc::c_uint = 0;
                     let mut pos: SizeT = 0;
                     rem = limit.wrapping_sub(dicPos);
-                    if rem == 0 as libc::c_int as libc::c_ulong {
+                    if rem == 0 {
                         (*p).dicPos = dicPos;
-                        return 1 as libc::c_int;
+                        return 1;
                     }
-                    curLen = if rem < len as libc::c_ulong {
+                    curLen = if rem < len as SizeT {
                         rem as libc::c_uint
                     } else {
                         len
                     };
-                    pos = dicPos.wrapping_sub(rep0 as libc::c_ulong).wrapping_add(
-                        if dicPos < rep0 as libc::c_ulong {
+                    pos = dicPos.wrapping_sub(rep0 as SizeT).wrapping_add(
+                        if dicPos < rep0 as SizeT {
                             dicBufSize
                         } else {
-                            0 as libc::c_int as libc::c_ulong
+                            0
                         },
                     );
                     processedPos =
                         (processedPos as libc::c_uint).wrapping_add(curLen) as UInt32 as UInt32;
                     len = len.wrapping_sub(curLen);
-                    if curLen as libc::c_ulong <= dicBufSize.wrapping_sub(pos) {
+                    if curLen as SizeT <= dicBufSize.wrapping_sub(pos) {
                         let mut dest: *mut Byte = dic.offset(dicPos as isize);
                         let mut src: ptrdiff_t = pos as ptrdiff_t - dicPos as ptrdiff_t;
                         let mut lim: *const Byte = dest.offset(curLen as isize);
-                        dicPos = (dicPos as libc::c_ulong).wrapping_add(curLen as SizeT) as SizeT
-                            as SizeT;
+                        dicPos = (dicPos).wrapping_add(curLen as SizeT);
                         loop {
                             *dest = *dest.offset(src as isize);
                             dest = dest.offset(1);
@@ -1735,7 +1726,7 @@ unsafe fn LzmaDec_WriteRem(mut p: *mut CLzmaDec, mut limit: SizeT) {
         let mut len: libc::c_uint = (*p).remainLen;
         let mut rep0: SizeT = (*p).reps[0 as libc::c_int as usize] as SizeT;
         let mut rem: SizeT = limit.wrapping_sub(dicPos);
-        if rem < len as libc::c_ulong {
+        if rem < len as SizeT {
             len = rem as libc::c_uint
         }
         if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint
@@ -1752,7 +1743,7 @@ unsafe fn LzmaDec_WriteRem(mut p: *mut CLzmaDec, mut limit: SizeT) {
                 *dic.offset(dicPos.wrapping_sub(rep0).wrapping_add(if dicPos < rep0 {
                     dicBufSize
                 } else {
-                    0 as libc::c_int as libc::c_ulong
+                    0
                 }) as isize);
             dicPos = dicPos.wrapping_add(1)
         }
@@ -1769,8 +1760,8 @@ unsafe fn LzmaDec_DecodeReal2(
         let mut limit2: SizeT = limit;
         if (*p).checkDicSize == 0 as libc::c_int as libc::c_uint {
             let mut rem: UInt32 = (*p).prop.dicSize.wrapping_sub((*p).processedPos);
-            if limit.wrapping_sub((*p).dicPos) > rem as libc::c_ulong {
-                if (*p).dicBufSize < (*p).prop.dicSize as libc::c_ulong {
+            if limit.wrapping_sub((*p).dicPos) > rem as SizeT {
+                if (*p).dicBufSize < (*p).prop.dicSize as SizeT {
                     (*p).dicBufSize = (*p).prop.dicSize as SizeT
                 }
                 if (*p).dicBufSize > memlimit {
@@ -1782,7 +1773,7 @@ unsafe fn LzmaDec_DecodeReal2(
                     return 2 as libc::c_int;
                 }
                 (*p).dic = tmp;
-                limit2 = (*p).dicPos.wrapping_add(rem as libc::c_ulong)
+                limit2 = (*p).dicPos.wrapping_add(rem as SizeT)
             }
             if (*p).processedPos == 0 as libc::c_int as libc::c_uint {
                 if (*p).code
@@ -1899,13 +1890,12 @@ unsafe fn LzmaDec_TryDummy(
                         << (*p).prop.lc as libc::c_int)
                         .wrapping_add(
                             (*(*p).dic.offset(
-                                (if (*p).dicPos == 0 as libc::c_int as libc::c_ulong {
+                                (if (*p).dicPos == 0 {
                                     (*p).dicBufSize
                                 } else {
                                     (*p).dicPos
                                 })
-                                .wrapping_sub(1 as libc::c_int as libc::c_ulong)
-                                    as isize,
+                                .wrapping_sub(1) as isize,
                             ) as libc::c_int
                                 >> 8 as libc::c_int - (*p).prop.lc as libc::c_int)
                                 as libc::c_uint,
@@ -1944,14 +1934,12 @@ unsafe fn LzmaDec_TryDummy(
         } else {
             let mut matchByte: libc::c_uint = *(*p).dic.offset(
                 (*p).dicPos
-                    .wrapping_sub((*p).reps[0 as libc::c_int as usize] as libc::c_ulong)
-                    .wrapping_add(
-                        if (*p).dicPos < (*p).reps[0 as libc::c_int as usize] as libc::c_ulong {
-                            (*p).dicBufSize
-                        } else {
-                            0 as libc::c_int as libc::c_ulong
-                        },
-                    ) as isize,
+                    .wrapping_sub((*p).reps[0 as usize] as SizeT)
+                    .wrapping_add(if (*p).dicPos < (*p).reps[0 as usize] as SizeT {
+                        (*p).dicBufSize
+                    } else {
+                        0
+                    }) as isize,
             ) as libc::c_uint;
             let mut offs: libc::c_uint = 0x100 as libc::c_int as libc::c_uint;
             let mut symbol_0: libc::c_uint = 1 as libc::c_int as libc::c_uint;
@@ -2483,9 +2471,7 @@ pub unsafe fn LzmaDec_DecodeToDic(
             + ((1 as libc::c_int) << 3 as libc::c_int) * 2 as libc::c_int
             + ((1 as libc::c_int) << 8 as libc::c_int)) as libc::c_uint
     {
-        while inSize > 0 as libc::c_int as libc::c_ulong
-            && (*p).tempBufSize < 5 as libc::c_int as libc::c_uint
-        {
+        while inSize > 0 && (*p).tempBufSize < 5 {
             let fresh62 = src;
             src = src.offset(1);
             let fresh63 = (*p).tempBufSize;
@@ -2583,7 +2569,7 @@ pub unsafe fn LzmaDec_DecodeToDic(
         if (*p).tempBufSize == 0 as libc::c_int as libc::c_uint {
             let mut processed: SizeT = 0;
             let mut bufLimit: *const Byte = 0 as *const Byte;
-            if inSize < 20 as libc::c_int as libc::c_ulong || checkEndMarkNow != 0 {
+            if inSize < 20 || checkEndMarkNow != 0 {
                 let mut dummyRes: libc::c_int = LzmaDec_TryDummy(p, src, inSize) as libc::c_int;
                 if dummyRes == ELzmaDummy::DUMMY_ERROR as libc::c_int {
                     memcpy(
@@ -2592,7 +2578,7 @@ pub unsafe fn LzmaDec_DecodeToDic(
                         inSize,
                     );
                     (*p).tempBufSize = inSize as libc::c_uint;
-                    *srcLen = (*srcLen as libc::c_ulong).wrapping_add(inSize) as SizeT as SizeT;
+                    *srcLen = (*srcLen).wrapping_add(inSize);
                     *status = ELzmaStatus::LZMA_STATUS_NEEDS_MORE_INPUT;
                     return 0 as libc::c_int;
                 }
@@ -2611,13 +2597,13 @@ pub unsafe fn LzmaDec_DecodeToDic(
                 return 1 as libc::c_int;
             }
             processed = (*p).buf.wrapping_offset_from(src) as libc::c_long as SizeT;
-            *srcLen = (*srcLen as libc::c_ulong).wrapping_add(processed) as SizeT as SizeT;
+            *srcLen = (*srcLen).wrapping_add(processed);
             src = src.offset(processed as isize);
-            inSize = (inSize as libc::c_ulong).wrapping_sub(processed) as SizeT as SizeT
+            inSize = (inSize).wrapping_sub(processed)
         } else {
             let mut rem: libc::c_uint = (*p).tempBufSize;
             let mut lookAhead: libc::c_uint = 0 as libc::c_int as libc::c_uint;
-            while rem < 20 as libc::c_int as libc::c_uint && (lookAhead as libc::c_ulong) < inSize {
+            while rem < 20 && (lookAhead as SizeT) < inSize {
                 let fresh64 = lookAhead;
                 lookAhead = lookAhead.wrapping_add(1);
                 let fresh65 = rem;
@@ -2629,8 +2615,7 @@ pub unsafe fn LzmaDec_DecodeToDic(
                 let mut dummyRes_0: libc::c_int =
                     LzmaDec_TryDummy(p, (*p).tempBuf.as_mut_ptr(), rem as SizeT) as libc::c_int;
                 if dummyRes_0 == ELzmaDummy::DUMMY_ERROR as libc::c_int {
-                    *srcLen = (*srcLen as libc::c_ulong).wrapping_add(lookAhead as SizeT) as SizeT
-                        as SizeT;
+                    *srcLen = (*srcLen).wrapping_add(lookAhead as SizeT);
                     *status = ELzmaStatus::LZMA_STATUS_NEEDS_MORE_INPUT;
                     return 0 as libc::c_int;
                 }
@@ -2653,9 +2638,9 @@ pub unsafe fn LzmaDec_DecodeToDic(
                 return 11 as libc::c_int;
             }
             lookAhead = lookAhead.wrapping_sub(rem);
-            *srcLen = (*srcLen as libc::c_ulong).wrapping_add(lookAhead as SizeT) as SizeT as SizeT;
+            *srcLen = (*srcLen).wrapping_add(lookAhead as SizeT);
             src = src.offset(lookAhead as isize);
-            inSize = (inSize as libc::c_ulong).wrapping_sub(lookAhead as SizeT) as SizeT as SizeT;
+            inSize = inSize.wrapping_sub(lookAhead as SizeT);
             (*p).tempBufSize = 0 as libc::c_int as libc::c_uint
         }
     }
@@ -2688,13 +2673,13 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
         let mut curFinishMode = ELzmaFinishMode::LZMA_FINISH_ANY;
         let mut res: SRes = 0;
         if (*p).dicPos == (*p).dicBufSize {
-            if (*p).dicBufSize < (*p).prop.dicSize as libc::c_ulong {
+            if (*p).dicBufSize < (*p).prop.dicSize as SizeT {
                 if (*p).dicBufSize < memlimit {
                     (*p).dicBufSize = (*p).dicBufSize << 2 as libc::c_int;
                     if (*p).dicBufSize > memlimit {
                         (*p).dicBufSize = memlimit
                     }
-                    if (*p).dicBufSize > (*p).prop.dicSize as libc::c_ulong {
+                    if (*p).dicBufSize > (*p).prop.dicSize as SizeT {
                         (*p).dicBufSize = (*p).prop.dicSize as SizeT
                     }
                     let mut tmp: *mut Byte =
@@ -2728,8 +2713,8 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
             memlimit,
         );
         src = src.offset(inSizeCur as isize);
-        inSize = (inSize as libc::c_ulong).wrapping_sub(inSizeCur) as SizeT as SizeT;
-        *srcLen = (*srcLen as libc::c_ulong).wrapping_add(inSizeCur) as SizeT as SizeT;
+        inSize = (inSize).wrapping_sub(inSizeCur);
+        *srcLen = (*srcLen).wrapping_add(inSizeCur);
         outSizeCur = (*p).dicPos.wrapping_sub(dicPos);
         memcpy(
             dest as *mut libc::c_void,
@@ -2737,15 +2722,13 @@ pub unsafe extern "C" fn LzmaDec_DecodeToBuf(
             outSizeCur,
         );
         dest = dest.offset(outSizeCur as isize);
-        outSize = (outSize as libc::c_ulong).wrapping_sub(outSizeCur) as SizeT as SizeT;
-        *destLen = (*destLen as libc::c_ulong).wrapping_add(outSizeCur) as SizeT as SizeT;
+        outSize = (outSize).wrapping_sub(outSizeCur);
+        *destLen = (*destLen).wrapping_add(outSizeCur);
         if res != 0 as libc::c_int {
             return res;
         }
-        if outSizeCur == 0 as libc::c_int as libc::c_ulong
-            || outSize == 0 as libc::c_int as libc::c_ulong
-        {
-            return 0 as libc::c_int;
+        if outSizeCur == 0 || outSize == 0 {
+            return 0;
         }
     }
 }
@@ -2825,8 +2808,7 @@ unsafe fn LzmaDec_AllocateProbs2(
         LzmaDec_FreeProbs(p, alloc);
         (*p).probs = (*alloc).Alloc.expect("non-null function pointer")(
             alloc,
-            (numProbs as libc::c_ulong)
-                .wrapping_mul(::std::mem::size_of::<CLzmaProb>() as libc::c_ulong),
+            (numProbs as SizeT).wrapping_mul(::std::mem::size_of::<CLzmaProb>()),
         ) as *mut CLzmaProb;
         if (*p).probs.is_null() {
             return 2 as libc::c_int;
@@ -2896,16 +2878,16 @@ pub unsafe extern "C" fn LzmaDec_Allocate(
             .wrapping_sub(1 as libc::c_int as libc::c_uint) as SizeT
     }
     dicBufSize = (dictSize as SizeT).wrapping_add(mask) & !mask;
-    if dicBufSize < dictSize as libc::c_ulong {
+    if dicBufSize < dictSize as SizeT {
         dicBufSize = dictSize as SizeT
     }
-    if dicBufSize > ((1 as libc::c_int) << 12 as libc::c_int) as libc::c_ulong {
-        dicBufSize = ((1 as libc::c_int) << 12 as libc::c_int) as SizeT
+    if dicBufSize > ((1) << 12) {
+        dicBufSize = (1) << 12
     }
     if (*p).dic.is_null() || dicBufSize != (*p).dicBufSize {
         LzmaDec_FreeDict(p, alloc);
-        (*p).dic =
-            (*alloc).Alloc.expect("non-null function pointer")(alloc, dicBufSize) as *mut Byte;
+        (*p).dic = (*alloc).Alloc.expect("non-null function pointer")(alloc, dicBufSize as SizeT)
+            as *mut Byte;
         if (*p).dic.is_null() {
             LzmaDec_FreeProbs(p, alloc);
             return 2 as libc::c_int;
@@ -3084,8 +3066,8 @@ pub unsafe fn LzmaDecode(
     *srcLen = 0 as libc::c_int as SizeT;
     *destLen = *srcLen;
     *status = ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
-    if inSize < 5 as libc::c_int as libc::c_ulong {
-        return 6 as libc::c_int;
+    if inSize < 5 {
+        return 6;
     }
     p.dic = 0 as *mut Byte;
     p.probs = 0 as *mut CLzmaProb;
@@ -3104,7 +3086,7 @@ pub unsafe fn LzmaDecode(
         srcLen,
         finishMode,
         status,
-        18446744073709551615 as libc::c_ulong,
+        18446744073709551615,
     );
     *destLen = p.dicPos;
     if res == 0 as libc::c_int

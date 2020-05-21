@@ -42,8 +42,8 @@ fn Decode() {
     unsafe {
         let input = CString::new("dGhpcyBpcyBhIHRlc3QuLg==").unwrap();
         let out: *mut bstr_t = htp_base64_decode_mem(
-            input.as_ptr() as *const libc::c_void,
-            libc::strlen(input.as_ptr()) as u64,
+            input.as_ptr() as *const core::ffi::c_void,
+            libc::strlen(input.as_ptr()),
         );
         assert_eq!(0, bstr_cmp_c(out, cstr!("this is a test..")));
         bstr_free(out);
@@ -85,49 +85,49 @@ fn unsize<T>(x: &[T]) -> &[T] {
 #[test]
 fn Chomp() {
     unsafe {
-        let data: [libc::c_uchar; 100] = [0; 100];
-        let mut len: u64;
-        let mut result: libc::c_int;
+        let data: [u8; 100] = [0; 100];
+        let mut len: usize;
+        let mut result: i32;
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("test\r\n"));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("test\r\n"));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(2, result);
         assert_eq!(4, len);
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("test\r\n\n"));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("test\r\n\n"));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(2, result);
         assert_eq!(4, len);
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("test\r\n\r\n"));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("test\r\n\r\n"));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(2, result);
         assert_eq!(4, len);
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("te\nst"));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("te\nst"));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(0, result);
         assert_eq!(5, len);
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("foo\n"));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("foo\n"));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(1, result);
         assert_eq!(3, len);
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("arfarf"));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("arfarf"));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(0, result);
         assert_eq!(6, len);
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!(""));
-        len = libc::strlen(data.as_ptr() as *mut libc::c_char) as u64;
-        result = htp_chomp(data.as_ptr() as *mut libc::c_uchar, &mut len);
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!(""));
+        len = libc::strlen(data.as_ptr() as *mut i8);
+        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
         assert_eq!(0, result);
         assert_eq!(0, len);
     }
@@ -163,42 +163,30 @@ fn Method() {
 #[test]
 fn IsLineEmpty() {
     unsafe {
-        let data: [libc::c_uchar; 100] = [0; 100];
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("arfarf"));
-        assert_eq!(0, htp_is_line_empty(data.as_ptr() as *mut libc::c_uchar, 6));
+        let data: [u8; 100] = [0; 100];
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("arfarf"));
+        assert_eq!(0, htp_is_line_empty(data.as_ptr() as *mut u8, 6));
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("\r\n"));
-        assert_eq!(1, htp_is_line_empty(data.as_ptr() as *mut libc::c_uchar, 2));
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("\r"));
-        assert_eq!(1, htp_is_line_empty(data.as_ptr() as *mut libc::c_uchar, 1));
-        assert_eq!(0, htp_is_line_empty(data.as_ptr() as *mut libc::c_uchar, 0));
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r\n"));
+        assert_eq!(1, htp_is_line_empty(data.as_ptr() as *mut u8, 2));
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r"));
+        assert_eq!(1, htp_is_line_empty(data.as_ptr() as *mut u8, 1));
+        assert_eq!(0, htp_is_line_empty(data.as_ptr() as *mut u8, 0));
     }
 }
 
 #[test]
 fn IsLineWhitespace() {
     unsafe {
-        let data: [libc::c_uchar; 100] = [0; 100];
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("arfarf"));
-        assert_eq!(
-            0,
-            htp_is_line_whitespace(data.as_ptr() as *mut libc::c_uchar, 6)
-        );
+        let data: [u8; 100] = [0; 100];
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("arfarf"));
+        assert_eq!(0, htp_is_line_whitespace(data.as_ptr() as *mut u8, 6));
 
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("\r\n"));
-        assert_eq!(
-            1,
-            htp_is_line_whitespace(data.as_ptr() as *mut libc::c_uchar, 2)
-        );
-        libc::strcpy(data.as_ptr() as *mut libc::c_char, cstr!("\r"));
-        assert_eq!(
-            1,
-            htp_is_line_whitespace(data.as_ptr() as *mut libc::c_uchar, 1)
-        );
-        assert_eq!(
-            1,
-            htp_is_line_whitespace(data.as_ptr() as *mut libc::c_uchar, 0)
-        );
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r\n"));
+        assert_eq!(1, htp_is_line_whitespace(data.as_ptr() as *mut u8, 2));
+        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r"));
+        assert_eq!(1, htp_is_line_whitespace(data.as_ptr() as *mut u8, 1));
+        assert_eq!(1, htp_is_line_whitespace(data.as_ptr() as *mut u8, 0));
     }
 }
 
@@ -207,57 +195,41 @@ fn ParsePositiveIntegerWhitespace() {
     unsafe {
         assert_eq!(
             123,
-            htp_parse_positive_integer_whitespace(cstr!("123   ") as *const libc::c_uchar, 6, 10)
+            htp_parse_positive_integer_whitespace(cstr!("123   ") as *const u8, 6, 10)
         );
         assert_eq!(
             123,
-            htp_parse_positive_integer_whitespace(cstr!("   123") as *const libc::c_uchar, 6, 10)
+            htp_parse_positive_integer_whitespace(cstr!("   123") as *const u8, 6, 10)
         );
         assert_eq!(
             123,
-            htp_parse_positive_integer_whitespace(
-                cstr!("   123   ") as *const libc::c_uchar,
-                9,
-                10
-            )
+            htp_parse_positive_integer_whitespace(cstr!("   123   ") as *const u8, 9, 10)
         );
         assert_eq!(
             -1,
-            htp_parse_positive_integer_whitespace(cstr!("a123") as *const libc::c_uchar, 4, 10)
+            htp_parse_positive_integer_whitespace(cstr!("a123") as *const u8, 4, 10)
         );
         assert_eq!(
             -1001,
-            htp_parse_positive_integer_whitespace(cstr!("   \t") as *const libc::c_uchar, 4, 10)
+            htp_parse_positive_integer_whitespace(cstr!("   \t") as *const u8, 4, 10)
         );
         assert_eq!(
             -1002,
-            htp_parse_positive_integer_whitespace(cstr!("123b ") as *const libc::c_uchar, 5, 10)
+            htp_parse_positive_integer_whitespace(cstr!("123b ") as *const u8, 5, 10)
         );
 
         assert_eq!(
             -1,
-            htp_parse_positive_integer_whitespace(
-                cstr!("   a123   ") as *const libc::c_uchar,
-                9,
-                10
-            )
+            htp_parse_positive_integer_whitespace(cstr!("   a123   ") as *const u8, 9, 10)
         );
         assert_eq!(
             -1002,
-            htp_parse_positive_integer_whitespace(
-                cstr!("   123b   ") as *const libc::c_uchar,
-                9,
-                10
-            )
+            htp_parse_positive_integer_whitespace(cstr!("   123b   ") as *const u8, 9, 10)
         );
 
         assert_eq!(
             0x123,
-            htp_parse_positive_integer_whitespace(
-                cstr!("   123   ") as *const libc::c_uchar,
-                9,
-                16
-            )
+            htp_parse_positive_integer_whitespace(cstr!("   123   ") as *const u8, 9, 16)
         );
     }
 }
@@ -279,7 +251,7 @@ fn ParseChunkedLength() {
         let mut_data = CString::new("12a5").unwrap();
         assert_eq!(
             0x12a5,
-            htp_parse_chunked_length(mut_data.as_ptr() as *mut libc::c_uchar, 4)
+            htp_parse_chunked_length(mut_data.as_ptr() as *mut u8, 4)
         );
     }
 }
@@ -287,22 +259,10 @@ fn ParseChunkedLength() {
 #[test]
 fn IsLineFolded() {
     unsafe {
-        assert_eq!(
-            -1,
-            htp_connp_is_line_folded(cstr!("") as *const libc::c_uchar, 0)
-        );
-        assert_eq!(
-            1,
-            htp_connp_is_line_folded(cstr!("\tline") as *const libc::c_uchar, 5)
-        );
-        assert_eq!(
-            1,
-            htp_connp_is_line_folded(cstr!(" line") as *const libc::c_uchar, 5)
-        );
-        assert_eq!(
-            0,
-            htp_connp_is_line_folded(cstr!("line ") as *const libc::c_uchar, 5)
-        );
+        assert_eq!(-1, htp_connp_is_line_folded(cstr!("") as *const u8, 0));
+        assert_eq!(1, htp_connp_is_line_folded(cstr!("\tline") as *const u8, 5));
+        assert_eq!(1, htp_connp_is_line_folded(cstr!(" line") as *const u8, 5));
+        assert_eq!(0, htp_connp_is_line_folded(cstr!("line ") as *const u8, 5));
     }
 }
 
@@ -322,7 +282,7 @@ fn free_htp_uri_t(urip: *mut *mut htp_uri_t) {
         bstr_free((*uri).query);
         bstr_free((*uri).fragment);
 
-        libc::free(uri as *mut libc::c_void);
+        libc::free(uri as *mut core::ffi::c_void);
         *urip = std::ptr::null_mut();
     }
 }
@@ -330,24 +290,24 @@ fn free_htp_uri_t(urip: *mut *mut htp_uri_t) {
 #[repr(C)]
 #[derive(Clone)]
 struct uri_expected {
-    scheme: *const libc::c_char,
-    username: *const libc::c_char,
-    password: *const libc::c_char,
-    hostname: *const libc::c_char,
-    port: *const libc::c_char,
-    path: *const libc::c_char,
-    query: *const libc::c_char,
-    fragment: *const libc::c_char,
+    scheme: *const i8,
+    username: *const i8,
+    password: *const i8,
+    hostname: *const i8,
+    port: *const i8,
+    path: *const i8,
+    query: *const i8,
+    fragment: *const i8,
 }
 
 #[repr(C)]
 #[derive(Clone)]
 struct uri_test {
-    uri: *const libc::c_char,
+    uri: *const i8,
     expected: uri_expected,
 }
 
-fn bstr_equal_c(b: *const bstr_t, c: *const libc::c_char) -> bool {
+fn bstr_equal_c(b: *const bstr_t, c: *const i8) -> bool {
     unsafe {
         if (c == std::ptr::null()) || (b == std::ptr::null()) {
             (c == std::ptr::null()) && (b == std::ptr::null())
@@ -359,8 +319,8 @@ fn bstr_equal_c(b: *const bstr_t, c: *const libc::c_char) -> bool {
 
 fn append_message<W: Write>(
     o: &mut W,
-    label: *const libc::c_char,
-    expected: *const libc::c_char,
+    label: *const i8,
+    expected: *const i8,
     actual: *const bstr_t,
 ) -> Result<(), std::io::Error> {
     unsafe {
@@ -381,7 +341,7 @@ fn append_message<W: Write>(
             o.write(b"'")?;
             o.write(std::slice::from_raw_parts(
                 bstr_ptr(actual),
-                bstr_len(actual) as usize,
+                bstr_len(actual),
             ))?;
             o.write(b"'")?;
         } else {
@@ -1642,7 +1602,7 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
     unsafe {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0000"));
-        let e: *mut bstr_t = bstr_dup_mem("/\0".as_ptr() as *const libc::c_void, 2);
+        let e: *mut bstr_t = bstr_dup_mem("/\0".as_ptr() as *const core::ffi::c_void, 2);
         htp_config_set_u_encoding_decode(test.cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
         htp_config_set_url_encoding_invalid_handling(
             test.cfg,
@@ -1702,7 +1662,7 @@ fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
     unsafe {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_c(cstr!("/%00123"));
-        let e: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const libc::c_void, 5);
+        let e: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
@@ -1716,7 +1676,7 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
     unsafe {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_c(cstr!("/%00123"));
-        let e: *mut bstr_t = bstr_dup_mem("/".as_ptr() as *const libc::c_void, 1);
+        let e: *mut bstr_t = bstr_dup_mem("/".as_ptr() as *const core::ffi::c_void, 1);
         htp_config_set_nul_encoded_terminates(test.cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
@@ -1874,7 +1834,7 @@ fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
 fn DecodingTest_DecodePathInplace20_RawNul1() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const libc::c_void, 5);
+        let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
         let e: *mut bstr_t = bstr_dup_c(cstr!("/"));
         htp_config_set_nul_raw_terminates(test.cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
         htp_decode_path_inplace(test.tx, i);
@@ -1888,8 +1848,8 @@ fn DecodingTest_DecodePathInplace20_RawNul1() {
 fn DecodingTest_DecodePathInplace21_RawNul1() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const libc::c_void, 5);
-        let e: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const libc::c_void, 5);
+        let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
+        let e: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
         htp_config_set_nul_raw_terminates(test.cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
@@ -1938,8 +1898,8 @@ fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
 fn DecodingTest_InvalidUtf8() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(b"\xf1.\x00".as_ptr() as *const libc::c_char);
-        let e: *mut bstr_t = bstr_dup_c(cstr!("?.") as *const libc::c_char);
+        let i: *mut bstr_t = bstr_dup_c(b"\xf1.\x00".as_ptr() as *const i8);
+        let e: *mut bstr_t = bstr_dup_c(cstr!("?.") as *const i8);
         htp_config_set_utf8_convert_bestfit(test.cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
         htp_utf8_decode_path_inplace(test.cfg, test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
@@ -1996,7 +1956,7 @@ impl Drop for UrlEncodedParserTest {
 fn UrlencodedParser_Empty() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "".as_ptr() as *const libc::c_void, 0);
+        htp_urlenp_parse_complete(test.urlenp, "".as_ptr() as *const core::ffi::c_void, 0);
 
         assert_eq!(0, htp_table_size((*test.urlenp).params));
     }
@@ -2006,11 +1966,13 @@ fn UrlencodedParser_Empty() {
 fn UrlencodedParser_EmptyKey1() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "&".as_ptr() as *const libc::c_void, 1);
+        htp_urlenp_parse_complete(test.urlenp, "&".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "".as_ptr() as *const libc::c_void, 0)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "".as_ptr() as *const core::ffi::c_void,
+            0,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
 
@@ -2022,11 +1984,13 @@ fn UrlencodedParser_EmptyKey1() {
 fn UrlencodedParser_EmptyKey2() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "=&".as_ptr() as *const libc::c_void, 2);
+        htp_urlenp_parse_complete(test.urlenp, "=&".as_ptr() as *const core::ffi::c_void, 2);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "".as_ptr() as *const libc::c_void, 0)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "".as_ptr() as *const core::ffi::c_void,
+            0,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
 
@@ -2038,11 +2002,13 @@ fn UrlencodedParser_EmptyKey2() {
 fn UrlencodedParser_EmptyKey3() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "=1&".as_ptr() as *const libc::c_void, 3);
+        htp_urlenp_parse_complete(test.urlenp, "=1&".as_ptr() as *const core::ffi::c_void, 3);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "".as_ptr() as *const libc::c_void, 0)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "".as_ptr() as *const core::ffi::c_void,
+            0,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
         assert_eq!(0, bstr_cmp_c(p, cstr!("1")));
 
@@ -2054,11 +2020,13 @@ fn UrlencodedParser_EmptyKey3() {
 fn UrlencodedParser_EmptyKeyAndValue() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "=".as_ptr() as *const libc::c_void, 1);
+        htp_urlenp_parse_complete(test.urlenp, "=".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "".as_ptr() as *const libc::c_void, 0)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "".as_ptr() as *const core::ffi::c_void,
+            0,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
 
@@ -2070,11 +2038,11 @@ fn UrlencodedParser_EmptyKeyAndValue() {
 fn UrlencodedParser_OnePairEmptyValue() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p=".as_ptr() as *const libc::c_void, 2);
+        htp_urlenp_parse_complete(test.urlenp, "p=".as_ptr() as *const core::ffi::c_void, 2);
 
         let p: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "p".as_ptr() as *const libc::c_void,
+            "p".as_ptr() as *const core::ffi::c_void,
             1,
         ) as *mut bstr_t;
         assert!(!p.is_null());
@@ -2088,11 +2056,11 @@ fn UrlencodedParser_OnePairEmptyValue() {
 fn UrlencodedParser_OnePair() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p=1".as_ptr() as *const libc::c_void, 3);
+        htp_urlenp_parse_complete(test.urlenp, "p=1".as_ptr() as *const core::ffi::c_void, 3);
 
         let p: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "p".as_ptr() as *const libc::c_void,
+            "p".as_ptr() as *const core::ffi::c_void,
             1,
         ) as *mut bstr_t;
         assert!(!p.is_null());
@@ -2106,11 +2074,15 @@ fn UrlencodedParser_OnePair() {
 fn UrlencodedParser_TwoPairs() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p=1&q=2".as_ptr() as *const libc::c_void, 7);
+        htp_urlenp_parse_complete(
+            test.urlenp,
+            "p=1&q=2".as_ptr() as *const core::ffi::c_void,
+            7,
+        );
 
         let p: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "p".as_ptr() as *const libc::c_void,
+            "p".as_ptr() as *const core::ffi::c_void,
             1,
         ) as *mut bstr_t;
         assert!(!p.is_null());
@@ -2118,7 +2090,7 @@ fn UrlencodedParser_TwoPairs() {
 
         let q: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "q".as_ptr() as *const libc::c_void,
+            "q".as_ptr() as *const core::ffi::c_void,
             1,
         ) as *mut bstr_t;
         assert!(!q.is_null());
@@ -2132,11 +2104,11 @@ fn UrlencodedParser_TwoPairs() {
 fn UrlencodedParser_KeyNoValue1() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p".as_ptr() as *const libc::c_void, 1);
+        htp_urlenp_parse_complete(test.urlenp, "p".as_ptr() as *const core::ffi::c_void, 1);
 
         let p: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "p".as_ptr() as *const libc::c_void,
+            "p".as_ptr() as *const core::ffi::c_void,
             1,
         ) as *mut bstr_t;
         assert!(!p.is_null());
@@ -2151,11 +2123,13 @@ fn UrlencodedParser_KeyNoValue1() {
 fn UrlencodedParser_KeyNoValue2() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p&".as_ptr() as *mut libc::c_void, 2);
+        htp_urlenp_parse_complete(test.urlenp, "p&".as_ptr() as *mut core::ffi::c_void, 2);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "p".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "p".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
@@ -2168,18 +2142,22 @@ fn UrlencodedParser_KeyNoValue2() {
 fn UrlencodedParser_KeyNoValue3() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p&q".as_ptr() as *mut libc::c_void, 3);
+        htp_urlenp_parse_complete(test.urlenp, "p&q".as_ptr() as *mut core::ffi::c_void, 3);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "p".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "p".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
 
-        let q: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "q".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let q: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "q".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!q.is_null());
         assert_eq!(0, bstr_cmp_c(q, cstr!("")));
 
@@ -2191,18 +2169,22 @@ fn UrlencodedParser_KeyNoValue3() {
 fn UrlencodedParser_KeyNoValue4() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(test.urlenp, "p&q=2".as_ptr() as *mut libc::c_void, 5);
+        htp_urlenp_parse_complete(test.urlenp, "p&q=2".as_ptr() as *mut core::ffi::c_void, 5);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "p".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "p".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
 
-        let q: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "q".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let q: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "q".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!q.is_null());
         assert_eq!(0, bstr_cmp_c(q, cstr!("2")));
 
@@ -2214,12 +2196,14 @@ fn UrlencodedParser_KeyNoValue4() {
 fn UrlencodedParser_Partial1() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut libc::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "p".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "p".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
@@ -2232,13 +2216,15 @@ fn UrlencodedParser_Partial1() {
 fn UrlencodedParser_Partial2() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "x".as_ptr() as *mut libc::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "x".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "px".as_ptr() as *mut libc::c_void, 2)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "px".as_ptr() as *mut core::ffi::c_void,
+            2,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
@@ -2251,13 +2237,15 @@ fn UrlencodedParser_Partial2() {
 fn UrlencodedParser_Partial3() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "x&".as_ptr() as *mut libc::c_void, 2);
+        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "x&".as_ptr() as *mut core::ffi::c_void, 2);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "px".as_ptr() as *mut libc::c_void, 2)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "px".as_ptr() as *mut core::ffi::c_void,
+            2,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
@@ -2270,13 +2258,15 @@ fn UrlencodedParser_Partial3() {
 fn UrlencodedParser_Partial4() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut libc::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "p".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "p".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
@@ -2289,15 +2279,17 @@ fn UrlencodedParser_Partial4() {
 fn UrlencodedParser_Partial5() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut libc::c_void, 0);
-        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut libc::c_void, 0);
-        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut libc::c_void, 0);
+        htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
+        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
+        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t =
-            htp_table_get_mem((*test.urlenp).params, "p".as_ptr() as *mut libc::c_void, 1)
-                as *mut bstr_t;
+        let p: *mut bstr_t = htp_table_get_mem(
+            (*test.urlenp).params,
+            "p".as_ptr() as *mut core::ffi::c_void,
+            1,
+        ) as *mut bstr_t;
         assert!(!p.is_null());
 
         assert_eq!(0, bstr_cmp_c(p, cstr!("")));
@@ -2310,25 +2302,25 @@ fn UrlencodedParser_Partial5() {
 fn UrlencodedParser_Partial6i() {
     unsafe {
         let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(test.urlenp, "px".as_ptr() as *mut libc::c_void, 2);
-        htp_urlenp_parse_partial(test.urlenp, "n".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut libc::c_void, 0);
-        htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "1".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "2".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "qz".as_ptr() as *mut libc::c_void, 2);
-        htp_urlenp_parse_partial(test.urlenp, "n".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut libc::c_void, 0);
-        htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "2".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "3".as_ptr() as *mut libc::c_void, 1);
-        htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut libc::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "px".as_ptr() as *mut core::ffi::c_void, 2);
+        htp_urlenp_parse_partial(test.urlenp, "n".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
+        htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "1".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "2".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "qz".as_ptr() as *mut core::ffi::c_void, 2);
+        htp_urlenp_parse_partial(test.urlenp, "n".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
+        htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "2".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "3".as_ptr() as *mut core::ffi::c_void, 1);
+        htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
         let p: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "pxn".as_ptr() as *mut libc::c_void,
+            "pxn".as_ptr() as *mut core::ffi::c_void,
             3,
         ) as *mut bstr_t;
         assert!(!p.is_null());
@@ -2337,7 +2329,7 @@ fn UrlencodedParser_Partial6i() {
 
         let q: *mut bstr_t = htp_table_get_mem(
             (*test.urlenp).params,
-            "qzn".as_ptr() as *mut libc::c_void,
+            "qzn".as_ptr() as *mut core::ffi::c_void,
             3,
         ) as *mut bstr_t;
         assert!(!p.is_null());
@@ -2353,27 +2345,27 @@ fn List_Misc() {
     unsafe {
         let l: *mut htp_list_array_t = htp_list_array_create(16);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "3".as_ptr() as *mut libc::c_void);
+        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
 
         assert_eq!(3, htp_list_array_size(l));
 
-        let mut p: *mut libc::c_char = htp_list_array_pop(l) as *mut libc::c_char;
+        let mut p: *mut i8 = htp_list_array_pop(l) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
         assert_eq!(2, htp_list_array_size(l));
 
-        p = htp_list_array_pop(l) as *mut libc::c_char;
+        p = htp_list_array_pop(l) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_pop(l) as *mut libc::c_char;
+        p = htp_list_array_pop(l) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_pop(l) as *mut libc::c_char;
+        p = htp_list_array_pop(l) as *mut i8;
         assert!(p.is_null());
 
         htp_list_array_destroy(l);
@@ -2381,25 +2373,25 @@ fn List_Misc() {
 }
 
 #[test]
-fn List_Misc3() {
+fn List_Misc2() {
     unsafe {
         let l: *mut htp_list_array_t = htp_list_array_create(2);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "3".as_ptr() as *mut libc::c_void);
+        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
 
-        let mut p: *mut libc::c_char = htp_list_array_get(l, 2) as *mut libc::c_char;
+        let mut p: *mut i8 = htp_list_array_get(l, 2) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
         assert_eq!(3, htp_list_array_size(l));
 
-        htp_list_array_replace(l, 2, "4".as_ptr() as *mut libc::c_void);
+        htp_list_array_replace(l, 2, "4".as_ptr() as *mut core::ffi::c_void);
 
-        p = htp_list_array_pop(l) as *mut libc::c_char;
+        p = htp_list_array_pop(l) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("4".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("4".as_ptr() as *mut i8, p));
 
         htp_list_array_destroy(l);
     }
@@ -2410,26 +2402,26 @@ fn List_Expand1() {
     unsafe {
         let l: *mut htp_list_array_t = htp_list_array_create(2);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut libc::c_void);
+        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
 
         assert_eq!(2, htp_list_array_size(l));
 
-        htp_list_array_push(l, "3".as_ptr() as *mut libc::c_void);
+        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
 
         assert_eq!(3, htp_list_array_size(l));
 
-        let mut p: *mut libc::c_char = htp_list_array_get(l, 0) as *mut libc::c_char;
+        let mut p: *mut i8 = htp_list_array_get(l, 0) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 1) as *mut libc::c_char;
+        p = htp_list_array_get(l, 1) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 2) as *mut libc::c_char;
+        p = htp_list_array_get(l, 2) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
         htp_list_array_destroy(l);
     }
@@ -2440,31 +2432,31 @@ fn List_Expand2() {
     unsafe {
         let l: *mut htp_list_array_t = htp_list_array_create(2);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut libc::c_void);
+        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
 
         assert_eq!(2, htp_list_array_size(l));
 
-        htp_list_array_push(l, "3".as_ptr() as *mut libc::c_void);
-        htp_list_array_push(l, "4".as_ptr() as *mut libc::c_void);
+        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
+        htp_list_array_push(l, "4".as_ptr() as *mut core::ffi::c_void);
 
         assert_eq!(4, htp_list_array_size(l));
 
-        let mut p: *mut libc::c_char = htp_list_array_get(l, 0) as *mut libc::c_char;
+        let mut p: *mut i8 = htp_list_array_get(l, 0) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 1) as *mut libc::c_char;
+        p = htp_list_array_get(l, 1) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 2) as *mut libc::c_char;
+        p = htp_list_array_get(l, 2) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_pop(l) as *mut libc::c_char;
+        p = htp_list_array_pop(l) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("4".as_ptr() as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp("4".as_ptr() as *mut i8, p));
 
         htp_list_array_destroy(l);
     }
@@ -2478,16 +2470,16 @@ fn Table_Misc() {
         let pkey: *mut bstr_t = bstr_dup_c(cstr!("p"));
         let qkey: *mut bstr_t = bstr_dup_c(cstr!("q"));
 
-        htp_table_addk(t, pkey, cstr!("1") as *mut libc::c_void);
-        htp_table_addk(t, qkey, cstr!("2") as *mut libc::c_void);
+        htp_table_addk(t, pkey, cstr!("1") as *mut core::ffi::c_void);
+        htp_table_addk(t, qkey, cstr!("2") as *mut core::ffi::c_void);
 
-        let mut p: *mut libc::c_char =
-            htp_table_get_mem(t, cstr!("z") as *mut libc::c_void, 1) as *mut libc::c_char;
+        let mut p: *mut i8 =
+            htp_table_get_mem(t, cstr!("z") as *mut core::ffi::c_void, 1) as *mut i8;
         assert!(p.is_null());
 
-        p = htp_table_get(t, pkey) as *mut libc::c_char;
+        p = htp_table_get(t, pkey) as *mut i8;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp(cstr!("1") as *mut libc::c_char, p));
+        assert_eq!(0, libc::strcmp(cstr!("1") as *mut i8, p));
 
         bstr_free(qkey);
         bstr_free(pkey);
@@ -2503,7 +2495,7 @@ fn Util_ExtractQuotedString() {
         let mut end_offset = 0;
 
         let rc: Status = htp_extract_quoted_string_as_bstr(
-            cstr!("\"test\"") as *mut libc::c_uchar,
+            cstr!("\"test\"") as *mut u8,
             6,
             &mut s,
             &mut end_offset,
@@ -2515,7 +2507,7 @@ fn Util_ExtractQuotedString() {
         bstr_free(s);
 
         let rc = htp_extract_quoted_string_as_bstr(
-            cstr!("\"te\\\"st\"") as *mut libc::c_uchar,
+            cstr!("\"te\\\"st\"") as *mut u8,
             8,
             &mut s,
             &mut end_offset,

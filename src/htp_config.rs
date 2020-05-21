@@ -2,31 +2,21 @@ use crate::{
     htp_connection_parser, htp_content_handlers, htp_hooks, htp_request_apache_2_2,
     htp_request_generic, htp_response_generic, htp_transaction, htp_util, Status,
 };
-use ::libc;
 
 extern "C" {
     #[no_mangle]
-    fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
+    fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
+    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
-    fn free(__ptr: *mut libc::c_void);
+    fn free(__ptr: *mut core::ffi::c_void);
     #[no_mangle]
-    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
+    fn memcpy(
+        _: *mut core::ffi::c_void,
+        _: *const core::ffi::c_void,
+        _: libc::size_t,
+    ) -> *mut core::ffi::c_void;
 }
-pub type __uint8_t = libc::c_uchar;
-pub type __uint16_t = libc::c_ushort;
-pub type __int32_t = libc::c_int;
-pub type __int64_t = libc::c_long;
-pub type __uint64_t = libc::c_ulong;
-pub type __time_t = libc::c_long;
-pub type __suseconds_t = libc::c_long;
-pub type size_t = libc::c_ulong;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint64_t = __uint64_t;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -34,16 +24,16 @@ pub struct htp_cfg_t {
     /// The maximum size of the buffer that is used when the current
     /// input chunk does not contain all the necessary data (e.g., a very header
     /// line that spans several packets).
-    pub field_limit_hard: size_t,
+    pub field_limit_hard: usize,
     /// Soft field limit length. If this limit is reached the parser will issue
     /// a warning but continue to run. NOT IMPLEMENTED.
-    pub field_limit_soft: size_t,
+    pub field_limit_soft: usize,
     /// Log level, which will be used when deciding whether to store or
     /// ignore the messages issued by the parser.
     pub log_level: htp_util::htp_log_level_t,
     /// Whether to delete each transaction after the last hook is invoked. This
     /// feature should be used when parsing traffic streams in real time.
-    pub tx_auto_destroy: libc::c_int,
+    pub tx_auto_destroy: i32,
     /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
     /// The function used for request line parsing. Depends on the personality.
@@ -56,16 +46,16 @@ pub struct htp_cfg_t {
     pub process_request_header: Option<
         unsafe extern "C" fn(
             _: *mut htp_connection_parser::htp_connp_t,
-            _: *mut libc::c_uchar,
-            _: size_t,
+            _: *mut u8,
+            _: usize,
         ) -> Status,
     >,
     /// The function used for response header parsing. Depends on the personality.
     pub process_response_header: Option<
         unsafe extern "C" fn(
             _: *mut htp_connection_parser::htp_connp_t,
-            _: *mut libc::c_uchar,
-            _: size_t,
+            _: *mut u8,
+            _: usize,
         ) -> Status,
     >,
     /// The function to use to transform parameters after parsing.
@@ -74,23 +64,23 @@ pub struct htp_cfg_t {
     /// Decoder configuration array, one per context.
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
     /// Whether to generate the request_uri_normalized field.
-    pub generate_request_uri_normalized: libc::c_int,
+    pub generate_request_uri_normalized: i32,
     /// Whether to decompress compressed response bodies.
-    pub response_decompression_enabled: libc::c_int,
+    pub response_decompression_enabled: i32,
     /// Not fully implemented at the moment.
-    pub request_encoding: *mut libc::c_char,
+    pub request_encoding: *mut i8,
     /// Not fully implemented at the moment.
-    pub internal_encoding: *mut libc::c_char,
+    pub internal_encoding: *mut i8,
     /// Whether to parse request cookies.
-    pub parse_request_cookies: libc::c_int,
+    pub parse_request_cookies: i32,
     /// Whether to parse HTTP Authentication headers.
-    pub parse_request_auth: libc::c_int,
+    pub parse_request_auth: i32,
     /// Whether to extract files from requests using Multipart encoding.
-    pub extract_request_files: libc::c_int,
+    pub extract_request_files: i32,
     /// How many extracted files are allowed in a single Multipart request?
-    pub extract_request_files_limit: libc::c_int,
+    pub extract_request_files_limit: i32,
     /// The location on disk where temporary files will be created.
-    pub tmpdir: *mut libc::c_char,
+    pub tmpdir: *mut i8,
     /// Request start hook, invoked when the parser receives the first byte of a new
     /// request. Because in HTTP a transaction always starts with a request, this hook
     /// doubles as a transaction start hook.
@@ -161,7 +151,7 @@ pub struct htp_cfg_t {
     /// Log hook, invoked every time the library wants to log.
     pub hook_log: *mut htp_hooks::htp_hook_t,
     /// Opaque user data associated with this configuration structure.
-    pub user_data: *mut libc::c_void,
+    pub user_data: *mut core::ffi::c_void,
     // Request Line parsing options.
 
     // TODO this was added here to maintain a stable ABI, once we can break that
@@ -169,13 +159,13 @@ pub struct htp_cfg_t {
     /// Reaction to leading whitespace on the request line
     pub requestline_leading_whitespace_unwanted: htp_unwanted_t,
     /// How many layers of compression we will decompress (0 => no limit).
-    pub response_decompression_layer_limit: libc::c_int,
+    pub response_decompression_layer_limit: i32,
     /// max memory use by a the lzma decompressor.
-    pub lzma_memlimit: size_t,
+    pub lzma_memlimit: usize,
     /// max output size for a compression bomb.
-    pub compression_bomb_limit: int32_t,
+    pub compression_bomb_limit: i32,
     /// max time for a decompression bomb.
-    pub compression_time_limit: int32_t,
+    pub compression_time_limit: i32,
 }
 
 #[repr(C)]
@@ -183,27 +173,27 @@ pub struct htp_cfg_t {
 pub struct htp_decoder_cfg_t {
     // Path-specific decoding options.
     /// Convert backslash characters to slashes.
-    pub backslash_convert_slashes: libc::c_int,
+    pub backslash_convert_slashes: i32,
     /// Convert to lowercase.
-    pub convert_lowercase: libc::c_int,
+    pub convert_lowercase: i32,
     /// Compress slash characters.
-    pub path_separators_compress: libc::c_int,
+    pub path_separators_compress: i32,
     /// Should we URL-decode encoded path segment separators?
-    pub path_separators_decode: libc::c_int,
+    pub path_separators_decode: i32,
     /// Should we decode '+' characters to spaces?
-    pub plusspace_decode: libc::c_int,
+    pub plusspace_decode: i32,
     /// Reaction to encoded path separators.
     pub path_separators_encoded_unwanted: htp_unwanted_t,
     // Special characters options.
     /// Controls how raw NUL bytes are handled.
-    pub nul_raw_terminates: libc::c_int,
+    pub nul_raw_terminates: i32,
     /// Determines server response to a raw NUL byte in the path.
     pub nul_raw_unwanted: htp_unwanted_t,
     /// Reaction to control characters.
     pub control_chars_unwanted: htp_unwanted_t,
     // URL encoding options.
     /// Should we decode %u-encoded characters?
-    pub u_encoding_decode: libc::c_int,
+    pub u_encoding_decode: i32,
     /// Reaction to %u encoding.
     pub u_encoding_unwanted: htp_unwanted_t,
     /// Handling of invalid URL encodings.
@@ -211,19 +201,19 @@ pub struct htp_decoder_cfg_t {
     /// Reaction to invalid URL encoding.
     pub url_encoding_invalid_unwanted: htp_unwanted_t,
     /// Controls how encoded NUL bytes are handled.
-    pub nul_encoded_terminates: libc::c_int,
+    pub nul_encoded_terminates: i32,
     /// How are we expected to react to an encoded NUL byte?
     pub nul_encoded_unwanted: htp_unwanted_t,
     // UTF-8 options.
     /// Controls how invalid UTF-8 characters are handled.
     pub utf8_invalid_unwanted: htp_unwanted_t,
     /// Convert UTF-8 characters into bytes using best-fit mapping.
-    pub utf8_convert_bestfit: libc::c_int,
+    pub utf8_convert_bestfit: i32,
     // Best-fit mapping options.
     /// The best-fit map to use to decode %u-encoded characters.
-    pub bestfit_map: *mut libc::c_uchar,
+    pub bestfit_map: *mut u8,
     /// The replacement byte used when there is no best-fit mapping.
-    pub bestfit_replacement_byte: libc::c_uchar,
+    pub bestfit_replacement_byte: u8,
 }
 
 #[repr(C)]
@@ -237,7 +227,6 @@ pub enum htp_decoder_ctx_t {
     HTP_DECODER_URL_PATH,
 }
 
-pub type htp_time_t = libc::timeval;
 /// Enumerates the possible server personalities.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -289,1213 +278,109 @@ pub enum htp_url_encoding_handling_t {
     HTP_URL_DECODE_PROCESS_INVALID,
 }
 
-pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> Status>;
+pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_void) -> Status>;
 /// This map is used by default for best-fit mapping from the Unicode
 /// values U+0100-FFFF.
-static mut bestfit_1252: [libc::c_uchar; 1173] = [
-    0x1 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x4 as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6 as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x7 as libc::c_int as libc::c_uchar,
-    0x63 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x8 as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x9 as libc::c_int as libc::c_uchar,
-    0x63 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xa as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xb as libc::c_int as libc::c_uchar,
-    0x63 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xc as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd as libc::c_int as libc::c_uchar,
-    0x63 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe as libc::c_int as libc::c_uchar,
-    0x44 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xf as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x11 as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x12 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x13 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x14 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x15 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x16 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x17 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x18 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x19 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1a as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1b as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1c as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1d as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1e as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x1f as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x24 as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x26 as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x28 as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x29 as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2a as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2c as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2e as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x2f as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x31 as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0x4a as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x35 as libc::c_int as libc::c_uchar,
-    0x6a as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x36 as libc::c_int as libc::c_uchar,
-    0x4b as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x37 as libc::c_int as libc::c_uchar,
-    0x6b as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x39 as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x3a as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x3b as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x3e as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x42 as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x44 as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x46 as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x4d as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x51 as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x72 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x56 as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x57 as libc::c_int as libc::c_uchar,
-    0x72 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x58 as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x59 as libc::c_int as libc::c_uchar,
-    0x72 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5b as libc::c_int as libc::c_uchar,
-    0x73 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5c as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5d as libc::c_int as libc::c_uchar,
-    0x73 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5e as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x5f as libc::c_int as libc::c_uchar,
-    0x73 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x62 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x63 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x66 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6a as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6b as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6d as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x70 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x71 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x72 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x73 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x57 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x77 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x76 as libc::c_int as libc::c_uchar,
-    0x59 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x77 as libc::c_int as libc::c_uchar,
-    0x79 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x79 as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x7b as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x7c as libc::c_int as libc::c_uchar,
-    0x7a as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x80 as libc::c_int as libc::c_uchar,
-    0x62 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x97 as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x9a as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x9f as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xa0 as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xa1 as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xab as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xae as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xaf as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xb0 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xb6 as libc::c_int as libc::c_uchar,
-    0x7a as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xc0 as libc::c_int as libc::c_uchar,
-    0x7c as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xc3 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xcd as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xce as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xcf as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd0 as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd1 as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd2 as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd3 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd4 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd5 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd6 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd7 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd8 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xd9 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xda as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xdb as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xdc as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xde as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xdf as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe4 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe5 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe6 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe7 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe8 as libc::c_int as libc::c_uchar,
-    0x4b as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xe9 as libc::c_int as libc::c_uchar,
-    0x6b as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xea as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xeb as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xec as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xed as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0xf0 as libc::c_int as libc::c_uchar,
-    0x6a as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xb9 as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xba as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xbc as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xc4 as libc::c_int as libc::c_uchar,
-    0x5e as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xc8 as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xcb as libc::c_int as libc::c_uchar,
-    0x60 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0xcd as libc::c_int as libc::c_uchar,
-    0x5f as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0x60 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0x5e as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x7e as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xe as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x31 as libc::c_int as libc::c_uchar,
-    0x5f as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x32 as libc::c_int as libc::c_uchar,
-    0x5f as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x7e as libc::c_int as libc::c_uchar,
-    0x3b as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x93 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x98 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xa3 as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xa6 as libc::c_int as libc::c_uchar,
-    0x46 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xa9 as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xb1 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xb4 as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xb5 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xc0 as libc::c_int as libc::c_uchar,
-    0x70 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xc3 as libc::c_int as libc::c_uchar,
-    0x73 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xc4 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0xc6 as libc::c_int as libc::c_uchar,
-    0x66 as libc::c_int as libc::c_uchar,
-    0x4 as libc::c_int as libc::c_uchar,
-    0xbb as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0x5 as libc::c_int as libc::c_uchar,
-    0x89 as libc::c_int as libc::c_uchar,
-    0x3a as libc::c_int as libc::c_uchar,
-    0x6 as libc::c_int as libc::c_uchar,
-    0x6a as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x4 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x5 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x6 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x10 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x11 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x17 as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x32 as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x35 as libc::c_int as libc::c_uchar,
-    0x60 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x44 as libc::c_int as libc::c_uchar,
-    0x2f as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0x35 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x76 as libc::c_int as libc::c_uchar,
-    0x36 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x77 as libc::c_int as libc::c_uchar,
-    0x37 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x78 as libc::c_int as libc::c_uchar,
-    0x38 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x7f as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x80 as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x81 as libc::c_int as libc::c_uchar,
-    0x31 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x82 as libc::c_int as libc::c_uchar,
-    0x32 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x83 as libc::c_int as libc::c_uchar,
-    0x33 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x84 as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x85 as libc::c_int as libc::c_uchar,
-    0x35 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x86 as libc::c_int as libc::c_uchar,
-    0x36 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x87 as libc::c_int as libc::c_uchar,
-    0x37 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x88 as libc::c_int as libc::c_uchar,
-    0x38 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x89 as libc::c_int as libc::c_uchar,
-    0x39 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0xa7 as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x7 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0xa as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0xb as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0xc as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0xd as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0xe as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x10 as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x11 as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x12 as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x13 as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x15 as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x18 as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x19 as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x1a as libc::c_int as libc::c_uchar,
-    0x51 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x1b as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x1c as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x1d as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x24 as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x28 as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x2a as libc::c_int as libc::c_uchar,
-    0x4b as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x2c as libc::c_int as libc::c_uchar,
-    0x42 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x2e as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x2f as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x31 as libc::c_int as libc::c_uchar,
-    0x46 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x33 as libc::c_int as libc::c_uchar,
-    0x4d as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x12 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x15 as libc::c_int as libc::c_uchar,
-    0x2f as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x16 as libc::c_int as libc::c_uchar,
-    0x5c as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x17 as libc::c_int as libc::c_uchar,
-    0x2a as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x1a as libc::c_int as libc::c_uchar,
-    0x76 as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x1e as libc::c_int as libc::c_uchar,
-    0x38 as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x7c as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x29 as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x36 as libc::c_int as libc::c_uchar,
-    0x3a as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0x7e as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x5e as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x28 as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x29 as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x29 as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x2a as libc::c_int as libc::c_uchar,
-    0x3e as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0xc as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x10 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x14 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x18 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x1c as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x2c as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x56 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x57 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x58 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x59 as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x5b as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x5c as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x5d as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x66 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x6a as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x6b as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x84 as libc::c_int as libc::c_uchar,
-    0x5f as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x58 as libc::c_int as libc::c_uchar,
-    0x7c as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x8 as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x9 as libc::c_int as libc::c_uchar,
-    0x3e as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x1a as libc::c_int as libc::c_uchar,
-    0x5b as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x1b as libc::c_int as libc::c_uchar,
-    0x5d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x1 as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2 as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3 as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4 as libc::c_int as libc::c_uchar,
-    0x24 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x5 as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x6 as libc::c_int as libc::c_uchar,
-    0x26 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x7 as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x8 as libc::c_int as libc::c_uchar,
-    0x28 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x9 as libc::c_int as libc::c_uchar,
-    0x29 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0xa as libc::c_int as libc::c_uchar,
-    0x2a as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0xb as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0xc as libc::c_int as libc::c_uchar,
-    0x2c as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0xd as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0xe as libc::c_int as libc::c_uchar,
-    0x2e as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0xf as libc::c_int as libc::c_uchar,
-    0x2f as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x10 as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x11 as libc::c_int as libc::c_uchar,
-    0x31 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x12 as libc::c_int as libc::c_uchar,
-    0x32 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x13 as libc::c_int as libc::c_uchar,
-    0x33 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x14 as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x15 as libc::c_int as libc::c_uchar,
-    0x35 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x16 as libc::c_int as libc::c_uchar,
-    0x36 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x17 as libc::c_int as libc::c_uchar,
-    0x37 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x18 as libc::c_int as libc::c_uchar,
-    0x38 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x19 as libc::c_int as libc::c_uchar,
-    0x39 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x1a as libc::c_int as libc::c_uchar,
-    0x3a as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x1b as libc::c_int as libc::c_uchar,
-    0x3b as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x1c as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x1d as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x1e as libc::c_int as libc::c_uchar,
-    0x3e as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x20 as libc::c_int as libc::c_uchar,
-    0x40 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x21 as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x22 as libc::c_int as libc::c_uchar,
-    0x42 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x23 as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x24 as libc::c_int as libc::c_uchar,
-    0x44 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x25 as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x26 as libc::c_int as libc::c_uchar,
-    0x46 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x27 as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x28 as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x29 as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2a as libc::c_int as libc::c_uchar,
-    0x4a as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2b as libc::c_int as libc::c_uchar,
-    0x4b as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2c as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2d as libc::c_int as libc::c_uchar,
-    0x4d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2e as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x2f as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x30 as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x31 as libc::c_int as libc::c_uchar,
-    0x51 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x32 as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x33 as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x34 as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x35 as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x36 as libc::c_int as libc::c_uchar,
-    0x56 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x37 as libc::c_int as libc::c_uchar,
-    0x57 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x38 as libc::c_int as libc::c_uchar,
-    0x58 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x39 as libc::c_int as libc::c_uchar,
-    0x59 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3a as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3b as libc::c_int as libc::c_uchar,
-    0x5b as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3c as libc::c_int as libc::c_uchar,
-    0x5c as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3d as libc::c_int as libc::c_uchar,
-    0x5d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3e as libc::c_int as libc::c_uchar,
-    0x5e as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x3f as libc::c_int as libc::c_uchar,
-    0x5f as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x40 as libc::c_int as libc::c_uchar,
-    0x60 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x41 as libc::c_int as libc::c_uchar,
-    0x61 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x42 as libc::c_int as libc::c_uchar,
-    0x62 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x43 as libc::c_int as libc::c_uchar,
-    0x63 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x44 as libc::c_int as libc::c_uchar,
-    0x64 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x45 as libc::c_int as libc::c_uchar,
-    0x65 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x46 as libc::c_int as libc::c_uchar,
-    0x66 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x47 as libc::c_int as libc::c_uchar,
-    0x67 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x48 as libc::c_int as libc::c_uchar,
-    0x68 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x49 as libc::c_int as libc::c_uchar,
-    0x69 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4a as libc::c_int as libc::c_uchar,
-    0x6a as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4b as libc::c_int as libc::c_uchar,
-    0x6b as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4c as libc::c_int as libc::c_uchar,
-    0x6c as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4d as libc::c_int as libc::c_uchar,
-    0x6d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4e as libc::c_int as libc::c_uchar,
-    0x6e as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x4f as libc::c_int as libc::c_uchar,
-    0x6f as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x50 as libc::c_int as libc::c_uchar,
-    0x70 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x51 as libc::c_int as libc::c_uchar,
-    0x71 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x52 as libc::c_int as libc::c_uchar,
-    0x72 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x53 as libc::c_int as libc::c_uchar,
-    0x73 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x54 as libc::c_int as libc::c_uchar,
-    0x74 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x55 as libc::c_int as libc::c_uchar,
-    0x75 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x56 as libc::c_int as libc::c_uchar,
-    0x76 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x57 as libc::c_int as libc::c_uchar,
-    0x77 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x58 as libc::c_int as libc::c_uchar,
-    0x78 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x59 as libc::c_int as libc::c_uchar,
-    0x79 as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x5a as libc::c_int as libc::c_uchar,
-    0x7a as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x5b as libc::c_int as libc::c_uchar,
-    0x7b as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x5c as libc::c_int as libc::c_uchar,
-    0x7c as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x5d as libc::c_int as libc::c_uchar,
-    0x7d as libc::c_int as libc::c_uchar,
-    0xff as libc::c_int as libc::c_uchar,
-    0x5e as libc::c_int as libc::c_uchar,
-    0x7e as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
-    0 as libc::c_int as libc::c_uchar,
+static mut bestfit_1252: [u8; 1173] = [
+    0x1, 0, 0x41, 0x1, 0x1, 0x61, 0x1, 0x2, 0x41, 0x1, 0x3, 0x61, 0x1, 0x4, 0x41, 0x1, 0x5, 0x61,
+    0x1, 0x6, 0x43, 0x1, 0x7, 0x63, 0x1, 0x8, 0x43, 0x1, 0x9, 0x63, 0x1, 0xa, 0x43, 0x1, 0xb, 0x63,
+    0x1, 0xc, 0x43, 0x1, 0xd, 0x63, 0x1, 0xe, 0x44, 0x1, 0xf, 0x64, 0x1, 0x11, 0x64, 0x1, 0x12,
+    0x45, 0x1, 0x13, 0x65, 0x1, 0x14, 0x45, 0x1, 0x15, 0x65, 0x1, 0x16, 0x45, 0x1, 0x17, 0x65, 0x1,
+    0x18, 0x45, 0x1, 0x19, 0x65, 0x1, 0x1a, 0x45, 0x1, 0x1b, 0x65, 0x1, 0x1c, 0x47, 0x1, 0x1d,
+    0x67, 0x1, 0x1e, 0x47, 0x1, 0x1f, 0x67, 0x1, 0x20, 0x47, 0x1, 0x21, 0x67, 0x1, 0x22, 0x47, 0x1,
+    0x23, 0x67, 0x1, 0x24, 0x48, 0x1, 0x25, 0x68, 0x1, 0x26, 0x48, 0x1, 0x27, 0x68, 0x1, 0x28,
+    0x49, 0x1, 0x29, 0x69, 0x1, 0x2a, 0x49, 0x1, 0x2b, 0x69, 0x1, 0x2c, 0x49, 0x1, 0x2d, 0x69, 0x1,
+    0x2e, 0x49, 0x1, 0x2f, 0x69, 0x1, 0x30, 0x49, 0x1, 0x31, 0x69, 0x1, 0x34, 0x4a, 0x1, 0x35,
+    0x6a, 0x1, 0x36, 0x4b, 0x1, 0x37, 0x6b, 0x1, 0x39, 0x4c, 0x1, 0x3a, 0x6c, 0x1, 0x3b, 0x4c, 0x1,
+    0x3c, 0x6c, 0x1, 0x3d, 0x4c, 0x1, 0x3e, 0x6c, 0x1, 0x41, 0x4c, 0x1, 0x42, 0x6c, 0x1, 0x43,
+    0x4e, 0x1, 0x44, 0x6e, 0x1, 0x45, 0x4e, 0x1, 0x46, 0x6e, 0x1, 0x47, 0x4e, 0x1, 0x48, 0x6e, 0x1,
+    0x4c, 0x4f, 0x1, 0x4d, 0x6f, 0x1, 0x4e, 0x4f, 0x1, 0x4f, 0x6f, 0x1, 0x50, 0x4f, 0x1, 0x51,
+    0x6f, 0x1, 0x54, 0x52, 0x1, 0x55, 0x72, 0x1, 0x56, 0x52, 0x1, 0x57, 0x72, 0x1, 0x58, 0x52, 0x1,
+    0x59, 0x72, 0x1, 0x5a, 0x53, 0x1, 0x5b, 0x73, 0x1, 0x5c, 0x53, 0x1, 0x5d, 0x73, 0x1, 0x5e,
+    0x53, 0x1, 0x5f, 0x73, 0x1, 0x62, 0x54, 0x1, 0x63, 0x74, 0x1, 0x64, 0x54, 0x1, 0x65, 0x74, 0x1,
+    0x66, 0x54, 0x1, 0x67, 0x74, 0x1, 0x68, 0x55, 0x1, 0x69, 0x75, 0x1, 0x6a, 0x55, 0x1, 0x6b,
+    0x75, 0x1, 0x6c, 0x55, 0x1, 0x6d, 0x75, 0x1, 0x6e, 0x55, 0x1, 0x6f, 0x75, 0x1, 0x70, 0x55, 0x1,
+    0x71, 0x75, 0x1, 0x72, 0x55, 0x1, 0x73, 0x75, 0x1, 0x74, 0x57, 0x1, 0x75, 0x77, 0x1, 0x76,
+    0x59, 0x1, 0x77, 0x79, 0x1, 0x79, 0x5a, 0x1, 0x7b, 0x5a, 0x1, 0x7c, 0x7a, 0x1, 0x80, 0x62, 0x1,
+    0x97, 0x49, 0x1, 0x9a, 0x6c, 0x1, 0x9f, 0x4f, 0x1, 0xa0, 0x4f, 0x1, 0xa1, 0x6f, 0x1, 0xab,
+    0x74, 0x1, 0xae, 0x54, 0x1, 0xaf, 0x55, 0x1, 0xb0, 0x75, 0x1, 0xb6, 0x7a, 0x1, 0xc0, 0x7c, 0x1,
+    0xc3, 0x21, 0x1, 0xcd, 0x41, 0x1, 0xce, 0x61, 0x1, 0xcf, 0x49, 0x1, 0xd0, 0x69, 0x1, 0xd1,
+    0x4f, 0x1, 0xd2, 0x6f, 0x1, 0xd3, 0x55, 0x1, 0xd4, 0x75, 0x1, 0xd5, 0x55, 0x1, 0xd6, 0x75, 0x1,
+    0xd7, 0x55, 0x1, 0xd8, 0x75, 0x1, 0xd9, 0x55, 0x1, 0xda, 0x75, 0x1, 0xdb, 0x55, 0x1, 0xdc,
+    0x75, 0x1, 0xde, 0x41, 0x1, 0xdf, 0x61, 0x1, 0xe4, 0x47, 0x1, 0xe5, 0x67, 0x1, 0xe6, 0x47, 0x1,
+    0xe7, 0x67, 0x1, 0xe8, 0x4b, 0x1, 0xe9, 0x6b, 0x1, 0xea, 0x4f, 0x1, 0xeb, 0x6f, 0x1, 0xec,
+    0x4f, 0x1, 0xed, 0x6f, 0x1, 0xf0, 0x6a, 0x2, 0x61, 0x67, 0x2, 0xb9, 0x27, 0x2, 0xba, 0x22, 0x2,
+    0xbc, 0x27, 0x2, 0xc4, 0x5e, 0x2, 0xc8, 0x27, 0x2, 0xcb, 0x60, 0x2, 0xcd, 0x5f, 0x3, 0, 0x60,
+    0x3, 0x2, 0x5e, 0x3, 0x3, 0x7e, 0x3, 0xe, 0x22, 0x3, 0x31, 0x5f, 0x3, 0x32, 0x5f, 0x3, 0x7e,
+    0x3b, 0x3, 0x93, 0x47, 0x3, 0x98, 0x54, 0x3, 0xa3, 0x53, 0x3, 0xa6, 0x46, 0x3, 0xa9, 0x4f, 0x3,
+    0xb1, 0x61, 0x3, 0xb4, 0x64, 0x3, 0xb5, 0x65, 0x3, 0xc0, 0x70, 0x3, 0xc3, 0x73, 0x3, 0xc4,
+    0x74, 0x3, 0xc6, 0x66, 0x4, 0xbb, 0x68, 0x5, 0x89, 0x3a, 0x6, 0x6a, 0x25, 0x20, 0, 0x20, 0x20,
+    0x1, 0x20, 0x20, 0x2, 0x20, 0x20, 0x3, 0x20, 0x20, 0x4, 0x20, 0x20, 0x5, 0x20, 0x20, 0x6, 0x20,
+    0x20, 0x10, 0x2d, 0x20, 0x11, 0x2d, 0x20, 0x17, 0x3d, 0x20, 0x32, 0x27, 0x20, 0x35, 0x60, 0x20,
+    0x44, 0x2f, 0x20, 0x74, 0x34, 0x20, 0x75, 0x35, 0x20, 0x76, 0x36, 0x20, 0x77, 0x37, 0x20, 0x78,
+    0x38, 0x20, 0x7f, 0x6e, 0x20, 0x80, 0x30, 0x20, 0x81, 0x31, 0x20, 0x82, 0x32, 0x20, 0x83, 0x33,
+    0x20, 0x84, 0x34, 0x20, 0x85, 0x35, 0x20, 0x86, 0x36, 0x20, 0x87, 0x37, 0x20, 0x88, 0x38, 0x20,
+    0x89, 0x39, 0x20, 0xa7, 0x50, 0x21, 0x2, 0x43, 0x21, 0x7, 0x45, 0x21, 0xa, 0x67, 0x21, 0xb,
+    0x48, 0x21, 0xc, 0x48, 0x21, 0xd, 0x48, 0x21, 0xe, 0x68, 0x21, 0x10, 0x49, 0x21, 0x11, 0x49,
+    0x21, 0x12, 0x4c, 0x21, 0x13, 0x6c, 0x21, 0x15, 0x4e, 0x21, 0x18, 0x50, 0x21, 0x19, 0x50, 0x21,
+    0x1a, 0x51, 0x21, 0x1b, 0x52, 0x21, 0x1c, 0x52, 0x21, 0x1d, 0x52, 0x21, 0x24, 0x5a, 0x21, 0x28,
+    0x5a, 0x21, 0x2a, 0x4b, 0x21, 0x2c, 0x42, 0x21, 0x2d, 0x43, 0x21, 0x2e, 0x65, 0x21, 0x2f, 0x65,
+    0x21, 0x30, 0x45, 0x21, 0x31, 0x46, 0x21, 0x33, 0x4d, 0x21, 0x34, 0x6f, 0x22, 0x12, 0x2d, 0x22,
+    0x15, 0x2f, 0x22, 0x16, 0x5c, 0x22, 0x17, 0x2a, 0x22, 0x1a, 0x76, 0x22, 0x1e, 0x38, 0x22, 0x23,
+    0x7c, 0x22, 0x29, 0x6e, 0x22, 0x36, 0x3a, 0x22, 0x3c, 0x7e, 0x22, 0x61, 0x3d, 0x22, 0x64, 0x3d,
+    0x22, 0x65, 0x3d, 0x23, 0x3, 0x5e, 0x23, 0x20, 0x28, 0x23, 0x21, 0x29, 0x23, 0x29, 0x3c, 0x23,
+    0x2a, 0x3e, 0x25, 0, 0x2d, 0x25, 0xc, 0x2b, 0x25, 0x10, 0x2b, 0x25, 0x14, 0x2b, 0x25, 0x18,
+    0x2b, 0x25, 0x1c, 0x2b, 0x25, 0x2c, 0x2d, 0x25, 0x34, 0x2d, 0x25, 0x3c, 0x2b, 0x25, 0x50, 0x2d,
+    0x25, 0x52, 0x2b, 0x25, 0x53, 0x2b, 0x25, 0x54, 0x2b, 0x25, 0x55, 0x2b, 0x25, 0x56, 0x2b, 0x25,
+    0x57, 0x2b, 0x25, 0x58, 0x2b, 0x25, 0x59, 0x2b, 0x25, 0x5a, 0x2b, 0x25, 0x5b, 0x2b, 0x25, 0x5c,
+    0x2b, 0x25, 0x5d, 0x2b, 0x25, 0x64, 0x2d, 0x25, 0x65, 0x2d, 0x25, 0x66, 0x2d, 0x25, 0x67, 0x2d,
+    0x25, 0x68, 0x2d, 0x25, 0x69, 0x2d, 0x25, 0x6a, 0x2b, 0x25, 0x6b, 0x2b, 0x25, 0x6c, 0x2b, 0x25,
+    0x84, 0x5f, 0x27, 0x58, 0x7c, 0x30, 0, 0x20, 0x30, 0x8, 0x3c, 0x30, 0x9, 0x3e, 0x30, 0x1a,
+    0x5b, 0x30, 0x1b, 0x5d, 0xff, 0x1, 0x21, 0xff, 0x2, 0x22, 0xff, 0x3, 0x23, 0xff, 0x4, 0x24,
+    0xff, 0x5, 0x25, 0xff, 0x6, 0x26, 0xff, 0x7, 0x27, 0xff, 0x8, 0x28, 0xff, 0x9, 0x29, 0xff, 0xa,
+    0x2a, 0xff, 0xb, 0x2b, 0xff, 0xc, 0x2c, 0xff, 0xd, 0x2d, 0xff, 0xe, 0x2e, 0xff, 0xf, 0x2f,
+    0xff, 0x10, 0x30, 0xff, 0x11, 0x31, 0xff, 0x12, 0x32, 0xff, 0x13, 0x33, 0xff, 0x14, 0x34, 0xff,
+    0x15, 0x35, 0xff, 0x16, 0x36, 0xff, 0x17, 0x37, 0xff, 0x18, 0x38, 0xff, 0x19, 0x39, 0xff, 0x1a,
+    0x3a, 0xff, 0x1b, 0x3b, 0xff, 0x1c, 0x3c, 0xff, 0x1d, 0x3d, 0xff, 0x1e, 0x3e, 0xff, 0x20, 0x40,
+    0xff, 0x21, 0x41, 0xff, 0x22, 0x42, 0xff, 0x23, 0x43, 0xff, 0x24, 0x44, 0xff, 0x25, 0x45, 0xff,
+    0x26, 0x46, 0xff, 0x27, 0x47, 0xff, 0x28, 0x48, 0xff, 0x29, 0x49, 0xff, 0x2a, 0x4a, 0xff, 0x2b,
+    0x4b, 0xff, 0x2c, 0x4c, 0xff, 0x2d, 0x4d, 0xff, 0x2e, 0x4e, 0xff, 0x2f, 0x4f, 0xff, 0x30, 0x50,
+    0xff, 0x31, 0x51, 0xff, 0x32, 0x52, 0xff, 0x33, 0x53, 0xff, 0x34, 0x54, 0xff, 0x35, 0x55, 0xff,
+    0x36, 0x56, 0xff, 0x37, 0x57, 0xff, 0x38, 0x58, 0xff, 0x39, 0x59, 0xff, 0x3a, 0x5a, 0xff, 0x3b,
+    0x5b, 0xff, 0x3c, 0x5c, 0xff, 0x3d, 0x5d, 0xff, 0x3e, 0x5e, 0xff, 0x3f, 0x5f, 0xff, 0x40, 0x60,
+    0xff, 0x41, 0x61, 0xff, 0x42, 0x62, 0xff, 0x43, 0x63, 0xff, 0x44, 0x64, 0xff, 0x45, 0x65, 0xff,
+    0x46, 0x66, 0xff, 0x47, 0x67, 0xff, 0x48, 0x68, 0xff, 0x49, 0x69, 0xff, 0x4a, 0x6a, 0xff, 0x4b,
+    0x6b, 0xff, 0x4c, 0x6c, 0xff, 0x4d, 0x6d, 0xff, 0x4e, 0x6e, 0xff, 0x4f, 0x6f, 0xff, 0x50, 0x70,
+    0xff, 0x51, 0x71, 0xff, 0x52, 0x72, 0xff, 0x53, 0x73, 0xff, 0x54, 0x74, 0xff, 0x55, 0x75, 0xff,
+    0x56, 0x76, 0xff, 0x57, 0x77, 0xff, 0x58, 0x78, 0xff, 0x59, 0x79, 0xff, 0x5a, 0x7a, 0xff, 0x5b,
+    0x7b, 0xff, 0x5c, 0x7c, 0xff, 0x5d, 0x7d, 0xff, 0x5e, 0x7e, 0, 0, 0,
 ];
 
 /// Creates a new configuration structure. Configuration structures created at
 /// configuration time must not be changed afterwards in order to support lock-less
 /// copying.
 pub unsafe fn htp_config_create() -> *mut htp_cfg_t {
-    let mut cfg: *mut htp_cfg_t = calloc(
-        1 as libc::c_int as libc::c_ulong,
-        ::std::mem::size_of::<htp_cfg_t>() as libc::c_ulong,
-    ) as *mut htp_cfg_t; // Use the parser default.
+    let mut cfg: *mut htp_cfg_t = calloc(1, ::std::mem::size_of::<htp_cfg_t>()) as *mut htp_cfg_t; // Use the parser default.
     if cfg.is_null() {
         return 0 as *mut htp_cfg_t;
     } // 2 layers seem fairly common
-    (*cfg).field_limit_hard = 18000 as libc::c_int as size_t;
-    (*cfg).field_limit_soft = 9000 as libc::c_int as size_t;
+    (*cfg).field_limit_hard = 18000;
+    (*cfg).field_limit_soft = 9000;
     (*cfg).log_level = htp_util::htp_log_level_t::HTP_LOG_NOTICE;
-    (*cfg).response_decompression_enabled = 1 as libc::c_int;
-    (*cfg).parse_request_cookies = 1 as libc::c_int;
-    (*cfg).parse_request_auth = 1 as libc::c_int;
-    (*cfg).extract_request_files = 0 as libc::c_int;
-    (*cfg).extract_request_files_limit = -(1 as libc::c_int);
-    (*cfg).response_decompression_layer_limit = 2 as libc::c_int;
-    (*cfg).lzma_memlimit = 1048576 as libc::c_int as size_t;
-    (*cfg).compression_bomb_limit = 1048576 as libc::c_int;
-    (*cfg).compression_time_limit = 100000 as libc::c_int;
+    (*cfg).response_decompression_enabled = 1;
+    (*cfg).parse_request_cookies = 1;
+    (*cfg).parse_request_auth = 1;
+    (*cfg).extract_request_files = 0;
+    (*cfg).extract_request_files_limit = -1;
+    (*cfg).response_decompression_layer_limit = 2;
+    (*cfg).lzma_memlimit = 1048576;
+    (*cfg).compression_bomb_limit = 1048576;
+    (*cfg).compression_time_limit = 100000;
     // Default settings for URL-encoded data.
     htp_config_set_bestfit_map(
         cfg,
         htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-        bestfit_1252.as_mut_ptr() as *mut libc::c_void,
+        bestfit_1252.as_mut_ptr() as *mut core::ffi::c_void,
     );
     htp_config_set_bestfit_replacement_byte(
         cfg,
@@ -1507,26 +392,10 @@ pub unsafe fn htp_config_create() -> *mut htp_cfg_t {
         htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
         htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
     );
-    htp_config_set_nul_raw_terminates(
-        cfg,
-        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-        0 as libc::c_int,
-    );
-    htp_config_set_nul_encoded_terminates(
-        cfg,
-        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-        0 as libc::c_int,
-    );
-    htp_config_set_u_encoding_decode(
-        cfg,
-        htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-        0 as libc::c_int,
-    );
-    htp_config_set_plusspace_decode(
-        cfg,
-        htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
-        1 as libc::c_int,
-    );
+    htp_config_set_nul_raw_terminates(cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+    htp_config_set_nul_encoded_terminates(cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+    htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+    htp_config_set_plusspace_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
     htp_config_set_server_personality(cfg, htp_server_personality_t::HTP_SERVER_MINIMAL);
     return cfg;
 }
@@ -1556,7 +425,7 @@ pub unsafe fn htp_config_destroy(mut cfg: *mut htp_cfg_t) {
     htp_hooks::htp_hook_destroy((*cfg).hook_response_complete);
     htp_hooks::htp_hook_destroy((*cfg).hook_transaction_complete);
     htp_hooks::htp_hook_destroy((*cfg).hook_log);
-    free(cfg as *mut libc::c_void);
+    free(cfg as *mut core::ffi::c_void);
 }
 
 /// Registers a callback that is invoked every time there is a log message with
@@ -1913,8 +782,8 @@ pub unsafe fn htp_config_register_urlencoded_parser(mut cfg: *mut htp_cfg_t) {
 /// soft_limit is NOT IMPLEMENTED.
 pub unsafe fn htp_config_set_field_limits(
     mut cfg: *mut htp_cfg_t,
-    mut soft_limit: size_t,
-    mut hard_limit: size_t,
+    mut soft_limit: usize,
+    mut hard_limit: usize,
 ) {
     if cfg.is_null() {
         return;
@@ -1924,7 +793,7 @@ pub unsafe fn htp_config_set_field_limits(
 }
 
 /// Configures the maximum memlimit LibHTP will pass to liblzma.
-pub unsafe fn htp_config_set_lzma_memlimit(mut cfg: *mut htp_cfg_t, mut memlimit: size_t) {
+pub unsafe fn htp_config_set_lzma_memlimit(mut cfg: *mut htp_cfg_t, mut memlimit: usize) {
     if cfg.is_null() {
         return;
     }
@@ -1932,24 +801,21 @@ pub unsafe fn htp_config_set_lzma_memlimit(mut cfg: *mut htp_cfg_t, mut memlimit
 }
 
 /// Configures the maximum compression bomb size LibHTP will decompress.
-pub unsafe fn htp_config_set_compression_bomb_limit(
-    mut cfg: *mut htp_cfg_t,
-    mut bomblimit: size_t,
-) {
+pub unsafe fn htp_config_set_compression_bomb_limit(mut cfg: *mut htp_cfg_t, mut bomblimit: usize) {
     if cfg.is_null() {
         return;
     }
-    if bomblimit > 2147483647 as libc::c_int as libc::c_ulong {
-        (*cfg).compression_bomb_limit = 2147483647 as libc::c_int
+    if bomblimit > 2147483647 {
+        (*cfg).compression_bomb_limit = 2147483647
     } else {
-        (*cfg).compression_bomb_limit = bomblimit as int32_t
+        (*cfg).compression_bomb_limit = bomblimit as i32
     };
 }
 
 /// Enable or disable request cookie parsing. Enabled by default.
 pub unsafe fn htp_config_set_parse_request_cookies(
     mut cfg: *mut htp_cfg_t,
-    mut parse_request_cookies: libc::c_int,
+    mut parse_request_cookies: i32,
 ) {
     if cfg.is_null() {
         return;
@@ -1966,7 +832,7 @@ pub unsafe fn htp_config_set_server_personality(
     if cfg.is_null() {
         return Status::ERROR;
     }
-    match personality as libc::c_uint {
+    match personality as u32 {
         0 => {
             (*cfg).parse_request_line = Some(
                 htp_request_generic::htp_parse_request_line_generic
@@ -1976,8 +842,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -1988,8 +854,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             )
         }
@@ -2002,8 +868,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -2014,24 +880,20 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_path_separators_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_path_separators_compress(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
         }
         2 => {
@@ -2043,8 +905,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -2055,40 +917,24 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_path_separators_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_path_separators_compress(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_convert_lowercase(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
-            htp_config_set_utf8_convert_bestfit(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
-            htp_config_set_u_encoding_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_convert_lowercase(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+            htp_config_set_utf8_convert_bestfit(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_requestline_leading_whitespace_unwanted(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -2104,8 +950,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_apache_2_2::htp_process_request_header_apache_2_2
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -2116,30 +962,22 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                0 as libc::c_int,
+                0,
             );
-            htp_config_set_path_separators_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                0 as libc::c_int,
-            );
+            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
             htp_config_set_path_separators_compress(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_u_encoding_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                0 as libc::c_int,
-            );
+            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
@@ -2170,8 +1008,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -2182,30 +1020,22 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_path_separators_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_path_separators_compress(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_u_encoding_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                0 as libc::c_int,
-            );
+            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
@@ -2231,8 +1061,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -2243,30 +1073,22 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_path_separators_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_path_separators_compress(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_u_encoding_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
@@ -2297,8 +1119,8 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_request_generic::htp_process_request_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             (*cfg).parse_response_line = Some(
@@ -2309,30 +1131,22 @@ pub unsafe fn htp_config_set_server_personality(
                 htp_response_generic::htp_process_response_header_generic
                     as unsafe extern "C" fn(
                         _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut libc::c_uchar,
-                        _: size_t,
+                        _: *mut u8,
+                        _: usize,
                     ) -> Status,
             );
             htp_config_set_backslash_convert_slashes(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_path_separators_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_path_separators_compress(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
+                1,
             );
-            htp_config_set_u_encoding_decode(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1 as libc::c_int,
-            );
+            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
             htp_config_set_url_encoding_invalid_handling(
                 cfg,
                 htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
@@ -2364,21 +1178,18 @@ pub unsafe fn htp_config_set_server_personality(
 /// Configures whether transactions will be automatically destroyed once they
 /// are processed and all callbacks invoked. This option is appropriate for
 /// programs that process transactions as they are processed.
-pub unsafe fn htp_config_set_tx_auto_destroy(
-    mut cfg: *mut htp_cfg_t,
-    mut tx_auto_destroy: libc::c_int,
-) {
+pub unsafe fn htp_config_set_tx_auto_destroy(mut cfg: *mut htp_cfg_t, mut tx_auto_destroy: i32) {
     if cfg.is_null() {
         return;
     }
     (*cfg).tx_auto_destroy = tx_auto_destroy;
 }
 
-unsafe fn convert_to_0_or_1(mut b: libc::c_int) -> libc::c_int {
+unsafe fn convert_to_0_or_1(mut b: i32) -> i32 {
     if b != 0 {
-        return 1 as libc::c_int;
+        return 1;
     }
-    return 0 as libc::c_int;
+    return 0;
 }
 
 /// Configures a best-fit map, which is used whenever characters longer than one byte
@@ -2390,16 +1201,16 @@ unsafe fn convert_to_0_or_1(mut b: libc::c_int) -> libc::c_int {
 pub unsafe fn htp_config_set_bestfit_map(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut map: *mut libc::c_void,
+    mut map: *mut core::ffi::c_void,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
-    (*cfg).decoder_cfgs[ctx as usize].bestfit_map = map as *mut libc::c_uchar;
+    (*cfg).decoder_cfgs[ctx as usize].bestfit_map = map as *mut u8;
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
-            (*cfg).decoder_cfgs[i as usize].bestfit_map = map as *mut libc::c_uchar;
+        let mut i: usize = 0;
+        while i < 3 {
+            (*cfg).decoder_cfgs[i as usize].bestfit_map = map as *mut u8;
             i = i.wrapping_add(1)
         }
     };
@@ -2411,16 +1222,16 @@ pub unsafe fn htp_config_set_bestfit_map(
 pub unsafe fn htp_config_set_bestfit_replacement_byte(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut b: libc::c_int,
+    mut b: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
-    (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte = b as libc::c_uchar;
+    (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte = b as u8;
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
-            (*cfg).decoder_cfgs[i as usize].bestfit_replacement_byte = b as libc::c_uchar;
+        let mut i: usize = 0;
+        while i < 3 {
+            (*cfg).decoder_cfgs[i as usize].bestfit_replacement_byte = b as u8;
             i = i.wrapping_add(1)
         }
     };
@@ -2432,13 +1243,13 @@ pub unsafe fn htp_config_set_url_encoding_invalid_handling(
     mut ctx: htp_decoder_ctx_t,
     mut handling: htp_url_encoding_handling_t,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling = handling;
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].url_encoding_invalid_handling = handling;
             i = i.wrapping_add(1)
         }
@@ -2449,15 +1260,15 @@ pub unsafe fn htp_config_set_url_encoding_invalid_handling(
 pub unsafe fn htp_config_set_nul_raw_terminates(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2470,15 +1281,15 @@ pub unsafe fn htp_config_set_nul_raw_terminates(
 pub unsafe fn htp_config_set_nul_encoded_terminates(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2490,15 +1301,15 @@ pub unsafe fn htp_config_set_nul_encoded_terminates(
 pub unsafe fn htp_config_set_u_encoding_decode(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].u_encoding_decode = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].u_encoding_decode = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2512,15 +1323,15 @@ pub unsafe fn htp_config_set_u_encoding_decode(
 pub unsafe fn htp_config_set_backslash_convert_slashes(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2535,15 +1346,15 @@ pub unsafe fn htp_config_set_backslash_convert_slashes(
 pub unsafe fn htp_config_set_path_separators_decode(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].path_separators_decode = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].path_separators_decode = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2558,15 +1369,15 @@ pub unsafe fn htp_config_set_path_separators_decode(
 pub unsafe fn htp_config_set_path_separators_compress(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].path_separators_compress = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].path_separators_compress = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2579,15 +1390,15 @@ pub unsafe fn htp_config_set_path_separators_compress(
 pub unsafe fn htp_config_set_plusspace_decode(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].plusspace_decode = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].plusspace_decode = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2601,15 +1412,15 @@ pub unsafe fn htp_config_set_plusspace_decode(
 pub unsafe fn htp_config_set_convert_lowercase(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].convert_lowercase = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].convert_lowercase = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2621,15 +1432,15 @@ pub unsafe fn htp_config_set_convert_lowercase(
 pub unsafe fn htp_config_set_utf8_convert_bestfit(
     mut cfg: *mut htp_cfg_t,
     mut ctx: htp_decoder_ctx_t,
-    mut enabled: libc::c_int,
+    mut enabled: i32,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
             i = i.wrapping_add(1)
         }
@@ -2642,13 +1453,13 @@ pub unsafe fn htp_config_set_u_encoding_unwanted(
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
             i = i.wrapping_add(1)
         }
@@ -2661,13 +1472,13 @@ pub unsafe fn htp_config_set_control_chars_unwanted(
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
             i = i.wrapping_add(1)
         }
@@ -2680,13 +1491,13 @@ pub unsafe fn htp_config_set_url_encoding_invalid_unwanted(
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted = unwanted;
     if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        while i < 3 as libc::c_int as libc::c_ulong {
+        let mut i: usize = 0;
+        while i < 3 {
             (*cfg).decoder_cfgs[i as usize].url_encoding_invalid_unwanted = unwanted;
             i = i.wrapping_add(1)
         }
@@ -2699,7 +1510,7 @@ pub unsafe fn htp_config_set_requestline_leading_whitespace_unwanted(
     mut ctx: htp_decoder_ctx_t,
     mut unwanted: htp_unwanted_t,
 ) {
-    if ctx as libc::c_uint >= 3 as libc::c_int as libc::c_uint {
+    if ctx as u32 >= 3 {
         return;
     }
     (*cfg).requestline_leading_whitespace_unwanted = unwanted;
@@ -2709,7 +1520,7 @@ pub unsafe fn htp_config_set_requestline_leading_whitespace_unwanted(
 /// limit: 0 disables limit
 pub unsafe fn htp_config_set_response_decompression_layer_limit(
     mut cfg: *mut htp_cfg_t,
-    mut limit: libc::c_int,
+    mut limit: i32,
 ) {
     if cfg.is_null() {
         return;

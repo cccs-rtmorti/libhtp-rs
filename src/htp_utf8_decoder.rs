@@ -1,9 +1,3 @@
-use ::libc;
-pub type __uint8_t = libc::c_uchar;
-pub type __uint32_t = libc::c_uint;
-pub type uint8_t = __uint8_t;
-pub type uint32_t = __uint32_t;
-
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software
@@ -24,7 +18,7 @@ pub type uint32_t = __uint32_t;
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-static mut utf8d: [uint8_t; 400] = [
+static mut utf8d: [u8; 400] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -40,7 +34,7 @@ static mut utf8d: [uint8_t; 400] = [
     1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1,
     1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 ];
-static mut utf8d_allow_overlong: [uint8_t; 400] = [
+static mut utf8d_allow_overlong: [u8; 400] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -63,18 +57,18 @@ static mut utf8d_allow_overlong: [uint8_t; 400] = [
 /// Returns HTP_UTF8_ACCEPT for a valid character, HTP_UTF8_REJECT for an invalid character,
 ///         or something else if the character has not yet been formed
 pub unsafe fn htp_utf8_decode_allow_overlong(
-    mut state: *mut uint32_t,
-    mut codep: *mut uint32_t,
-    mut byte: uint32_t,
-) -> uint32_t {
-    let mut type_0: uint32_t = utf8d_allow_overlong[byte as usize] as uint32_t;
-    *codep = if *state != 0 as libc::c_int as libc::c_uint {
-        (byte & 0x3f as libc::c_uint) | *codep << 6 as libc::c_int
+    mut state: *mut u32,
+    mut codep: *mut u32,
+    mut byte: u32,
+) -> u32 {
+    let mut type_0: u32 = utf8d_allow_overlong[byte as usize] as u32;
+    *codep = if *state != 0 {
+        (byte & 0x3f) | *codep << 6
     } else {
-        ((0xff as libc::c_int >> type_0) as libc::c_uint) & byte
+        (0xff >> type_0) & byte
     };
-    *state = utf8d[(256 as libc::c_int as libc::c_uint)
-        .wrapping_add((*state).wrapping_mul(16 as libc::c_int as libc::c_uint))
-        .wrapping_add(type_0) as usize] as uint32_t;
+    *state = utf8d[(256 as u32)
+        .wrapping_add((*state).wrapping_mul(16))
+        .wrapping_add(type_0) as usize] as u32;
     return *state;
 }

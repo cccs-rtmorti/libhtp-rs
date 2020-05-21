@@ -86,8 +86,8 @@ impl Test {
 
             let mut tx: htp_tx_data_t = htp_tx_data_t {
                 tx: self.tx,
-                data: data.as_mut_ptr() as *const libc::c_uchar,
-                len: data.len() as u64,
+                data: data.as_mut_ptr() as *const u8,
+                len: data.len(),
                 is_last: 0,
             };
             let rc = (*self.decompressor).decompress.unwrap()(self.decompressor, &mut tx);

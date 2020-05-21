@@ -200,7 +200,7 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut bomblimit: libc::size_t,
 ) {
-    htp_config::htp_config_set_compression_bomb_limit(cfg, bomblimit as u64)
+    htp_config::htp_config_set_compression_bomb_limit(cfg, bomblimit)
 }
 
 /// Configures whether input data will be converted to lowercase. Useful when set on the
@@ -225,7 +225,7 @@ pub unsafe extern "C" fn htp_config_set_field_limits(
     mut soft_limit: libc::size_t,
     mut hard_limit: libc::size_t,
 ) {
-    htp_config::htp_config_set_field_limits(cfg, soft_limit as u64, hard_limit as u64)
+    htp_config::htp_config_set_field_limits(cfg, soft_limit, hard_limit)
 }
 
 /// Configures the maximum memlimit LibHTP will pass to liblzma.
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn htp_config_set_lzma_memlimit(
     mut cfg: *mut htp_config::htp_cfg_t,
     mut memlimit: libc::size_t,
 ) {
-    htp_config::htp_config_set_lzma_memlimit(cfg, memlimit as u64)
+    htp_config::htp_config_set_lzma_memlimit(cfg, memlimit)
 }
 
 /// Configures how the server reacts to encoded NUL bytes. Some servers will stop at
@@ -454,7 +454,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
     mut data: *const libc::c_void,
     mut len: libc::size_t,
 ) -> libc::c_int {
-    htp_request::htp_connp_req_data(connp, timestamp, data, len as u64)
+    htp_request::htp_connp_req_data(connp, timestamp, data, len)
 }
 
 /// Process a chunk of outbound (server or response) data.
@@ -468,7 +468,7 @@ pub unsafe extern "C" fn htp_connp_res_data(
     mut data: *const libc::c_void,
     mut len: libc::size_t,
 ) -> libc::c_int {
-    htp_response::htp_connp_res_data(connp, timestamp, data, len as u64)
+    htp_response::htp_connp_res_data(connp, timestamp, data, len)
 }
 
 /// Associate user data with the supplied parser.
@@ -494,13 +494,13 @@ pub unsafe extern "C" fn htp_list_get(
     mut l: *const htp_list::htp_list_array_t,
     mut idx: libc::size_t,
 ) -> *mut libc::c_void {
-    htp_list::htp_list_array_get(l, idx as u64)
+    htp_list::htp_list_array_get(l, idx)
 }
 
 /// Returns the size of the list.
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_size(l: *const htp_list::htp_list_array_t) -> libc::size_t {
-    htp_list::htp_list_array_size(l) as libc::size_t
+    htp_list::htp_list_array_size(l)
 }
 
 /// Records one log message.
@@ -533,7 +533,7 @@ pub unsafe extern "C" fn htp_table_get_c(
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_get_index(
     mut table: *const htp_table::htp_table_t,
-    mut idx: libc::c_ulong,
+    mut idx: libc::size_t,
     mut key: *mut *mut bstr::bstr_t,
 ) -> *mut libc::c_void {
     htp_table::htp_table_get_index(table, idx, key)
@@ -541,7 +541,7 @@ pub unsafe extern "C" fn htp_table_get_index(
 
 /// Return the size of the table.
 #[no_mangle]
-pub unsafe extern "C" fn htp_table_size(mut table: *const htp_table::htp_table_t) -> libc::c_ulong {
+pub unsafe extern "C" fn htp_table_size(mut table: *const htp_table::htp_table_t) -> libc::size_t {
     htp_table::htp_table_size(table)
 }
 
@@ -688,7 +688,7 @@ pub unsafe extern "C" fn htp_connp_get_last_error(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_data_consumed(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> libc::c_ulong {
+) -> libc::size_t {
     htp_request::htp_connp_req_data_consumed(connp)
 }
 
@@ -701,7 +701,7 @@ pub unsafe extern "C" fn htp_connp_req_data_consumed(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_res_data_consumed(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-) -> libc::c_ulong {
+) -> libc::size_t {
     htp_response::htp_connp_res_data_consumed(connp)
 }
 
@@ -731,15 +731,15 @@ pub unsafe extern "C" fn bstr_add_noex(
 ///
 /// Returns New string instance
 #[no_mangle]
-pub unsafe extern "C" fn bstr_alloc(mut len: libc::size_t) -> *mut bstr::bstr {
-    bstr::bstr_alloc(len as u64)
+pub unsafe extern "C" fn bstr_alloc(mut len: libc::size_t) -> *mut bstr::bstr_t {
+    bstr::bstr_alloc(len)
 }
 
 /// Create a new bstring by copying the provided NUL-terminated string.
 ///
 /// Returns New bstring, or NULL if memory allocation failed.
 #[no_mangle]
-pub unsafe extern "C" fn bstr_dup_c(mut cstr: *const libc::c_char) -> *mut bstr::bstr {
+pub unsafe extern "C" fn bstr_dup_c(mut cstr: *const libc::c_char) -> *mut bstr::bstr_t {
     bstr::bstr_dup_c(cstr)
 }
 
@@ -747,9 +747,9 @@ pub unsafe extern "C" fn bstr_dup_c(mut cstr: *const libc::c_char) -> *mut bstr:
 /// returns New bstring, or NULL if memory allocation failed.
 #[no_mangle]
 pub unsafe extern "C" fn bstr_dup_ex(
-    mut b: *const bstr::bstr,
-    mut offset: libc::c_ulong,
-    mut len: libc::c_ulong,
+    mut b: *const bstr::bstr_t,
+    mut offset: libc::size_t,
+    mut len: libc::size_t,
 ) -> *mut bstr::bstr_t {
     bstr::bstr_dup_ex(b, offset, len)
 }
@@ -782,7 +782,7 @@ pub unsafe extern "C" fn bstr_free(mut b: *mut bstr::bstr_t) {
 /// This function was a macro in libhtp
 /// #define bstr_len(X) ((*(X)).len)
 #[no_mangle]
-pub unsafe extern "C" fn bstr_len(x: *const bstr::bstr_t) -> libc::c_ulong {
+pub unsafe extern "C" fn bstr_len(x: *const bstr::bstr_t) -> libc::size_t {
     bstr::bstr_len(x)
 }
 
@@ -796,7 +796,7 @@ pub unsafe extern "C" fn bstr_ptr(x: *const bstr::bstr_t) -> *mut libc::c_uchar 
 /// This function was a macro in libhtp
 /// #define bstr_size(X) ((*(X)).size)
 #[no_mangle]
-pub unsafe extern "C" fn bstr_size(x: *const bstr::bstr_t) -> libc::c_ulong {
+pub unsafe extern "C" fn bstr_size(x: *const bstr::bstr_t) -> libc::size_t {
     bstr::bstr_size(x)
 }
 
@@ -810,9 +810,9 @@ pub unsafe extern "C" fn bstr_size(x: *const bstr::bstr_t) -> libc::c_ulong {
 #[no_mangle]
 pub unsafe extern "C" fn bstr_util_mem_to_pint(
     mut data: *const libc::c_void,
-    mut len: libc::c_ulong,
+    mut len: libc::size_t,
     mut base: libc::c_int,
-    mut lastlen: *mut libc::c_ulong,
+    mut lastlen: *mut libc::size_t,
 ) -> libc::c_long {
     bstr::bstr_util_mem_to_pint(data, len, base, lastlen)
 }

@@ -57,7 +57,7 @@ fn Bstr_ExpandPtr() {
         let b: *mut bstr_t;
         b = libc::malloc(std::mem::size_of::<bstr_t>()) as *mut bstr_t;
         assert!(!b.is_null());
-        (*b).realptr = libc::malloc(10) as *mut libc::c_uchar;
+        (*b).realptr = libc::malloc(10) as *mut u8;
         (*b).len = 0;
         (*b).size = 10;
         assert!(!bstr_ptr(b).is_null());
@@ -132,7 +132,7 @@ fn Bstr_DupStr() {
             libc::memcmp(
                 bstr_ptr(p1) as *const core::ffi::c_void,
                 bstr_ptr(p2) as *const core::ffi::c_void,
-                bstr_len(p1) as usize
+                bstr_len(p1)
             )
         );
 
@@ -157,7 +157,7 @@ fn Bstr_DupBin() {
             libc::memcmp(
                 bstr_ptr(src) as *const core::ffi::c_void,
                 bstr_ptr(dst) as *const core::ffi::c_void,
-                bstr_len(src) as usize
+                bstr_len(src)
             )
         );
 
@@ -569,7 +569,7 @@ fn Bstr_AdjustLen() {
 #[test]
 fn Bstr_ToPint() {
     unsafe {
-        let mut lastlen: u64 = 0;
+        let mut lastlen: usize = 0;
 
         assert_eq!(
             -1,
@@ -682,7 +682,7 @@ fn Bstr_ToPint() {
 #[test]
 fn Bstr_DupToC() {
     unsafe {
-        let mut c: *mut libc::c_char;
+        let mut c: *mut i8;
         let str: *mut bstr_t = bstr_dup_mem(
             b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
             20,
@@ -704,9 +704,9 @@ fn Bstr_DupToC() {
 fn Bstr_UtilMemTrim() {
     unsafe {
         let d = CString::new(" \r\t0123456789\x0c\x0b  ").unwrap();
-        let mut data: *mut libc::c_char = d.as_ptr() as *mut libc::c_char;
-        let data_ptr: *mut *mut libc::c_char = &mut data;
-        let mut len: u64 = libc::strlen(data) as u64;
+        let mut data: *mut i8 = d.as_ptr() as *mut i8;
+        let data_ptr: *mut *mut i8 = &mut data;
+        let mut len: usize = libc::strlen(data);
 
         bstr_util_mem_trim(data_ptr as *mut *mut u8, &mut len);
 

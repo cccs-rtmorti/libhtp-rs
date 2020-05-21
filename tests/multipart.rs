@@ -68,7 +68,7 @@ impl Test {
                     self.connp,
                     std::ptr::null_mut(),
                     header.as_ptr() as *const core::ffi::c_void,
-                    header.chars().count() as libc::c_ulong,
+                    header.chars().count(),
                 );
             }
 
@@ -83,14 +83,14 @@ impl Test {
                 self.connp,
                 std::ptr::null_mut(),
                 contentStr.as_ptr() as *const core::ffi::c_void,
-                contentStr.chars().count() as libc::c_ulong,
+                contentStr.chars().count(),
             );
 
             htp_connp_req_data(
                 self.connp,
                 std::ptr::null_mut(),
                 "\r\n".as_ptr() as *const core::ffi::c_void,
-                2 as libc::c_ulong,
+                2,
             );
 
             // Send data.
@@ -99,7 +99,7 @@ impl Test {
                     self.connp,
                     std::ptr::null_mut(),
                     d.as_ptr() as *const core::ffi::c_void,
-                    d.chars().count() as libc::c_ulong,
+                    d.chars().count(),
                 );
             }
 
@@ -166,7 +166,7 @@ impl Test {
                 htp_mpartp_parse(
                     self.mpartp,
                     part.as_ptr() as *const core::ffi::c_void,
-                    part.chars().count() as libc::c_ulong,
+                    part.chars().count(),
                 );
             }
 
@@ -261,7 +261,7 @@ fn Test1() {
             htp_mpartp_parse(
                 t.mpartp,
                 part.as_ptr() as *const core::ffi::c_void,
-                part.chars().count() as libc::c_ulong,
+                part.chars().count(),
             );
         }
 
@@ -341,7 +341,7 @@ fn Test2() {
             htp_mpartp_parse(
                 t.mpartp,
                 part.as_ptr() as *const core::ffi::c_void,
-                part.chars().count() as libc::c_ulong,
+                part.chars().count(),
             );
         }
 
@@ -1109,7 +1109,7 @@ fn WithFileExternallyStored() {
 
     unsafe {
         (*t.cfg).extract_request_files = 1;
-        (*t.cfg).tmpdir = "/tmp\0".as_ptr() as *mut libc::c_char;
+        (*t.cfg).tmpdir = "/tmp\0".as_ptr() as *mut i8;
 
         t.parseParts(&parts);
 
@@ -1132,7 +1132,7 @@ fn WithFileExternallyStored() {
 
         assert!(!(*(*part).file).tmpname.is_null());
         let contents = fs::read_to_string(
-            CStr::from_ptr((*(*part).file).tmpname as *mut libc::c_char)
+            CStr::from_ptr((*(*part).file).tmpname as *mut i8)
                 .to_str()
                 .unwrap(),
         )
@@ -1479,13 +1479,13 @@ fn NullByte() {
         htp_mpartp_parse(
             t.mpartp,
             i1.as_ptr() as *const core::ffi::c_void,
-            i1.chars().count() as libc::c_ulong,
+            i1.chars().count(),
         );
         htp_mpartp_parse(t.mpartp, i2.as_ptr() as *const core::ffi::c_void, 1);
         htp_mpartp_parse(
             t.mpartp,
             i3.as_ptr() as *const core::ffi::c_void,
-            i3.chars().count() as libc::c_ulong,
+            i3.chars().count(),
         );
         htp_mpartp_finalize(t.mpartp);
 
@@ -2111,7 +2111,7 @@ fn InvalidContentDispositionSyntax() {
             let mut part: *mut htp_multipart_part_t =
                 calloc(1, ::std::mem::size_of::<htp_multipart_part_t>())
                     as *mut htp_multipart_part_t;
-            (*part).headers = htp_table_create(4 as libc::c_ulong);
+            (*part).headers = htp_table_create(4);
             (*part).parser = t.mpartp;
 
             let mut h: *mut htp_header_t =
@@ -2119,7 +2119,7 @@ fn InvalidContentDispositionSyntax() {
             (*h).name = bstr_dup_c(cstr!("Content-Disposition"));
             (*h).value = bstr_dup_c(cstr!(input));
 
-            htp_table_add((*part).headers, (*h).name, h as *const libc::c_void);
+            htp_table_add((*part).headers, (*h).name, h as *const core::ffi::c_void);
             let rc: Status = htp_mpart_part_parse_c_d(part);
 
             assert_eq!(Status::DECLINED, rc);

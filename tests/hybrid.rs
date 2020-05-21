@@ -390,10 +390,7 @@ fn GetTest() {
         // Response line data
         htp_tx_res_set_status_line(tx, cstr!("HTTP/1.1 200 OK"), 15, HTP_ALLOC_COPY);
         assert_eq!(0, bstr_cmp_c((*tx).response_protocol, cstr!("HTTP/1.1")));
-        assert_eq!(
-            Protocol::V1_1 as libc::c_int,
-            (*tx).response_protocol_number
-        );
+        assert_eq!(Protocol::V1_1 as i32, (*tx).response_protocol_number);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(0, bstr_cmp_c((*tx).response_message, cstr!("OK")));
 
@@ -487,8 +484,8 @@ fn PostUrlecodedTest() {
             tx,
             cstr!("Content-Type"),
             12,
-            HTP_URLENCODED_MIME_TYPE.as_ptr() as *const libc::c_char,
-            libc::strlen(HTP_URLENCODED_MIME_TYPE.as_ptr() as *const libc::c_char) as u64,
+            HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8,
+            libc::strlen(HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8),
             HTP_ALLOC_COPY,
         );
         htp_tx_req_set_header(
@@ -615,8 +612,8 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
         htp_tx_state_response_headers(tx);
 
         let body: *mut bstr_t = htp_base64_decode_mem(
-            HYBRID_PARSING_COMPRESSED_RESPONSE.as_ptr() as *const libc::c_void,
-            libc::strlen(HYBRID_PARSING_COMPRESSED_RESPONSE.as_ptr() as *const libc::c_char) as u64,
+            HYBRID_PARSING_COMPRESSED_RESPONSE.as_ptr() as *const core::ffi::c_void,
+            libc::strlen(HYBRID_PARSING_COMPRESSED_RESPONSE.as_ptr() as *const i8),
         );
         assert!(!body.is_null());
 
@@ -710,8 +707,8 @@ fn PostUrlecodedChunked() {
             tx,
             cstr!("Content-Type"),
             12,
-            HTP_URLENCODED_MIME_TYPE.as_ptr() as *const libc::c_char,
-            libc::strlen(HTP_URLENCODED_MIME_TYPE.as_ptr() as *const libc::c_char) as u64,
+            HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8,
+            libc::strlen(HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8),
             HTP_ALLOC_COPY,
         );
         htp_tx_req_set_header(
@@ -727,9 +724,9 @@ fn PostUrlecodedChunked() {
         htp_tx_state_request_headers(tx);
 
         // Send request body.
-        htp_tx_req_process_body_data(tx, cstr!("p=1") as *const libc::c_void, 3);
-        htp_tx_req_process_body_data(tx, cstr!("&") as *const libc::c_void, 1);
-        htp_tx_req_process_body_data(tx, cstr!("q=2") as *const libc::c_void, 3);
+        htp_tx_req_process_body_data(tx, cstr!("p=1") as *const core::ffi::c_void, 3);
+        htp_tx_req_process_body_data(tx, cstr!("&") as *const core::ffi::c_void, 1);
+        htp_tx_req_process_body_data(tx, cstr!("q=2") as *const core::ffi::c_void, 3);
 
         // Request complete.
         htp_tx_state_request_complete(tx);
@@ -798,7 +795,7 @@ fn RequestLineParsing2() {
 
         assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
         assert_eq!(1, (*tx).is_protocol_0_9);
-        assert_eq!(Protocol::V0_9 as libc::c_int, (*tx).request_protocol_number);
+        assert_eq!(Protocol::V0_9 as i32, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_null());
         assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/")));
     }
@@ -827,7 +824,7 @@ fn ParsedUriSupplied() {
 
         assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(Protocol::V1_0 as libc::c_int, (*tx).request_protocol_number);
+        assert_eq!(Protocol::V1_0 as i32, (*tx).request_protocol_number);
         assert!(!(*tx).request_uri.is_null());
         assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=1&q=2")));
 

@@ -1,33 +1,17 @@
 use crate::htp_multipart::MultipartFlags;
 use crate::{bstr, htp_list, htp_multipart, htp_table, htp_transaction, htp_urlencoded, Status};
-use ::libc;
 
 extern "C" {
     #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
+    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
-    fn free(__ptr: *mut libc::c_void);
+    fn free(__ptr: *mut core::ffi::c_void);
     #[no_mangle]
     fn htp_tx_register_request_body_data(
         tx: *mut htp_transaction::htp_tx_t,
         callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
     );
 }
-pub type __uint8_t = libc::c_uchar;
-pub type __uint16_t = libc::c_ushort;
-pub type __int32_t = libc::c_int;
-pub type __int64_t = libc::c_long;
-pub type __uint64_t = libc::c_ulong;
-pub type __time_t = libc::c_long;
-pub type __suseconds_t = libc::c_long;
-pub type size_t = libc::c_ulong;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint64_t = __uint64_t;
-
-pub type htp_time_t = libc::timeval;
 
 /// This callback function feeds request body data to a Urlencoded parser
 /// and, later, feeds the parsed parameters to the correct structures.
@@ -46,7 +30,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
         // Process one chunk of data.
         htp_urlencoded::htp_urlenp_parse_partial(
             (*tx).request_urlenp_body,
-            (*d).data as *const libc::c_void,
+            (*d).data as *const core::ffi::c_void,
             (*d).len,
         );
     } else {
@@ -55,17 +39,15 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
         // Add all parameters to the transaction.
         let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_table::htp_table_size((*(*tx).request_urlenp_body).params);
+        let mut i: usize = 0;
+        let mut n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_body).params);
         while i < n {
             value =
                 htp_table::htp_table_get_index((*(*tx).request_urlenp_body).params, i, &mut name)
-                    as *mut bstr::bstr;
-            let mut param: *mut htp_transaction::htp_param_t = calloc(
-                1 as libc::c_int as libc::c_ulong,
-                ::std::mem::size_of::<htp_transaction::htp_param_t>() as libc::c_ulong,
-            )
-                as *mut htp_transaction::htp_param_t;
+                    as *mut bstr::bstr_t;
+            let mut param: *mut htp_transaction::htp_param_t =
+                calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
+                    as *mut htp_transaction::htp_param_t;
             if param.is_null() {
                 return Status::ERROR;
             }
@@ -73,9 +55,9 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
             (*param).value = value;
             (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_BODY;
             (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED;
-            (*param).parser_data = 0 as *mut libc::c_void;
+            (*param).parser_data = 0 as *mut core::ffi::c_void;
             if htp_transaction::htp_tx_req_add_param(tx, param) != Status::OK {
-                free(param as *mut libc::c_void);
+                free(param as *mut core::ffi::c_void);
                 return Status::ERROR;
             }
             i = i.wrapping_add(1)
@@ -102,7 +84,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
     if (*tx).request_content_type.is_null()
         || bstr::bstr_begins_with_c(
             (*tx).request_content_type,
-            b"application/x-www-form-urlencoded\x00" as *const u8 as *const libc::c_char,
+            b"application/x-www-form-urlencoded\x00" as *const u8 as *const i8,
         ) == 0
     {
         return Status::DECLINED;
@@ -132,9 +114,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     mut tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     // Proceed only if there's something for us to parse.
-    if (*(*tx).parsed_uri).query.is_null()
-        || (*(*(*tx).parsed_uri).query).len == 0 as libc::c_int as libc::c_ulong
-    {
+    if (*(*tx).parsed_uri).query.is_null() || (*(*(*tx).parsed_uri).query).len == 0 {
         return Status::DECLINED;
     }
     // We have a non-zero length query string.
@@ -145,14 +125,11 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     if htp_urlencoded::htp_urlenp_parse_complete(
         (*tx).request_urlenp_query,
         (if (*(*(*tx).parsed_uri).query).realptr.is_null() {
-            ((*(*tx).parsed_uri).query as *mut libc::c_uchar).offset(::std::mem::size_of::<
-                bstr::bstr_t,
-            >()
-                as libc::c_ulong
-                as isize)
+            ((*(*tx).parsed_uri).query as *mut u8)
+                .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
         } else {
             (*(*(*tx).parsed_uri).query).realptr
-        }) as *const libc::c_void,
+        }) as *const core::ffi::c_void,
         (*(*(*tx).parsed_uri).query).len,
     ) != Status::OK
     {
@@ -162,16 +139,14 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     // Add all parameters to the transaction.
     let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-    let mut i: size_t = 0 as libc::c_int as size_t;
-    let mut n: size_t = htp_table::htp_table_size((*(*tx).request_urlenp_query).params);
+    let mut i: usize = 0;
+    let mut n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_query).params);
     while i < n {
         value = htp_table::htp_table_get_index((*(*tx).request_urlenp_query).params, i, &mut name)
-            as *mut bstr::bstr;
-        let mut param: *mut htp_transaction::htp_param_t = calloc(
-            1 as libc::c_int as libc::c_ulong,
-            ::std::mem::size_of::<htp_transaction::htp_param_t>() as libc::c_ulong,
-        )
-            as *mut htp_transaction::htp_param_t;
+            as *mut bstr::bstr_t;
+        let mut param: *mut htp_transaction::htp_param_t =
+            calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
+                as *mut htp_transaction::htp_param_t;
         if param.is_null() {
             return Status::ERROR;
         }
@@ -179,9 +154,9 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
         (*param).value = value;
         (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_QUERY_STRING;
         (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED;
-        (*param).parser_data = 0 as *mut libc::c_void;
+        (*param).parser_data = 0 as *mut core::ffi::c_void;
         if htp_transaction::htp_tx_req_add_param(tx, param) != Status::OK {
-            free(param as *mut libc::c_void);
+            free(param as *mut core::ffi::c_void);
             return Status::ERROR;
         }
         i = i.wrapping_add(1)
@@ -205,14 +180,14 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx;
     // Check that we were not invoked again after the finalization.
-    if (*(*tx).request_mpartp).gave_up_data == 1 as libc::c_int {
+    if (*(*tx).request_mpartp).gave_up_data == 1 {
         return Status::ERROR;
     }
     if !(*d).data.is_null() {
         // Process one chunk of data.
         htp_multipart::htp_mpartp_parse(
             (*tx).request_mpartp,
-            (*d).data as *const libc::c_void,
+            (*d).data as *const core::ffi::c_void,
             (*d).len,
         );
     } else {
@@ -220,19 +195,17 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
         htp_multipart::htp_mpartp_finalize((*tx).request_mpartp);
         let mut body: *mut htp_multipart::htp_multipart_t =
             htp_multipart::htp_mpartp_get_multipart((*tx).request_mpartp);
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_list::htp_list_array_size((*body).parts);
+        let mut i: usize = 0;
+        let mut n: usize = htp_list::htp_list_array_size((*body).parts);
         while i < n {
             let mut part: *mut htp_multipart::htp_multipart_part_t =
                 htp_list::htp_list_array_get((*body).parts, i)
                     as *mut htp_multipart::htp_multipart_part_t;
             // Use text parameters.
             if (*part).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
-                let mut param: *mut htp_transaction::htp_param_t = calloc(
-                    1 as libc::c_int as libc::c_ulong,
-                    ::std::mem::size_of::<htp_transaction::htp_param_t>() as libc::c_ulong,
-                )
-                    as *mut htp_transaction::htp_param_t;
+                let mut param: *mut htp_transaction::htp_param_t =
+                    calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
+                        as *mut htp_transaction::htp_param_t;
                 if param.is_null() {
                     return Status::ERROR;
                 }
@@ -240,9 +213,9 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
                 (*param).value = (*part).value;
                 (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_BODY;
                 (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART;
-                (*param).parser_data = part as *mut libc::c_void;
+                (*param).parser_data = part as *mut core::ffi::c_void;
                 if htp_transaction::htp_tx_req_add_param(tx, param) != Status::OK {
-                    free(param as *mut libc::c_void);
+                    free(param as *mut core::ffi::c_void);
                     return Status::ERROR;
                 }
             }
@@ -250,7 +223,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
         }
         // Tell the parser that it no longer owns names
         // and values of MULTIPART_PART_TEXT parts.
-        (*(*tx).request_mpartp).gave_up_data = 1 as libc::c_int
+        (*(*tx).request_mpartp).gave_up_data = 1
     }
     return Status::OK;
 }
@@ -273,7 +246,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     // Look for a boundary.
     let mut ct: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
-        b"content-type\x00" as *const u8 as *const libc::c_char,
+        b"content-type\x00" as *const u8 as *const i8,
     ) as *mut htp_transaction::htp_header_t;
     if ct.is_null() {
         return Status::ERROR;
@@ -297,7 +270,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     }
     // Configure file extraction.
     if (*(*tx).cfg).extract_request_files != 0 {
-        (*(*tx).request_mpartp).extract_files = 1 as libc::c_int;
+        (*(*tx).request_mpartp).extract_files = 1;
         (*(*tx).request_mpartp).extract_dir = (*(*(*tx).connp).cfg).tmpdir
     }
     // Register a request body data callback.

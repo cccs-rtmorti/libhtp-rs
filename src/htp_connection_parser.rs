@@ -2,27 +2,13 @@ use crate::{
     bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_list, htp_request,
     htp_response, htp_transaction, htp_util, Status,
 };
-use ::libc;
 
 extern "C" {
     #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
+    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
-    fn free(__ptr: *mut libc::c_void);
+    fn free(__ptr: *mut core::ffi::c_void);
 }
-pub type __uint8_t = libc::c_uchar;
-pub type __uint16_t = libc::c_ushort;
-pub type __int32_t = libc::c_int;
-pub type __int64_t = libc::c_long;
-pub type __uint64_t = libc::c_ulong;
-pub type __time_t = libc::c_long;
-pub type __suseconds_t = libc::c_long;
-pub type size_t = libc::c_ulong;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint64_t = __uint64_t;
 
 /// Enumerates all stream states. Each connection has two streams, one
 /// inbound and one outbound. Their states are tracked separately.
@@ -48,7 +34,7 @@ pub struct htp_connp_t {
     /// The connection structure associated with this parser.
     pub conn: *mut htp_connection::htp_conn_t,
     /// Opaque user data associated with this parser.
-    pub user_data: *const libc::c_void,
+    pub user_data: *const core::ffi::c_void,
     /// On parser failure, this field will contain the error information. Do note, however,
     /// that the value in this field will only be valid immediately after an error condition,
     /// but it is not guaranteed to remain valid if the parser is invoked again.
@@ -61,36 +47,36 @@ pub struct htp_connp_t {
     /// When true, this field indicates that there is unprocessed inbound data, and
     /// that the response parsing code should stop at the end of the current request
     /// in order to allow more requests to be produced.
-    pub out_data_other_at_tx_end: libc::c_uint,
+    pub out_data_other_at_tx_end: u32,
     /// The time when the last request data chunk was received. Can be NULL if
     /// the upstream code is not providing the timestamps when calling us.
     pub in_timestamp: htp_time_t,
     /// Pointer to the current request data chunk.
-    pub in_current_data: *mut libc::c_uchar,
+    pub in_current_data: *mut u8,
     /// The length of the current request data chunk.
-    pub in_current_len: int64_t,
+    pub in_current_len: i64,
     /// The offset of the next byte in the request data chunk to read.
-    pub in_current_read_offset: int64_t,
+    pub in_current_read_offset: i64,
     /// The starting point of the data waiting to be consumed. This field is used
     /// in the states where reading data is not the same as consumption.
-    pub in_current_consume_offset: int64_t,
+    pub in_current_consume_offset: i64,
     /// Marks the starting point of raw data within the inbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
     /// REQUEST_HEADER_DATA).
-    pub in_current_receiver_offset: int64_t,
+    pub in_current_receiver_offset: i64,
     /// How many data chunks does the inbound connection stream consist of?
-    pub in_chunk_count: size_t,
+    pub in_chunk_count: usize,
     /// The index of the first chunk used in the current request.
-    pub in_chunk_request_index: size_t,
+    pub in_chunk_request_index: usize,
     /// The offset, in the entire connection stream, of the next request byte.
-    pub in_stream_offset: int64_t,
+    pub in_stream_offset: i64,
     /// The value of the request byte currently being processed. This field is
     /// populated when the IN_NEXT_* or IN_PEEK_* macros are invoked.
-    pub in_next_byte: libc::c_int,
+    pub in_next_byte: i32,
     /// Used to buffer a line of inbound data when buffering cannot be avoided.
-    pub in_buf: *mut libc::c_uchar,
+    pub in_buf: *mut u8,
     /// Stores the size of the buffer. Valid only when htp_tx_t::in_buf is not NULL.
-    pub in_buf_size: size_t,
+    pub in_buf_size: usize,
     /// Stores the current value of a folded request header. Such headers span
     /// multiple lines, and are processed only when all data is available.
     pub in_header: *mut bstr::bstr_t,
@@ -99,14 +85,14 @@ pub struct htp_connp_t {
     /// The request body length declared in a valid request header. The key here
     /// is "valid". This field will not be populated if the request contains both
     /// a Transfer-Encoding header and a Content-Length header.
-    pub in_content_length: int64_t,
+    pub in_content_length: i64,
     /// Holds the remaining request body length that we expect to read. This
     /// field will be available only when the length of a request body is known
     /// in advance, i.e. when request headers contain a Content-Length header.
-    pub in_body_data_left: int64_t,
+    pub in_body_data_left: i64,
     /// Holds the amount of data that needs to be read from the
     /// current data chunk. Only used with chunked request bodies.
-    pub in_chunked_length: int64_t,
+    pub in_chunked_length: i64,
     /// Current request parser state.
     pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /// Previous request parser state. Used to detect state changes.
@@ -117,30 +103,30 @@ pub struct htp_connp_t {
     /// Response counter, incremented with every new response. This field is
     /// used to match responses to requests. The expectation is that for every
     /// response there will already be a transaction (request) waiting.
-    pub out_next_tx_index: size_t,
+    pub out_next_tx_index: usize,
     /// The time when the last response data chunk was received. Can be NULL.
     pub out_timestamp: htp_time_t,
     /// Pointer to the current response data chunk.
-    pub out_current_data: *mut libc::c_uchar,
+    pub out_current_data: *mut u8,
     /// The length of the current response data chunk.
-    pub out_current_len: int64_t,
+    pub out_current_len: i64,
     /// The offset of the next byte in the response data chunk to consume.
-    pub out_current_read_offset: int64_t,
+    pub out_current_read_offset: i64,
     /// The starting point of the data waiting to be consumed. This field is used
     /// in the states where reading data is not the same as consumption.
-    pub out_current_consume_offset: int64_t,
+    pub out_current_consume_offset: i64,
     /// Marks the starting point of raw data within the outbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
     /// RESPONSE_HEADER_DATA).
-    pub out_current_receiver_offset: int64_t,
+    pub out_current_receiver_offset: i64,
     /// The offset, in the entire connection stream, of the next response byte.
-    pub out_stream_offset: int64_t,
+    pub out_stream_offset: i64,
     /// The value of the response byte currently being processed.
-    pub out_next_byte: libc::c_int,
+    pub out_next_byte: i32,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
-    pub out_buf: *mut libc::c_uchar,
+    pub out_buf: *mut u8,
     /// Stores the size of the buffer. Valid only when htp_tx_t::out_buf is not NULL.
-    pub out_buf_size: size_t,
+    pub out_buf_size: usize,
     /// Stores the current value of a folded response header. Such headers span
     /// multiple lines, and are processed only when all data is available.
     pub out_header: *mut bstr::bstr_t,
@@ -148,12 +134,12 @@ pub struct htp_connp_t {
     pub out_tx: *mut htp_transaction::htp_tx_t,
     /// The length of the current response body as presented in the
     /// Content-Length response header.
-    pub out_content_length: int64_t,
+    pub out_content_length: i64,
     /// The remaining length of the current response body, if known. Set to -1 otherwise.
-    pub out_body_data_left: int64_t,
+    pub out_body_data_left: i64,
     /// Holds the amount of data that needs to be read from the
     /// current response data chunk. Only used with chunked response bodies.
-    pub out_chunked_length: int64_t,
+    pub out_chunked_length: i64,
     /// Current response parser state.
     pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /// Previous response parser state.
@@ -186,12 +172,7 @@ pub unsafe fn htp_connp_req_close(mut connp: *mut htp_connp_t, mut timestamp: *c
     }
     // Call the parsers one last time, which will allow them
     // to process the events that depend on stream closure
-    htp_request::htp_connp_req_data(
-        connp,
-        timestamp,
-        0 as *const libc::c_void,
-        0 as libc::c_int as size_t,
-    );
+    htp_request::htp_connp_req_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
 }
 
 /// Closes the connection associated with the supplied parser.
@@ -212,18 +193,8 @@ pub unsafe fn htp_connp_close(mut connp: *mut htp_connp_t, mut timestamp: *const
     }
     // Call the parsers one last time, which will allow them
     // to process the events that depend on stream closure
-    htp_request::htp_connp_req_data(
-        connp,
-        timestamp,
-        0 as *const libc::c_void,
-        0 as libc::c_int as size_t,
-    );
-    htp_response::htp_connp_res_data(
-        connp,
-        timestamp,
-        0 as *const libc::c_void,
-        0 as libc::c_int as size_t,
-    );
+    htp_request::htp_connp_req_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
+    htp_response::htp_connp_res_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
 }
 
 /// Creates a new connection parser using the provided configuration. Because
@@ -234,10 +205,8 @@ pub unsafe fn htp_connp_close(mut connp: *mut htp_connp_t, mut timestamp: *const
 ///
 /// Returns a new connection parser instance, or NULL on error.
 pub unsafe fn htp_connp_create(mut cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
-    let mut connp: *mut htp_connp_t = calloc(
-        1 as libc::c_int as libc::c_ulong,
-        ::std::mem::size_of::<htp_connp_t>() as libc::c_ulong,
-    ) as *mut htp_connp_t;
+    let mut connp: *mut htp_connp_t =
+        calloc(1, ::std::mem::size_of::<htp_connp_t>()) as *mut htp_connp_t;
     if connp.is_null() {
         return 0 as *mut htp_connp_t;
     }
@@ -246,7 +215,7 @@ pub unsafe fn htp_connp_create(mut cfg: *mut htp_config::htp_cfg_t) -> *mut htp_
     // Create a new connection.
     (*connp).conn = htp_connection::htp_conn_create();
     if (*connp).conn.is_null() {
-        free(connp as *mut libc::c_void);
+        free(connp as *mut core::ffi::c_void);
         return 0 as *mut htp_connp_t;
     }
     // Request parsing
@@ -269,15 +238,15 @@ pub unsafe fn htp_connp_destroy(mut connp: *mut htp_connp_t) {
         return;
     }
     if !(*connp).in_buf.is_null() {
-        free((*connp).in_buf as *mut libc::c_void);
+        free((*connp).in_buf as *mut core::ffi::c_void);
     }
     if !(*connp).out_buf.is_null() {
-        free((*connp).out_buf as *mut libc::c_void);
+        free((*connp).out_buf as *mut core::ffi::c_void);
     }
     htp_transaction::htp_connp_destroy_decompressors(connp);
     if !(*connp).put_file.is_null() {
         bstr::bstr_free((*(*connp).put_file).filename);
-        free((*connp).put_file as *mut libc::c_void);
+        free((*connp).put_file as *mut core::ffi::c_void);
     }
     if !(*connp).in_header.is_null() {
         bstr::bstr_free((*connp).in_header);
@@ -287,7 +256,7 @@ pub unsafe fn htp_connp_destroy(mut connp: *mut htp_connp_t) {
         bstr::bstr_free((*connp).out_header);
         (*connp).out_header = 0 as *mut bstr::bstr_t
     }
-    free(connp as *mut libc::c_void);
+    free(connp as *mut core::ffi::c_void);
 }
 
 /// Destroys the connection parser, its data structures, as well
@@ -356,11 +325,11 @@ pub unsafe fn htp_connp_get_out_tx(
 /// Retrieve the user data associated with this connection parser.
 ///
 /// Returns user data, or NULL if there isn't any.
-pub unsafe fn htp_connp_get_user_data(mut connp: *const htp_connp_t) -> *mut libc::c_void {
+pub unsafe fn htp_connp_get_user_data(mut connp: *const htp_connp_t) -> *mut core::ffi::c_void {
     if connp.is_null() {
-        return 0 as *mut libc::c_void;
+        return 0 as *mut core::ffi::c_void;
     }
-    return (*connp).user_data as *mut libc::c_void;
+    return (*connp).user_data as *mut core::ffi::c_void;
 }
 
 /// This function is most likely not used and/or not needed.
@@ -368,8 +337,8 @@ pub unsafe fn htp_connp_in_reset(mut connp: *mut htp_connp_t) {
     if connp.is_null() {
         return;
     }
-    (*connp).in_content_length = -(1 as libc::c_int) as int64_t;
-    (*connp).in_body_data_left = -(1 as libc::c_int) as int64_t;
+    (*connp).in_content_length = -1;
+    (*connp).in_body_data_left = -1;
     (*connp).in_chunk_request_index = (*connp).in_chunk_count;
 }
 
@@ -378,10 +347,10 @@ pub unsafe fn htp_connp_in_reset(mut connp: *mut htp_connp_t) {
 /// timestamp is optional
 pub unsafe fn htp_connp_open(
     mut connp: *mut htp_connp_t,
-    mut client_addr: *const libc::c_char,
-    mut client_port: libc::c_int,
-    mut server_addr: *const libc::c_char,
-    mut server_port: libc::c_int,
+    mut client_addr: *const i8,
+    mut client_port: i32,
+    mut server_addr: *const i8,
+    mut server_port: i32,
     mut timestamp: *mut htp_time_t,
 ) {
     if connp.is_null() {
@@ -393,11 +362,11 @@ pub unsafe fn htp_connp_open(
     {
         htp_util::htp_log(
             connp,
-            b"htp_connection_parser.c\x00" as *const u8 as *const libc::c_char,
-            181 as libc::c_int,
+            b"htp_connection_parser.c\x00" as *const u8 as *const i8,
+            181,
             htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0 as libc::c_int,
-            b"Connection is already open\x00" as *const u8 as *const libc::c_char,
+            0,
+            b"Connection is already open\x00" as *const u8 as *const i8,
         );
         return;
     }
@@ -419,7 +388,7 @@ pub unsafe fn htp_connp_open(
 /// Associate user data with the supplied parser.
 pub unsafe fn htp_connp_set_user_data(
     mut connp: *mut htp_connp_t,
-    mut user_data: *const libc::c_void,
+    mut user_data: *const core::ffi::c_void,
 ) {
     if connp.is_null() {
         return;

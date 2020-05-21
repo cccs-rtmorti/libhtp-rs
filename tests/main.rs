@@ -167,7 +167,7 @@ impl Test {
                             self.connp,
                             &tv_start,
                             data.as_ptr() as *const core::ffi::c_void,
-                            data.len() as u64,
+                            data.len(),
                         );
                         if rc == 3 {
                             // HTP_STREAM_ERROR = 3
@@ -176,7 +176,7 @@ impl Test {
 
                         if rc == 5 {
                             // HTP_STREAM_DATA_OTHER = 5
-                            let consumed = htp_connp_req_data_consumed(self.connp) as usize;
+                            let consumed = htp_connp_req_data_consumed(self.connp);
                             let mut remaining = Vec::with_capacity(data.len() - consumed);
                             remaining.extend_from_slice(&data[consumed..]);
                             in_buf = Some(remaining);
@@ -189,7 +189,7 @@ impl Test {
                                 self.connp,
                                 &tv_start,
                                 out_remaining.as_ptr() as *const core::ffi::c_void,
-                                out_remaining.len() as u64,
+                                out_remaining.len(),
                             );
                             out_buf = None;
                             if rc == 3 {
@@ -203,7 +203,7 @@ impl Test {
                             self.connp,
                             &tv_start,
                             data.as_ptr() as *const core::ffi::c_void,
-                            data.len() as u64,
+                            data.len(),
                         );
                         if rc == 3 {
                             // HTP_STREAM_ERROR = 3
@@ -212,7 +212,7 @@ impl Test {
 
                         if rc == 5 {
                             // HTP_STREAM_DATA_OTHER
-                            let consumed = htp_connp_res_data_consumed(self.connp) as usize;
+                            let consumed = htp_connp_res_data_consumed(self.connp);
                             let mut remaining = Vec::with_capacity(data.len() - consumed);
                             remaining.extend_from_slice(&data[consumed..]);
                             out_buf = Some(remaining);
@@ -224,7 +224,7 @@ impl Test {
                                 self.connp,
                                 &tv_start,
                                 in_remaining.as_ptr() as *const core::ffi::c_void,
-                                in_remaining.len() as u64,
+                                in_remaining.len(),
                             );
                             in_buf = None;
                             if rc == 3 {
@@ -242,7 +242,7 @@ impl Test {
                     self.connp,
                     &tv_start,
                     out_remaining.as_ptr() as *const core::ffi::c_void,
-                    out_remaining.len() as u64,
+                    out_remaining.len(),
                 );
                 if rc == 3 {
                     // HTP_STREAM_ERROR = 3
@@ -896,7 +896,7 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len as usize;
+        let len = (*d).len;
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
             0 => {
@@ -968,7 +968,7 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len as usize;
+        let len = (*d).len;
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
             0 => {
@@ -1028,7 +1028,7 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len as usize;
+        let len = (*d).len;
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
         0 => {
@@ -1100,7 +1100,7 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len as usize;
+        let len = (*d).len;
         let data: &[u8] = slice::from_raw_parts((*d).data, len);
         match COUNTER {
             0 => {

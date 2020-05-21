@@ -14,7 +14,7 @@ typedef struct htp_mpartp_t htp_mpartp_t;
 typedef struct htp_tx_data_t htp_tx_data_t;
 typedef struct htp_tx_t htp_tx_t;
 typedef struct htp_uri_t htp_uri_t;
-
+typedef struct bstr_t bstr;
 /* Needed to suppress type issues in the exposed
  * decompression state. Will go away when decompression
  * is cleaned up.

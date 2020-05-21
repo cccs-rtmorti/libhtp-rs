@@ -1,41 +1,31 @@
 use crate::{htp_list, htp_transaction, htp_util, Status};
-use ::libc;
 
 extern "C" {
     #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
+    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
-    fn free(__ptr: *mut libc::c_void);
+    fn free(__ptr: *mut core::ffi::c_void);
     #[no_mangle]
-    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
+    fn memcpy(
+        _: *mut core::ffi::c_void,
+        _: *const core::ffi::c_void,
+        _: libc::size_t,
+    ) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
 }
-pub type __uint8_t = libc::c_uchar;
-pub type __uint16_t = libc::c_ushort;
-pub type __int32_t = libc::c_int;
-pub type __int64_t = libc::c_long;
-pub type __uint64_t = libc::c_ulong;
-pub type __time_t = libc::c_long;
-pub type __suseconds_t = libc::c_long;
-pub type size_t = libc::c_ulong;
-pub type int32_t = __int32_t;
-pub type int64_t = __int64_t;
-pub type uint8_t = __uint8_t;
-pub type uint16_t = __uint16_t;
-pub type uint64_t = __uint64_t;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_conn_t {
     /// Client IP address.
-    pub client_addr: *mut libc::c_char,
+    pub client_addr: *mut i8,
     /// Client port.
-    pub client_port: libc::c_int,
+    pub client_port: i32,
     /// Server IP address.
-    pub server_addr: *mut libc::c_char,
+    pub server_addr: *mut i8,
     /// Server port.
-    pub server_port: libc::c_int,
+    pub server_port: i32,
 
     /// Transactions carried out on this connection. The list may contain
     /// NULL elements when some of the transactions are deleted (and then
@@ -50,9 +40,9 @@ pub struct htp_conn_t {
     /// When was this connection closed? Can be NULL.
     pub close_timestamp: htp_time_t,
     /// Inbound data counter.
-    pub in_data_counter: int64_t,
+    pub in_data_counter: i64,
     /// Outbound data counter.
-    pub out_data_counter: int64_t,
+    pub out_data_counter: i64,
 }
 pub type htp_time_t = libc::timeval;
 
@@ -60,23 +50,21 @@ pub type htp_time_t = libc::timeval;
 ///
 /// Returns A new connection structure on success, NULL on memory allocation failure.
 pub unsafe fn htp_conn_create() -> *mut htp_conn_t {
-    let mut conn: *mut htp_conn_t = calloc(
-        1 as libc::c_int as libc::c_ulong,
-        ::std::mem::size_of::<htp_conn_t>() as libc::c_ulong,
-    ) as *mut htp_conn_t;
+    let mut conn: *mut htp_conn_t =
+        calloc(1, ::std::mem::size_of::<htp_conn_t>()) as *mut htp_conn_t;
     if conn.is_null() {
         return 0 as *mut htp_conn_t;
     }
-    (*conn).transactions = htp_list::htp_list_array_create(16 as libc::c_int as size_t);
+    (*conn).transactions = htp_list::htp_list_array_create(16);
     if (*conn).transactions.is_null() {
-        free(conn as *mut libc::c_void);
+        free(conn as *mut core::ffi::c_void);
         return 0 as *mut htp_conn_t;
     }
-    (*conn).messages = htp_list::htp_list_array_create(8 as libc::c_int as size_t);
+    (*conn).messages = htp_list::htp_list_array_create(8);
     if (*conn).messages.is_null() {
         htp_list::htp_list_array_destroy((*conn).transactions);
         (*conn).transactions = 0 as *mut htp_list::htp_list_array_t;
-        free(conn as *mut libc::c_void);
+        free(conn as *mut core::ffi::c_void);
         return 0 as *mut htp_conn_t;
     }
     return conn;
@@ -90,9 +78,9 @@ pub unsafe fn htp_conn_close(mut conn: *mut htp_conn_t, mut timestamp: *const ht
     // Update timestamp.
     if !timestamp.is_null() {
         memcpy(
-            &mut (*conn).close_timestamp as *mut htp_time_t as *mut libc::c_void,
-            timestamp as *const libc::c_void,
-            ::std::mem::size_of::<htp_time_t>() as libc::c_ulong,
+            &mut (*conn).close_timestamp as *mut htp_time_t as *mut core::ffi::c_void,
+            timestamp as *const core::ffi::c_void,
+            ::std::mem::size_of::<htp_time_t>(),
         );
     };
 }
@@ -111,8 +99,8 @@ pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
         // using the iterator does not work here because some of the
         // list element may be NULL (and with the iterator it is impossible
         // to distinguish a NULL element from the end of the list).
-        let mut i: size_t = 0 as libc::c_int as size_t;
-        let mut n: size_t = htp_list::htp_list_array_size((*conn).transactions);
+        let mut i: usize = 0;
+        let mut n: usize = htp_list::htp_list_array_size((*conn).transactions);
         while i < n {
             let mut tx: *mut htp_transaction::htp_tx_t =
                 htp_list::htp_list_array_get((*conn).transactions, i)
@@ -127,35 +115,35 @@ pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
     }
     if !(*conn).messages.is_null() {
         // Destroy individual messages.
-        let mut i_0: size_t = 0 as libc::c_int as size_t;
-        let mut n_0: size_t = htp_list::htp_list_array_size((*conn).messages);
+        let mut i_0: usize = 0;
+        let mut n_0: usize = htp_list::htp_list_array_size((*conn).messages);
         while i_0 < n_0 {
             let mut l: *mut htp_util::htp_log_t =
                 htp_list::htp_list_array_get((*conn).messages, i_0) as *mut htp_util::htp_log_t;
-            free((*l).msg as *mut libc::c_void);
-            free(l as *mut libc::c_void);
+            free((*l).msg as *mut core::ffi::c_void);
+            free(l as *mut core::ffi::c_void);
             i_0 = i_0.wrapping_add(1)
         }
         htp_list::htp_list_array_destroy((*conn).messages);
         (*conn).messages = 0 as *mut htp_list::htp_list_array_t
     }
     if !(*conn).server_addr.is_null() {
-        free((*conn).server_addr as *mut libc::c_void);
+        free((*conn).server_addr as *mut core::ffi::c_void);
     }
     if !(*conn).client_addr.is_null() {
-        free((*conn).client_addr as *mut libc::c_void);
+        free((*conn).client_addr as *mut core::ffi::c_void);
     }
-    free(conn as *mut libc::c_void);
+    free(conn as *mut core::ffi::c_void);
 }
 
 /// Opens a connection. This function will essentially only store the provided data
 /// for future reference. The timestamp parameter is optional.
 pub unsafe fn htp_conn_open(
     mut conn: *mut htp_conn_t,
-    mut client_addr: *const libc::c_char,
-    mut client_port: libc::c_int,
-    mut server_addr: *const libc::c_char,
-    mut server_port: libc::c_int,
+    mut client_addr: *const i8,
+    mut client_port: i32,
+    mut server_addr: *const i8,
+    mut server_port: i32,
     mut timestamp: *const htp_time_t,
 ) -> Status {
     if conn.is_null() {
@@ -172,7 +160,7 @@ pub unsafe fn htp_conn_open(
         (*conn).server_addr = strdup(server_addr);
         if (*conn).server_addr.is_null() {
             if !(*conn).client_addr.is_null() {
-                free((*conn).client_addr as *mut libc::c_void);
+                free((*conn).client_addr as *mut core::ffi::c_void);
             }
             return Status::ERROR;
         }
@@ -181,9 +169,9 @@ pub unsafe fn htp_conn_open(
     // Remember when the connection was opened.
     if !timestamp.is_null() {
         memcpy(
-            &mut (*conn).open_timestamp as *mut htp_time_t as *mut libc::c_void,
-            timestamp as *const libc::c_void,
-            ::std::mem::size_of::<htp_time_t>() as libc::c_ulong,
+            &mut (*conn).open_timestamp as *mut htp_time_t as *mut core::ffi::c_void,
+            timestamp as *const core::ffi::c_void,
+            ::std::mem::size_of::<htp_time_t>(),
         );
     }
     return Status::OK;
@@ -207,32 +195,30 @@ pub unsafe fn htp_conn_remove_tx(
     return htp_list::htp_list_array_replace(
         (*conn).transactions,
         (*tx).index,
-        0 as *mut libc::c_void,
+        0 as *mut core::ffi::c_void,
     );
 }
 
 /// Keeps track of inbound packets and data.
 pub unsafe fn htp_conn_track_inbound_data(
     mut conn: *mut htp_conn_t,
-    mut len: size_t,
+    mut len: usize,
     mut _timestamp: *const htp_time_t,
 ) {
     if conn.is_null() {
         return;
     }
-    (*conn).in_data_counter =
-        ((*conn).in_data_counter as libc::c_ulong).wrapping_add(len) as int64_t as int64_t;
+    (*conn).in_data_counter = ((*conn).in_data_counter as u64).wrapping_add(len as u64) as i64;
 }
 
 /// Keeps track of outbound packets and data.
 pub unsafe fn htp_conn_track_outbound_data(
     mut conn: *mut htp_conn_t,
-    mut len: size_t,
+    mut len: usize,
     mut _timestamp: *const htp_time_t,
 ) {
     if conn.is_null() {
         return;
     }
-    (*conn).out_data_counter =
-        ((*conn).out_data_counter as libc::c_ulong).wrapping_add(len) as int64_t as int64_t;
+    (*conn).out_data_counter = ((*conn).out_data_counter as u64).wrapping_add(len as u64) as i64;
 }
