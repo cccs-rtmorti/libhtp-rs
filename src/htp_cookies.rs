@@ -10,9 +10,9 @@ pub const _ISspace: i32 = 8192;
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error.
 pub unsafe fn htp_parse_single_cookie_v0(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut data: *mut u8,
-    mut len: usize,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    data: *mut u8,
+    len: usize,
 ) -> Status {
     if len == 0 {
         return Status::OK;
@@ -25,7 +25,7 @@ pub unsafe fn htp_parse_single_cookie_v0(
     if pos == 0 {
         return Status::OK;
     }
-    let mut name: *mut bstr::bstr_t = bstr::bstr_dup_mem(data as *const core::ffi::c_void, pos);
+    let name: *mut bstr::bstr_t = bstr::bstr_dup_mem(data as *const core::ffi::c_void, pos);
     if name.is_null() {
         return Status::ERROR;
     }
@@ -56,7 +56,7 @@ pub unsafe fn htp_parse_single_cookie_v0(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
 pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_connp_t) -> Status {
-    let mut cookie_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
+    let cookie_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*(*connp).in_tx).request_headers,
         b"cookie\x00" as *const u8 as *const i8,
     )
@@ -69,12 +69,12 @@ pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_co
     if (*(*connp).in_tx).request_cookies.is_null() {
         return Status::ERROR;
     }
-    let mut data: *mut u8 = if (*(*cookie_header).value).realptr.is_null() {
+    let data: *mut u8 = if (*(*cookie_header).value).realptr.is_null() {
         ((*cookie_header).value as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*(*cookie_header).value).realptr
     };
-    let mut len: usize = (*(*cookie_header).value).len;
+    let len: usize = (*(*cookie_header).value).len;
     let mut pos: usize = 0;
     while pos < len {
         // Ignore whitespace at the beginning.
@@ -87,7 +87,7 @@ pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_co
         if pos == len {
             return Status::OK;
         }
-        let mut start: usize = pos;
+        let start: usize = pos;
         // Find the end of the cookie.
         while pos < len && *data.offset(pos as isize) != ';' as u8 {
             pos = pos.wrapping_add(1)

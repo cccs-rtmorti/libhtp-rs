@@ -19,11 +19,11 @@ pub struct bstr_builder_t {
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe fn bstr_builder_append_mem(
-    mut bb: *mut bstr_builder_t,
-    mut data: *const core::ffi::c_void,
-    mut len: usize,
+    bb: *mut bstr_builder_t,
+    data: *const core::ffi::c_void,
+    len: usize,
 ) -> Status {
-    let mut b: *mut bstr::bstr_t = bstr::bstr_dup_mem(data, len);
+    let b: *const bstr::bstr_t = bstr::bstr_dup_mem(data, len);
     if b.is_null() {
         return Status::ERROR;
     }
@@ -34,15 +34,15 @@ pub unsafe fn bstr_builder_append_mem(
 /// want to clear a builder once you've either read all the pieces and
 /// done something with them, or after you've converted the builder into
 /// a single string.
-pub unsafe fn bstr_builder_clear(mut bb: *mut bstr_builder_t) {
+pub unsafe fn bstr_builder_clear(bb: *const bstr_builder_t) {
     // Do nothing if the list is empty
     if htp_list::htp_list_array_size((*bb).pieces) == 0 {
         return;
     }
     let mut i: usize = 0;
-    let mut n: usize = htp_list::htp_list_array_size((*bb).pieces);
+    let n: usize = htp_list::htp_list_array_size((*bb).pieces);
     while i < n {
-        let mut b: *mut bstr::bstr_t =
+        let b: *mut bstr::bstr_t =
             htp_list::htp_list_array_get((*bb).pieces, i) as *mut bstr::bstr_t;
         bstr::bstr_free(b);
         i = i.wrapping_add(1)
@@ -69,15 +69,15 @@ pub unsafe fn bstr_builder_create() -> *mut bstr_builder_t {
 
 /// Destroys an existing string builder, also destroying all
 /// the pieces stored within.
-pub unsafe fn bstr_builder_destroy(mut bb: *mut bstr_builder_t) {
+pub unsafe fn bstr_builder_destroy(bb: *const bstr_builder_t) {
     if bb.is_null() {
         return;
     }
     // Destroy any pieces we might have
     let mut i: usize = 0;
-    let mut n: usize = htp_list::htp_list_array_size((*bb).pieces);
+    let n: usize = htp_list::htp_list_array_size((*bb).pieces);
     while i < n {
-        let mut b: *mut bstr::bstr_t =
+        let b: *mut bstr::bstr_t =
             htp_list::htp_list_array_get((*bb).pieces, i) as *mut bstr::bstr_t;
         bstr::bstr_free(b);
         i = i.wrapping_add(1)
@@ -89,7 +89,7 @@ pub unsafe fn bstr_builder_destroy(mut bb: *mut bstr_builder_t) {
 /// Returns the size (the number of pieces) currently in a string builder.
 ///
 /// Returns size
-pub unsafe fn bstr_builder_size(mut bb: *const bstr_builder_t) -> usize {
+pub unsafe fn bstr_builder_size(bb: *const bstr_builder_t) -> usize {
     return htp_list::htp_list_array_size((*bb).pieces);
 }
 
@@ -97,27 +97,27 @@ pub unsafe fn bstr_builder_size(mut bb: *const bstr_builder_t) -> usize {
 /// string builder. This method will not destroy any of the pieces.
 ///
 /// Returns New string, or NULL on error.
-pub unsafe fn bstr_builder_to_str(mut bb: *const bstr_builder_t) -> *mut bstr::bstr_t {
+pub unsafe fn bstr_builder_to_str(bb: *const bstr_builder_t) -> *mut bstr::bstr_t {
     let mut len: usize = 0;
     // Determine the size of the string
     let mut i: usize = 0;
-    let mut n: usize = htp_list::htp_list_array_size((*bb).pieces);
+    let n: usize = htp_list::htp_list_array_size((*bb).pieces);
     while i < n {
-        let mut b: *mut bstr::bstr_t =
+        let b: *const bstr::bstr_t =
             htp_list::htp_list_array_get((*bb).pieces, i) as *mut bstr::bstr_t;
         len = (len).wrapping_add((*b).len);
         i = i.wrapping_add(1)
     }
     // Allocate string
-    let mut bnew: *mut bstr::bstr_t = bstr::bstr_alloc(len);
+    let bnew: *mut bstr::bstr_t = bstr::bstr_alloc(len);
     if bnew.is_null() {
         return 0 as *mut bstr::bstr_t;
     }
     // Determine the size of the string
     let mut i_0: usize = 0;
-    let mut n_0: usize = htp_list::htp_list_array_size((*bb).pieces);
+    let n_0: usize = htp_list::htp_list_array_size((*bb).pieces);
     while i_0 < n_0 {
-        let mut b_0: *mut bstr::bstr_t =
+        let b_0: *mut bstr::bstr_t =
             htp_list::htp_list_array_get((*bb).pieces, i_0) as *mut bstr::bstr_t;
         bstr::bstr_add_noex(bnew, b_0);
         i_0 = i_0.wrapping_add(1)

@@ -217,7 +217,7 @@ pub struct htp_file_data_t {
 /// Is character a linear white space character?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_lws(mut c: i32) -> i32 {
+pub unsafe fn htp_is_lws(c: i32) -> i32 {
     if c == ' ' as i32 || c == '\t' as i32 {
         return 1;
     } else {
@@ -228,7 +228,7 @@ pub unsafe fn htp_is_lws(mut c: i32) -> i32 {
 /// Is character a separator character?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_separator(mut c: i32) -> i32 {
+pub unsafe fn htp_is_separator(c: i32) -> i32 {
     // separators = "(" | ")" | "<" | ">" | "@"
     // | "," | ";" | ":" | "\" | <">
     // | "/" | "[" | "]" | "?" | "="
@@ -244,7 +244,7 @@ pub unsafe fn htp_is_separator(mut c: i32) -> i32 {
 /// Is character a text character?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_text(mut c: i32) -> i32 {
+pub unsafe fn htp_is_text(c: i32) -> i32 {
     if c == '\t' as i32 {
         return 1;
     }
@@ -257,7 +257,7 @@ pub unsafe fn htp_is_text(mut c: i32) -> i32 {
 /// Is character a token character?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_token(mut c: i32) -> i32 {
+pub unsafe fn htp_is_token(c: i32) -> i32 {
     // token = 1*<any CHAR except CTLs or separators>
     // CHAR  = <any US-ASCII character (octets 0 - 127)>
     if c < 32 || c > 126 {
@@ -274,7 +274,7 @@ pub unsafe fn htp_is_token(mut c: i32) -> i32 {
 ///
 /// Returns 0 if nothing was removed, 1 if one or more LF characters were removed, or
 ///         2 if one or more CR and/or LF characters were removed.
-pub unsafe fn htp_chomp(mut data: *mut u8, mut len: *mut usize) -> i32 {
+pub unsafe fn htp_chomp(data: *mut u8, len: *mut usize) -> i32 {
     let mut r: i32 = 0;
     // Loop until there's no more stuff in the buffer
     while *len > 0 {
@@ -303,7 +303,7 @@ pub unsafe fn htp_chomp(mut data: *mut u8, mut len: *mut usize) -> i32 {
 /// Is character a white space character?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_space(mut c: i32) -> i32 {
+pub unsafe fn htp_is_space(c: i32) -> i32 {
     match c {
         32 | 12 | 11 | 9 | 13 | 10 => return 1,
         _ => return 0,
@@ -313,7 +313,7 @@ pub unsafe fn htp_is_space(mut c: i32) -> i32 {
 /// Converts request method, given as a string, into a number.
 ///
 /// Returns Method number of M_UNKNOWN
-pub unsafe fn htp_convert_method_to_number(mut method: *mut bstr::bstr_t) -> i32 {
+pub unsafe fn htp_convert_method_to_number(method: *mut bstr::bstr_t) -> i32 {
     if method.is_null() {
         return htp_request::htp_method_t::HTP_M_UNKNOWN as i32;
     }
@@ -408,7 +408,7 @@ pub unsafe fn htp_convert_method_to_number(mut method: *mut bstr::bstr_t) -> i32
 /// Is the given line empty?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_line_empty(mut data: *mut u8, mut len: usize) -> i32 {
+pub unsafe fn htp_is_line_empty(data: *mut u8, len: usize) -> i32 {
     if len == 1 || len == 2 && *data.offset(0) == '\r' as u8 && *data.offset(1) == '\n' as u8 {
         return 1;
     }
@@ -418,7 +418,7 @@ pub unsafe fn htp_is_line_empty(mut data: *mut u8, mut len: usize) -> i32 {
 /// Does line consist entirely of whitespace characters?
 ///
 /// Returns 0 or 1
-pub unsafe fn htp_is_line_whitespace(mut data: *mut u8, mut len: usize) -> i32 {
+pub unsafe fn htp_is_line_whitespace(data: *mut u8, len: usize) -> i32 {
     let mut i: usize = 0;
     i = 0;
     while i < len {
@@ -436,10 +436,10 @@ pub unsafe fn htp_is_line_whitespace(mut data: *mut u8, mut len: usize) -> i32 {
 /// Returns Content-Length as a number, or -1 on error.
 pub unsafe fn htp_parse_content_length(
     b: *const bstr::bstr_t,
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> i64 {
-    let mut len: usize = (*b).len;
-    let mut data: *mut u8 = if (*b).realptr.is_null() {
+    let len: usize = (*b).len;
+    let data: *mut u8 = if (*b).realptr.is_null() {
         (b as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*b).realptr
@@ -497,7 +497,7 @@ pub unsafe fn htp_parse_content_length(
 pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64 {
     // skip leading line feeds and other control chars
     while len != 0 {
-        let mut c: u8 = *data;
+        let c: u8 = *data;
         if !(c == 0xd || c == 0xa || c == 0x20 || c == 0x9 || c == 0xb || c == 0xc) {
             break;
         }
@@ -510,7 +510,7 @@ pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64
     // find how much of the data is correctly formatted
     let mut i: usize = 0;
     while i < len {
-        let mut c_0: u8 = *data.offset(i as isize);
+        let c_0: u8 = *data.offset(i as isize);
         if !(*(*__ctype_b_loc()).offset(c_0 as isize) as i32 & _ISdigit != 0
             || c_0 >= 'a' as u8 && c_0 <= 'f' as u8
             || c_0 >= 'A' as u8 && c_0 <= 'F' as u8)
@@ -523,7 +523,7 @@ pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64
     if i != len {
         len = i
     }
-    let mut chunk_len: i64 = htp_parse_positive_integer_whitespace(data, len, 16);
+    let chunk_len: i64 = htp_parse_positive_integer_whitespace(data, len, 16);
     if chunk_len < 0 {
         return chunk_len;
     }
@@ -537,11 +537,7 @@ pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64
 /// Only LWS is allowed before and after the number.
 ///
 /// Returns The parsed number on success; a negative number on error.
-pub unsafe fn htp_parse_positive_integer_whitespace(
-    data: *const u8,
-    mut len: usize,
-    mut base: i32,
-) -> i64 {
+pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize, base: i32) -> i64 {
     if len == 0 {
         return -1003;
     }
@@ -554,7 +550,7 @@ pub unsafe fn htp_parse_positive_integer_whitespace(
     if pos == len {
         return -1001;
     }
-    let mut r: i64 = bstr::bstr_util_mem_to_pint(
+    let r: i64 = bstr::bstr_util_mem_to_pint(
         data.offset(pos as isize) as *const core::ffi::c_void,
         len.wrapping_sub(pos),
         base,
@@ -578,12 +574,12 @@ pub unsafe fn htp_parse_positive_integer_whitespace(
 /// Records one log message.
 pub unsafe extern "C" fn htp_log(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut file: *const i8,
-    mut line: i32,
-    mut level: htp_log_level_t,
-    mut code: i32,
-    mut fmt: *const i8,
-    mut args: ...
+    file: *const i8,
+    line: i32,
+    level: htp_log_level_t,
+    code: i32,
+    fmt: *const i8,
+    args: ...
 ) {
     if connp.is_null() {
         return;
@@ -595,7 +591,7 @@ pub unsafe extern "C" fn htp_log(
         return;
     }
     args_0 = args.clone();
-    let mut r: i32 = vsnprintf(buf.as_mut_ptr(), 1024, fmt, args_0.as_va_list());
+    let r: i32 = vsnprintf(buf.as_mut_ptr(), 1024, fmt, args_0.as_va_list());
     if r < 0 {
         snprintf(
             buf.as_mut_ptr(),
@@ -630,14 +626,14 @@ pub unsafe extern "C" fn htp_log(
 /// Determines if the given line is a continuation (of some previous line).
 ///
 /// Returns 0 or 1 for false and true, respectively. Returns -1 on error (NULL pointer or length zero).
-pub unsafe fn htp_connp_is_line_folded(data: *const u8, mut len: usize) -> i32 {
+pub unsafe fn htp_connp_is_line_folded(data: *const u8, len: usize) -> i32 {
     if data.is_null() || len == 0 {
         return -1;
     }
     return htp_is_folding_char(*data.offset(0) as i32);
 }
 
-pub unsafe fn htp_is_folding_char(mut c: i32) -> i32 {
+pub unsafe fn htp_is_folding_char(c: i32) -> i32 {
     if htp_is_lws(c) != 0 || c == 0 {
         return 1;
     } else {
@@ -649,10 +645,10 @@ pub unsafe fn htp_is_folding_char(mut c: i32) -> i32 {
 ///
 /// Returns 0 or 1
 pub unsafe fn htp_connp_is_line_terminator(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut data: *mut u8,
-    mut len: usize,
-    mut next_no_lf: i32,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    data: *mut u8,
+    len: usize,
+    next_no_lf: i32,
 ) -> i32 {
     // Is this the end of request headers?
     match (*(*connp).cfg).server_personality as u32 {
@@ -679,25 +675,20 @@ pub unsafe fn htp_connp_is_line_terminator(
 ///
 /// Returns 0 or 1
 pub unsafe fn htp_connp_is_line_ignorable(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut data: *mut u8,
-    mut len: usize,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    data: *mut u8,
+    len: usize,
 ) -> i32 {
     return htp_connp_is_line_terminator(connp, data, len, 0);
 }
 
-unsafe fn htp_parse_port(
-    mut data: *mut u8,
-    mut len: usize,
-    mut port: *mut i32,
-    mut invalid: *mut i32,
-) -> Status {
+unsafe fn htp_parse_port(data: *mut u8, len: usize, port: *mut i32, invalid: *mut i32) -> Status {
     if len == 0 {
         *port = -1;
         *invalid = 1;
         return Status::OK;
     }
-    let mut port_parsed: i64 = htp_parse_positive_integer_whitespace(data, len, 10);
+    let port_parsed: i64 = htp_parse_positive_integer_whitespace(data, len, 10);
     if port_parsed < 0 {
         // Failed to parse the port number.
         *port = -1;
@@ -725,11 +716,11 @@ unsafe fn htp_parse_port(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on memory allocation failure.
 pub unsafe fn htp_parse_hostport(
-    mut hostport: *mut bstr::bstr_t,
-    mut hostname: *mut *mut bstr::bstr_t,
-    mut port: *mut *mut bstr::bstr_t,
-    mut port_number: *mut i32,
-    mut invalid: *mut i32,
+    hostport: *mut bstr::bstr_t,
+    hostname: *mut *mut bstr::bstr_t,
+    port: *mut *mut bstr::bstr_t,
+    port_number: *mut i32,
+    invalid: *mut i32,
 ) -> Status {
     if hostport.is_null() || hostname.is_null() || port_number.is_null() || invalid.is_null() {
         return Status::ERROR;
@@ -797,8 +788,7 @@ pub unsafe fn htp_parse_hostport(
     } else {
         // Not IPv6 host.
         // Is there a colon?
-        let mut colon: *mut u8 =
-            memchr(data as *const core::ffi::c_void, ':' as i32, len) as *mut u8;
+        let colon: *mut u8 = memchr(data as *const core::ffi::c_void, ':' as i32, len) as *mut u8;
         if colon.is_null() {
             // Hostname alone, no port.
             *hostname = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
@@ -847,12 +837,12 @@ pub unsafe fn htp_parse_hostport(
 ///
 /// Returns HTP_OK on success or HTP_ERROR error.
 pub unsafe fn htp_parse_uri_hostport(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut hostport: *mut bstr::bstr_t,
-    mut uri: *mut htp_uri_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    hostport: *mut bstr::bstr_t,
+    uri: *mut htp_uri_t,
 ) -> Status {
     let mut invalid: i32 = 0;
-    let mut rc: Status = htp_parse_hostport(
+    let rc: Status = htp_parse_hostport(
         hostport,
         &mut (*uri).hostname,
         &mut (*uri).port,
@@ -877,14 +867,14 @@ pub unsafe fn htp_parse_uri_hostport(
 ///
 /// Returns HTP_OK on success or HTP_ERROR error.
 pub unsafe fn htp_parse_header_hostport(
-    mut hostport: *mut bstr::bstr_t,
-    mut hostname: *mut *mut bstr::bstr_t,
-    mut port: *mut *mut bstr::bstr_t,
-    mut port_number: *mut i32,
-    mut flags: *mut Flags,
+    hostport: *mut bstr::bstr_t,
+    hostname: *mut *mut bstr::bstr_t,
+    port: *mut *mut bstr::bstr_t,
+    port_number: *mut i32,
+    flags: *mut Flags,
 ) -> Status {
     let mut invalid: i32 = 0;
-    let mut rc: Status = htp_parse_hostport(hostport, hostname, port, port_number, &mut invalid);
+    let rc: Status = htp_parse_hostport(hostport, hostname, port, port_number, &mut invalid);
     if rc != Status::OK {
         return rc;
     }
@@ -902,7 +892,7 @@ pub unsafe fn htp_parse_header_hostport(
 /// Parses request URI, making no attempt to validate the contents.
 ///
 /// Returns HTP_ERROR on memory allocation failure, HTP_OK otherwise
-pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri_t) -> Status {
+pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri_t) -> Status {
     // Allow a htp_uri_t structure to be provided on input,
     // but allocate a new one if the structure is NULL.
     if (*uri).is_null() {
@@ -916,12 +906,12 @@ pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp
         // contain the URI. We allow that.
         return Status::OK;
     }
-    let mut data: *mut u8 = if (*input).realptr.is_null() {
+    let data: *mut u8 = if (*input).realptr.is_null() {
         (input as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*input).realptr
     };
-    let mut len: usize = (*input).len;
+    let len: usize = (*input).len;
     let mut start: usize = 0;
     let mut pos: usize = 0;
     if len == 0 {
@@ -988,8 +978,8 @@ pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp
             ) as *mut u8;
             if !m.is_null() {
                 // Credentials present
-                let mut credentials_start: *mut u8 = data.offset(start as isize);
-                let mut credentials_len: usize =
+                let credentials_start: *mut u8 = data.offset(start as isize);
+                let credentials_len: usize =
                     (m.wrapping_offset_from(data) as usize).wrapping_sub(start);
                 // Figure out just the hostname part
                 hostname_start = data
@@ -1075,7 +1065,7 @@ pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp
                         hostname_len,
                     ) as *mut u8;
                     if !m.is_null() {
-                        let mut port_len: usize = hostname_len
+                        let port_len: usize = hostname_len
                             .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
                             .wrapping_sub(1);
                         (**uri).port =
@@ -1093,7 +1083,7 @@ pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp
                     hostname_len,
                 ) as *mut u8;
                 if !m.is_null() {
-                    let mut port_len_0: usize = hostname_len
+                    let port_len_0: usize = hostname_len
                         .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
                         .wrapping_sub(1);
                     hostname_len = hostname_len.wrapping_sub(port_len_0).wrapping_sub(1);
@@ -1176,7 +1166,7 @@ pub unsafe fn htp_parse_uri(mut input: *mut bstr::bstr_t, mut uri: *mut *mut htp
 /// characters. This function will happily convert invalid input.
 ///
 /// Returns hex-decoded byte
-unsafe fn x2c(mut what: *mut u8) -> u8 {
+unsafe fn x2c(what: *mut u8) -> u8 {
     let mut digit: u8 = 0;
     digit = if *what.offset(0) >= 'A' as u8 {
         ((*what.offset(0) & 0xdf) - 'A' as u8) + 10
@@ -1198,9 +1188,9 @@ unsafe fn x2c(mut what: *mut u8) -> u8 {
 ///
 /// Returns converted single byte
 unsafe fn bestfit_codepoint(
-    mut cfg: *mut htp_config::htp_cfg_t,
-    mut ctx: htp_config::htp_decoder_ctx_t,
-    mut codepoint: u32,
+    cfg: *mut htp_config::htp_cfg_t,
+    ctx: htp_config::htp_decoder_ctx_t,
+    codepoint: u32,
 ) -> u8 {
     // Is it a single-byte codepoint?
     if codepoint < 0x100 {
@@ -1214,7 +1204,7 @@ unsafe fn bestfit_codepoint(
     loop
     // TODO Optimize lookup.
     {
-        let mut x: u32 = (((*p.offset(0) as i32) << 8 as i32) + *p.offset(1) as i32) as u32;
+        let x: u32 = (((*p.offset(0) as i32) << 8 as i32) + *p.offset(1) as i32) as u32;
         if x == 0 {
             return (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte;
         }
@@ -1230,14 +1220,14 @@ unsafe fn bestfit_codepoint(
 /// characters will be left as-is. Best-fit mapping will be used to convert
 /// UTF-8 into a single-byte stream.
 pub unsafe fn htp_utf8_decode_path_inplace(
-    mut cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     mut tx: *mut htp_transaction::htp_tx_t,
-    mut path: *mut bstr::bstr_t,
+    path: *mut bstr::bstr_t,
 ) {
     if path.is_null() {
         return;
     }
-    let mut data: *mut u8 = if (*path).realptr.is_null() {
+    let data: *mut u8 = if (*path).realptr.is_null() {
         (path as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*path).realptr
@@ -1245,7 +1235,7 @@ pub unsafe fn htp_utf8_decode_path_inplace(
     if data.is_null() {
         return;
     }
-    let mut len: usize = (*path).len;
+    let len: usize = (*path).len;
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut codepoint: u32 = 0;
@@ -1349,16 +1339,13 @@ pub unsafe fn htp_utf8_decode_path_inplace(
 }
 
 /// Validate a path that is quite possibly UTF-8 encoded.
-pub unsafe fn htp_utf8_validate_path(
-    mut tx: *mut htp_transaction::htp_tx_t,
-    mut path: *mut bstr::bstr_t,
-) {
-    let mut data: *mut u8 = if (*path).realptr.is_null() {
+pub unsafe fn htp_utf8_validate_path(tx: *mut htp_transaction::htp_tx_t, path: *mut bstr::bstr_t) {
+    let data: *mut u8 = if (*path).realptr.is_null() {
         (path as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*path).realptr
     }; // How many bytes used by a UTF-8 character.
-    let mut len: usize = (*path).len;
+    let len: usize = (*path).len;
     let mut rpos: usize = 0;
     let mut codepoint: u32 = 0;
     let mut state: u32 = 0;
@@ -1429,12 +1416,12 @@ pub unsafe fn htp_utf8_validate_path(
 ///
 /// Returns decoded byte
 unsafe fn decode_u_encoding_path(
-    mut cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     mut tx: *mut htp_transaction::htp_tx_t,
-    mut data: *mut u8,
+    data: *mut u8,
 ) -> i32 {
-    let mut c1: u32 = x2c(data) as u32;
-    let mut c2: u32 = x2c(data.offset(2 as isize)) as u32;
+    let c1: u32 = x2c(data) as u32;
+    let c2: u32 = x2c(data.offset(2 as isize)) as u32;
     let mut r: i32 = (*cfg).decoder_cfgs
         [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
         .bestfit_replacement_byte as i32;
@@ -1487,13 +1474,13 @@ unsafe fn decode_u_encoding_path(
 ///
 /// Returns decoded byte
 unsafe fn decode_u_encoding_params(
-    mut cfg: *mut htp_config::htp_cfg_t,
-    mut ctx: htp_config::htp_decoder_ctx_t,
-    mut data: *mut u8,
-    mut flags: *mut Flags,
+    cfg: *mut htp_config::htp_cfg_t,
+    ctx: htp_config::htp_decoder_ctx_t,
+    data: *mut u8,
+    flags: *mut Flags,
 ) -> i32 {
-    let mut c1: u32 = x2c(data) as u32;
-    let mut c2: u32 = x2c(data.offset(2 as isize)) as u32;
+    let c1: u32 = x2c(data) as u32;
+    let c2: u32 = x2c(data.offset(2 as isize)) as u32;
     // Check for overlong usage first.
     if c1 == 0 {
         *flags |= Flags::HTP_URLEN_OVERLONG_U;
@@ -1525,13 +1512,13 @@ unsafe fn decode_u_encoding_params(
 /// Decode a request path according to the settings in the
 /// provided configuration structure.
 pub unsafe fn htp_decode_path_inplace(
-    mut tx: *mut htp_transaction::htp_tx_t,
-    mut path: *mut bstr::bstr_t,
+    tx: *mut htp_transaction::htp_tx_t,
+    path: *mut bstr::bstr_t,
 ) -> i32 {
     if path.is_null() {
         return -1;
     }
-    let mut data: *mut u8 = if (*path).realptr.is_null() {
+    let data: *mut u8 = if (*path).realptr.is_null() {
         (path as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*path).realptr
@@ -1539,8 +1526,8 @@ pub unsafe fn htp_decode_path_inplace(
     if data.is_null() {
         return -1;
     }
-    let mut len: usize = (*path).len;
-    let mut cfg: *mut htp_config::htp_cfg_t = (*tx).cfg;
+    let len: usize = (*path).len;
+    let cfg: *mut htp_config::htp_cfg_t = (*tx).cfg;
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut previous_was_separator: i32 = 0;
@@ -2021,11 +2008,11 @@ pub unsafe fn htp_decode_path_inplace(
 }
 
 pub unsafe fn htp_tx_urldecode_uri_inplace(
-    mut tx: *mut htp_transaction::htp_tx_t,
-    mut input: *mut bstr::bstr_t,
+    tx: *mut htp_transaction::htp_tx_t,
+    input: *mut bstr::bstr_t,
 ) -> Status {
     let mut flags: Flags = Flags::empty();
-    let mut rc: Status = htp_urldecode_inplace_ex(
+    let rc: Status = htp_urldecode_inplace_ex(
         (*tx).cfg,
         htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
         input,
@@ -2045,8 +2032,8 @@ pub unsafe fn htp_tx_urldecode_uri_inplace(
 }
 
 pub unsafe fn htp_tx_urldecode_params_inplace(
-    mut tx: *mut htp_transaction::htp_tx_t,
-    mut input: *mut bstr::bstr_t,
+    tx: *mut htp_transaction::htp_tx_t,
+    input: *mut bstr::bstr_t,
 ) -> Status {
     return htp_urldecode_inplace_ex(
         (*tx).cfg,
@@ -2062,10 +2049,10 @@ pub unsafe fn htp_tx_urldecode_params_inplace(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe fn htp_urldecode_inplace(
-    mut cfg: *mut htp_config::htp_cfg_t,
-    mut ctx: htp_config::htp_decoder_ctx_t,
-    mut input: *mut bstr::bstr_t,
-    mut flags: *mut Flags,
+    cfg: *mut htp_config::htp_cfg_t,
+    ctx: htp_config::htp_decoder_ctx_t,
+    input: *mut bstr::bstr_t,
+    flags: *mut Flags,
 ) -> Status {
     let mut expected_status_code: i32 = 0;
     return htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code);
@@ -2079,16 +2066,16 @@ pub unsafe fn htp_urldecode_inplace(
 /// Returns in expected_status_code: 0 by default, or status code as necessary
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe fn htp_urldecode_inplace_ex(
-    mut cfg: *mut htp_config::htp_cfg_t,
-    mut ctx: htp_config::htp_decoder_ctx_t,
-    mut input: *mut bstr::bstr_t,
-    mut flags: *mut Flags,
-    mut expected_status_code: *mut i32,
+    cfg: *mut htp_config::htp_cfg_t,
+    ctx: htp_config::htp_decoder_ctx_t,
+    input: *mut bstr::bstr_t,
+    flags: *mut Flags,
+    expected_status_code: *mut i32,
 ) -> Status {
     if input.is_null() {
         return Status::ERROR;
     }
-    let mut data: *mut u8 = if (*input).realptr.is_null() {
+    let data: *mut u8 = if (*input).realptr.is_null() {
         (input as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*input).realptr
@@ -2096,7 +2083,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
     if data.is_null() {
         return Status::ERROR;
     }
-    let mut len: usize = (*input).len;
+    let len: usize = (*input).len;
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut current_block_74: u64;
@@ -2489,8 +2476,8 @@ pub unsafe fn htp_urldecode_inplace_ex(
 ///
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe fn htp_normalize_parsed_uri(
-    mut tx: *mut htp_transaction::htp_tx_t,
-    mut incomplete: *mut htp_uri_t,
+    tx: *mut htp_transaction::htp_tx_t,
+    incomplete: *const htp_uri_t,
     mut normalized: *mut htp_uri_t,
 ) -> i32 {
     // Scheme.
@@ -2530,7 +2517,7 @@ pub unsafe fn htp_normalize_parsed_uri(
     }
     // Port.
     if !(*incomplete).port.is_null() {
-        let mut port_parsed: i64 = htp_parse_positive_integer_whitespace(
+        let port_parsed: i64 = htp_parse_positive_integer_whitespace(
             if (*(*incomplete).port).realptr.is_null() {
                 ((*incomplete).port as *mut u8)
                     .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
@@ -2601,7 +2588,7 @@ pub unsafe fn htp_normalize_parsed_uri(
 /// remove trailing dots from the end, if present.
 ///
 /// Returns Normalized hostname.
-pub unsafe fn htp_normalize_hostname_inplace(mut hostname: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
+pub unsafe fn htp_normalize_hostname_inplace(hostname: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
     if hostname.is_null() {
         return 0 as *mut bstr::bstr_t;
     }
@@ -2615,11 +2602,11 @@ pub unsafe fn htp_normalize_hostname_inplace(mut hostname: *mut bstr::bstr_t) ->
 
 /// Normalize URL path. This function implements the remove dot segments algorithm
 /// specified in RFC 3986, section 5.2.4.
-pub unsafe fn htp_normalize_uri_path_inplace(mut s: *mut bstr::bstr_t) {
+pub unsafe fn htp_normalize_uri_path_inplace(s: *mut bstr::bstr_t) {
     if s.is_null() {
         return;
     }
-    let mut data: *mut u8 = if (*s).realptr.is_null() {
+    let data: *mut u8 = if (*s).realptr.is_null() {
         (s as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*s).realptr
@@ -2627,7 +2614,7 @@ pub unsafe fn htp_normalize_uri_path_inplace(mut s: *mut bstr::bstr_t) {
     if data.is_null() {
         return;
     }
-    let mut len: usize = (*s).len;
+    let len: usize = (*s).len;
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut c: i32 = -1;
@@ -2740,7 +2727,7 @@ pub unsafe fn htp_normalize_uri_path_inplace(mut s: *mut bstr::bstr_t) {
 /// words "http" at the beginning.
 ///
 /// Returns 1 for good enough or 0 for not good enough
-pub unsafe fn htp_treat_response_line_as_body(mut data: *const u8, mut len: usize) -> i32 {
+pub unsafe fn htp_treat_response_line_as_body(data: *const u8, len: usize) -> i32 {
     // Browser behavior:
     //      Firefox 3.5.x: (?i)^\s*http
     //      IE: (?i)^\s*http\s*/
@@ -2781,8 +2768,8 @@ pub unsafe fn htp_treat_response_line_as_body(mut data: *const u8, mut len: usiz
 
 /// Run the REQUEST_BODY_DATA hook.
 pub unsafe fn htp_req_run_hook_body_data(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut d: *mut htp_transaction::htp_tx_data_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
     // Do not invoke callbacks with an empty data chunk
     if !(*d).data.is_null() && (*d).len == 0 {
@@ -2832,8 +2819,8 @@ pub unsafe fn htp_req_run_hook_body_data(
 
 /// Run the RESPONSE_BODY_DATA hook.
 pub unsafe fn htp_res_run_hook_body_data(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut d: *mut htp_transaction::htp_tx_data_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
     // Do not invoke callbacks with an empty data chunk.
     if !(*d).data.is_null() && (*d).len == 0 {
@@ -2863,10 +2850,10 @@ pub unsafe fn htp_res_run_hook_body_data(
 /// Returns HTP_OK on success, HTP_DECLINED if the input is not well formed,
 ///         and HTP_ERROR on fatal errors.
 pub unsafe fn htp_extract_quoted_string_as_bstr(
-    mut data: *mut u8,
-    mut len: usize,
-    mut out: *mut *mut bstr::bstr_t,
-    mut endoffset: *mut usize,
+    data: *const u8,
+    len: usize,
+    out: *mut *mut bstr::bstr_t,
+    endoffset: *mut usize,
 ) -> Status {
     if data.is_null() || out.is_null() {
         return Status::ERROR;
@@ -2903,12 +2890,12 @@ pub unsafe fn htp_extract_quoted_string_as_bstr(
         return Status::DECLINED;
     }
     // Copy the data and unescape it as necessary.
-    let mut outlen: usize = pos.wrapping_sub(1).wrapping_sub(escaped_chars);
+    let outlen: usize = pos.wrapping_sub(1).wrapping_sub(escaped_chars);
     *out = bstr::bstr_alloc(outlen);
     if (*out).is_null() {
         return Status::ERROR;
     }
-    let mut outptr: *mut u8 = if (**out).realptr.is_null() {
+    let outptr: *mut u8 = if (**out).realptr.is_null() {
         (*out as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (**out).realptr
@@ -2943,18 +2930,18 @@ pub unsafe fn htp_extract_quoted_string_as_bstr(
 }
 
 pub unsafe fn htp_parse_ct_header(
-    mut header: *mut bstr::bstr_t,
-    mut ct: *mut *mut bstr::bstr_t,
+    header: *const bstr::bstr_t,
+    ct: *mut *mut bstr::bstr_t,
 ) -> Status {
     if header.is_null() || ct.is_null() {
         return Status::ERROR;
     }
-    let mut data: *mut u8 = if (*header).realptr.is_null() {
+    let data: *mut u8 = if (*header).realptr.is_null() {
         (header as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*header).realptr
     };
-    let mut len: usize = (*header).len;
+    let len: usize = (*header).len;
     // The assumption here is that the header value we receive
     // here has been left-trimmed, which means the starting position
     // is on the media type. On some platforms that may not be the
@@ -2979,13 +2966,13 @@ pub unsafe fn htp_parse_ct_header(
 /// Implements relaxed (not strictly RFC) hostname validation.
 ///
 /// Returns 1 if the supplied hostname is valid; 0 if it is not.
-pub unsafe fn htp_validate_hostname(mut hostname: *mut bstr::bstr_t) -> i32 {
-    let mut data: *mut u8 = if (*hostname).realptr.is_null() {
+pub unsafe fn htp_validate_hostname(hostname: *mut bstr::bstr_t) -> i32 {
+    let data: *mut u8 = if (*hostname).realptr.is_null() {
         (hostname as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*hostname).realptr
     };
-    let mut len: usize = (*hostname).len;
+    let len: usize = (*hostname).len;
     let mut startpos: usize = 0;
     let mut pos: usize = 0;
     if len == 0 || len > 255 {
@@ -2995,7 +2982,7 @@ pub unsafe fn htp_validate_hostname(mut hostname: *mut bstr::bstr_t) -> i32 {
         // Validate label characters.
         startpos = pos;
         while pos < len && *data.offset(pos as isize) != '.' as u8 {
-            let mut c: u8 = *data.offset(pos as isize);
+            let c: u8 = *data.offset(pos as isize);
             // Exactly one dot expected.
             // According to the RFC, the underscore is not allowed in a label, but
             // we allow it here because we think it's often seen in practice.
@@ -3027,7 +3014,7 @@ pub unsafe fn htp_validate_hostname(mut hostname: *mut bstr::bstr_t) -> i32 {
 }
 
 /// Frees all data contained in the uri, and then the uri itself.
-pub unsafe fn htp_uri_free(mut uri: *mut htp_uri_t) {
+pub unsafe fn htp_uri_free(uri: *mut htp_uri_t) {
     if uri.is_null() {
         return;
     }

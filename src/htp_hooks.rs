@@ -39,12 +39,12 @@ pub unsafe fn htp_hook_create() -> *mut htp_hook_t {
 
 /// Destroys an existing hook. It is all right to send a NULL
 /// to this method because it will simply return straight away.
-pub unsafe fn htp_hook_destroy(mut hook: *mut htp_hook_t) {
+pub unsafe fn htp_hook_destroy(hook: *mut htp_hook_t) {
     if hook.is_null() {
         return;
     }
     let mut i: usize = 0;
-    let mut n: usize = htp_list::htp_list_array_size((*hook).callbacks);
+    let n: usize = htp_list::htp_list_array_size((*hook).callbacks);
     while i < n {
         free(
             htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t
@@ -60,7 +60,7 @@ pub unsafe fn htp_hook_destroy(mut hook: *mut htp_hook_t) {
 ///
 /// Returns HTP_OK on success, HTP_ERROR on memory allocation error.
 pub unsafe fn htp_hook_register(
-    mut hook: *mut *mut htp_hook_t,
+    hook: *mut *mut htp_hook_t,
     callback_fn: htp_callback_fn_t,
 ) -> Status {
     if hook.is_null() {
@@ -102,19 +102,19 @@ pub unsafe fn htp_hook_register(
 ///         no error but processing should stop, and HTP_ERROR or any other value
 ///         less than zero on error.
 pub unsafe fn htp_hook_run_all(
-    mut hook: *mut htp_hook_t,
-    mut user_data: *mut core::ffi::c_void,
+    hook: *const htp_hook_t,
+    user_data: *mut core::ffi::c_void,
 ) -> Status {
     if hook.is_null() {
         return Status::OK;
     }
     // Loop through the registered callbacks, giving each a chance to run.
     let mut i: usize = 0;
-    let mut n: usize = htp_list::htp_list_array_size((*hook).callbacks);
+    let n: usize = htp_list::htp_list_array_size((*hook).callbacks);
     while i < n {
-        let mut callback: *mut htp_callback_t =
+        let callback: *const htp_callback_t =
             htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
-        let mut rc: Status = (*callback).fn_0.expect("non-null function pointer")(user_data);
+        let rc: Status = (*callback).fn_0.expect("non-null function pointer")(user_data);
         // A hook can return HTP_OK to say that it did some work,
         // or HTP_DECLINED to say that it did no work. Anything else
         // is treated as an error.

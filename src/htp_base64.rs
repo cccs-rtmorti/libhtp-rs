@@ -26,13 +26,13 @@ pub struct htp_base64_decoder {
 ///
 /// Returns decoded character
 pub unsafe fn htp_base64_decode_single(mut value_in: i8) -> i32 {
-    static mut decoding: [i8; 80] = [
+    static decoding: [i8; 80] = [
         62, -1, -1, -1, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -2, -1, -1, -1, 0,
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
         -1, -1, -1, -1, -1, -1, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
         43, 44, 45, 46, 47, 48, 49, 50, 51,
     ];
-    static mut decoding_size: i8 = ::std::mem::size_of::<[i8; 80]>() as i8;
+    static decoding_size: i8 = ::std::mem::size_of::<[i8; 80]>() as i8;
     value_in = value_in - 43;
     if value_in < 0 || value_in > decoding_size - 1 {
         return -1;
@@ -51,13 +51,13 @@ pub unsafe fn htp_base64_decoder_init(mut decoder: *mut htp_base64_decoder) {
 /// Returns how many bytes were placed into plaintext output
 pub unsafe fn htp_base64_decode(
     mut decoder: *mut htp_base64_decoder,
-    mut _code_in: *const core::ffi::c_void,
-    mut length_in: i32,
+    _code_in: *const core::ffi::c_void,
+    length_in: i32,
     mut _plaintext_out: *mut core::ffi::c_void,
     mut length_out: i32,
 ) -> i32 {
-    let mut code_in: *const u8 = _code_in as *const u8;
-    let mut plaintext_out: *mut u8 = _plaintext_out as *mut u8;
+    let code_in: *const u8 = _code_in as *const u8;
+    let plaintext_out: *mut u8 = _plaintext_out as *mut u8;
     let mut codechar: *const u8 = code_in;
     let mut plainchar: *mut u8 = plaintext_out;
     let mut fragment: i8 = 0;
@@ -192,8 +192,8 @@ pub unsafe fn htp_base64_decode(
 ///
 /// Returns new base64-decoded bstring
 pub unsafe fn htp_base64_decode_mem(
-    mut data: *const core::ffi::c_void,
-    mut len: usize,
+    data: *const core::ffi::c_void,
+    len: usize,
 ) -> *mut bstr::bstr_t {
     let mut decoder: htp_base64_decoder = htp_base64_decoder {
         step: step_a,
@@ -201,11 +201,11 @@ pub unsafe fn htp_base64_decode_mem(
     };
     let mut r: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     htp_base64_decoder_init(&mut decoder);
-    let mut tmpstr: *mut u8 = malloc(len) as *mut u8;
+    let tmpstr: *mut u8 = malloc(len) as *mut u8;
     if tmpstr.is_null() {
         return 0 as *mut bstr::bstr_t;
     }
-    let mut resulting_len: i32 = htp_base64_decode(
+    let resulting_len: i32 = htp_base64_decode(
         &mut decoder,
         data,
         len as i32,

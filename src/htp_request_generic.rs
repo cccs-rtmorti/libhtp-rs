@@ -22,11 +22,11 @@ pub const _ISspace: i32 = 8192;
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_process_request_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut data: *mut u8,
-    mut len: usize,
+    data: *mut u8,
+    len: usize,
 ) -> Status {
     // Create a new header structure.
-    let mut h: *mut htp_transaction::htp_header_t =
+    let h: *mut htp_transaction::htp_header_t =
         calloc(1, ::std::mem::size_of::<htp_transaction::htp_header_t>())
             as *mut htp_transaction::htp_header_t;
     if h.is_null() {
@@ -72,11 +72,11 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         {
             // Don't use string comparison here because we want to
             // ignore small formatting differences.
-            let mut existing_cl: i64 = htp_util::htp_parse_content_length(
+            let existing_cl: i64 = htp_util::htp_parse_content_length(
                 (*h_existing).value,
                 0 as *mut htp_connection_parser::htp_connp_t,
             );
-            let mut new_cl: i64 = htp_util::htp_parse_content_length(
+            let new_cl: i64 = htp_util::htp_parse_content_length(
                 (*h).value,
                 0 as *mut htp_connection_parser::htp_connp_t,
             );
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
             }
         } else {
             // Add to the existing header.
-            let mut new_value: *mut bstr::bstr_t = bstr::bstr_expand(
+            let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
                 (*h_existing).value,
                 (*(*h_existing).value)
                     .len
@@ -135,9 +135,9 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
 ///
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_header_generic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
     mut h: *mut htp_transaction::htp_header_t,
-    mut data: *mut u8,
+    data: *mut u8,
     mut len: usize,
 ) -> Status {
     let mut name_start: usize = 0;
@@ -294,17 +294,17 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
 ///
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_line_generic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     return htp_parse_request_line_generic_ex(connp, 0);
 }
 
 pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut nul_terminates: i32,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    nul_terminates: i32,
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*connp).in_tx;
-    let mut data: *mut u8 = if (*(*tx).request_line).realptr.is_null() {
+    let data: *mut u8 = if (*(*tx).request_line).realptr.is_null() {
         ((*tx).request_line as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*(*tx).request_line).realptr

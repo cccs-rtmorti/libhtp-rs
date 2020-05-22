@@ -162,7 +162,7 @@ pub unsafe fn htp_connp_clear_error(mut connp: *mut htp_connp_t) {
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_req_close(mut connp: *mut htp_connp_t, mut timestamp: *const htp_time_t) {
+pub unsafe fn htp_connp_req_close(mut connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
     if connp.is_null() {
         return;
     }
@@ -178,7 +178,7 @@ pub unsafe fn htp_connp_req_close(mut connp: *mut htp_connp_t, mut timestamp: *c
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_close(mut connp: *mut htp_connp_t, mut timestamp: *const htp_time_t) {
+pub unsafe fn htp_connp_close(connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
     if connp.is_null() {
         return;
     }
@@ -204,7 +204,7 @@ pub unsafe fn htp_connp_close(mut connp: *mut htp_connp_t, mut timestamp: *const
 /// structure to go along with every connection parser.
 ///
 /// Returns a new connection parser instance, or NULL on error.
-pub unsafe fn htp_connp_create(mut cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
+pub unsafe fn htp_connp_create(cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
     let mut connp: *mut htp_connp_t =
         calloc(1, ::std::mem::size_of::<htp_connp_t>()) as *mut htp_connp_t;
     if connp.is_null() {
@@ -275,7 +275,7 @@ pub unsafe fn htp_connp_destroy_all(mut connp: *mut htp_connp_t) {
 /// Returns the connection associated with the connection parser.
 /// Returns a htp_conn_t instance, or NULL if one is not available.
 pub unsafe fn htp_connp_get_connection(
-    mut connp: *const htp_connp_t,
+    connp: *const htp_connp_t,
 ) -> *mut htp_connection::htp_conn_t {
     if connp.is_null() {
         return 0 as *mut htp_connection::htp_conn_t;
@@ -288,7 +288,7 @@ pub unsafe fn htp_connp_get_connection(
 /// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
 ///
 /// Returns active inbound transaction, or NULL if there isn't one.
-pub unsafe fn htp_connp_get_in_tx(mut connp: *const htp_connp_t) -> *mut htp_transaction::htp_tx_t {
+pub unsafe fn htp_connp_get_in_tx(connp: *const htp_connp_t) -> *mut htp_transaction::htp_tx_t {
     if connp.is_null() {
         return 0 as *mut htp_transaction::htp_tx_t;
     }
@@ -301,7 +301,7 @@ pub unsafe fn htp_connp_get_in_tx(mut connp: *const htp_connp_t) -> *mut htp_tra
 ///
 /// Returns a pointer to an htp_util::htp_log_t instance if there is an error, or NULL
 ///         if there isn't.
-pub unsafe fn htp_connp_get_last_error(mut connp: *const htp_connp_t) -> *mut htp_util::htp_log_t {
+pub unsafe fn htp_connp_get_last_error(connp: *const htp_connp_t) -> *mut htp_util::htp_log_t {
     if connp.is_null() {
         return 0 as *mut htp_util::htp_log_t;
     }
@@ -313,9 +313,7 @@ pub unsafe fn htp_connp_get_last_error(mut connp: *const htp_connp_t) -> *mut ht
 /// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
 ///
 /// Returns active outbound transaction, or NULL if there isn't one.
-pub unsafe fn htp_connp_get_out_tx(
-    mut connp: *const htp_connp_t,
-) -> *mut htp_transaction::htp_tx_t {
+pub unsafe fn htp_connp_get_out_tx(connp: *const htp_connp_t) -> *mut htp_transaction::htp_tx_t {
     if connp.is_null() {
         return 0 as *mut htp_transaction::htp_tx_t;
     }
@@ -325,7 +323,7 @@ pub unsafe fn htp_connp_get_out_tx(
 /// Retrieve the user data associated with this connection parser.
 ///
 /// Returns user data, or NULL if there isn't any.
-pub unsafe fn htp_connp_get_user_data(mut connp: *const htp_connp_t) -> *mut core::ffi::c_void {
+pub unsafe fn htp_connp_get_user_data(connp: *const htp_connp_t) -> *mut core::ffi::c_void {
     if connp.is_null() {
         return 0 as *mut core::ffi::c_void;
     }
@@ -347,11 +345,11 @@ pub unsafe fn htp_connp_in_reset(mut connp: *mut htp_connp_t) {
 /// timestamp is optional
 pub unsafe fn htp_connp_open(
     mut connp: *mut htp_connp_t,
-    mut client_addr: *const i8,
-    mut client_port: i32,
-    mut server_addr: *const i8,
-    mut server_port: i32,
-    mut timestamp: *mut htp_time_t,
+    client_addr: *const i8,
+    client_port: i32,
+    server_addr: *const i8,
+    server_port: i32,
+    timestamp: *const htp_time_t,
 ) {
     if connp.is_null() {
         return;
@@ -388,7 +386,7 @@ pub unsafe fn htp_connp_open(
 /// Associate user data with the supplied parser.
 pub unsafe fn htp_connp_set_user_data(
     mut connp: *mut htp_connp_t,
-    mut user_data: *const core::ffi::c_void,
+    user_data: *const core::ffi::c_void,
 ) {
     if connp.is_null() {
         return;
@@ -407,7 +405,7 @@ pub unsafe fn htp_connp_tx_create(mut connp: *mut htp_connp_t) -> *mut htp_trans
     if htp_list::htp_list_array_size((*(*connp).conn).transactions) > (*connp).out_next_tx_index {
         (*(*connp).conn).flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
     }
-    let mut tx: *mut htp_transaction::htp_tx_t = htp_transaction::htp_tx_create(connp);
+    let tx: *mut htp_transaction::htp_tx_t = htp_transaction::htp_tx_create(connp);
     if tx.is_null() {
         return 0 as *mut htp_transaction::htp_tx_t;
     }
@@ -417,10 +415,7 @@ pub unsafe fn htp_connp_tx_create(mut connp: *mut htp_connp_t) -> *mut htp_trans
 }
 
 /// Removes references to the supplied transaction.
-pub unsafe fn htp_connp_tx_remove(
-    mut connp: *mut htp_connp_t,
-    mut tx: *mut htp_transaction::htp_tx_t,
-) {
+pub unsafe fn htp_connp_tx_remove(mut connp: *mut htp_connp_t, tx: *mut htp_transaction::htp_tx_t) {
     if connp.is_null() {
         return;
     }

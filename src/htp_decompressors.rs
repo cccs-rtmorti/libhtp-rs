@@ -103,16 +103,15 @@ pub struct htp_decompressor_gzip_t {
     pub buffer: *mut u8,
     pub crc: u64,
 }
-
-unsafe fn SzAlloc(mut _p: lzma::LzmaDec::ISzAllocPtr, mut size: usize) -> *mut core::ffi::c_void {
+unsafe fn SzAlloc(mut _p: lzma::LzmaDec::ISzAllocPtr, size: usize) -> *mut core::ffi::c_void {
     return malloc(size);
 }
-unsafe fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, mut address: *mut core::ffi::c_void) {
+unsafe fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, address: *mut core::ffi::c_void) {
     free(address);
 }
 #[no_mangle]
 pub static mut lzma_Alloc: lzma::LzmaDec::ISzAlloc = {
-    let mut init = lzma::LzmaDec::ISzAlloc {
+    let init = lzma::LzmaDec::ISzAlloc {
         Alloc: Some(
             SzAlloc as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: usize) -> *mut core::ffi::c_void,
         ),
@@ -126,10 +125,7 @@ pub static mut lzma_Alloc: lzma::LzmaDec::ISzAlloc = {
 ///  See if the header has extensions
 ///
 ///  Returns number of bytes to skip
-unsafe extern "C" fn htp_gzip_decompressor_probe(
-    mut data: *const u8,
-    mut data_len: usize,
-) -> usize {
+unsafe extern "C" fn htp_gzip_decompressor_probe(data: *const u8, data_len: usize) -> usize {
     if data_len < 4 {
         return 0;
     }
@@ -140,8 +136,7 @@ unsafe extern "C" fn htp_gzip_decompressor_probe(
             // - FNAME extension, which is a name ended in a NUL terminator
             // or
             // - FCOMMENT extension, which is a commend ended in a NULL terminator
-            let mut len: usize = 0;
-            len = 10;
+            let mut len: usize = 10;
             while len < data_len && *data.offset(len as isize) != 0 {
                 len = len.wrapping_add(1)
             }
@@ -163,11 +158,11 @@ unsafe extern "C" fn htp_gzip_decompressor_probe(
 ///  Returns 1 if it restarted, 0 otherwise
 unsafe extern "C" fn htp_gzip_decompressor_restart(
     mut drec: *mut htp_decompressor_gzip_t,
-    mut data: *const u8,
-    mut data_len: usize,
-    mut consumed_back: *mut usize,
+    data: *const u8,
+    data_len: usize,
+    consumed_back: *mut usize,
 ) -> i32 {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut consumed: usize = 0;
     let mut rc: i32 = 0;
     if ((*drec).restart) < 3 {
@@ -254,7 +249,7 @@ unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
 /// Returns HTP_OK on success, HTP_ERROR or some other negative integer on failure.
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
-    mut d: *mut htp_transaction::htp_tx_data_t,
+    d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
     let mut consumed: usize = 0;
     let mut rc: i32 = 0;
@@ -414,7 +409,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     (*drec).stream.avail_out =
                         ((*drec).stream.avail_out as usize).wrapping_sub(outprocessed) as u32;
                     (*drec).stream.next_out = (*drec).stream.next_out.offset(outprocessed as isize);
-                    let mut current_block_82: u64;
+                    let current_block_82: u64;
                     match rc {
                         0 => {
                             rc = 0;
@@ -473,7 +468,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             }
             if rc == 1 {
                 // How many bytes do we have?
-                let mut len: usize = 8192_u32.wrapping_sub((*drec).stream.avail_out) as usize;
+                let len: usize = 8192_u32.wrapping_sub((*drec).stream.avail_out) as usize;
                 // Update CRC
                 // Prepare data for the callback.
                 let mut d2_1: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
@@ -559,7 +554,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
 }
 
 /// Shut down gzip decompressor.
-unsafe extern "C" fn htp_gzip_decompressor_destroy(mut drec: *mut htp_decompressor_gzip_t) {
+unsafe extern "C" fn htp_gzip_decompressor_destroy(drec: *mut htp_decompressor_gzip_t) {
     if drec.is_null() {
         return;
     }
@@ -574,8 +569,8 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(mut drec: *mut htp_decompress
 ///
 /// Returns New htp_decompressor_t instance on success, or NULL on failure.
 pub unsafe fn htp_gzip_decompressor_create(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut format: htp_content_encoding_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
+    format: htp_content_encoding_t,
 ) -> *mut htp_decompressor_t {
     let mut drec: *mut htp_decompressor_gzip_t =
         calloc(1, ::std::mem::size_of::<htp_decompressor_gzip_t>()) as *mut htp_decompressor_gzip_t;

@@ -19,7 +19,7 @@ extern "C" {
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
-    mut d: *mut htp_transaction::htp_tx_data_t,
+    d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx;
     // Check that we were not invoked again after the finalization.
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
         let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut i: usize = 0;
-        let mut n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_body).params);
+        let n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_body).params);
         while i < n {
             value =
                 htp_table::htp_table_get_index((*(*tx).request_urlenp_body).params, i, &mut name)
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut i: usize = 0;
-    let mut n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_query).params);
+    let n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_query).params);
     while i < n {
         value = htp_table::htp_table_get_index((*(*tx).request_urlenp_query).params, i, &mut name)
             as *mut bstr::bstr_t;
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
-    mut d: *mut htp_transaction::htp_tx_data_t,
+    d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx;
     // Check that we were not invoked again after the finalization.
@@ -193,12 +193,12 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     } else {
         // Finalize parsing.
         htp_multipart::htp_mpartp_finalize((*tx).request_mpartp);
-        let mut body: *mut htp_multipart::htp_multipart_t =
+        let body: *mut htp_multipart::htp_multipart_t =
             htp_multipart::htp_mpartp_get_multipart((*tx).request_mpartp);
         let mut i: usize = 0;
-        let mut n: usize = htp_list::htp_list_array_size((*body).parts);
+        let n: usize = htp_list::htp_list_array_size((*body).parts);
         while i < n {
-            let mut part: *mut htp_multipart::htp_multipart_part_t =
+            let part: *mut htp_multipart::htp_multipart_part_t =
                 htp_list::htp_list_array_get((*body).parts, i)
                     as *mut htp_multipart::htp_multipart_part_t;
             // Use text parameters.
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
         return Status::DECLINED;
     }
     // Look for a boundary.
-    let mut ct: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
+    let ct: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
         (*tx).request_headers,
         b"content-type\x00" as *const u8 as *const i8,
     ) as *mut htp_transaction::htp_header_t;
@@ -253,7 +253,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     }
     let mut boundary: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut flags: MultipartFlags = MultipartFlags::empty();
-    let mut rc: Status =
+    let rc: Status =
         htp_multipart::htp_mpartp_find_boundary((*ct).value, &mut boundary, &mut flags);
     if rc != Status::OK {
         // No boundary (HTP_DECLINED) or error (HTP_ERROR).

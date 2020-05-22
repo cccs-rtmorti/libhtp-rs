@@ -16,15 +16,15 @@ pub const _ISspace: i32 = 8192;
 
 /// Generic response line parser.
 pub unsafe extern "C" fn htp_parse_response_line_generic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*connp).out_tx;
-    let mut data: *mut u8 = if (*(*tx).response_line).realptr.is_null() {
+    let data: *const u8 = if (*(*tx).response_line).realptr.is_null() {
         ((*tx).response_line as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
     } else {
         (*(*tx).response_line).realptr
     };
-    let mut len: usize = (*(*tx).response_line).len;
+    let len: usize = (*(*tx).response_line).len;
     let mut pos: usize = 0;
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
     (*tx).response_protocol_number = Protocol::INVALID as i32;
@@ -97,9 +97,9 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
 
 /// Generic response header parser.
 pub unsafe extern "C" fn htp_parse_response_header_generic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
     mut h: *mut htp_transaction::htp_header_t,
-    mut data: *mut u8,
+    data: *mut u8,
     mut len: usize,
 ) -> Status {
     let mut name_start: usize = 0;
@@ -247,11 +247,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
 /// into a single buffer before invoking the parsing function.
 pub unsafe extern "C" fn htp_process_response_header_generic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
-    mut data: *mut u8,
-    mut len: usize,
+    data: *mut u8,
+    len: usize,
 ) -> Status {
     // Create a new header structure.
-    let mut h: *mut htp_transaction::htp_header_t =
+    let h: *mut htp_transaction::htp_header_t =
         calloc(1, ::std::mem::size_of::<htp_transaction::htp_header_t>())
             as *mut htp_transaction::htp_header_t;
     if h.is_null() {
@@ -317,7 +317,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             }
         } else {
             // Add to the existing header.
-            let mut new_value: *mut bstr::bstr_t = bstr::bstr_expand(
+            let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
                 (*h_existing).value,
                 (*(*h_existing).value)
                     .len

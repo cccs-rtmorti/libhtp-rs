@@ -71,7 +71,7 @@ pub unsafe fn htp_conn_create() -> *mut htp_conn_t {
 }
 
 /// Closes the connection.
-pub unsafe fn htp_conn_close(mut conn: *mut htp_conn_t, mut timestamp: *const htp_time_t) {
+pub unsafe fn htp_conn_close(conn: *mut htp_conn_t, timestamp: *const htp_time_t) {
     if conn.is_null() {
         return;
     }
@@ -100,9 +100,9 @@ pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
         // list element may be NULL (and with the iterator it is impossible
         // to distinguish a NULL element from the end of the list).
         let mut i: usize = 0;
-        let mut n: usize = htp_list::htp_list_array_size((*conn).transactions);
+        let n: usize = htp_list::htp_list_array_size((*conn).transactions);
         while i < n {
-            let mut tx: *mut htp_transaction::htp_tx_t =
+            let tx: *mut htp_transaction::htp_tx_t =
                 htp_list::htp_list_array_get((*conn).transactions, i)
                     as *mut htp_transaction::htp_tx_t;
             if !tx.is_null() {
@@ -116,9 +116,9 @@ pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
     if !(*conn).messages.is_null() {
         // Destroy individual messages.
         let mut i_0: usize = 0;
-        let mut n_0: usize = htp_list::htp_list_array_size((*conn).messages);
+        let n_0: usize = htp_list::htp_list_array_size((*conn).messages);
         while i_0 < n_0 {
-            let mut l: *mut htp_util::htp_log_t =
+            let l: *mut htp_util::htp_log_t =
                 htp_list::htp_list_array_get((*conn).messages, i_0) as *mut htp_util::htp_log_t;
             free((*l).msg as *mut core::ffi::c_void);
             free(l as *mut core::ffi::c_void);
@@ -140,11 +140,11 @@ pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
 /// for future reference. The timestamp parameter is optional.
 pub unsafe fn htp_conn_open(
     mut conn: *mut htp_conn_t,
-    mut client_addr: *const i8,
-    mut client_port: i32,
-    mut server_addr: *const i8,
-    mut server_port: i32,
-    mut timestamp: *const htp_time_t,
+    client_addr: *const i8,
+    client_port: i32,
+    server_addr: *const i8,
+    server_port: i32,
+    timestamp: *const htp_time_t,
 ) -> Status {
     if conn.is_null() {
         return Status::ERROR;
@@ -183,8 +183,8 @@ pub unsafe fn htp_conn_open(
 ///
 /// Returns HTP_OK if transaction was removed (replaced with NULL) or HTP_ERROR if it wasn't found.
 pub unsafe fn htp_conn_remove_tx(
-    mut conn: *mut htp_conn_t,
-    mut tx: *const htp_transaction::htp_tx_t,
+    conn: *mut htp_conn_t,
+    tx: *const htp_transaction::htp_tx_t,
 ) -> Status {
     if tx.is_null() || conn.is_null() {
         return Status::ERROR;
@@ -202,8 +202,8 @@ pub unsafe fn htp_conn_remove_tx(
 /// Keeps track of inbound packets and data.
 pub unsafe fn htp_conn_track_inbound_data(
     mut conn: *mut htp_conn_t,
-    mut len: usize,
-    mut _timestamp: *const htp_time_t,
+    len: usize,
+    _timestamp: *const htp_time_t,
 ) {
     if conn.is_null() {
         return;
@@ -214,8 +214,8 @@ pub unsafe fn htp_conn_track_inbound_data(
 /// Keeps track of outbound packets and data.
 pub unsafe fn htp_conn_track_outbound_data(
     mut conn: *mut htp_conn_t,
-    mut len: usize,
-    mut _timestamp: *const htp_time_t,
+    len: usize,
+    _timestamp: *const htp_time_t,
 ) {
     if conn.is_null() {
         return;

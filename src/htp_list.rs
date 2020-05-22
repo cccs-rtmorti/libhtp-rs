@@ -32,7 +32,7 @@ pub struct htp_list_array_t {
 /// Initialize an array-backed list.
 ///
 /// Returns HTP_OK or HTP_ERROR if allocation failed
-pub unsafe fn htp_list_array_init(mut l: *mut htp_list_array_t, mut size: usize) -> Status {
+pub unsafe fn htp_list_array_init(mut l: *mut htp_list_array_t, size: usize) -> Status {
     // Allocate the initial batch of elements.
     (*l).elements = malloc(size.wrapping_mul(::std::mem::size_of::<*mut core::ffi::c_void>()))
         as *mut *mut core::ffi::c_void;
@@ -50,13 +50,13 @@ pub unsafe fn htp_list_array_init(mut l: *mut htp_list_array_t, mut size: usize)
 /// Create new array-backed list.
 ///
 /// Returns Newly created list.
-pub unsafe fn htp_list_array_create(mut size: usize) -> *mut htp_list_array_t {
+pub unsafe fn htp_list_array_create(size: usize) -> *mut htp_list_array_t {
     // It makes no sense to create a zero-size list.
     if size == 0 {
         return 0 as *mut htp_list_array_t;
     }
     // Allocate the list structure.
-    let mut l: *mut htp_list_array_t =
+    let l: *mut htp_list_array_t =
         calloc(1, ::std::mem::size_of::<htp_list_array_t>()) as *mut htp_list_array_t;
     if l.is_null() {
         return 0 as *mut htp_list_array_t;
@@ -83,7 +83,7 @@ pub unsafe fn htp_list_array_clear(mut l: *mut htp_list_array_t) {
 
 /// Free the memory occupied by this list. This function assumes
 /// the elements held by the list were freed beforehand.
-pub unsafe fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
+pub unsafe fn htp_list_array_destroy(l: *mut htp_list_array_t) {
     if l.is_null() {
         return;
     }
@@ -94,7 +94,7 @@ pub unsafe fn htp_list_array_destroy(mut l: *mut htp_list_array_t) {
 /// Free the memory occupied by this list, except itself.
 /// This function assumes the elements held by the list
 /// were freed beforehand.
-pub unsafe fn htp_list_array_release(mut l: *mut htp_list_array_t) {
+pub unsafe fn htp_list_array_release(l: *mut htp_list_array_t) {
     if l.is_null() {
         return;
     }
@@ -105,10 +105,7 @@ pub unsafe fn htp_list_array_release(mut l: *mut htp_list_array_t) {
 ///
 /// Returns the desired element, or NULL if the list is too small, or
 ///         if the element at that position carries a NULL
-pub unsafe fn htp_list_array_get(
-    mut l: *const htp_list_array_t,
-    mut idx: usize,
-) -> *mut core::ffi::c_void {
+pub unsafe fn htp_list_array_get(l: *const htp_list_array_t, idx: usize) -> *mut core::ffi::c_void {
     if l.is_null() {
         return 0 as *mut core::ffi::c_void;
     }
@@ -150,14 +147,14 @@ pub unsafe fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mut core::ffi
 /// Returns HTP_OK on success or HTP_ERROR on failure.
 pub unsafe fn htp_list_array_push(
     mut l: *mut htp_list_array_t,
-    mut e: *mut core::ffi::c_void,
+    e: *mut core::ffi::c_void,
 ) -> Status {
     if l.is_null() {
         return Status::ERROR;
     }
     // Check whether we're full
     if (*l).current_size >= (*l).max_size {
-        let mut new_size: usize = (*l).max_size.wrapping_mul(2);
+        let new_size: usize = (*l).max_size.wrapping_mul(2);
         let mut newblock: *mut core::ffi::c_void = 0 as *mut core::ffi::c_void;
         if (*l).first == 0 {
             // The simple case of expansion is when the first
@@ -226,9 +223,9 @@ pub unsafe fn htp_list_array_push(
 /// Returns HTP_OK if an element with the given index was replaced; HTP_ERROR
 ///         if the desired index does not exist.
 pub unsafe fn htp_list_array_replace(
-    mut l: *mut htp_list_array_t,
-    mut idx: usize,
-    mut e: *mut core::ffi::c_void,
+    l: *mut htp_list_array_t,
+    idx: usize,
+    e: *mut core::ffi::c_void,
 ) -> Status {
     if l.is_null() {
         return Status::ERROR;
@@ -246,7 +243,7 @@ pub unsafe fn htp_list_array_replace(
 /// Returns the size of the list.
 ///
 /// Returns List size.
-pub unsafe fn htp_list_array_size(mut l: *const htp_list_array_t) -> usize {
+pub unsafe fn htp_list_array_size(l: *const htp_list_array_t) -> usize {
     if l.is_null() {
         return (-1 as i32) as usize;
     }

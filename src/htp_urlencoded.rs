@@ -36,10 +36,10 @@ pub struct htp_urlenp_t {
 ///            the current data chunk is reached.
 unsafe fn htp_urlenp_add_field_piece(
     mut urlenp: *mut htp_urlenp_t,
-    mut data: *const u8,
-    mut startpos: usize,
-    mut endpos: usize,
-    mut last_char: i32,
+    data: *const u8,
+    startpos: usize,
+    endpos: usize,
+    last_char: i32,
 ) {
     // Add field if we know it ended (last_char is something other than -1)
     // or if we know that there won't be any more input data (urlenp->_complete is true).
@@ -90,7 +90,7 @@ unsafe fn htp_urlenp_add_field_piece(
                             return;
                         }
                     }
-                    let mut value: *mut bstr::bstr_t =
+                    let value: *mut bstr::bstr_t =
                         bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
                     if value.is_null() {
                         bstr::bstr_free(name);
@@ -151,8 +151,8 @@ unsafe fn htp_urlenp_add_field_piece(
 /// Creates a new URLENCODED parser.
 ///
 /// Returns New parser, or NULL on memory allocation failure.
-pub unsafe fn htp_urlenp_create(mut tx: *mut htp_transaction::htp_tx_t) -> *mut htp_urlenp_t {
-    let mut urlenp: *mut htp_urlenp_t =
+pub unsafe fn htp_urlenp_create(tx: *mut htp_transaction::htp_tx_t) -> *mut htp_urlenp_t {
+    let urlenp: *mut htp_urlenp_t =
         calloc(1, ::std::mem::size_of::<htp_urlenp_t>()) as *mut htp_urlenp_t;
     if urlenp.is_null() {
         return 0 as *mut htp_urlenp_t;
@@ -176,7 +176,7 @@ pub unsafe fn htp_urlenp_create(mut tx: *mut htp_transaction::htp_tx_t) -> *mut 
 }
 
 /// Destroys an existing URLENCODED parser.
-pub unsafe fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
+pub unsafe fn htp_urlenp_destroy(urlenp: *mut htp_urlenp_t) {
     if urlenp.is_null() {
         return;
     }
@@ -187,9 +187,9 @@ pub unsafe fn htp_urlenp_destroy(mut urlenp: *mut htp_urlenp_t) {
     if !(*urlenp).params.is_null() {
         // Destroy parameters.
         let mut i: usize = 0;
-        let mut n: usize = htp_table::htp_table_size((*urlenp).params);
+        let n: usize = htp_table::htp_table_size((*urlenp).params);
         while i < n {
-            let mut b: *mut bstr::bstr_t =
+            let b: *mut bstr::bstr_t =
                 htp_table::htp_table_get_index((*urlenp).params, i, 0 as *mut *mut bstr::bstr_t)
                     as *mut bstr::bstr_t;
             // Parameter name will be freed by the table code.
@@ -216,9 +216,9 @@ pub unsafe fn htp_urlenp_finalize(mut urlenp: *mut htp_urlenp_t) -> Status {
 /// method is used for parsing the finalization method should not
 /// be invoked.
 pub unsafe fn htp_urlenp_parse_complete(
-    mut urlenp: *mut htp_urlenp_t,
-    mut data: *const core::ffi::c_void,
-    mut len: usize,
+    urlenp: *mut htp_urlenp_t,
+    data: *const core::ffi::c_void,
+    len: usize,
 ) -> Status {
     htp_urlenp_parse_partial(urlenp, data, len);
     return htp_urlenp_finalize(urlenp);
@@ -229,10 +229,10 @@ pub unsafe fn htp_urlenp_parse_complete(
 /// htp_urlenp_finalize() must be invoked at the end to finalize parsing.
 pub unsafe fn htp_urlenp_parse_partial(
     mut urlenp: *mut htp_urlenp_t,
-    mut _data: *const core::ffi::c_void,
+    _data: *const core::ffi::c_void,
     mut len: usize,
 ) -> Status {
-    let mut data: *mut u8 = _data as *mut u8;
+    let data: *mut u8 = _data as *mut u8;
     let mut startpos: usize = 0;
     let mut pos: usize = 0;
     let mut c: i32 = 0;
