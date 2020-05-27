@@ -6,11 +6,6 @@ extern "C" {
     fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
-    #[no_mangle]
-    fn htp_tx_register_request_body_data(
-        tx: *mut htp_transaction::htp_tx_t,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    );
 }
 
 /// This callback function feeds request body data to a Urlencoded parser
@@ -95,7 +90,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
         return Status::ERROR;
     }
     // Register a request body data callback.
-    htp_tx_register_request_body_data(
+    htp_transaction::htp_tx_register_request_body_data(
         tx,
         Some(
             htp_ch_urlencoded_callback_request_body_data
@@ -274,7 +269,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
         (*(*tx).request_mpartp).extract_dir = (*(*(*tx).connp).cfg).tmpdir
     }
     // Register a request body data callback.
-    htp_tx_register_request_body_data(
+    htp_transaction::htp_tx_register_request_body_data(
         tx,
         Some(
             htp_ch_multipart_callback_request_body_data

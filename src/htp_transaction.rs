@@ -2165,7 +2165,7 @@ pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
 #[no_mangle]
 pub unsafe fn htp_tx_register_request_body_data(
     tx: *mut htp_tx_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> i32>,
+    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
 ) {
     if tx.is_null() || callback_fn.is_none() {
         return;
@@ -2173,7 +2173,7 @@ pub unsafe fn htp_tx_register_request_body_data(
     htp_hooks::htp_hook_register(
         &mut (*tx).hook_request_body_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> i32>,
+            Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
@@ -2183,7 +2183,7 @@ pub unsafe fn htp_tx_register_request_body_data(
 #[no_mangle]
 pub unsafe fn htp_tx_register_response_body_data(
     tx: *mut htp_tx_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> i32>,
+    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
 ) {
     if tx.is_null() || callback_fn.is_none() {
         return;
@@ -2191,7 +2191,7 @@ pub unsafe fn htp_tx_register_response_body_data(
     htp_hooks::htp_hook_register(
         &mut (*tx).hook_response_body_data,
         ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> i32>,
+            Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
             htp_callback_fn_t,
         >(callback_fn),
     );
