@@ -40,7 +40,7 @@ impl Test {
         unsafe {
             let cfg = htp_config_create();
             assert!(!cfg.is_null());
-            htp_config_set_server_personality(cfg, HTP_SERVER_APACHE_2);
+            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let tx = htp_connp_tx_create(connp);

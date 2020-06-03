@@ -188,7 +188,7 @@ impl HybridParsingTest {
         unsafe {
             let cfg: *mut htp_cfg_t = htp_config_create();
             assert!(!cfg.is_null());
-            htp_config_set_server_personality(cfg, HTP_SERVER_APACHE_2);
+            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
             htp_config_register_urlencoded_parser(cfg);
             htp_config_register_multipart_parser(cfg);
             let connp = htp_connp_create(cfg);
