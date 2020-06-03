@@ -48,6 +48,33 @@ pub enum Status {
     STATUS_RESERVED = 1000,
 }
 
+/// Convenience macro to check for null pointers and panic if found.
+///
+/// Useful for those times when the API assumes the pointer is valid,
+/// but nobody is checking it.
+///
+/// # Examples
+/// ```should_panic
+/// # #[macro_use] extern crate htp;
+/// fn foo(data: *const u8) {
+///     nullcheck!(data);
+///     // Do something with *data
+/// }
+/// # fn main() {
+///     let data = std::ptr::null();
+///     foo(data);
+/// # }
+#[macro_export]
+macro_rules! nullcheck {
+    ( $( $ptr:expr ),* ) => {
+        $(
+        if $ptr.is_null() {
+            panic!(format!("{} is NULL in {}", stringify!($ptr), line!()));
+        }
+        )*
+    }
+}
+
 pub mod bstr;
 pub mod bstr_builder;
 pub mod c_api;

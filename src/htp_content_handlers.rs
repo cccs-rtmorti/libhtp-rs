@@ -109,7 +109,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     mut tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     // Proceed only if there's something for us to parse.
-    if (*(*tx).parsed_uri).query.is_null() || (*(*(*tx).parsed_uri).query).len == 0 {
+    if (*(*tx).parsed_uri).query.is_null() || bstr::bstr_len((*(*tx).parsed_uri).query) == 0 {
         return Status::DECLINED;
     }
     // We have a non-zero length query string.
@@ -119,13 +119,8 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     }
     if htp_urlencoded::htp_urlenp_parse_complete(
         (*tx).request_urlenp_query,
-        (if (*(*(*tx).parsed_uri).query).realptr.is_null() {
-            ((*(*tx).parsed_uri).query as *mut u8)
-                .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-        } else {
-            (*(*(*tx).parsed_uri).query).realptr
-        }) as *const core::ffi::c_void,
-        (*(*(*tx).parsed_uri).query).len,
+        bstr::bstr_ptr((*(*tx).parsed_uri).query) as *const core::ffi::c_void,
+        bstr::bstr_len((*(*tx).parsed_uri).query),
     ) != Status::OK
     {
         htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_query);

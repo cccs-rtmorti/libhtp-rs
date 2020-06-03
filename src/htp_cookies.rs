@@ -69,12 +69,8 @@ pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_co
     if (*(*connp).in_tx).request_cookies.is_null() {
         return Status::ERROR;
     }
-    let data: *mut u8 = if (*(*cookie_header).value).realptr.is_null() {
-        ((*cookie_header).value as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*(*cookie_header).value).realptr
-    };
-    let len: usize = (*(*cookie_header).value).len;
+    let data: *mut u8 = bstr::bstr_ptr((*cookie_header).value);
+    let len: usize = bstr::bstr_len((*cookie_header).value);
     let mut pos: usize = 0;
     while pos < len {
         // Ignore whitespace at the beginning.

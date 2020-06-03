@@ -1604,10 +1604,6 @@ fn Util() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        dbg!((*tx).request_line);
-        dbg!((*(*tx).request_line).len);
-        dbg!(bstr_ptr((*tx).request_line));
-
         // Message too long.
         (*(*(*tx).connp).cfg).log_level = HTP_LOG_ERROR;
         let mut long_message: [i8; 1300] = [b'X' as i8; 1300];

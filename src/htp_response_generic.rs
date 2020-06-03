@@ -19,12 +19,8 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*connp).out_tx;
-    let data: *const u8 = if (*(*tx).response_line).realptr.is_null() {
-        ((*tx).response_line as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*(*tx).response_line).realptr
-    };
-    let len: usize = (*(*tx).response_line).len;
+    let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
+    let len: usize = bstr::bstr_len((*tx).response_line);
     let mut pos: usize = 0;
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
     (*tx).response_protocol_number = Protocol::INVALID as i32;
@@ -319,10 +315,9 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             // Add to the existing header.
             let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
                 (*h_existing).value,
-                (*(*h_existing).value)
-                    .len
+                bstr::bstr_len((*h_existing).value)
                     .wrapping_add(2)
-                    .wrapping_add((*(*h).value).len),
+                    .wrapping_add(bstr::bstr_len((*h).value)),
             );
             if new_value.is_null() {
                 bstr::bstr_free((*h).name);

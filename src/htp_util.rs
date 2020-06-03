@@ -1,3 +1,4 @@
+use crate::bstr::{bstr_len, bstr_ptr};
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_hooks, htp_list, htp_request, htp_transaction,
     htp_utf8_decoder, Status,
@@ -438,12 +439,8 @@ pub unsafe fn htp_parse_content_length(
     b: *const bstr::bstr_t,
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> i64 {
-    let len: usize = (*b).len;
-    let data: *mut u8 = if (*b).realptr.is_null() {
-        (b as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*b).realptr
-    };
+    let len: usize = bstr_len(b);
+    let data: *mut u8 = bstr_ptr(b);
     let mut pos: usize = 0;
     let mut r: i64 = 0;
     if len == 0 {
@@ -731,12 +728,8 @@ pub unsafe fn htp_parse_hostport(
     }
     *port_number = -1;
     *invalid = 0;
-    let mut data: *mut u8 = if (*hostport).realptr.is_null() {
-        (hostport as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*hostport).realptr
-    };
-    let mut len: usize = (*hostport).len;
+    let mut data: *mut u8 = bstr_ptr(hostport);
+    let mut len: usize = bstr_len(hostport);
     bstr::bstr_util_mem_trim(&mut data, &mut len);
     if len == 0 {
         *invalid = 1;
@@ -906,12 +899,8 @@ pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri
         // contain the URI. We allow that.
         return Status::OK;
     }
-    let data: *mut u8 = if (*input).realptr.is_null() {
-        (input as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*input).realptr
-    };
-    let len: usize = (*input).len;
+    let data: *mut u8 = bstr_ptr(input);
+    let len: usize = bstr_len(input);
     let mut start: usize = 0;
     let mut pos: usize = 0;
     if len == 0 {
@@ -1227,15 +1216,11 @@ pub unsafe fn htp_utf8_decode_path_inplace(
     if path.is_null() {
         return;
     }
-    let data: *mut u8 = if (*path).realptr.is_null() {
-        (path as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*path).realptr
-    };
+    let data: *mut u8 = bstr_ptr(path);
     if data.is_null() {
         return;
     }
-    let len: usize = (*path).len;
+    let len: usize = bstr_len(path);
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut codepoint: u32 = 0;
@@ -1340,12 +1325,8 @@ pub unsafe fn htp_utf8_decode_path_inplace(
 
 /// Validate a path that is quite possibly UTF-8 encoded.
 pub unsafe fn htp_utf8_validate_path(tx: *mut htp_transaction::htp_tx_t, path: *mut bstr::bstr_t) {
-    let data: *mut u8 = if (*path).realptr.is_null() {
-        (path as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*path).realptr
-    }; // How many bytes used by a UTF-8 character.
-    let len: usize = (*path).len;
+    let data: *mut u8 = bstr_ptr(path);
+    let len: usize = bstr_len(path);
     let mut rpos: usize = 0;
     let mut codepoint: u32 = 0;
     let mut state: u32 = 0;
@@ -1518,15 +1499,11 @@ pub unsafe fn htp_decode_path_inplace(
     if path.is_null() {
         return -1;
     }
-    let data: *mut u8 = if (*path).realptr.is_null() {
-        (path as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*path).realptr
-    };
+    let data: *mut u8 = bstr_ptr(path);
     if data.is_null() {
         return -1;
     }
-    let len: usize = (*path).len;
+    let len: usize = bstr_len(path);
     let cfg: *mut htp_config::htp_cfg_t = (*tx).cfg;
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
@@ -2075,15 +2052,11 @@ pub unsafe fn htp_urldecode_inplace_ex(
     if input.is_null() {
         return Status::ERROR;
     }
-    let data: *mut u8 = if (*input).realptr.is_null() {
-        (input as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*input).realptr
-    };
+    let data: *mut u8 = bstr_ptr(input);
     if data.is_null() {
         return Status::ERROR;
     }
-    let len: usize = (*input).len;
+    let len: usize = bstr_len(input);
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut current_block_74: u64;
@@ -2518,13 +2491,8 @@ pub unsafe fn htp_normalize_parsed_uri(
     // Port.
     if !(*incomplete).port.is_null() {
         let port_parsed: i64 = htp_parse_positive_integer_whitespace(
-            if (*(*incomplete).port).realptr.is_null() {
-                ((*incomplete).port as *mut u8)
-                    .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-            } else {
-                (*(*incomplete).port).realptr
-            },
-            (*(*incomplete).port).len,
+            bstr_ptr((*incomplete).port),
+            bstr_len((*incomplete).port),
             10,
         );
         if port_parsed < 0 {
@@ -2606,15 +2574,11 @@ pub unsafe fn htp_normalize_uri_path_inplace(s: *mut bstr::bstr_t) {
     if s.is_null() {
         return;
     }
-    let data: *mut u8 = if (*s).realptr.is_null() {
-        (s as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*s).realptr
-    };
+    let data: *mut u8 = bstr_ptr(s);
     if data.is_null() {
         return;
     }
-    let len: usize = (*s).len;
+    let len: usize = bstr_len(s);
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut c: i32 = -1;
@@ -2895,11 +2859,7 @@ pub unsafe fn htp_extract_quoted_string_as_bstr(
     if (*out).is_null() {
         return Status::ERROR;
     }
-    let outptr: *mut u8 = if (**out).realptr.is_null() {
-        (*out as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (**out).realptr
-    };
+    let outptr: *mut u8 = bstr_ptr(*out);
     let mut outpos: usize = 0;
     pos = 1;
     while pos < len && outpos < outlen {
@@ -2936,12 +2896,8 @@ pub unsafe fn htp_parse_ct_header(
     if header.is_null() || ct.is_null() {
         return Status::ERROR;
     }
-    let data: *mut u8 = if (*header).realptr.is_null() {
-        (header as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*header).realptr
-    };
-    let len: usize = (*header).len;
+    let data: *mut u8 = bstr_ptr(header);
+    let len: usize = bstr_len(header);
     // The assumption here is that the header value we receive
     // here has been left-trimmed, which means the starting position
     // is on the media type. On some platforms that may not be the
@@ -2967,12 +2923,8 @@ pub unsafe fn htp_parse_ct_header(
 ///
 /// Returns 1 if the supplied hostname is valid; 0 if it is not.
 pub unsafe fn htp_validate_hostname(hostname: *mut bstr::bstr_t) -> i32 {
-    let data: *mut u8 = if (*hostname).realptr.is_null() {
-        (hostname as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*hostname).realptr
-    };
-    let len: usize = (*hostname).len;
+    let data: *mut u8 = bstr_ptr(hostname);
+    let len: usize = bstr_len(hostname);
     let mut startpos: usize = 0;
     let mut pos: usize = 0;
     if len == 0 || len > 255 {

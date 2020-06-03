@@ -387,16 +387,12 @@ pub const HTP_ALLOC_COPY: htp_alloc_strategy_t = 1;
 unsafe fn copy_or_wrap_mem(
     data: *const core::ffi::c_void,
     len: usize,
-    alloc: htp_alloc_strategy_t,
+    _alloc: htp_alloc_strategy_t,
 ) -> *mut bstr::bstr_t {
     if data == 0 as *mut core::ffi::c_void {
         return 0 as *mut bstr::bstr_t;
     }
-    if alloc == HTP_ALLOC_REUSE {
-        return bstr::bstr_wrap_mem(data, len);
-    } else {
-        return bstr::bstr_dup_mem(data, len);
-    };
+    return bstr::bstr_dup_mem(data, len);
 }
 
 /// Creates a new transaction structure.
@@ -1936,12 +1932,8 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                 0 as *mut htp_decompressors::htp_decompressor_t;
             let mut tok: *mut u8 = 0 as *mut u8;
             let mut tok_len: usize = 0;
-            let mut input: *mut u8 = if (*(*ce).value).realptr.is_null() {
-                ((*ce).value as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-            } else {
-                (*(*ce).value).realptr
-            };
-            let mut input_len: usize = (*(*ce).value).len;
+            let mut input: *mut u8 = bstr::bstr_ptr((*ce).value);
+            let mut input_len: usize = bstr::bstr_len((*ce).value);
             while input_len > 0
                 && get_token(
                     input,

@@ -95,10 +95,9 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
             // Add to the existing header.
             let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
                 (*h_existing).value,
-                (*(*h_existing).value)
-                    .len
+                bstr::bstr_len((*h_existing).value)
                     .wrapping_add(2)
-                    .wrapping_add((*(*h).value).len),
+                    .wrapping_add(bstr::bstr_len((*h).value)),
             );
             if new_value.is_null() {
                 bstr::bstr_free((*h).name);
@@ -304,12 +303,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     nul_terminates: i32,
 ) -> Status {
     let mut tx: *mut htp_transaction::htp_tx_t = (*connp).in_tx;
-    let data: *mut u8 = if (*(*tx).request_line).realptr.is_null() {
-        ((*tx).request_line as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*(*tx).request_line).realptr
-    };
-    let mut len: usize = (*(*tx).request_line).len;
+    let data: *mut u8 = bstr::bstr_ptr((*tx).request_line);
+    let mut len: usize = bstr::bstr_len((*tx).request_line);
     let mut pos: usize = 0;
     let mut mstart: usize = 0;
     let mut start: usize = 0;

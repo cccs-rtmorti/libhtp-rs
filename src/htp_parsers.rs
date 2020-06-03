@@ -1,3 +1,4 @@
+use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::{
     bstr, htp_base64, htp_connection_parser, htp_table, htp_transaction, htp_util, Status,
@@ -23,12 +24,8 @@ pub unsafe extern "C" fn htp_parse_protocol(protocol: *const bstr::bstr_t) -> Pr
     //      before and after the forward slash, as well as allowing leading
     //      zeroes in the numbers. We should be able to parse such malformed
     //      content correctly (but emit a warning).
-    if (*protocol).len == 8 {
-        let ptr: *mut u8 = if (*protocol).realptr.is_null() {
-            (protocol as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-        } else {
-            (*protocol).realptr
-        };
+    if bstr_len(protocol) == 8 {
+        let ptr: *mut u8 = bstr_ptr(protocol);
         if *ptr.offset(0) == 'H' as u8
             && *ptr.offset(1) == 'T' as u8
             && *ptr.offset(2) == 'T' as u8
@@ -59,15 +56,8 @@ pub unsafe extern "C" fn htp_parse_protocol(protocol: *const bstr::bstr_t) -> Pr
 ///
 /// Returns Status code on success, or HTP_STATUS_INVALID on error.
 pub unsafe extern "C" fn htp_parse_status(status: *const bstr::bstr_t) -> i32 {
-    let r: i64 = htp_util::htp_parse_positive_integer_whitespace(
-        if (*status).realptr.is_null() {
-            (status as *const u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-        } else {
-            (*status).realptr
-        },
-        (*status).len,
-        10,
-    );
+    let r: i64 =
+        htp_util::htp_parse_positive_integer_whitespace(bstr_ptr(status), bstr_len(status), 10);
     if r >= 100 && r <= 999 {
         return r as i32;
     } else {
@@ -88,12 +78,8 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     if i == -1 {
         return Status::DECLINED;
     }
-    let data: *mut u8 = if (*(*auth_header).value).realptr.is_null() {
-        ((*auth_header).value as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*(*auth_header).value).realptr
-    };
-    let len: usize = (*(*auth_header).value).len;
+    let data: *mut u8 = bstr_ptr((*auth_header).value);
+    let len: usize = bstr_len((*auth_header).value);
     let mut pos: usize = (i + 9) as usize;
     // Ignore whitespace
     while pos < len
@@ -120,12 +106,8 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     mut connp: *mut htp_connection_parser::htp_connp_t,
     auth_header: *const htp_transaction::htp_header_t,
 ) -> Status {
-    let data: *mut u8 = if (*(*auth_header).value).realptr.is_null() {
-        ((*auth_header).value as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*(*auth_header).value).realptr
-    };
-    let len: usize = (*(*auth_header).value).len;
+    let data: *mut u8 = bstr_ptr((*auth_header).value);
+    let len: usize = bstr_len((*auth_header).value);
     let mut pos: usize = 5;
     // Ignore whitespace
     while pos < len
@@ -158,7 +140,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     (*(*connp).in_tx).request_auth_password = bstr::bstr_dup_ex(
         decoded,
         (i + 1) as usize,
-        (*decoded).len.wrapping_sub(i as usize).wrapping_sub(1),
+        bstr_len(decoded).wrapping_sub(i as usize).wrapping_sub(1),
     );
     if (*(*connp).in_tx).request_auth_password.is_null() {
         bstr::bstr_free(decoded);

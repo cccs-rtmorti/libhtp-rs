@@ -105,7 +105,7 @@ pub unsafe fn bstr_builder_to_str(bb: *const bstr_builder_t) -> *mut bstr::bstr_
     while i < n {
         let b: *const bstr::bstr_t =
             htp_list::htp_list_array_get((*bb).pieces, i) as *mut bstr::bstr_t;
-        len = (len).wrapping_add((*b).len);
+        len = (len).wrapping_add(bstr::bstr_len(b));
         i = i.wrapping_add(1)
     }
     // Allocate string

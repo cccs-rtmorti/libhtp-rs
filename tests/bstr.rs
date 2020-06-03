@@ -51,25 +51,6 @@ fn Bstr_ExpandSmaller() {
     }
 }
 
-#[test]
-fn Bstr_ExpandPtr() {
-    unsafe {
-        let b: *mut bstr_t;
-        b = libc::malloc(std::mem::size_of::<bstr_t>()) as *mut bstr_t;
-        assert!(!b.is_null());
-        (*b).realptr = libc::malloc(10) as *mut u8;
-        (*b).len = 0;
-        (*b).size = 10;
-        assert!(!bstr_ptr(b).is_null());
-
-        let p2: *mut bstr_t = bstr_expand(b, 100);
-        assert!(p2.is_null());
-
-        libc::free((*b).realptr as *mut core::ffi::c_void);
-        bstr_free(b);
-    }
-}
-
 /*
 // For the time being, expansion is not allowed
 // when data is externally stored. This feature
@@ -369,42 +350,6 @@ fn Bstr_CmpEx() {
 }
 
 #[test]
-fn Bstr_CmpNocaseEx() {
-    unsafe {
-        let s1 = CString::new("arfarf12345").unwrap();
-        let s2 = CString::new("arfarF2345").unwrap();
-
-        assert_eq!(
-            0,
-            bstr_util_cmp_mem_nocase(
-                s1.as_ptr() as *const core::ffi::c_void,
-                6,
-                s2.as_ptr() as *const core::ffi::c_void,
-                6
-            )
-        );
-        assert_eq!(
-            1,
-            bstr_util_cmp_mem_nocase(
-                s1.as_ptr() as *const core::ffi::c_void,
-                6,
-                s2.as_ptr() as *const core::ffi::c_void,
-                5
-            )
-        );
-        assert_eq!(
-            -1,
-            bstr_util_cmp_mem_nocase(
-                s2.as_ptr() as *const core::ffi::c_void,
-                5,
-                s1.as_ptr() as *const core::ffi::c_void,
-                6
-            )
-        );
-    }
-}
-
-#[test]
 fn Bstr_ToLowercase() {
     unsafe {
         let p1: *mut bstr_t;
@@ -682,15 +627,11 @@ fn Bstr_ToPint() {
 #[test]
 fn Bstr_DupToC() {
     unsafe {
-        let mut c: *mut i8;
+        let c: *mut i8;
         let str: *mut bstr_t = bstr_dup_mem(
             b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
             20,
         );
-
-        c = bstr_util_memdup_to_c(b"1234\x006789".as_ptr() as *const core::ffi::c_void, 9);
-        assert_eq!(0, libc::strcmp(cstr!("1234\\06789"), c));
-        libc::free(c as *mut core::ffi::c_void);
 
         c = bstr_util_strdup_to_c(str);
         assert_eq!(0, libc::strcmp(cstr!("ABCDEFGHIJKL\\0NOPQRST"), c));

@@ -1,3 +1,4 @@
+use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_util::Flags;
 use crate::{
     bstr, bstr_builder, htp_config, htp_hooks, htp_list, htp_table, htp_transaction, htp_util,
@@ -341,17 +342,9 @@ pub unsafe extern "C" fn htp_mpartp_get_multipart(
 ///  - IE encodes " as \", and \ is not encoded.
 ///  - Opera encodes " as \" and \ as \\.
 unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(b: *mut bstr::bstr_t) {
-    let mut s: *mut u8 = if (*b).realptr.is_null() {
-        (b as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*b).realptr
-    };
-    let mut d: *mut u8 = if (*b).realptr.is_null() {
-        (b as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*b).realptr
-    };
-    let len: usize = (*b).len;
+    let mut s: *mut u8 = bstr_ptr(b);
+    let mut d: *mut u8 = bstr_ptr(b);
+    let len: usize = bstr_len(b);
     let mut pos: usize = 0;
     while pos < len {
         // Ignore \ when before \ or ".
@@ -392,12 +385,9 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
         return Status::DECLINED;
     }
     // The parsing starts here.
-    let data: *mut u8 = if (*(*h).value).realptr.is_null() {
-        ((*h).value as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*(*h).value).realptr
-    }; // Start after "form-data"
-    let len: usize = (*(*h).value).len;
+    let data: *mut u8 = bstr_ptr((*h).value);
+    // Start after "form-data"
+    let len: usize = bstr_len((*h).value);
     let mut pos: usize = 9;
     // Main parameter parsing loop (once per parameter).
     while pos < len {
@@ -713,10 +703,9 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         // Add to the existing header.
         let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
             (*h_existing).value,
-            (*(*h_existing).value)
-                .len
+            bstr_len((*h_existing).value)
                 .wrapping_add(2)
-                .wrapping_add((*(*h).value).len),
+                .wrapping_add(bstr_len((*h).value)),
         );
         if new_value.is_null() {
             bstr::bstr_free((*h).name);
@@ -945,12 +934,8 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                     return Status::ERROR;
                 }
                 bstr_builder::bstr_builder_clear((*(*part).parser).part_header_pieces);
-                data = if (*line).realptr.is_null() {
-                    (line as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                } else {
-                    (*line).realptr
-                };
-                len = (*line).len
+                data = bstr_ptr(line);
+                len = bstr_len(line)
             }
             // Ignore the line endings.
             if len > 1 {
@@ -972,13 +957,8 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 if !(*(*part).parser).pending_header_line.is_null() {
                     if htp_mpartp_parse_header(
                         part,
-                        if (*(*(*part).parser).pending_header_line).realptr.is_null() {
-                            ((*(*part).parser).pending_header_line as *mut u8)
-                                .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                        } else {
-                            (*(*(*part).parser).pending_header_line).realptr
-                        },
-                        (*(*(*part).parser).pending_header_line).len,
+                        bstr_ptr((*(*part).parser).pending_header_line),
+                        bstr_len((*(*part).parser).pending_header_line),
                     ) == Status::ERROR
                     {
                         bstr::bstr_free(line);
@@ -1062,13 +1042,8 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 // Process the pending header line.
                 if htp_mpartp_parse_header(
                     part,
-                    if (*(*(*part).parser).pending_header_line).realptr.is_null() {
-                        ((*(*part).parser).pending_header_line as *mut u8)
-                            .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                    } else {
-                        (*(*(*part).parser).pending_header_line).realptr
-                    },
-                    (*(*(*part).parser).pending_header_line).len,
+                    bstr_ptr((*(*part).parser).pending_header_line),
+                    bstr_len((*(*part).parser).pending_header_line),
                 ) == Status::ERROR
                 {
                     bstr::bstr_free(line);
@@ -1274,15 +1249,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
     (*parser).handle_boundary =
         Some(htp_mpartp_handle_boundary as unsafe extern "C" fn(_: *mut htp_mpartp_t) -> Status);
     // Initialize the boundary.
-    let rc: Status = htp_mpartp_init_boundary(
-        parser,
-        if (*boundary).realptr.is_null() {
-            (boundary as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-        } else {
-            (*boundary).realptr
-        },
-        (*boundary).len,
-    );
+    let rc: Status = htp_mpartp_init_boundary(parser, bstr_ptr(boundary), bstr_len(boundary));
     if rc != Status::OK {
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
@@ -1372,22 +1339,13 @@ unsafe extern "C" fn htp_martp_process_aside(
                         // In line mode, we are OK with line endings.
                         (*parser).handle_data.expect("non-null function pointer")(
                             parser,
-                            if (*b).realptr.is_null() {
-                                (b as *const u8)
-                                    .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                            } else {
-                                (*b).realptr
-                            },
+                            bstr_ptr(b),
                             (*parser).boundary_candidate_pos,
                             1,
                         );
                     } else {
                         // But if there was a match, the line ending belongs to the boundary.
-                        let dx: *mut u8 = if (*b).realptr.is_null() {
-                            (b as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                        } else {
-                            (*b).realptr
-                        };
+                        let dx: *mut u8 = bstr_ptr(b);
                         let mut lx: usize = (*parser).boundary_candidate_pos;
                         // Remove LF or CRLF.
                         if lx > 0 && *dx.offset(lx.wrapping_sub(1) as isize) == '\n' as u8 {
@@ -1406,26 +1364,16 @@ unsafe extern "C" fn htp_martp_process_aside(
                     if matched == 0 {
                         (*parser).handle_data.expect("non-null function pointer")(
                             parser,
-                            (if (*b).realptr.is_null() {
-                                (b as *const u8)
-                                    .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                            } else {
-                                (*b).realptr
-                            })
-                            .offset((*parser).boundary_candidate_pos as isize),
-                            (*b).len.wrapping_sub((*parser).boundary_candidate_pos),
+                            bstr_ptr(b).offset((*parser).boundary_candidate_pos as isize),
+                            bstr_len(b).wrapping_sub((*parser).boundary_candidate_pos),
                             0,
                         );
                     }
                 } else if matched == 0 {
                     (*parser).handle_data.expect("non-null function pointer")(
                         parser,
-                        if (*b).realptr.is_null() {
-                            (b as *const u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                        } else {
-                            (*b).realptr
-                        },
-                        (*b).len,
+                        bstr_ptr(b),
+                        bstr_len(b),
                         0,
                     );
                 }
@@ -1458,12 +1406,8 @@ unsafe extern "C" fn htp_martp_process_aside(
                         as *mut bstr::bstr_t;
                 (*parser).handle_data.expect("non-null function pointer")(
                     parser,
-                    if (*b_0).realptr.is_null() {
-                        (b_0 as *const u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                    } else {
-                        (*b_0).realptr
-                    },
-                    (*b_0).len,
+                    bstr_ptr(b_0),
+                    bstr_len(b_0),
                     0,
                 );
                 i_0 = i_0.wrapping_add(1)
@@ -1807,12 +1751,8 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
     //       MSIE: Content-Type: multipart/form-data; boundary=---------------------------7dd13e11c0452
     //      Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
     //     Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
-    let data: *const u8 = if (*boundary).realptr.is_null() {
-        (boundary as *const u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*boundary).realptr
-    };
-    let len: usize = (*boundary).len;
+    let data: *const u8 = bstr_ptr(boundary);
+    let len: usize = bstr_len(boundary);
     // The RFC allows up to 70 characters. In real life,
     // boundaries tend to be shorter.
     if len == 0 || len > 70 {
@@ -1846,12 +1786,8 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
     content_type: *mut bstr::bstr_t,
     flags: *mut MultipartFlags,
 ) {
-    let mut data: *mut u8 = if (*content_type).realptr.is_null() {
-        (content_type as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*content_type).realptr
-    };
-    let mut len: usize = (*content_type).len;
+    let mut data: *mut u8 = bstr_ptr(content_type);
+    let mut len: usize = bstr_len(content_type);
     let mut counter: usize = 0;
     while len > 0 {
         let i: i32 = bstr::bstr_util_mem_index_of_c_nocase(
@@ -1918,14 +1854,10 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     if i == -1 {
         return Status::DECLINED;
     }
-    let data: *mut u8 = (if (*content_type).realptr.is_null() {
-        (content_type as *mut u8).offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-    } else {
-        (*content_type).realptr
-    })
-    .offset(i as isize)
-    .offset(8 as isize);
-    let len: usize = (*content_type).len.wrapping_sub(i as usize).wrapping_sub(8);
+    let data: *mut u8 = bstr_ptr(content_type).offset(i as isize).offset(8 as isize);
+    let len: usize = bstr_len(content_type)
+        .wrapping_sub(i as usize)
+        .wrapping_sub(8);
     // Look for the boundary value.
     let mut pos: usize = 0;
     while pos < len && *data.offset(pos as isize) != '=' as u8 {
@@ -2009,7 +1941,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         }
     }
     // Check for a zero-length boundary.
-    if (**boundary).len == 0 {
+    if bstr_len(*boundary) == 0 {
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
         bstr::bstr_free(*boundary);
         *boundary = 0 as *mut bstr::bstr_t;

@@ -1,3 +1,4 @@
+use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
@@ -152,7 +153,7 @@ unsafe fn htp_connp_res_buffer(mut connp: *mut htp_connection_parser::htp_connp_
     // When calculating the size of the buffer, take into account the
     // space we're using for the response header buffer.
     if !(*connp).out_header.is_null() {
-        newlen = (newlen).wrapping_add((*(*connp).out_header).len)
+        newlen = newlen.wrapping_add(bstr_len((*connp).out_header))
     }
     if newlen > (*(*(*connp).out_tx).cfg).field_limit_hard {
         htp_util::htp_log(
@@ -707,16 +708,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                 return Status::ERROR;
             }
             // Ignore parameters
-            let data: *mut u8 = if (*(*(*connp).out_tx).response_content_type)
-                .realptr
-                .is_null()
-            {
-                ((*(*connp).out_tx).response_content_type as *mut u8)
-                    .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-            } else {
-                (*(*(*connp).out_tx).response_content_type).realptr
-            };
-            let len: usize = (*(*ct).value).len;
+            let data: *mut u8 = bstr_ptr((*(*connp).out_tx).response_content_type);
+            let len: usize = bstr_len((*ct).value);
             let mut newlen: usize = 0;
             while newlen < len {
                 // TODO Some platforms may do things differently here.
@@ -1049,13 +1042,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                         .process_response_header
                         .expect("non-null function pointer")(
                         connp,
-                        if (*(*connp).out_header).realptr.is_null() {
-                            ((*connp).out_header as *mut u8)
-                                .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                        } else {
-                            (*(*connp).out_header).realptr
-                        },
-                        (*(*connp).out_header).len,
+                        bstr_ptr((*connp).out_header),
+                        bstr_len((*connp).out_header),
                     ) != Status::OK
                     {
                         return Status::ERROR;
@@ -1111,13 +1099,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                         .process_response_header
                         .expect("non-null function pointer")(
                         connp,
-                        if (*(*connp).out_header).realptr.is_null() {
-                            ((*connp).out_header as *mut u8)
-                                .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                        } else {
-                            (*(*connp).out_header).realptr
-                        },
-                        (*(*connp).out_header).len,
+                        bstr_ptr((*connp).out_header),
+                        bstr_len((*connp).out_header),
                     ) != Status::OK
                     {
                         return Status::ERROR;
@@ -1200,13 +1183,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                         .process_response_header
                         .expect("non-null function pointer")(
                         connp,
-                        if (*(*connp).out_header).realptr.is_null() {
-                            ((*connp).out_header as *mut u8)
-                                .offset(::std::mem::size_of::<bstr::bstr_t>() as isize)
-                        } else {
-                            (*(*connp).out_header).realptr
-                        },
-                        (*(*connp).out_header).len,
+                        bstr_ptr((*connp).out_header),
+                        bstr_len((*connp).out_header),
                     ) != Status::OK
                     {
                         return Status::ERROR;
