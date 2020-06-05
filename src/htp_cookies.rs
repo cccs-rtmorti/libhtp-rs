@@ -1,4 +1,4 @@
-use crate::{bstr, htp_connection_parser, htp_table, htp_transaction, Status};
+use crate::{bstr, htp_connection_parser, htp_table, Status};
 
 extern "C" {
     #[no_mangle]
@@ -25,10 +25,8 @@ pub unsafe fn htp_parse_single_cookie_v0(
     if pos == 0 {
         return Status::OK;
     }
-    let name: *mut bstr::bstr_t = bstr::bstr_dup_mem(data as *const core::ffi::c_void, pos);
-    if name.is_null() {
-        return Status::ERROR;
-    }
+
+    let name = bstr::bstr_t::from(std::slice::from_raw_parts(data, pos));
     let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     if pos == len {
         // The cookie is empty.
@@ -41,34 +39,23 @@ pub unsafe fn htp_parse_single_cookie_v0(
         )
     }
     if value.is_null() {
-        bstr::bstr_free(name);
         return Status::ERROR;
     }
-    htp_table::htp_table_addn(
-        (*(*connp).in_tx).request_cookies,
-        name,
-        value as *const core::ffi::c_void,
-    );
-    return Status::OK;
+    (*(*(*connp).in_tx).request_cookies).add(name, value);
+    Status::OK
 }
 
 /// Parses the Cookie request header in v0 format.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
 pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_connp_t) -> Status {
-    let cookie_header: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*(*connp).in_tx).request_headers,
-        b"cookie\x00" as *const u8 as *const i8,
-    )
-        as *mut htp_transaction::htp_header_t;
-    if cookie_header.is_null() {
+    let cookie_header_opt = (*(*(*connp).in_tx).request_headers).get_nocase_nozero("cookie");
+    if cookie_header_opt.is_none() {
         return Status::OK;
     }
+    let cookie_header = cookie_header_opt.unwrap().1;
     // Create a new table to store cookies.
-    (*(*connp).in_tx).request_cookies = htp_table::htp_table_create(4);
-    if (*(*connp).in_tx).request_cookies.is_null() {
-        return Status::ERROR;
-    }
+    (*(*connp).in_tx).request_cookies = htp_table::htp_table_alloc(4);
     let data: *mut u8 = bstr::bstr_ptr((*cookie_header).value);
     let len: usize = bstr::bstr_len((*cookie_header).value);
     let mut pos: usize = 0;
@@ -98,5 +85,5 @@ pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_co
             pos = pos.wrapping_add(1)
         }
     }
-    return Status::OK;
+    Status::OK
 }

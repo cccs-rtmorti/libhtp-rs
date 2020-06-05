@@ -1,8 +1,6 @@
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
-use crate::{
-    bstr, htp_connection_parser, htp_parsers, htp_table, htp_transaction, htp_util, Status,
-};
+use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util, Status};
 
 extern "C" {
     #[no_mangle]
@@ -258,10 +256,9 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         return Status::ERROR;
     }
     // Do we already have a header with the same name?
-    let mut h_existing: *mut htp_transaction::htp_header_t =
-        htp_table::htp_table_get((*(*connp).out_tx).response_headers, (*h).name)
-            as *mut htp_transaction::htp_header_t;
-    if !h_existing.is_null() {
+    let h_existing_opt = (*(*(*connp).out_tx).response_headers).get_nocase((*(*h).name).as_slice());
+    if h_existing_opt.is_some() {
+        let mut h_existing = h_existing_opt.unwrap().1;
         // Keep track of repeated same-name headers.
         if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
@@ -337,16 +334,8 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut core::ffi::c_void);
-    } else if htp_table::htp_table_add(
-        (*(*connp).out_tx).response_headers,
-        (*h).name,
-        h as *const core::ffi::c_void,
-    ) != Status::OK
-    {
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
+    } else {
+        (*(*(*connp).out_tx).response_headers).add((*(*h).name).clone(), h);
     }
-    return Status::OK;
+    Status::OK
 }

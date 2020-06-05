@@ -5,7 +5,6 @@ use htp::htp_base64::*;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_config::*;
 use htp::htp_connection_parser::*;
-use htp::htp_table::*;
 use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::*;
 use htp::htp_util::*;
@@ -366,16 +365,21 @@ fn GetTest() {
         // Check headers
         assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
 
-        let h_host = htp_table_get_c((*tx).request_headers, cstr!("host")) as *mut htp_header_t;
+        let h_host_opt = (*(*tx).request_headers).get_nocase_nozero("host");
+        assert!(h_host_opt.is_some());
+        let h_host = h_host_opt.unwrap().1;
         assert!(!h_host.is_null());
         assert_eq!(0, bstr_cmp_c((*h_host).value, cstr!("www.example.com")));
 
-        let h_connection =
-            htp_table_get_c((*tx).request_headers, cstr!("connection")) as *mut htp_header_t;
+        let h_connection_opt = (*(*tx).request_headers).get_nocase_nozero("connection");
+        assert!(h_connection_opt.is_some());
+        let h_connection = h_connection_opt.unwrap().1;
         assert!(!h_connection.is_null());
         assert_eq!(0, bstr_cmp_c((*h_connection).value, cstr!("keep-alive")));
 
-        let h_ua = htp_table_get_c((*tx).request_headers, cstr!("user-agent")) as *mut htp_header_t;
+        let h_ua_opt = (*(*tx).request_headers).get_nocase_nozero("user-agent");
+        assert!(h_ua_opt.is_some());
+        let h_ua = h_ua_opt.unwrap().1;
         assert!(!h_ua.is_null());
         assert_eq!(0, bstr_cmp_c((*h_ua).value, cstr!("Mozilla/5.0")));
 
@@ -414,13 +418,15 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
 
         // Check response headers
-        let mut h_content_type =
-            htp_table_get_c((*tx).response_headers, cstr!("content-type")) as *mut htp_header_t;
+        let mut h_content_type_opt = (*(*tx).response_headers).get_nocase_nozero("content-type");
+        assert!(h_content_type_opt.is_some());
+        let mut h_content_type = h_content_type_opt.unwrap().1;
         assert!(!h_content_type.is_null());
         assert_eq!(0, bstr_cmp_c((*h_content_type).value, cstr!("text/html")));
 
-        let mut h_server =
-            htp_table_get_c((*tx).response_headers, cstr!("server")) as *mut htp_header_t;
+        let mut h_server_opt = (*(*tx).response_headers).get_nocase_nozero("server");
+        assert!(h_server_opt.is_some());
+        let mut h_server = h_server_opt.unwrap().1;
         assert!(!h_server.is_null());
         assert_eq!(0, bstr_cmp_c((*h_server).value, cstr!("Apache")));
 
@@ -447,12 +453,15 @@ fn GetTest() {
         htp_tx_res_set_header(tx, cstr!("Server"), 6, cstr!("Apache"), 6, HTP_ALLOC_COPY);
 
         // Check trailing response headers
-        h_content_type =
-            htp_table_get_c((*tx).response_headers, cstr!("content-type")) as *mut htp_header_t;
+        h_content_type_opt = (*(*tx).response_headers).get_nocase_nozero("content-type");
+        assert!(h_content_type_opt.is_some());
+        h_content_type = h_content_type_opt.unwrap().1;
         assert!(!h_content_type.is_null());
         assert_eq!(0, bstr_cmp_c((*h_content_type).value, cstr!("text/html")));
 
-        h_server = htp_table_get_c((*tx).response_headers, cstr!("server")) as *mut htp_header_t;
+        h_server_opt = (*(*tx).response_headers).get_nocase_nozero("server");
+        assert!(h_server_opt.is_some());
+        h_server = h_server_opt.unwrap().1;
         assert!(!h_server.is_null());
         assert_eq!(0, bstr_cmp_c((*h_server).value, cstr!("Apache")));
 
@@ -537,16 +546,21 @@ fn PostUrlecodedTest() {
             HTP_ALLOC_COPY,
         );
 
-        let h_host = htp_table_get_c((*tx).request_headers, cstr!("host")) as *mut htp_header_t;
+        let h_host_opt = (*(*tx).request_headers).get_nocase_nozero("host");
+        assert!(h_host_opt.is_some());
+        let h_host = h_host_opt.unwrap().1;
         assert!(!h_host.is_null());
         assert_eq!(0, bstr_cmp_c((*h_host).value, cstr!("www.example.com")));
 
-        let h_connection =
-            htp_table_get_c((*tx).request_headers, cstr!("connection")) as *mut htp_header_t;
+        let h_connection_opt = (*(*tx).request_headers).get_nocase_nozero("connection");
+        assert!(h_connection_opt.is_some());
+        let h_connection = h_connection_opt.unwrap().1;
         assert!(!h_connection.is_null());
         assert_eq!(0, bstr_cmp_c((*h_connection).value, cstr!("keep-alive")));
 
-        let h_ua = htp_table_get_c((*tx).request_headers, cstr!("user-agent")) as *mut htp_header_t;
+        let h_ua_opt = (*(*tx).request_headers).get_nocase_nozero("user-agent");
+        assert!(h_ua_opt.is_some());
+        let h_ua = h_ua_opt.unwrap().1;
         assert!(!h_ua.is_null());
         assert_eq!(0, bstr_cmp_c((*h_ua).value, cstr!("Mozilla/5.0")));
 

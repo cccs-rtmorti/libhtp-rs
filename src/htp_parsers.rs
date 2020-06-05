@@ -1,8 +1,6 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
-use crate::{
-    bstr, htp_base64, htp_connection_parser, htp_table, htp_transaction, htp_util, Status,
-};
+use crate::{bstr, htp_base64, htp_connection_parser, htp_transaction, htp_util, Status};
 
 extern "C" {
     #[no_mangle]
@@ -155,15 +153,12 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
 pub unsafe extern "C" fn htp_parse_authorization(
     mut connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    let auth_header: *const htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*(*connp).in_tx).request_headers,
-        b"authorization\x00" as *const u8 as *const i8,
-    )
-        as *const htp_transaction::htp_header_t;
-    if auth_header.is_null() {
+    let auth_header_opt = (*(*(*connp).in_tx).request_headers).get_nocase_nozero("authorization");
+    if auth_header_opt.is_none() {
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
         return Status::OK;
     }
+    let auth_header = auth_header_opt.unwrap().1;
     // TODO Need a flag to raise when failing to parse authentication headers.
     if bstr::bstr_begins_with_c_nocase((*auth_header).value, b"basic\x00" as *const u8 as *const i8)
         != 0

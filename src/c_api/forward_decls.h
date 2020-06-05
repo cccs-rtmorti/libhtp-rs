@@ -15,6 +15,7 @@ typedef struct htp_tx_data_t htp_tx_data_t;
 typedef struct htp_tx_t htp_tx_t;
 typedef struct htp_uri_t htp_uri_t;
 typedef struct bstr_t bstr;
+typedef struct htp_table_t htp_table_t;
 /* Needed to suppress type issues in the exposed
  * decompression state. Will go away when decompression
  * is cleaned up.

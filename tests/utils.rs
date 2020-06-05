@@ -49,7 +49,6 @@ fn Decode() {
         bstr_free(out);
     }
 }
-
 // Util tests
 #[test]
 fn Separator() {
@@ -2062,7 +2061,7 @@ fn UrlencodedParser_Empty() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "".as_ptr() as *const core::ffi::c_void, 0);
 
-        assert_eq!(0, htp_table_size((*test.urlenp).params));
+        assert_eq!(0, (*test.urlenp).params.size());
     }
 }
 
@@ -2072,15 +2071,12 @@ fn UrlencodedParser_EmptyKey1() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "&".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "".as_ptr() as *const core::ffi::c_void,
-            0,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2090,15 +2086,12 @@ fn UrlencodedParser_EmptyKey2() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=&".as_ptr() as *const core::ffi::c_void, 2);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "".as_ptr() as *const core::ffi::c_void,
-            0,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2108,15 +2101,12 @@ fn UrlencodedParser_EmptyKey3() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=1&".as_ptr() as *const core::ffi::c_void, 3);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "".as_ptr() as *const core::ffi::c_void,
-            0,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("1")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("1")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2126,15 +2116,12 @@ fn UrlencodedParser_EmptyKeyAndValue() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "".as_ptr() as *const core::ffi::c_void,
-            0,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2144,15 +2131,12 @@ fn UrlencodedParser_OnePairEmptyValue() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p=".as_ptr() as *const core::ffi::c_void, 2);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *const core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2162,15 +2146,12 @@ fn UrlencodedParser_OnePair() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p=1".as_ptr() as *const core::ffi::c_void, 3);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *const core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("1")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("1")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2184,23 +2165,18 @@ fn UrlencodedParser_TwoPairs() {
             7,
         );
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *const core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c(p, cstr!("1")));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("1")));
 
-        let q: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "q".as_ptr() as *const core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!q.is_null());
-        assert_eq!(0, bstr_cmp_c(q, cstr!("2")));
-
-        assert_eq!(2, htp_table_size((*test.urlenp).params));
+        let q_opt = (*test.urlenp).params.get_nocase("q");
+        assert!(q_opt.is_some());
+        let q = q_opt.unwrap();
+        assert!(!q.1.is_null());
+        assert_eq!(0, bstr_cmp_c(q.1, cstr!("2")));
+        assert_eq!(2, (*test.urlenp).params.size());
     }
 }
 
@@ -2210,16 +2186,12 @@ fn UrlencodedParser_KeyNoValue1() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *const core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2229,16 +2201,12 @@ fn UrlencodedParser_KeyNoValue2() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&".as_ptr() as *mut core::ffi::c_void, 2);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2248,24 +2216,18 @@ fn UrlencodedParser_KeyNoValue3() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&q".as_ptr() as *mut core::ffi::c_void, 3);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
 
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        let q: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "q".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!q.is_null());
-        assert_eq!(0, bstr_cmp_c(q, cstr!("")));
-
-        assert_eq!(2, htp_table_size((*test.urlenp).params));
+        let q_opt = (*test.urlenp).params.get_nocase("q");
+        assert!(q_opt.is_some());
+        let q = q_opt.unwrap();
+        assert!(!q.1.is_null());
+        assert_eq!(0, bstr_cmp_c(q.1, cstr!("")));
+        assert_eq!(2, (*test.urlenp).params.size());
     }
 }
 
@@ -2275,24 +2237,18 @@ fn UrlencodedParser_KeyNoValue4() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&q=2".as_ptr() as *mut core::ffi::c_void, 5);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
 
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        let q: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "q".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!q.is_null());
-        assert_eq!(0, bstr_cmp_c(q, cstr!("2")));
-
-        assert_eq!(2, htp_table_size((*test.urlenp).params));
+        let q_opt = (*test.urlenp).params.get_nocase("q");
+        assert!(q_opt.is_some());
+        let q = q_opt.unwrap();
+        assert!(!q.1.is_null());
+        assert_eq!(0, bstr_cmp_c(q.1, cstr!("2")));
+        assert_eq!(2, (*test.urlenp).params.size());
     }
 }
 
@@ -2303,16 +2259,12 @@ fn UrlencodedParser_Partial1() {
         htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2324,16 +2276,12 @@ fn UrlencodedParser_Partial2() {
         htp_urlenp_parse_partial(test.urlenp, "x".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "px".as_ptr() as *mut core::ffi::c_void,
-            2,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("px");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2345,16 +2293,12 @@ fn UrlencodedParser_Partial3() {
         htp_urlenp_parse_partial(test.urlenp, "x&".as_ptr() as *mut core::ffi::c_void, 2);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "px".as_ptr() as *mut core::ffi::c_void,
-            2,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("px");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2366,16 +2310,12 @@ fn UrlencodedParser_Partial4() {
         htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2389,16 +2329,12 @@ fn UrlencodedParser_Partial5() {
         htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "p".as_ptr() as *mut core::ffi::c_void,
-            1,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(p, cstr!("")));
-
-        assert_eq!(1, htp_table_size((*test.urlenp).params));
+        let p_opt = (*test.urlenp).params.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(1, (*test.urlenp).params.size());
     }
 }
 
@@ -2422,25 +2358,18 @@ fn UrlencodedParser_Partial6i() {
         htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "pxn".as_ptr() as *mut core::ffi::c_void,
-            3,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
+        let p_opt = (*test.urlenp).params.get_nocase("pxn");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap();
+        assert!(!p.1.is_null());
+        assert_eq!(0, bstr_cmp_c(p.1, cstr!("12")));
 
-        assert_eq!(0, bstr_cmp_c(p, cstr!("12")));
-
-        let q: *mut bstr_t = htp_table_get_mem(
-            (*test.urlenp).params,
-            "qzn".as_ptr() as *mut core::ffi::c_void,
-            3,
-        ) as *mut bstr_t;
-        assert!(!p.is_null());
-
-        assert_eq!(0, bstr_cmp_c(q, cstr!("23")));
-
-        assert_eq!(2, htp_table_size((*test.urlenp).params));
+        let q_opt = (*test.urlenp).params.get_nocase("qzn");
+        assert!(q_opt.is_some());
+        let q = q_opt.unwrap();
+        assert!(!q.1.is_null());
+        assert_eq!(0, bstr_cmp_c(q.1, cstr!("23")));
+        assert_eq!(2, (*test.urlenp).params.size());
     }
 }
 
@@ -2569,29 +2498,27 @@ fn List_Expand2() {
 #[test]
 fn Table_Misc() {
     unsafe {
-        let t: *mut htp_table_t = htp_table_create(2);
+        let mut t: htp_table_t<*mut i8> = htp_table_t::with_capacity(2);
 
-        let pkey: *mut bstr_t = bstr_dup_c(cstr!("p"));
-        let qkey: *mut bstr_t = bstr_dup_c(cstr!("q"));
+        let mut pkey = bstr_t::with_capacity(1);
+        pkey.add("p");
 
-        htp_table_addk(t, pkey, cstr!("1") as *mut core::ffi::c_void);
-        htp_table_addk(t, qkey, cstr!("2") as *mut core::ffi::c_void);
+        let mut qkey = bstr_t::with_capacity(1);
+        qkey.add("q");
 
-        let mut p: *mut i8 =
-            htp_table_get_mem(t, cstr!("z") as *mut core::ffi::c_void, 1) as *mut i8;
-        assert!(p.is_null());
+        t.add(pkey, cstr!("1") as *mut i8);
+        t.add(qkey, cstr!("2") as *mut i8);
 
-        p = htp_table_get(t, pkey) as *mut i8;
+        let mut p_opt = t.get_nocase("z");
+        assert!(p_opt.is_none());
+
+        p_opt = t.get_nocase("p");
+        assert!(p_opt.is_some());
+        let p = p_opt.unwrap().1;
         assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp(cstr!("1") as *mut i8, p));
-
-        bstr_free(qkey);
-        bstr_free(pkey);
-
-        htp_table_destroy(t);
+        assert_eq!(0, libc::strcmp(cstr!("1") as *const i8, p));
     }
 }
-
 #[test]
 fn Util_ExtractQuotedString() {
     unsafe {

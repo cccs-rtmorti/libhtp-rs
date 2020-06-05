@@ -9,8 +9,7 @@ extern "C" {
 
 /// This is the main URLENCODED parser structure. It is used to store
 /// parser configuration, temporary parsing data, as well as the parameters.
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_urlenp_t {
     /// The transaction this parser belongs to.
     pub tx: *mut htp_transaction::htp_tx_t,
@@ -20,7 +19,7 @@ pub struct htp_urlenp_t {
     /// Whether to perform URL-decoding on parameters.
     pub decode_url_encoding: i32,
     /// This table contains the list of parameters, indexed by name.
-    pub params: *mut htp_table::htp_table_t,
+    pub params: htp_table::htp_table_t<*mut bstr::bstr_t>,
     // Private fields; these are used during the parsing process only
     pub _state: i32,
     pub _complete: i32,
@@ -83,27 +82,20 @@ unsafe fn htp_urlenp_add_field_piece(
                 // (e.g., /index.php?&q=2).
                 if !field.is_null() || last_char == (*urlenp).argument_separator as i32 {
                     // Add one pair, with an empty value and possibly empty key too.
-                    let mut name: *mut bstr::bstr_t = field;
-                    if name.is_null() {
-                        name = bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
-                        if name.is_null() {
-                            return;
-                        }
-                    }
+                    let mut name = if !field.is_null() {
+                        (*field).clone()
+                    } else {
+                        bstr::bstr_t::from("")
+                    };
                     let value: *mut bstr::bstr_t =
                         bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
                     if value.is_null() {
-                        bstr::bstr_free(name);
                         return;
                     }
                     if (*urlenp).decode_url_encoding != 0 {
-                        htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, name);
+                        htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, &mut name);
                     }
-                    htp_table::htp_table_addn(
-                        (*urlenp).params,
-                        name,
-                        value as *const core::ffi::c_void,
-                    );
+                    (*urlenp).params.add(name, value);
                     (*urlenp)._name = 0 as *mut bstr::bstr_t
                 }
             } else {
@@ -133,11 +125,7 @@ unsafe fn htp_urlenp_add_field_piece(
                 htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, name_0);
                 htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, value_0);
             }
-            htp_table::htp_table_addn(
-                (*urlenp).params,
-                name_0,
-                value_0 as *const core::ffi::c_void,
-            );
+            (*urlenp).params.add((*name_0).clone(), value_0);
         }
     } else if !data.is_null() && endpos.wrapping_sub(startpos) > 0 {
         bstr_builder::bstr_builder_append_mem(
@@ -158,14 +146,9 @@ pub unsafe fn htp_urlenp_create(tx: *mut htp_transaction::htp_tx_t) -> *mut htp_
         return 0 as *mut htp_urlenp_t;
     }
     (*urlenp).tx = tx;
-    (*urlenp).params = htp_table::htp_table_create(32);
-    if (*urlenp).params.is_null() {
-        free(urlenp as *mut core::ffi::c_void);
-        return 0 as *mut htp_urlenp_t;
-    }
+    (*urlenp).params = htp_table::htp_table_t::with_capacity(32);
     (*urlenp)._bb = bstr_builder::bstr_builder_create();
     if (*urlenp)._bb.is_null() {
-        htp_table::htp_table_destroy((*urlenp).params);
         free(urlenp as *mut core::ffi::c_void);
         return 0 as *mut htp_urlenp_t;
     }
@@ -184,20 +167,11 @@ pub unsafe fn htp_urlenp_destroy(urlenp: *mut htp_urlenp_t) {
         bstr::bstr_free((*urlenp)._name);
     }
     bstr_builder::bstr_builder_destroy((*urlenp)._bb);
-    if !(*urlenp).params.is_null() {
+    for (_name, value) in (*urlenp).params.elements.iter_mut() {
         // Destroy parameters.
-        let mut i: usize = 0;
-        let n: usize = htp_table::htp_table_size((*urlenp).params);
-        while i < n {
-            let b: *mut bstr::bstr_t =
-                htp_table::htp_table_get_index((*urlenp).params, i, 0 as *mut *mut bstr::bstr_t)
-                    as *mut bstr::bstr_t;
-            // Parameter name will be freed by the table code.
-            bstr::bstr_free(b);
-            i = i.wrapping_add(1)
-        }
-        htp_table::htp_table_destroy((*urlenp).params);
+        bstr::bstr_free(*value);
     }
+    (*urlenp).params.elements.clear();
     free(urlenp as *mut core::ffi::c_void);
 }
 

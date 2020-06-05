@@ -86,9 +86,21 @@ pub enum htp_transfer_coding_t {
     HTP_CODING_INVALID,
 }
 
-/// Represents a single HTTP transaction, which is a combination of a request and a response.
+/// Represents a single request or response header.
 #[repr(C)]
 #[derive(Copy, Clone)]
+pub struct htp_header_t {
+    /// Header name.
+    pub name: *mut bstr::bstr_t,
+    /// Header value.
+    pub value: *mut bstr::bstr_t,
+    /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
+    pub flags: Flags,
+}
+
+/// Represents a single HTTP transaction, which is a combination of a request and a response.
+#[repr(C)]
+#[derive(Clone)]
 pub struct htp_tx_t {
     /// The connection parser associated with this transaction.
     pub connp: *mut htp_connection_parser::htp_connp_t,
@@ -168,7 +180,7 @@ pub struct htp_tx_t {
     /// de-chunking and decompression.
     pub request_entity_len: i64,
     /// Parsed request headers.
-    pub request_headers: *mut htp_table::htp_table_t,
+    pub request_headers: *mut htp_table::htp_table_t<*mut htp_header_t>,
     /// Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
     /// determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
     /// and HTP_CODING_UNRECOGNIZED.
@@ -200,9 +212,9 @@ pub struct htp_tx_t {
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: *mut htp_multipart::htp_mpartp_t,
     /// Request parameters.
-    pub request_params: *mut htp_table::htp_table_t,
+    pub request_params: *mut htp_table::htp_table_t<*mut htp_param_t>,
     /// Request cookies
-    pub request_cookies: *mut htp_table::htp_table_t,
+    pub request_cookies: *mut htp_table::htp_table_t<*mut bstr::bstr_t>,
     /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
     /// Authentication username.
@@ -242,7 +254,7 @@ pub struct htp_tx_t {
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: i32,
     /// Parsed response headers. Contains instances of htp_header_t.
-    pub response_headers: *mut htp_table::htp_table_t,
+    pub response_headers: *mut htp_table::htp_table_t<*mut htp_header_t>,
 
     /// HTTP 1.1 RFC
     ///
@@ -368,17 +380,6 @@ pub enum Protocol {
     V1_1 = 101,
 }
 
-/// Represents a single request or response header.
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct htp_header_t {
-    /// Header name.
-    pub name: *mut bstr::bstr_t,
-    /// Header value.
-    pub value: *mut bstr::bstr_t,
-    /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
-    pub flags: Flags,
-}
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_void) -> Status>;
 pub type htp_alloc_strategy_t = u32;
 pub const HTP_ALLOC_REUSE: htp_alloc_strategy_t = 2;
@@ -422,29 +423,18 @@ pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *
         htp_tx_destroy_incomplete(tx);
         return 0 as *mut htp_tx_t;
     }
-    (*tx).request_headers = htp_table::htp_table_create(32);
-    if (*tx).request_headers.is_null() {
-        htp_tx_destroy_incomplete(tx);
-        return 0 as *mut htp_tx_t;
-    }
-    (*tx).request_params = htp_table::htp_table_create(32);
-    if (*tx).request_params.is_null() {
-        htp_tx_destroy_incomplete(tx);
-        return 0 as *mut htp_tx_t;
-    }
+    (*tx).request_headers = htp_table::htp_table_alloc(32);
+    (*tx).request_params = htp_table::htp_table_alloc(32);
     // Response fields.
     (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED;
     (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = 0;
     (*tx).response_protocol_number = Protocol::UNKNOWN as i32;
     (*tx).response_content_length = -1;
-    (*tx).response_headers = htp_table::htp_table_create(32);
-    if (*tx).response_headers.is_null() {
-        htp_tx_destroy_incomplete(tx);
-        return 0 as *mut htp_tx_t;
-    }
+    (*tx).response_headers = htp_table::htp_table_alloc(32);
+
     htp_list::htp_list_array_push((*(*tx).conn).transactions, tx as *mut core::ffi::c_void);
-    return tx;
+    tx
 }
 
 /// Destroys the supplied transaction.
@@ -478,57 +468,33 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
     bstr::bstr_free((*tx).request_auth_username);
     bstr::bstr_free((*tx).request_auth_password);
     // Request_headers.
-    if !(*tx).request_headers.is_null() {
-        let mut h: *mut htp_header_t = 0 as *mut htp_header_t;
-        let mut i: usize = 0;
-        let n: usize = htp_table::htp_table_size((*tx).request_headers);
-        while i < n {
-            h = htp_table::htp_table_get_index(
-                (*tx).request_headers,
-                i,
-                0 as *mut *mut bstr::bstr_t,
-            ) as *mut htp_header_t;
-            bstr::bstr_free((*h).name);
-            bstr::bstr_free((*h).value);
-            free(h as *mut core::ffi::c_void);
-            i = i.wrapping_add(1)
-        }
-        htp_table::htp_table_destroy((*tx).request_headers);
+    for (_key, h) in (*(*tx).request_headers).elements.iter_mut() {
+        bstr::bstr_free((*(*h)).name);
+        bstr::bstr_free((*(*h)).value);
+        free(*h as *mut libc::c_void);
     }
+    htp_table::htp_table_free((*tx).request_headers);
+
     // Request parsers.
     htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_query);
     htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_body);
     htp_multipart::htp_mpartp_destroy((*tx).request_mpartp);
     // Request parameters.
-    let mut param: *mut htp_param_t = 0 as *mut htp_param_t;
-    let mut i_0: usize = 0;
-    let n_0: usize = htp_table::htp_table_size((*tx).request_params);
-    while i_0 < n_0 {
-        param =
-            htp_table::htp_table_get_index((*tx).request_params, i_0, 0 as *mut *mut bstr::bstr_t)
-                as *mut htp_param_t;
-        bstr::bstr_free((*param).name);
-        bstr::bstr_free((*param).value);
-        free(param as *mut core::ffi::c_void);
-        i_0 = i_0.wrapping_add(1)
+    for (_key, param) in (*(*tx).request_params).elements.iter_mut() {
+        bstr::bstr_free((*(*param)).name);
+        bstr::bstr_free((*(*param)).value);
+        free(*param as *mut libc::c_void);
     }
-    htp_table::htp_table_destroy((*tx).request_params);
+    htp_table::htp_table_free((*tx).request_params);
+
     // Request cookies.
     if !(*tx).request_cookies.is_null() {
-        let mut b: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-        let mut i_1: usize = 0;
-        let n_1: usize = htp_table::htp_table_size((*tx).request_cookies);
-        while i_1 < n_1 {
-            b = htp_table::htp_table_get_index(
-                (*tx).request_cookies,
-                i_1,
-                0 as *mut *mut bstr::bstr_t,
-            ) as *mut bstr::bstr_t;
-            bstr::bstr_free(b);
-            i_1 = i_1.wrapping_add(1)
+        for (_name, value) in (*(*tx).request_cookies).elements.iter_mut() {
+            bstr::bstr_free(*value);
         }
-        htp_table::htp_table_destroy((*tx).request_cookies);
+        htp_table::htp_table_free((*tx).request_cookies);
     }
+
     htp_hooks::htp_hook_destroy((*tx).hook_request_body_data);
     // Response fields.
     bstr::bstr_free((*tx).response_line);
@@ -537,23 +503,13 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
     bstr::bstr_free((*tx).response_message);
     bstr::bstr_free((*tx).response_content_type);
     // Destroy response headers.
-    if !(*tx).response_headers.is_null() {
-        let mut h_0: *mut htp_header_t = 0 as *mut htp_header_t;
-        let mut i_2: usize = 0;
-        let n_2: usize = htp_table::htp_table_size((*tx).response_headers);
-        while i_2 < n_2 {
-            h_0 = htp_table::htp_table_get_index(
-                (*tx).response_headers,
-                i_2,
-                0 as *mut *mut bstr::bstr_t,
-            ) as *mut htp_header_t;
-            bstr::bstr_free((*h_0).name);
-            bstr::bstr_free((*h_0).value);
-            free(h_0 as *mut core::ffi::c_void);
-            i_2 = i_2.wrapping_add(1)
-        }
-        htp_table::htp_table_destroy((*tx).response_headers);
+    for (_key, h_0) in (*(*tx).response_headers).elements.iter_mut() {
+        bstr::bstr_free((*(*h_0)).name);
+        bstr::bstr_free((*(*h_0)).value);
+        free(*h_0 as *mut libc::c_void);
     }
+    htp_table::htp_table_free((*tx).response_headers);
+
     // If we're using a private configuration structure, destroy it.
     if (*tx).is_config_shared == 0 {
         htp_config::htp_config_destroy((*tx).cfg);
@@ -588,20 +544,18 @@ pub unsafe fn htp_tx_req_add_param(tx: *mut htp_tx_t, param: *mut htp_param_t) -
     if tx.is_null() || param.is_null() {
         return Status::ERROR;
     }
-    if (*(*tx).cfg).parameter_processor.is_some() {
-        if (*(*tx).cfg)
+    if (*(*tx).cfg).parameter_processor.is_some()
+        && (*(*tx).cfg)
             .parameter_processor
             .expect("non-null function pointer")(param)
             != Status::OK
-        {
-            return Status::ERROR;
-        }
+    {
+        return Status::ERROR;
     }
-    return htp_table::htp_table_addk(
-        (*tx).request_params,
-        (*param).name,
-        param as *const core::ffi::c_void,
-    );
+
+    let name = bstr::bstr_t::from((*(*param).name).as_slice());
+    (*(*tx).request_params).add(name, param);
+    return Status::OK;
 }
 
 /// Returns the first request parameter that matches the given name, using case-insensitive matching.
@@ -620,11 +574,12 @@ pub unsafe fn htp_tx_req_get_param(
     if tx.is_null() || name.is_null() {
         return 0 as *mut htp_param_t;
     }
-    return htp_table::htp_table_get_mem(
-        (*tx).request_params,
-        name as *const core::ffi::c_void,
-        name_len,
-    ) as *mut htp_param_t;
+    let check = std::slice::from_raw_parts(name as *const u8, name_len);
+    let param_opt = (*(*tx).request_params).get_nocase(check);
+    if param_opt.is_none() {
+        return 0 as *mut htp_param_t;
+    }
+    param_opt.unwrap().1 as *mut htp_param_t
 }
 
 /// Returns the first request parameter from the given source that matches the given name,
@@ -646,21 +601,16 @@ pub unsafe fn htp_tx_req_get_param_ex(
     if tx.is_null() || name.is_null() {
         return 0 as *mut htp_param_t;
     }
-    let mut p: *mut htp_param_t = 0 as *mut htp_param_t;
-    let mut i: usize = 0;
-    let n: usize = htp_table::htp_table_size((*tx).request_params);
-    while i < n {
-        p = htp_table::htp_table_get_index((*tx).request_params, i, 0 as *mut *mut bstr::bstr_t)
-            as *mut htp_param_t;
-        if !((*p).source != source) {
-            if bstr::bstr_cmp_mem_nocase((*p).name, name as *const core::ffi::c_void, name_len) == 0
-            {
-                return p;
-            }
-        }
-        i = i.wrapping_add(1)
+    let s = std::slice::from_raw_parts(name as *const u8, name_len);
+    let param_opt = (*(*tx).request_params).elements.iter().find(|x| {
+        !(*(*x)).1.is_null()
+            && (*(*(*x)).1).source as u32 == source as u32
+            && (*(*x)).0.cmp_nocase(s) == std::cmp::Ordering::Equal
+    });
+    if param_opt.is_none() {
+        return 0 as *mut htp_param_t;
     }
-    return 0 as *mut htp_param_t;
+    return param_opt.unwrap().1;
 }
 
 /// Determine if the request has a body.
@@ -720,17 +670,7 @@ pub unsafe fn htp_tx_req_set_header(
         free(h as *mut core::ffi::c_void);
         return Status::ERROR;
     }
-    if htp_table::htp_table_add(
-        (*tx).request_headers,
-        (*h).name,
-        h as *const core::ffi::c_void,
-    ) != Status::OK
-    {
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
+    (*(*tx).request_headers).add((*(*h).name).clone(), h);
     Status::OK
 }
 
@@ -740,16 +680,11 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     }
     // Determine if we have a request body, and how it is packaged.
     let mut rc: Status = Status::OK;
-    let cl: *mut htp_header_t = htp_table::htp_table_get_c(
-        (*tx).request_headers,
-        b"content-length\x00" as *const u8 as *const i8,
-    ) as *mut htp_header_t;
-    let te: *mut htp_header_t = htp_table::htp_table_get_c(
-        (*tx).request_headers,
-        b"transfer-encoding\x00" as *const u8 as *const i8,
-    ) as *mut htp_header_t;
+    let cl_opt = (*(*tx).request_headers).get_nocase_nozero("content-length");
+    let te_opt = (*(*tx).request_headers).get_nocase_nozero("transfer-encoding");
     // Check for the Transfer-Encoding header, which would indicate a chunked request body.
-    if !te.is_null() {
+    if te_opt.is_some() {
+        let te = te_opt.unwrap().1;
         // Make sure it contains "chunked" only.
         // TODO The HTTP/1.1 RFC also allows the T-E header to contain "identity", which
         //      presumably should have the same effect as T-E header absence. However, Apache
@@ -775,7 +710,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
             // If the T-E header is present we are going to use it.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_CHUNKED;
             // We are still going to check for the presence of C-L.
-            if !cl.is_null() {
+            if cl_opt.is_some() {
                 // According to the HTTP/1.1 RFC (section 4.4):
                 //
                 // "The Content-Length header field MUST NOT be sent
@@ -787,7 +722,8 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
                 (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
         }
-    } else if !cl.is_null() {
+    } else if cl_opt.is_some() {
+        let cl = cl_opt.unwrap().1;
         // Check for a folded C-L header.
         if (*cl).flags.contains(Flags::HTP_FIELD_FOLDED) {
             (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
@@ -842,16 +778,15 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     }
     (*tx).request_port_number = (*(*tx).parsed_uri).port_number;
     // Examine the Host header.
-    let h: *mut htp_header_t =
-        htp_table::htp_table_get_c((*tx).request_headers, b"host\x00" as *const u8 as *const i8)
-            as *mut htp_header_t;
-    if h.is_null() {
+    let h_opt = (*(*tx).request_headers).get_nocase_nozero("host");
+    if h_opt.is_none() {
         // No host information in the headers.
         // HTTP/1.1 requires host information in the headers.
         if (*tx).request_protocol_number >= Protocol::V1_1 as i32 {
             (*tx).flags |= Flags::HTP_HOST_MISSING
         }
     } else {
+        let h = h_opt.unwrap().1;
         // Host information available in the headers.
         let mut hostname: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
         let mut port: i32 = 0;
@@ -896,11 +831,9 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         }
     }
     // Determine Content-Type.
-    let ct: *mut htp_header_t = htp_table::htp_table_get_c(
-        (*tx).request_headers,
-        b"content-type\x00" as *const u8 as *const i8,
-    ) as *mut htp_header_t;
-    if !ct.is_null() {
+    let ct_opt = (*(*tx).request_headers).get_nocase_nozero("content-type");
+    if ct_opt.is_some() {
+        let ct = ct_opt.unwrap().1;
         rc = htp_util::htp_parse_ct_header((*ct).value, &mut (*tx).request_content_type);
         if rc != Status::OK {
             return rc;
@@ -1187,18 +1120,8 @@ pub unsafe fn htp_tx_res_set_header(
         free(h as *mut core::ffi::c_void);
         return Status::ERROR;
     }
-    if htp_table::htp_table_add(
-        (*tx).response_headers,
-        (*h).name,
-        h as *const core::ffi::c_void,
-    ) != Status::OK
-    {
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    return Status::OK;
+    (*(*tx).response_headers).add((*(*h).name).clone(), h);
+    Status::OK
 }
 
 pub unsafe fn htp_connp_destroy_decompressors(mut connp: *mut htp_connection_parser::htp_connp_t) {
@@ -1832,11 +1755,9 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     let mut ce_multi_comp: i32 = 0;
     (*tx).response_content_encoding =
         htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-    let ce: *mut htp_header_t = htp_table::htp_table_get_c(
-        (*tx).response_headers,
-        b"content-encoding\x00" as *const u8 as *const i8,
-    ) as *mut htp_header_t;
-    if !ce.is_null() {
+    let ce_opt = (*(*tx).response_headers).get_nocase_nozero("content-encoding");
+    if ce_opt.is_some() {
+        let ce = ce_opt.unwrap().1;
         // fast paths: regular gzip and friends
         if bstr::bstr_cmp_c_nocasenorzero((*ce).value, b"gzip\x00" as *const u8 as *const i8) == 0
             || bstr::bstr_cmp_c_nocasenorzero((*ce).value, b"x-gzip\x00" as *const u8 as *const i8)
@@ -1927,6 +1848,7 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
             )
         // multiple ce value case
         } else {
+            let ce = ce_opt.unwrap().1;
             let mut layers: i32 = 0;
             let mut comp: *mut htp_decompressors::htp_decompressor_t =
                 0 as *mut htp_decompressors::htp_decompressor_t;

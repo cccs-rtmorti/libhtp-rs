@@ -101,14 +101,6 @@ extern "C" {
     ) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::size_t;
-    #[no_mangle]
-    fn strlcat(
-        dst: *mut libc::c_char,
-        src: *const libc::c_char,
-        size: libc::size_t,
-    ) -> libc::size_t;
 }
 
 pub const _ISspace: i32 = 8192;

@@ -45,7 +45,7 @@ impl bstr_t {
         left.cmp(right)
     }
 
-    /// Case insensitive comparison between self and other.
+    /// Case insensitive comparison between self and other, ignoring any zeros in self
     pub fn cmp_nocase_nozero<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
         let lefts = &self.as_slice();
         let rights = &other.as_ref();
@@ -328,8 +328,7 @@ pub unsafe fn bstr_alloc(len: usize) -> *mut bstr_t {
     Box::into_raw(boxed)
 }
 
-/// Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
-/// input.
+/// Deallocate the supplied bstring instance. Allows NULL on input.
 pub unsafe fn bstr_free(b: *mut bstr_t) {
     if !b.is_null() {
         // b will be dropped when this box goes out of scope
@@ -590,30 +589,6 @@ pub unsafe fn bstr_cmp_c_nocasenorzero(b: *const bstr_t, c: *const i8) -> i32 {
     ordering2int!((*b).cmp_nocase_nozero(cs.to_bytes()))
 }
 
-/// Performs a case-sensitive comparison of a bstring with a memory region.
-///
-/// Returns Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
-pub unsafe fn bstr_cmp_mem(b: *const bstr_t, data: *const core::ffi::c_void, len: usize) -> i32 {
-    nullcheck!(b, data);
-
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    ordering2int!((*b).cmp(s))
-}
-
-/// Performs a case-insensitive comparison of a bstring with a memory region.
-///
-/// Returns Zero ona match, 1 if b is greater than data, and -1 if data is greater than b.
-pub unsafe fn bstr_cmp_mem_nocase(
-    b: *const bstr_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> i32 {
-    nullcheck!(b, data);
-
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    ordering2int!((*b).cmp_nocase(s))
-}
-
 /// Case-insensitive comparison two bstrings.
 ///
 /// Returns Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
@@ -624,8 +599,9 @@ pub unsafe fn bstr_cmp_nocase(b1: *const bstr_t, b2: *const bstr_t) -> i32 {
     ordering2int!((*b1).cmp_nocase((*b2).as_slice()))
 }
 
-// Create a new bstring by copying the provided bstring.
-// Returns New bstring, or NULL if memory allocation failed.
+/// Create a new bstring by copying the provided bstring.
+///
+/// Returns New bstring, or NULL if memory allocation failed.
 pub unsafe fn bstr_dup(b: *const bstr_t) -> *mut bstr_t {
     nullcheck!(b);
 
@@ -652,7 +628,7 @@ pub unsafe fn bstr_dup_c(cstr: *const i8) -> *mut bstr_t {
     new
 }
 
-// Create a new bstring by copying a part of the provided bstring.
+/// Create a new bstring by copying a part of the provided bstring.
 pub unsafe fn bstr_dup_ex(b: *const bstr_t, offset: usize, len: usize) -> *mut bstr_t {
     nullcheck!(b);
 
@@ -689,6 +665,15 @@ pub unsafe fn bstr_dup_mem(data: *const core::ffi::c_void, len: usize) -> *mut b
         let s = std::slice::from_raw_parts(data as *const u8, len);
         (*new).add(s);
     }
+    new
+}
+
+/// Create a new bstring by copying the provided bstring.
+///
+/// Returns New bstring, or NULL if memory allocation failed.
+pub unsafe fn bstr_clone(b: &bstr_t) -> *mut bstr_t {
+    let new = bstr_alloc(b.len());
+    (*new).add(b.as_slice());
     new
 }
 

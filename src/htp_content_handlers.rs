@@ -1,5 +1,5 @@
 use crate::htp_multipart::MultipartFlags;
-use crate::{bstr, htp_list, htp_multipart, htp_table, htp_transaction, htp_urlencoded, Status};
+use crate::{bstr, htp_list, htp_multipart, htp_transaction, htp_urlencoded, Status};
 
 extern "C" {
     #[no_mangle]
@@ -16,11 +16,7 @@ extern "C" {
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
-    let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx;
-    // Check that we were not invoked again after the finalization.
-    if (*(*tx).request_urlenp_body).params.is_null() {
-        return Status::ERROR;
-    }
+    let tx: *mut htp_transaction::htp_tx_t = (*d).tx;
     if !(*d).data.is_null() {
         // Process one chunk of data.
         htp_urlencoded::htp_urlenp_parse_partial(
@@ -32,22 +28,15 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
         // Finalize parsing.
         htp_urlencoded::htp_urlenp_finalize((*tx).request_urlenp_body);
         // Add all parameters to the transaction.
-        let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-        let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-        let mut i: usize = 0;
-        let n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_body).params);
-        while i < n {
-            value =
-                htp_table::htp_table_get_index((*(*tx).request_urlenp_body).params, i, &mut name)
-                    as *mut bstr::bstr_t;
+        for (name, value) in (*(*tx).request_urlenp_body).params.elements.iter_mut() {
             let mut param: *mut htp_transaction::htp_param_t =
                 calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
                     as *mut htp_transaction::htp_param_t;
             if param.is_null() {
                 return Status::ERROR;
             }
-            (*param).name = name;
-            (*param).value = value;
+            (*param).name = bstr::bstr_clone(name);
+            (*param).value = *value;
             (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_BODY;
             (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED;
             (*param).parser_data = 0 as *mut core::ffi::c_void;
@@ -55,15 +44,12 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
                 free(param as *mut core::ffi::c_void);
                 return Status::ERROR;
             }
-            i = i.wrapping_add(1)
         }
         // All the parameter data is now owned by the transaction, and
-        // the parser table used to store it is no longer needed. The
-        // line below will destroy just the table, leaving keys intact.
-        htp_table::htp_table_destroy_ex((*(*tx).request_urlenp_body).params);
-        (*(*tx).request_urlenp_body).params = 0 as *mut htp_table::htp_table_t
+        // the parser table used to store it is no longer needed
+        (*(*tx).request_urlenp_body).params.elements.clear();
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Determine if the request has a Urlencoded body, and, if it does, create and
@@ -97,7 +83,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
                 as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status,
         ),
     );
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses request query string, if present.
@@ -127,21 +113,15 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
         return Status::ERROR;
     }
     // Add all parameters to the transaction.
-    let mut name: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-    let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-    let mut i: usize = 0;
-    let n: usize = htp_table::htp_table_size((*(*tx).request_urlenp_query).params);
-    while i < n {
-        value = htp_table::htp_table_get_index((*(*tx).request_urlenp_query).params, i, &mut name)
-            as *mut bstr::bstr_t;
+    for (name, value) in (*(*tx).request_urlenp_query).params.elements.iter_mut() {
         let mut param: *mut htp_transaction::htp_param_t =
             calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
                 as *mut htp_transaction::htp_param_t;
         if param.is_null() {
             return Status::ERROR;
         }
-        (*param).name = name;
-        (*param).value = value;
+        (*param).name = bstr::bstr_clone(name);
+        (*param).value = *value;
         (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_QUERY_STRING;
         (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED;
         (*param).parser_data = 0 as *mut core::ffi::c_void;
@@ -149,16 +129,11 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
             free(param as *mut core::ffi::c_void);
             return Status::ERROR;
         }
-        i = i.wrapping_add(1)
     }
     // All the parameter data is now owned by the transaction, and
-    // the parser table used to store it is no longer needed. The
-    // line below will destroy just the table, leaving keys intact.
-    htp_table::htp_table_destroy_ex((*(*tx).request_urlenp_query).params);
-    (*(*tx).request_urlenp_query).params = 0 as *mut htp_table::htp_table_t;
-    htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_query);
-    (*tx).request_urlenp_query = 0 as *mut htp_urlencoded::htp_urlenp_t;
-    return Status::OK;
+    // the parser table used to store it is no longer needed.
+    (*(*tx).request_urlenp_query).params.elements.clear();
+    Status::OK
 }
 
 /// Finalize Multipart processing.
@@ -215,7 +190,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
         // and values of MULTIPART_PART_TEXT parts.
         (*(*tx).request_mpartp).gave_up_data = 1
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Inspect request headers and register the Multipart request data hook
@@ -234,13 +209,11 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
         return Status::DECLINED;
     }
     // Look for a boundary.
-    let ct: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*tx).request_headers,
-        b"content-type\x00" as *const u8 as *const i8,
-    ) as *mut htp_transaction::htp_header_t;
-    if ct.is_null() {
+    let ct_opt = (*(*tx).request_headers).get_nocase_nozero("content-type");
+    if ct_opt.is_none() {
         return Status::ERROR;
     }
+    let ct = ct_opt.unwrap().1;
     let mut boundary: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut flags: MultipartFlags = MultipartFlags::empty();
     let rc: Status =
@@ -271,5 +244,5 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
                 as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status,
         ),
     );
-    return Status::OK;
+    Status::OK
 }

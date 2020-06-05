@@ -587,30 +587,67 @@ pub unsafe extern "C" fn htp_log(
 
 /// Retrieve the first element that matches the given NUL-terminated key.
 /// returns Matched element, or NULL if no elements match the key.
+///
+/// table: Assumed to be a pointer to a htp_table_t<htp_header_t>
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_get_c(
-    table: *const htp_table::htp_table_t,
+    table: *const core::ffi::c_void,
     ckey: *const libc::c_char,
 ) -> *mut libc::c_void {
-    htp_table::htp_table_get_c(table, ckey)
+    let table = table as *const htp_table::htp_table_t<*mut htp_transaction::htp_header_t>;
+
+    if table.is_null() || ckey.is_null() {
+        return 0 as *mut libc::c_void;
+    }
+
+    let cs = std::ffi::CStr::from_ptr(ckey);
+    let result = (*table).get_nocase_nozero(cs.to_bytes());
+    if result.is_some() {
+        return result.unwrap().1 as *mut libc::c_void;
+    }
+    0 as *mut libc::c_void
 }
 
 /// Retrieve key and element at the given index.
+///
 /// key: Pointer in which the key will be returned. Can be NULL.
-/// returns HTP_OK on success, HTP_ERROR on failure.
+///      The caller does not have to free the key memory, however,
+///      the key's lifeteime will expire with the table.
+///      Therefore, the key must not be kept longer than the table
+///      or it will be invalidated.
+///
+/// table: Assumed to be a pointer to a htp_table_t<htp_header_t>
+///
+/// returns element or NULL if not found.
 #[no_mangle]
 pub unsafe extern "C" fn htp_table_get_index(
-    table: *const htp_table::htp_table_t,
+    table: *const core::ffi::c_void,
     idx: libc::size_t,
     key: *mut *mut bstr::bstr_t,
 ) -> *mut libc::c_void {
-    htp_table::htp_table_get_index(table, idx, key)
+    let table = table as *const htp_table::htp_table_t<*mut htp_transaction::htp_header_t>;
+
+    if table.is_null() || idx >= (*table).size() {
+        return 0 as *mut libc::c_void;
+    }
+    let result = &(*table)[idx];
+    if !key.is_null() {
+        *key = &result.0 as *const bstr::bstr_t as *mut bstr::bstr_t;
+    }
+    result.1 as *mut libc::c_void
 }
 
 /// Return the size of the table.
+///
+/// table: Assumed to be a pointer to a htp_table_t<htp_header_t>
 #[no_mangle]
-pub unsafe extern "C" fn htp_table_size(table: *const htp_table::htp_table_t) -> libc::size_t {
-    htp_table::htp_table_size(table)
+pub unsafe extern "C" fn htp_table_size(table: *const core::ffi::c_void) -> libc::size_t {
+    let table = table as *const htp_table::htp_table_t<*mut htp_transaction::htp_header_t>;
+
+    if table.is_null() {
+        return 0;
+    }
+    (*table).size()
 }
 
 /// Destroys the supplied transaction.

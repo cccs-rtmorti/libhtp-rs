@@ -7,7 +7,6 @@ use htp::htp_connection_parser::*;
 use htp::htp_list::*;
 use htp::htp_request::*;
 use htp::htp_response::*;
-use htp::htp_table::*;
 use htp::htp_transaction::htp_auth_type_t::*;
 use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::htp_tx_req_progress_t::*;
@@ -312,51 +311,59 @@ fn ApacheHeaderParsing() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(9, htp_table_size((*tx).request_headers));
+        assert_eq!(9, (*(*tx).request_headers).size());
 
-        let mut h: *mut htp_header_t;
-        h = htp_table_get_index((*tx).request_headers, 0, std::ptr::null_mut())
-            as *mut htp_header_t;
+        let mut res = &(*(*tx).request_headers)[0];
+        let mut h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!(" Invalid-Folding")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("1")));
 
-        h = htp_table_get_index((*tx).request_headers, 1, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[1];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Valid-Folding")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("2 2")));
 
-        h = htp_table_get_index((*tx).request_headers, 2, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[2];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Normal-Header")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("3")));
 
-        h = htp_table_get_index((*tx).request_headers, 3, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[3];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Invalid Header Name")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("4")));
 
-        h = htp_table_get_index((*tx).request_headers, 4, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[4];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Same-Name-Headers")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("5, 6")));
 
-        h = htp_table_get_index((*tx).request_headers, 5, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[5];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Empty-Value-Header")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("")));
 
-        h = htp_table_get_index((*tx).request_headers, 6, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[6];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("8, ")));
 
-        h = htp_table_get_index((*tx).request_headers, 7, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[7];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Header-With-LWS-After")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("9")));
 
-        h = htp_table_get_index((*tx).request_headers, 8, std::ptr::null_mut())
-            as *mut htp_header_t;
+        res = &(*(*tx).request_headers)[8];
+        h = res.1;
+        assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Header-With-NUL")));
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("BEFORE")));
     }
@@ -383,8 +390,9 @@ fn PostUrlencoded() {
         assert_eq!((*tx).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx).response_progress, HTP_RESPONSE_COMPLETE);
 
-        let h: *const htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("Server")) as *const htp_header_t;
+        let h_opt = (*(*tx).response_headers).get_nocase_nozero("Server");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("Apache")));
@@ -397,8 +405,9 @@ fn PostUrlencoded() {
         assert_eq!((*tx2).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx2).response_progress, HTP_RESPONSE_COMPLETE);
 
-        let h2: *const htp_header_t =
-            htp_table_get_c((*tx2).response_headers, cstr!("Server")) as *const htp_header_t;
+        let h2_opt = (*(*tx2).response_headers).get_nocase_nozero("Server");
+        assert!(h2_opt.is_some());
+        let h2 = h2_opt.unwrap().1;
         assert!(!h2.is_null());
         assert!(!(*h2).value.is_null());
         assert_eq!(0, bstr_cmp_c((*h2).value, cstr!("Apache")));
@@ -438,9 +447,8 @@ fn Expect() {
         assert!(!tx.is_null());
 
         // The interim header from the 100 response should not be among the final headers.
-        let h: *const htp_header_t =
-            htp_table_get_c((*tx).request_headers, cstr!("Header1")) as *const htp_header_t;
-        assert!(h.is_null());
+        let h_opt = (*(*tx).request_headers).get_nocase_nozero("Header1");
+        assert!(h_opt.is_none());
     }
 }
 
@@ -1549,23 +1557,26 @@ fn InvalidResponseHeaders1() {
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        assert_eq!(8, htp_table_size((*tx).response_headers));
+        assert_eq!(8, (*(*tx).response_headers).size());
 
-        let h_empty: *mut htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("")) as *mut htp_header_t;
+        let h_empty_opt = (*(*tx).response_headers).get_nocase_nozero("");
+        assert!(h_empty_opt.is_some());
+        let h_empty = h_empty_opt.unwrap().1;
         assert!(!h_empty.is_null());
         assert_eq!(0, bstr_cmp_c((*h_empty).value, cstr!("No Colon")));
         assert!((*h_empty).flags.contains(Flags::HTP_FIELD_INVALID));
         assert!((*h_empty).flags.contains(Flags::HTP_FIELD_UNPARSEABLE));
 
-        let h_lws: *mut htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("Lws")) as *mut htp_header_t;
+        let h_lws_opt = (*(*tx).response_headers).get_nocase_nozero("Lws");
+        assert!(h_lws_opt.is_some());
+        let h_lws = h_lws_opt.unwrap().1;
         assert!(!h_lws.is_null());
         assert_eq!(0, bstr_cmp_c((*h_lws).value, cstr!("After Header Name")));
         assert!((*h_lws).flags.contains(Flags::HTP_FIELD_INVALID));
 
-        let h_nottoken: *mut htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("Header@Name")) as *mut htp_header_t;
+        let h_nottoken_opt = (*(*tx).response_headers).get_nocase_nozero("Header@Name");
+        assert!(h_nottoken_opt.is_some());
+        let h_nottoken = h_nottoken_opt.unwrap().1;
         assert!(!h_nottoken.is_null());
         assert_eq!(0, bstr_cmp_c((*h_nottoken).value, cstr!("Not Token")));
         assert!((*h_nottoken).flags.contains(Flags::HTP_FIELD_INVALID));
@@ -1584,10 +1595,11 @@ fn InvalidResponseHeaders2() {
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        assert_eq!(6, htp_table_size((*tx).response_headers));
+        assert_eq!(6, (*(*tx).response_headers).size());
 
-        let h_empty: *mut htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("")) as *mut htp_header_t;
+        let h_empty_opt = (*(*tx).response_headers).get_nocase_nozero("");
+        assert!(h_empty_opt.is_some());
+        let h_empty = h_empty_opt.unwrap().1;
         assert!(!h_empty.is_null());
         assert_eq!(0, bstr_cmp_c((*h_empty).value, cstr!("Empty Name")));
         assert!((*h_empty).flags.contains(Flags::HTP_FIELD_INVALID));
@@ -1961,28 +1973,22 @@ fn RequestCookies() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(3, htp_table_size((*tx).request_cookies));
+        assert_eq!(3, (*(*tx).request_cookies).size());
 
-        let mut key: *mut bstr_t = std::ptr::null_mut();
-        let mut value: *mut bstr_t;
+        let mut res = &(*(*tx).request_cookies)[0];
+        assert_eq!(std::cmp::Ordering::Equal, res.0.cmp("p"));
+        assert!(!res.1.is_null());
+        assert_eq!(0, bstr_cmp_c(res.1, cstr!("1")));
 
-        value = htp_table_get_index((*tx).request_cookies, 0, &mut key) as *mut bstr_t;
-        assert!(!key.is_null());
-        assert!(!value.is_null());
-        assert_eq!(0, bstr_cmp_c(key, cstr!("p")));
-        assert_eq!(0, bstr_cmp_c(value, cstr!("1")));
+        res = &(*(*tx).request_cookies)[1];
+        assert_eq!(std::cmp::Ordering::Equal, res.0.cmp("q"));
+        assert!(!res.1.is_null());
+        assert_eq!(0, bstr_cmp_c(res.1, cstr!("2")));
 
-        value = htp_table_get_index((*tx).request_cookies, 1, &mut key) as *mut bstr_t;
-        assert!(!key.is_null());
-        assert!(!value.is_null());
-        assert_eq!(0, bstr_cmp_c(key, cstr!("q")));
-        assert_eq!(0, bstr_cmp_c(value, cstr!("2")));
-
-        value = htp_table_get_index((*tx).request_cookies, 2, &mut key) as *mut bstr_t;
-        assert!(!key.is_null());
-        assert!(!value.is_null());
-        assert_eq!(0, bstr_cmp_c(key, cstr!("z")));
-        assert_eq!(0, bstr_cmp_c(value, cstr!("")));
+        res = &(*(*tx).request_cookies)[2];
+        assert_eq!(std::cmp::Ordering::Equal, res.0.cmp("z"));
+        assert!(!res.1.is_null());
+        assert_eq!(0, bstr_cmp_c(res.1, cstr!("")));
     }
 }
 
@@ -2109,8 +2115,9 @@ fn InvalidRequestHeader() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let h: *mut htp_header_t =
-            htp_table_get_c((*tx).request_headers, cstr!("Header-With-NUL")) as *mut htp_header_t;
+        let h_opt = (*(*tx).request_headers).get_nocase_nozero("Header-With-NUL");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert_eq!(0, bstr_cmp_c((*h).value, cstr!("BEFORE")));
     }
@@ -2223,8 +2230,9 @@ fn ResponseMultipleCl() {
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
-        let h: *mut htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("Content-Length")) as *mut htp_header_t;
+        let h_opt = (*(*tx).response_headers).get_nocase_nozero("Content-Length");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
         assert!((*h).flags.contains(Flags::HTP_FIELD_REPEATED));
@@ -2250,8 +2258,9 @@ fn ResponseMultipleClMismatch() {
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
-        let h: *mut htp_header_t =
-            htp_table_get_c((*tx).response_headers, cstr!("Content-Length")) as *mut htp_header_t;
+        let h_opt = (*(*tx).response_headers).get_nocase_nozero("Content-Length");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
         assert!((*h).flags.contains(Flags::HTP_FIELD_REPEATED));
@@ -2303,8 +2312,9 @@ fn ResponseNoBody() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let h: *mut htp_header_t =
-            htp_table_get_c((*tx1).response_headers, cstr!("Server")) as *mut htp_header_t;
+        let h_opt = (*(*tx1).response_headers).get_nocase_nozero("Server");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
 
@@ -2336,8 +2346,9 @@ fn ResponseFoldedHeaders() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let h: *mut htp_header_t =
-            htp_table_get_c((*tx1).response_headers, cstr!("Server")) as *mut htp_header_t;
+        let h_opt = (*(*tx1).response_headers).get_nocase_nozero("Server");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
 

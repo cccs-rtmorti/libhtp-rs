@@ -2111,7 +2111,7 @@ fn InvalidContentDispositionSyntax() {
             let mut part: *mut htp_multipart_part_t =
                 calloc(1, ::std::mem::size_of::<htp_multipart_part_t>())
                     as *mut htp_multipart_part_t;
-            (*part).headers = htp_table_create(4);
+            (*part).headers = htp_table_t::with_capacity(4);
             (*part).parser = t.mpartp;
 
             let mut h: *mut htp_header_t =
@@ -2119,7 +2119,7 @@ fn InvalidContentDispositionSyntax() {
             (*h).name = bstr_dup_c(cstr!("Content-Disposition"));
             (*h).value = bstr_dup_c(cstr!(input));
 
-            htp_table_add((*part).headers, (*h).name, h as *const core::ffi::c_void);
+            (*part).headers.add((*(*h).name).clone(), h);
             let rc: Status = htp_mpart_part_parse_c_d(part);
 
             assert_eq!(Status::DECLINED, rc);
@@ -2215,8 +2215,9 @@ fn HeaderValueTrim() {
 
         let field1 = htp_list_array_get((*t.body).parts, 0) as *mut htp_multipart_part_t;
         assert!(!field1.is_null());
-        let h =
-            htp_table_get_c((*field1).headers, cstr!("content-disposition")) as *mut htp_header_t;
+        let h_opt = (*field1).headers.get_nocase_nozero("content-disposition");
+        assert!(h_opt.is_some());
+        let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert_eq!(
             0,

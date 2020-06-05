@@ -1,8 +1,8 @@
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_parsers, htp_request, htp_table, htp_transaction,
-    htp_util, Status,
+    bstr, htp_config, htp_connection_parser, htp_parsers, htp_request, htp_transaction, htp_util,
+    Status,
 };
 
 extern "C" {
@@ -38,10 +38,9 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         return Status::ERROR;
     }
     // Do we already have a header with the same name?
-    let mut h_existing: *mut htp_transaction::htp_header_t =
-        htp_table::htp_table_get((*(*connp).in_tx).request_headers, (*h).name)
-            as *mut htp_transaction::htp_header_t;
-    if !h_existing.is_null() {
+    let h_existing_opt = (*(*(*connp).in_tx).request_headers).get_nocase((*(*h).name).as_slice());
+    if h_existing_opt.is_some() {
+        let mut h_existing = h_existing_opt.unwrap().1;
         // TODO Do we want to have a list of the headers that are
         //      allowed to be combined in this way?
         if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
@@ -117,17 +116,10 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         bstr::bstr_free((*h).name);
         bstr::bstr_free((*h).value);
         free(h as *mut core::ffi::c_void);
-    } else if htp_table::htp_table_add(
-        (*(*connp).in_tx).request_headers,
-        (*h).name,
-        h as *const core::ffi::c_void,
-    ) != Status::OK
-    {
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut core::ffi::c_void);
+    } else {
+        (*(*(*connp).in_tx).request_headers).add((*(*h).name).clone(), h);
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Generic request header parser.

@@ -3,7 +3,7 @@ use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
     bstr, htp_connection, htp_connection_parser, htp_decompressors, htp_hooks, htp_list,
-    htp_request, htp_table, htp_transaction, htp_util, Status,
+    htp_request, htp_transaction, htp_util, Status,
 };
 
 extern "C" {
@@ -577,14 +577,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             }
         }
     }
-    let cl: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*(*connp).out_tx).response_headers,
-        b"content-length\x00" as *const u8 as *const i8,
-    ) as *mut htp_transaction::htp_header_t;
-    let te: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*(*connp).out_tx).response_headers,
-        b"transfer-encoding\x00" as *const u8 as *const i8,
-    ) as *mut htp_transaction::htp_header_t;
+    let cl_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("content-length");
+    let te_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("transfer-encoding");
     // Check for "101 Switching Protocol" response.
     // If it's seen, it means that traffic after empty line following headers
     // is no longer HTTP. We can treat it similarly to CONNECT.
@@ -592,7 +586,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     // rather unlikely, so don't try to probe tunnel for nested HTTP,
     // and switch to tunnel mode right away.
     if (*(*connp).out_tx).response_status_number == 101 {
-        if te.is_null() && cl.is_null() {
+        if te_opt.is_none() && cl_opt.is_none() {
             (*connp).out_state = Some(
                 htp_connp_RES_FINALIZE
                     as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
@@ -613,7 +607,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         }
     }
     // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
-    if (*(*connp).out_tx).response_status_number == 100 && te.is_null() && cl.is_null() {
+    if (*(*connp).out_tx).response_status_number == 100 && te_opt.is_none() && cl_opt.is_none() {
         if (*(*connp).out_tx).seen_100continue != 0 {
             htp_util::htp_log(
                 connp,
@@ -626,21 +620,12 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             return Status::ERROR;
         }
         // Ignore any response headers seen so far.
-        let mut h: *mut htp_transaction::htp_header_t = 0 as *mut htp_transaction::htp_header_t;
-        let mut i: usize = 0;
-        let n: usize = htp_table::htp_table_size((*(*connp).out_tx).response_headers);
-        while i < n {
-            h = htp_table::htp_table_get_index(
-                (*(*connp).out_tx).response_headers,
-                i,
-                0 as *mut *mut bstr::bstr_t,
-            ) as *mut htp_transaction::htp_header_t;
-            bstr::bstr_free((*h).name);
-            bstr::bstr_free((*h).value);
-            free(h as *mut core::ffi::c_void);
-            i = i.wrapping_add(1)
+        for (_key, h) in (*(*(*connp).out_tx).response_headers).elements.iter_mut() {
+            bstr::bstr_free((*(*h)).name);
+            bstr::bstr_free((*(*h)).value);
+            free(*h as *mut libc::c_void);
         }
-        htp_table::htp_table_clear((*(*connp).out_tx).response_headers);
+        (*(*(*connp).out_tx).response_headers).elements.clear();
         // Expecting to see another response line next.
         (*connp).out_state = Some(
             htp_connp_RES_LINE
@@ -671,7 +656,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     {
         // There should be no response body
         // but browsers interpret content sent by the server as such
-        if te.is_null() && cl.is_null() {
+        if te_opt.is_none() && cl_opt.is_none() {
             (*(*connp).out_tx).response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_NO_BODY;
             (*connp).out_state = Some(
@@ -697,12 +682,9 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         )
     {
         // We have a response body
-        let ct: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-            (*(*connp).out_tx).response_headers,
-            b"content-type\x00" as *const u8 as *const i8,
-        )
-            as *mut htp_transaction::htp_header_t;
-        if !ct.is_null() {
+        let ct_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("content-type");
+        if ct_opt.is_some() {
+            let ct = ct_opt.unwrap().1;
             (*(*connp).out_tx).response_content_type = bstr::bstr_dup_lower((*ct).value);
             if (*(*connp).out_tx).response_content_type.is_null() {
                 return Status::ERROR;
@@ -726,12 +708,13 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         // 2. If a Transfer-Encoding header field (section 14.40) is present and
         //   indicates that the "chunked" transfer coding has been applied, then
         //   the length is defined by the chunked encoding (section 3.6).
-        if !te.is_null()
+        if te_opt.is_some()
             && bstr::bstr_index_of_c_nocasenorzero(
-                (*te).value,
+                (*(*te_opt.unwrap()).1).value,
                 b"chunked\x00" as *const u8 as *const i8,
             ) != -1
         {
+            let te = te_opt.unwrap().1;
             if bstr::bstr_cmp_c_nocase((*te).value, b"chunked\x00" as *const u8 as *const i8) != 0 {
                 htp_util::htp_log(
                     connp,
@@ -759,7 +742,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*(*connp).out_tx).response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_CHUNKED;
             // We are still going to check for the presence of C-L
-            if !cl.is_null() {
+            if cl_opt.is_some() {
                 // This is a violation of the RFC
                 (*(*connp).out_tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
@@ -769,7 +752,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             );
             (*(*connp).out_tx).response_progress =
                 htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY
-        } else if !cl.is_null() {
+        } else if cl_opt.is_some() {
+            let cl = cl_opt.unwrap().1;
             //   value in bytes represents the length of the message-body.
             // We know the exact length
             (*(*connp).out_tx).response_transfer_coding =
@@ -820,7 +804,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             //   the presence in a request of a Range header with multiple byte-range
             //   specifiers implies that the client can parse multipart/byteranges
             //   responses.
-            if !ct.is_null() {
+            if ct_opt.is_some() {
+                let ct = ct_opt.unwrap().1;
                 // TODO Handle multipart/byteranges
                 if bstr::bstr_index_of_c_nocase(
                     (*ct).value,

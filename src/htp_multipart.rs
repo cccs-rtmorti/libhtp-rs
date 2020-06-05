@@ -212,8 +212,7 @@ pub struct htp_mpartp_t {
 }
 
 /// Holds information related to a part.
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_multipart_part_t {
     /// Pointer to the parser.
     pub parser: *mut htp_mpartp_t,
@@ -232,7 +231,7 @@ pub struct htp_multipart_part_t {
     /// Part content type, from the Content-Type header. Can be NULL.
     pub content_type: *mut bstr::bstr_t,
     /// Part headers (htp_header_t instances), using header name as the key.
-    pub headers: *mut htp_table::htp_table_t,
+    pub headers: htp_table::htp_table_t<*mut htp_transaction::htp_header_t>,
     /// File data, available only for MULTIPART_PART_FILE parts.
     pub file: *mut htp_util::htp_file_t,
 }
@@ -371,14 +370,12 @@ unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(b: *mut bstr::bstr
 ///         it could not be processed, and HTP_ERROR on fatal error.
 pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_t) -> Status {
     // Find the C-D header.
-    let h: *const htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*part).headers,
-        b"content-disposition\x00" as *const u8 as *const i8,
-    ) as *mut htp_transaction::htp_header_t;
-    if h.is_null() {
+    let h_opt = (*part).headers.get_nocase_nozero("content-disposition");
+    if h_opt.is_none() {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
         return Status::DECLINED;
     }
+    let h = h_opt.unwrap().1;
     // Require "form-data" at the beginning of the header.
     if bstr::bstr_index_of_c((*h).value, b"form-data\x00" as *const u8 as *const i8) != 0 {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
@@ -564,13 +561,11 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
 ///
 /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
 unsafe extern "C" fn htp_mpart_part_parse_c_t(part: *mut htp_multipart_part_t) -> Status {
-    let h: *mut htp_transaction::htp_header_t = htp_table::htp_table_get_c(
-        (*part).headers,
-        b"content-type\x00" as *const u8 as *const i8,
-    ) as *mut htp_transaction::htp_header_t;
-    if h.is_null() {
+    let h_opt = (*part).headers.get_nocase_nozero("content-type");
+    if h_opt.is_none() {
         return Status::DECLINED;
     }
+    let h = h_opt.unwrap().1;
     return htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type);
 }
 
@@ -697,9 +692,9 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
     }
     // Check if the header already exists.
-    let mut h_existing: *mut htp_transaction::htp_header_t =
-        htp_table::htp_table_get((*part).headers, (*h).name) as *mut htp_transaction::htp_header_t;
-    if !h_existing.is_null() {
+    let h_existing_opt = (*part).headers.get_nocase((*(*h).name).as_slice());
+    if h_existing_opt.is_some() {
+        let mut h_existing = h_existing_opt.unwrap().1;
         // Add to the existing header.
         let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
             (*h_existing).value,
@@ -729,13 +724,8 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         (*h_existing).flags |=
             Flags::from_bits_unchecked(MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits());
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
-    } else if htp_table::htp_table_add((*part).headers, (*h).name, h as *const core::ffi::c_void)
-        != Status::OK
-    {
-        bstr::bstr_free((*h).value);
-        bstr::bstr_free((*h).name);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
+    } else {
+        (*part).headers.add((*(*h).name).clone(), h);
     }
     return Status::OK;
 }
@@ -751,11 +741,7 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     if part.is_null() {
         return 0 as *mut htp_multipart_part_t;
     }
-    (*part).headers = htp_table::htp_table_create(4);
-    if (*part).headers.is_null() {
-        free(part as *mut core::ffi::c_void);
-        return 0 as *mut htp_multipart_part_t;
-    }
+    (*part).headers = htp_table::htp_table_t::with_capacity(4);
     (*part).parser = parser;
     bstr_builder::bstr_builder_clear((*parser).part_data_pieces);
     bstr_builder::bstr_builder_clear((*parser).part_header_pieces);
@@ -784,20 +770,12 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
         bstr::bstr_free((*part).value);
     }
     bstr::bstr_free((*part).content_type);
-    if !(*part).headers.is_null() {
-        let mut h: *mut htp_transaction::htp_header_t = 0 as *mut htp_transaction::htp_header_t;
-        let mut i: usize = 0;
-        let n: usize = htp_table::htp_table_size((*part).headers);
-        while i < n {
-            h = htp_table::htp_table_get_index((*part).headers, i, 0 as *mut *mut bstr::bstr_t)
-                as *mut htp_transaction::htp_header_t;
-            bstr::bstr_free((*h).name);
-            bstr::bstr_free((*h).value);
-            free(h as *mut core::ffi::c_void);
-            i = i.wrapping_add(1)
-        }
-        htp_table::htp_table_destroy((*part).headers);
+    for (_key, h) in (*part).headers.elements.iter_mut() {
+        bstr::bstr_free((*(*h)).name);
+        bstr::bstr_free((*(*h)).value);
+        free(*h as *mut libc::c_void);
     }
+    (*part).headers.elements.clear();
     free(part as *mut core::ffi::c_void);
 }
 
