@@ -278,7 +278,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         bstr::bstr_free((*h).name);
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Generic request line parser.
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
 pub unsafe extern "C" fn htp_parse_request_line_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    return htp_parse_request_line_generic_ex(connp, 0);
+    htp_parse_request_line_generic_ex(connp, 0)
 }
 
 pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
@@ -473,5 +473,5 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
             b"Request line: unknown method and invalid protocol\x00" as *const u8 as *const i8,
         );
     }
-    return Status::OK;
+    Status::OK
 }

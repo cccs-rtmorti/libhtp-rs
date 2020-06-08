@@ -104,22 +104,21 @@ pub struct htp_decompressor_gzip_t {
     pub crc: u64,
 }
 unsafe fn SzAlloc(mut _p: lzma::LzmaDec::ISzAllocPtr, size: usize) -> *mut core::ffi::c_void {
-    return malloc(size);
+    malloc(size)
 }
 unsafe fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, address: *mut core::ffi::c_void) {
     free(address);
 }
 #[no_mangle]
 pub static mut lzma_Alloc: lzma::LzmaDec::ISzAlloc = {
-    let init = lzma::LzmaDec::ISzAlloc {
+    lzma::LzmaDec::ISzAlloc {
         Alloc: Some(
             SzAlloc as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: usize) -> *mut core::ffi::c_void,
         ),
         Free: Some(
             SzFree as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: *mut core::ffi::c_void) -> (),
         ),
-    };
-    init
+    }
 };
 
 ///  See if the header has extensions
@@ -150,7 +149,7 @@ unsafe extern "C" fn htp_gzip_decompressor_probe(data: *const u8, data_len: usiz
     if consumed > data_len {
         return 0;
     }
-    return consumed;
+    consumed
 }
 
 ///  restart the decompressor
@@ -229,7 +228,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
             }
         }
     }
-    return 0;
+    0
 }
 
 /// Ends decompressor.
@@ -450,21 +449,19 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 // no initialization means previous error on stream
                 return Status::ERROR;
             }
-            if 8192 > (*drec).stream.avail_out {
-                if rc == -3 {
-                    // There is data even if there is an error
-                    // So use this data and log a warning
-                    htp_util::htp_log(
-                        (*(*d).tx).connp,
-                        b"htp_decompressors.c\x00" as *const u8 as *const i8,
-                        322,
-                        htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                        0,
-                        b"GZip decompressor: inflate failed with %d\x00" as *const u8 as *const i8,
-                        rc,
-                    );
-                    rc = 1;
-                }
+            if 8192 > (*drec).stream.avail_out && rc == -3 {
+                // There is data even if there is an error
+                // So use this data and log a warning
+                htp_util::htp_log(
+                    (*(*d).tx).connp,
+                    b"htp_decompressors.c\x00" as *const u8 as *const i8,
+                    322,
+                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
+                    0,
+                    b"GZip decompressor: inflate failed with %d\x00" as *const u8 as *const i8,
+                    rc,
+                );
+                rc = 1;
             }
             if rc == 1 {
                 // How many bytes do we have?

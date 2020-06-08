@@ -67,7 +67,7 @@ pub unsafe fn htp_conn_create() -> *mut htp_conn_t {
         free(conn as *mut core::ffi::c_void);
         return 0 as *mut htp_conn_t;
     }
-    return conn;
+    conn
 }
 
 /// Closes the connection.
@@ -174,7 +174,7 @@ pub unsafe fn htp_conn_open(
             ::std::mem::size_of::<htp_time_t>(),
         );
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Removes the given transaction structure, which makes it possible to
@@ -192,11 +192,11 @@ pub unsafe fn htp_conn_remove_tx(
     if (*conn).transactions.is_null() {
         return Status::ERROR;
     }
-    return htp_list::htp_list_array_replace(
+    htp_list::htp_list_array_replace(
         (*conn).transactions,
         (*tx).index,
         0 as *mut core::ffi::c_void,
-    );
+    )
 }
 
 /// Keeps track of inbound packets and data.

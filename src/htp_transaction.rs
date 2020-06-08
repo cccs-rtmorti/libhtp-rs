@@ -393,7 +393,7 @@ unsafe fn copy_or_wrap_mem(
     if data == 0 as *mut core::ffi::c_void {
         return 0 as *mut bstr::bstr_t;
     }
-    return bstr::bstr_dup_mem(data, len);
+    bstr::bstr_dup_mem(data, len)
 }
 
 /// Creates a new transaction structure.
@@ -522,7 +522,7 @@ pub unsafe fn htp_tx_get_user_data(tx: *const htp_tx_t) -> *mut core::ffi::c_voi
     if tx.is_null() {
         return 0 as *mut core::ffi::c_void;
     }
-    return (*tx).user_data;
+    (*tx).user_data
 }
 
 /// Associates user data with this transaction.
@@ -555,7 +555,7 @@ pub unsafe fn htp_tx_req_add_param(tx: *mut htp_tx_t, param: *mut htp_param_t) -
 
     let name = bstr::bstr_t::from((*(*param).name).as_slice());
     (*(*tx).request_params).add(name, param);
-    return Status::OK;
+    Status::OK
 }
 
 /// Returns the first request parameter that matches the given name, using case-insensitive matching.
@@ -610,7 +610,7 @@ pub unsafe fn htp_tx_req_get_param_ex(
     if param_opt.is_none() {
         return 0 as *mut htp_param_t;
     }
-    return param_opt.unwrap().1;
+    param_opt.unwrap().1
 }
 
 /// Determine if the request has a body.
@@ -627,7 +627,7 @@ pub unsafe fn htp_tx_req_has_body(tx: *const htp_tx_t) -> i32 {
     {
         return 1;
     }
-    return 0;
+    0
 }
 
 /// Set one request header. This function should be invoked once for
@@ -756,17 +756,17 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         (*tx).flags |= Flags::HTP_REQUEST_INVALID
     }
     // Check for PUT requests, which we need to treat as file uploads.
-    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_PUT as u32 {
-        if htp_tx_req_has_body(tx) != 0 {
-            // Prepare to treat PUT request body as a file.
-            (*(*tx).connp).put_file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
-                as *mut htp_util::htp_file_t;
-            if (*(*tx).connp).put_file.is_null() {
-                return Status::ERROR;
-            }
-            (*(*(*tx).connp).put_file).fd = -1;
-            (*(*(*tx).connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
+    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_PUT as u32
+        && htp_tx_req_has_body(tx) != 0
+    {
+        // Prepare to treat PUT request body as a file.
+        (*(*tx).connp).put_file =
+            calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>()) as *mut htp_util::htp_file_t;
+        if (*(*tx).connp).put_file.is_null() {
+            return Status::ERROR;
         }
+        (*(*(*tx).connp).put_file).fd = -1;
+        (*(*(*tx).connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
     }
     // Determine hostname.
     // Use the hostname from the URI, when available.
@@ -873,7 +873,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     if (*tx).flags.contains(Flags::HTP_REQUEST_INVALID) {
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Process a chunk of request body data. This function assumes that
@@ -901,7 +901,7 @@ pub unsafe fn htp_tx_req_process_body_data(
     if len == 0 {
         return Status::OK;
     }
-    return htp_tx_req_process_body_data_ex(tx, data, len);
+    htp_tx_req_process_body_data_ex(tx, data, len)
 }
 
 pub unsafe fn htp_tx_req_process_body_data_ex(
@@ -939,7 +939,7 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
         );
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Set request line. When used, this function should always be called first,
@@ -972,7 +972,7 @@ pub unsafe fn htp_tx_req_set_line(
     {
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Set parsed request URI. You don't need to use this function if you are already providing
@@ -1028,7 +1028,7 @@ pub unsafe fn htp_tx_res_set_status_line(
     {
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
@@ -1077,7 +1077,7 @@ pub unsafe fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
     if rc != Status::OK {
         return rc;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Set one response header. This function should be invoked once for
@@ -1146,19 +1146,17 @@ unsafe fn htp_timer_track(
 ) -> Status {
     if (*after).tv_sec < (*before).tv_sec {
         return Status::ERROR;
-    } else {
-        if (*after).tv_sec == (*before).tv_sec {
-            if (*after).tv_usec < (*before).tv_usec {
-                return Status::ERROR;
-            }
-            *time_spent = *time_spent + ((*after).tv_usec - (*before).tv_usec) as i32
-        } else {
-            *time_spent = *time_spent
-                + (((*after).tv_sec - (*before).tv_sec) * 1000000 + (*after).tv_usec
-                    - (*before).tv_usec) as i32
+    } else if (*after).tv_sec == (*before).tv_sec {
+        if (*after).tv_usec < (*before).tv_usec {
+            return Status::ERROR;
         }
+        *time_spent = *time_spent + ((*after).tv_usec - (*before).tv_usec) as i32
+    } else {
+        *time_spent = *time_spent
+            + (((*after).tv_sec - (*before).tv_sec) * 1000000 + (*after).tv_usec
+                - (*before).tv_usec) as i32
     }
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
@@ -1228,7 +1226,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
         );
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Process a chunk of response body data. This function assumes that
@@ -1260,7 +1258,7 @@ pub unsafe fn htp_tx_res_process_body_data(
     if len == 0 {
         return Status::OK;
     }
-    return htp_tx_res_process_body_data_ex(tx, data, len);
+    htp_tx_res_process_body_data_ex(tx, data, len)
 }
 
 pub unsafe fn htp_tx_res_process_body_data_ex(
@@ -1316,22 +1314,19 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
                 &mut after,
                 &mut (*(*(*tx).connp).out_decompressor).time_before,
             ) == Status::OK
-            {
-                if (*(*(*tx).connp).out_decompressor).time_spent
+                && (*(*(*tx).connp).out_decompressor).time_spent
                     > (*(*(*tx).connp).cfg).compression_time_limit
-                {
-                    htp_util::htp_log(
-                        (*tx).connp,
-                        b"htp_transaction.c\x00" as *const u8 as *const i8,
-                        876,
-                        htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                        0,
-                        b"Compression bomb: spent %ld us decompressing\x00" as *const u8
-                            as *const i8,
-                        (*(*(*tx).connp).out_decompressor).time_spent,
-                    );
-                    return Status::ERROR;
-                }
+            {
+                htp_util::htp_log(
+                    (*tx).connp,
+                    b"htp_transaction.c\x00" as *const u8 as *const i8,
+                    876,
+                    htp_util::htp_log_level_t::HTP_LOG_ERROR,
+                    0,
+                    b"Compression bomb: spent %ld us decompressing\x00" as *const u8 as *const i8,
+                    (*(*(*tx).connp).out_decompressor).time_spent,
+                );
+                return Status::ERROR;
             }
             if data == 0 as *mut core::ffi::c_void {
                 // Shut down the decompressor, if we used one.
@@ -1363,7 +1358,7 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
             return Status::ERROR;
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 pub unsafe fn htp_tx_state_request_complete_partial(mut tx: *mut htp_tx_t) -> Status {
@@ -1392,7 +1387,7 @@ pub unsafe fn htp_tx_state_request_complete_partial(mut tx: *mut htp_tx_t) -> St
         free((*(*tx).connp).put_file as *mut core::ffi::c_void);
         (*(*tx).connp).put_file = 0 as *mut htp_util::htp_file_t
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Change transaction state to REQUEST and invoke registered callbacks.
@@ -1432,7 +1427,7 @@ pub unsafe fn htp_tx_state_request_complete(tx: *mut htp_tx_t) -> Status {
     htp_tx_finalize(tx);
     // At this point, tx may no longer be valid.
     (*connp).in_tx = 0 as *mut htp_tx_t;
-    return Status::OK;
+    Status::OK
 }
 
 /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
@@ -1460,7 +1455,7 @@ pub unsafe fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
             as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
     (*(*(*tx).connp).in_tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
-    return Status::OK;
+    Status::OK
 }
 
 /// Change transaction state to REQUEST_HEADERS and invoke all
@@ -1523,7 +1518,7 @@ pub unsafe fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
         );
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Change transaction state to REQUEST_LINE and invoke all
@@ -1561,10 +1556,10 @@ pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
         }
     }
     // Check parsed_uri hostname.
-    if !(*(*tx).parsed_uri).hostname.is_null() {
-        if htp_util::htp_validate_hostname((*(*tx).parsed_uri).hostname) == 0 {
-            (*tx).flags |= Flags::HTP_HOSTU_INVALID
-        }
+    if !(*(*tx).parsed_uri).hostname.is_null()
+        && htp_util::htp_validate_hostname((*(*tx).parsed_uri).hostname) == 0
+    {
+        (*tx).flags |= Flags::HTP_HOSTU_INVALID
     }
     // Run hook REQUEST_URI_NORMALIZE.
     let mut rc: Status = htp_hooks::htp_hook_run_all(
@@ -1587,7 +1582,7 @@ pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
         htp_request::htp_connp_REQ_PROTOCOL
             as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
-    return Status::OK;
+    Status::OK
 }
 
 /// Change transaction state to RESPONSE and invoke registered callbacks.
@@ -1600,7 +1595,7 @@ pub unsafe fn htp_tx_state_response_complete(tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
-    return htp_tx_state_response_complete_ex(tx, 1);
+    htp_tx_state_response_complete_ex(tx, 1)
 }
 
 pub unsafe fn htp_tx_finalize(tx: *mut htp_tx_t) -> Status {
@@ -1622,7 +1617,7 @@ pub unsafe fn htp_tx_finalize(tx: *mut htp_tx_t) -> Status {
     if (*(*(*tx).connp).cfg).tx_auto_destroy != 0 {
         htp_tx_destroy(tx);
     }
-    return Status::OK;
+    Status::OK
 }
 
 pub unsafe fn htp_tx_state_response_complete_ex(mut tx: *mut htp_tx_t, hybrid_mode: i32) -> Status {
@@ -1686,7 +1681,7 @@ pub unsafe fn htp_tx_state_response_complete_ex(mut tx: *mut htp_tx_t, hybrid_mo
         htp_response::htp_connp_RES_IDLE
             as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
-    return Status::OK;
+    Status::OK
 }
 
 ///  split input into tokens separated by "seps"
@@ -1737,7 +1732,7 @@ unsafe fn get_token(
     }
     *ret_tok_ptr = in_0 as *mut u8;
     *ret_tok_len = in_len;
-    return 1;
+    1
 }
 
 /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
@@ -2011,7 +2006,7 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     {
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Change transaction state to RESPONSE_START and invoke registered callbacks.
@@ -2072,7 +2067,7 @@ pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
             b"Request line incomplete\x00" as *const u8 as *const i8,
         );
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Register callback for the transaction-specific REQUEST_BODY_DATA hook.
@@ -2122,7 +2117,6 @@ pub unsafe fn htp_tx_is_complete(tx: *mut htp_tx_t) -> i32 {
         || (*tx).response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
     {
         return 0;
-    } else {
-        return 1;
-    };
+    }
+    1
 }

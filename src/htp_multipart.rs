@@ -312,17 +312,16 @@ unsafe extern "C" fn htp_mpartp_cd_param_type(
         {
             return 1;
         }
-    } else if endpos.wrapping_sub(startpos) == 8 {
-        if memcmp(
+    } else if endpos.wrapping_sub(startpos) == 8
+        && memcmp(
             data.offset(startpos as isize) as *const core::ffi::c_void,
             b"filename\x00" as *const u8 as *const i8 as *const core::ffi::c_void,
             8,
         ) == 0
-        {
-            return 2;
-        }
+    {
+        return 2;
     }
-    return 0;
+    0
 }
 
 /// Returns the multipart structure created by the parser.
@@ -331,7 +330,7 @@ unsafe extern "C" fn htp_mpartp_cd_param_type(
 pub unsafe extern "C" fn htp_mpartp_get_multipart(
     parser: *mut htp_mpartp_t,
 ) -> *mut htp_multipart_t {
-    return &mut (*parser).multipart;
+    &mut (*parser).multipart
 }
 
 /// Decodes a C-D header value. This is impossible to do correctly without a
@@ -554,7 +553,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
             }
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses the Content-Type part header, if present.
@@ -566,7 +565,7 @@ unsafe extern "C" fn htp_mpart_part_parse_c_t(part: *mut htp_multipart_part_t) -
         return Status::DECLINED;
     }
     let h = h_opt.unwrap().1;
-    return htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type);
+    htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type)
 }
 
 /// Processes part headers.
@@ -579,7 +578,7 @@ pub unsafe extern "C" fn htp_mpart_part_process_headers(part: *mut htp_multipart
     if htp_mpart_part_parse_c_t(part) == Status::ERROR {
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses one part header.
@@ -727,7 +726,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     } else {
         (*part).headers.add((*(*h).name).clone(), h);
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Creates a new Multipart part.
@@ -745,7 +744,7 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     (*part).parser = parser;
     bstr_builder::bstr_builder_clear((*parser).part_data_pieces);
     bstr_builder::bstr_builder_clear((*parser).part_header_pieces);
-    return part;
+    part
 }
 
 /// Destroys a part.
@@ -834,7 +833,7 @@ pub unsafe extern "C" fn htp_mpart_part_finalize_data(
         (*part).value = bstr_builder::bstr_builder_to_str((*(*part).parser).part_data_pieces);
         bstr_builder::bstr_builder_clear((*(*part).parser).part_data_pieces);
     }
-    return Status::OK;
+    Status::OK
 }
 
 pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
@@ -865,7 +864,7 @@ pub unsafe extern "C" fn htp_mpartp_run_request_file_data_hook(
     if rc != Status::OK {
         return rc;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Handles part data.
@@ -923,10 +922,8 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 if *data.offset(len.wrapping_sub(1) as isize) == '\r' as u8 {
                     len = len.wrapping_sub(1)
                 }
-            } else if len > 0 {
-                if *data.offset(len.wrapping_sub(1) as isize) == '\n' as u8 {
-                    len = len.wrapping_sub(1)
-                }
+            } else if len > 0 && *data.offset(len.wrapping_sub(1) as isize) == '\n' as u8 {
+                len = len.wrapping_sub(1)
             }
             // Is it an empty line?
             if len == 0 {
@@ -1064,10 +1061,10 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 // Invoke file data callbacks.
                 htp_mpartp_run_request_file_data_hook(part, data, len);
                 // Optionally, store the data in a file.
-                if (*(*part).file).fd != -1 {
-                    if write((*(*part).file).fd, data as *const core::ffi::c_void, len) < 0 {
-                        return Status::ERROR;
-                    }
+                if (*(*part).file).fd != -1
+                    && write((*(*part).file).fd, data as *const core::ffi::c_void, len) < 0
+                {
+                    return Status::ERROR;
                 }
             }
             _ => {
@@ -1076,7 +1073,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
             }
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Handles data, creating new parts as necessary.
@@ -1114,7 +1111,7 @@ unsafe extern "C" fn htp_mpartp_handle_data(
         );
     }
     // Send data to the part.
-    return htp_mpart_part_handle_data((*parser).current_part, data, len, is_line);
+    htp_mpart_part_handle_data((*parser).current_part, data, len, is_line)
 }
 
 /// Handles a boundary event, which means that it will finalize a part if one exists.
@@ -1130,7 +1127,7 @@ unsafe extern "C" fn htp_mpartp_handle_boundary(mut parser: *mut htp_mpartp_t) -
         // Revert to line mode
         (*parser).current_part_mode = htp_part_mode_t::MODE_LINE
     }
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn htp_mpartp_init_boundary(
@@ -1170,7 +1167,7 @@ unsafe extern "C" fn htp_mpartp_init_boundary(
     // to boundary matching. Thus, we handle all the possibilities.
     (*parser).parser_state = htp_multipart_state_t::STATE_BOUNDARY;
     (*parser).boundary_match_pos = 2;
-    return Status::OK;
+    Status::OK
 }
 
 /// Creates a new multipart/form-data parser. On a successful invocation,
@@ -1236,7 +1233,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
     // is transferred to us. We made a copy, and so we
     // don't need it any more.
     bstr::bstr_free(boundary);
-    return parser;
+    parser
 }
 
 /// Destroys the provided parser.
@@ -1393,7 +1390,7 @@ unsafe extern "C" fn htp_martp_process_aside(
             bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Finalize parsing.
@@ -1413,7 +1410,7 @@ pub unsafe extern "C" fn htp_mpartp_finalize(parser: *mut htp_mpartp_t) -> Statu
         }
     }
     bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses a chunk of multipart/form-data data. This function should be called
@@ -1699,7 +1696,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
             }
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 unsafe extern "C" fn htp_mpartp_validate_boundary(
@@ -1956,5 +1953,5 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
     htp_mpartp_validate_content_type(content_type, flags);
-    return Status::OK;
+    Status::OK
 }

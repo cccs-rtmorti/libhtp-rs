@@ -1236,7 +1236,7 @@ pub fn htp_config_set_server_personality(
     }
     // Remember the personality
     (*cfg).server_personality = personality;
-    return Status::OK;
+    Status::OK
 }
 
 /// Configures whether transactions will be automatically destroyed once they
@@ -1253,7 +1253,7 @@ fn convert_to_0_or_1(b: i32) -> i32 {
     if b != 0 {
         return 1;
     }
-    return 0;
+    0
 }
 
 /// Configures a best-fit map, which is used whenever characters longer than one byte

@@ -88,7 +88,7 @@ unsafe fn htp_connp_req_receiver_send_data(
         return rc;
     }
     (*connp).in_current_receiver_offset = (*connp).in_current_read_offset;
-    return Status::OK;
+    Status::OK
 }
 
 /// Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
@@ -101,7 +101,7 @@ unsafe fn htp_connp_req_receiver_set(
     htp_connp_req_receiver_finalize_clear(connp);
     (*connp).in_data_receiver_hook = data_receiver_hook;
     (*connp).in_current_receiver_offset = (*connp).in_current_read_offset;
-    return Status::OK;
+    Status::OK
 }
 
 /// Finalizes an existing data receiver hook by sending any outstanding data to it. The
@@ -116,7 +116,7 @@ pub unsafe fn htp_connp_req_receiver_finalize_clear(
     }
     let rc: Status = htp_connp_req_receiver_send_data(connp, 1);
     (*connp).in_data_receiver_hook = 0 as *mut htp_hooks::htp_hook_t;
-    return rc;
+    rc
 }
 
 /// Handles request parser state changes. At the moment, this function is used only
@@ -162,7 +162,7 @@ unsafe fn htp_req_handle_state_change(
     // which is less elegant but provides a better user experience. Having some
     // (or all) hooks to be invoked on state change might work better.
     (*connp).in_state_previous = (*connp).in_state;
-    return Status::OK;
+    Status::OK
 }
 
 /// If there is any data left in the inbound data chunk, this function will preserve
@@ -231,7 +231,7 @@ unsafe fn htp_connp_req_buffer(mut connp: *mut htp_connection_parser::htp_connp_
     }
     // Reset the consumer position.
     (*connp).in_current_consume_offset = (*connp).in_current_read_offset;
-    return Status::OK;
+    Status::OK
 }
 
 /// Returns to the caller the memory region that should be processed next. This function
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_CHECK(
         htp_connp_REQ_BODY_DETERMINE
             as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
-    return Status::OK;
+    Status::OK
 }
 
 /// Determines whether inbound parsing needs to continue or stop. In
@@ -373,7 +373,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_PROBE_DATA(
         (*connp).out_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL
     }
     // not calling htp_connp_req_clear_buffer, we're not consuming the data
-    return Status::OK;
+    Status::OK
 }
 
 /// Determines whether inbound parsing, which was suspended after
@@ -412,7 +412,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_WAIT_RESPONSE(
                 as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Consumes bytes until the end of the current line.
@@ -499,7 +499,7 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_DATA(
         return Status::OK;
     }
     // Ask for more data.
-    return Status::DATA;
+    Status::DATA
 }
 
 /// Extracts chunk length.
@@ -617,7 +617,7 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_IDENTITY(
         return Status::OK;
     }
     // Ask for more data.
-    return Status::DATA;
+    Status::DATA
 }
 
 /// Determines presence (and encoding) of a request body.
@@ -672,7 +672,7 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_DETERMINE(
             return Status::ERROR;
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses request headers.
@@ -886,7 +886,7 @@ pub unsafe extern "C" fn htp_connp_REQ_PROTOCOL(
                 as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parse the request line.
@@ -927,7 +927,7 @@ pub unsafe extern "C" fn htp_connp_REQ_LINE_complete(
         return Status::ERROR;
     }
     htp_connp_req_clear_buffer(connp);
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses request line.
@@ -1080,7 +1080,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     if (*connp).in_current_read_offset < (*connp).in_current_consume_offset {
         (*connp).in_current_consume_offset = (*connp).in_current_read_offset
     }
-    return htp_transaction::htp_tx_state_request_complete((*connp).in_tx);
+    htp_transaction::htp_tx_state_request_complete((*connp).in_tx)
 }
 
 #[no_mangle]
@@ -1098,7 +1098,7 @@ pub unsafe extern "C" fn htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(
         ((*connp).in_current_consume_offset as u64).wrapping_add(bytes_left as u64) as i64;
     (*connp).in_stream_offset =
         ((*connp).in_stream_offset as u64).wrapping_add(bytes_left as u64) as i64;
-    return Status::DATA;
+    Status::DATA
 }
 
 /// The idle state is where the parser will end up after a transaction is processed.
@@ -1123,13 +1123,13 @@ pub unsafe extern "C" fn htp_connp_REQ_IDLE(
     }
     // Change state to TRANSACTION_START
     htp_transaction::htp_tx_state_request_start((*connp).in_tx);
-    return Status::OK;
+    Status::OK
 }
 
 /// Returns how many bytes from the current data chunks were consumed so far.
 /// Returns the number of bytes consumed.
 pub unsafe fn htp_connp_req_data_consumed(connp: *mut htp_connection_parser::htp_connp_t) -> usize {
-    return (*connp).in_current_read_offset as usize;
+    (*connp).in_current_read_offset as usize
 }
 
 /// Returns HTP_STREAM_DATA, HTP_STREAM_ERROR or STEAM_STATE_DATA_OTHER (see QUICK_START).
@@ -1243,12 +1243,10 @@ pub unsafe fn htp_connp_req_data(
             // Do we need more data?
             if rc == Status::DATA || rc == Status::DATA_BUFFER {
                 htp_connp_req_receiver_send_data(connp, 0);
-                if rc == Status::DATA_BUFFER {
-                    if htp_connp_req_buffer(connp) != Status::OK {
-                        (*connp).in_status =
-                            htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-                        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
-                    }
+                if rc == Status::DATA_BUFFER && htp_connp_req_buffer(connp) != Status::OK {
+                    (*connp).in_status =
+                        htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
+                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
                 }
                 (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
                 return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA as i32;

@@ -228,7 +228,7 @@ pub unsafe fn htp_connp_create(cfg: *mut htp_config::htp_cfg_t) -> *mut htp_conn
         htp_response::htp_connp_RES_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
     );
     (*connp).out_status = htp_stream_state_t::HTP_STREAM_NEW;
-    return connp;
+    connp
 }
 
 /// Destroys the connection parser and its data structures, leaving
@@ -280,7 +280,7 @@ pub unsafe fn htp_connp_get_connection(
     if connp.is_null() {
         return 0 as *mut htp_connection::htp_conn_t;
     }
-    return (*connp).conn;
+    (*connp).conn
 }
 
 /// Retrieves the pointer to the active inbound transaction. In connection
@@ -292,7 +292,7 @@ pub unsafe fn htp_connp_get_in_tx(connp: *const htp_connp_t) -> *mut htp_transac
     if connp.is_null() {
         return 0 as *mut htp_transaction::htp_tx_t;
     }
-    return (*connp).in_tx;
+    (*connp).in_tx
 }
 
 /// Returns the last error that occurred with this connection parser. Do note, however,
@@ -305,7 +305,7 @@ pub unsafe fn htp_connp_get_last_error(connp: *const htp_connp_t) -> *mut htp_ut
     if connp.is_null() {
         return 0 as *mut htp_util::htp_log_t;
     }
-    return (*connp).last_error;
+    (*connp).last_error
 }
 
 /// Retrieves the pointer to the active outbound transaction. In connection
@@ -317,7 +317,7 @@ pub unsafe fn htp_connp_get_out_tx(connp: *const htp_connp_t) -> *mut htp_transa
     if connp.is_null() {
         return 0 as *mut htp_transaction::htp_tx_t;
     }
-    return (*connp).out_tx;
+    (*connp).out_tx
 }
 
 /// Retrieve the user data associated with this connection parser.
@@ -327,7 +327,7 @@ pub unsafe fn htp_connp_get_user_data(connp: *const htp_connp_t) -> *mut core::f
     if connp.is_null() {
         return 0 as *mut core::ffi::c_void;
     }
-    return (*connp).user_data as *mut core::ffi::c_void;
+    (*connp).user_data as *mut core::ffi::c_void
 }
 
 /// This function is most likely not used and/or not needed.
@@ -411,7 +411,7 @@ pub unsafe fn htp_connp_tx_create(mut connp: *mut htp_connp_t) -> *mut htp_trans
     }
     (*connp).in_tx = tx;
     htp_connp_in_reset(connp);
-    return tx;
+    tx
 }
 
 /// Removes references to the supplied transaction.

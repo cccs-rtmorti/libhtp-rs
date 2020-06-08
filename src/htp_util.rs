@@ -213,9 +213,8 @@ pub struct htp_file_data_t {
 pub unsafe fn htp_is_lws(c: i32) -> i32 {
     if c == ' ' as i32 || c == '\t' as i32 {
         return 1;
-    } else {
-        return 0;
-    };
+    }
+    0
 }
 
 /// Is character a separator character?
@@ -229,9 +228,9 @@ pub unsafe fn htp_is_separator(c: i32) -> i32 {
 
     match c {
         40 | 41 | 60 | 62 | 64 | 44 | 59 | 58 | 92 | 34 | 47 | 91 | 93 | 63 | 61 | 123 | 125
-        | 32 | 9 => return 1,
-        _ => return 0,
-    };
+        | 32 | 9 => 1,
+        _ => 0,
+    }
 }
 
 /// Is character a text character?
@@ -244,7 +243,7 @@ pub unsafe fn htp_is_text(c: i32) -> i32 {
     if c < 32 {
         return 0;
     }
-    return 1;
+    1
 }
 
 /// Is character a token character?
@@ -259,7 +258,7 @@ pub unsafe fn htp_is_token(c: i32) -> i32 {
     if htp_is_separator(c) != 0 {
         return 0;
     }
-    return 1;
+    1
 }
 
 /// Remove all line terminators (LF, CR or CRLF) from
@@ -290,7 +289,7 @@ pub unsafe fn htp_chomp(data: *mut u8, len: *mut usize) -> i32 {
             return r;
         }
     }
-    return r;
+    r
 }
 
 /// Is character a white space character?
@@ -298,9 +297,9 @@ pub unsafe fn htp_chomp(data: *mut u8, len: *mut usize) -> i32 {
 /// Returns 0 or 1
 pub unsafe fn htp_is_space(c: i32) -> i32 {
     match c {
-        32 | 12 | 11 | 9 | 13 | 10 => return 1,
-        _ => return 0,
-    };
+        32 | 12 | 11 | 9 | 13 | 10 => 1,
+        _ => 0,
+    }
 }
 
 /// Converts request method, given as a string, into a number.
@@ -395,7 +394,7 @@ pub unsafe fn htp_convert_method_to_number(method: *mut bstr::bstr_t) -> i32 {
     if bstr::bstr_cmp_c(method, b"HEAD\x00" as *const u8 as *const i8) == 0 {
         return htp_request::htp_method_t::HTP_M_HEAD as i32;
     }
-    return htp_request::htp_method_t::HTP_M_UNKNOWN as i32;
+    htp_request::htp_method_t::HTP_M_UNKNOWN as i32
 }
 
 /// Is the given line empty?
@@ -405,7 +404,7 @@ pub unsafe fn htp_is_line_empty(data: *mut u8, len: usize) -> i32 {
     if len == 1 || len == 2 && *data.offset(0) == '\r' as u8 && *data.offset(1) == '\n' as u8 {
         return 1;
     }
-    return 0;
+    0
 }
 
 /// Does line consist entirely of whitespace characters?
@@ -420,7 +419,7 @@ pub unsafe fn htp_is_line_whitespace(data: *mut u8, len: usize) -> i32 {
         }
         i = i.wrapping_add(1)
     }
-    return 1;
+    1
 }
 
 /// Parses Content-Length string (positive decimal number).
@@ -475,7 +474,7 @@ pub unsafe fn htp_parse_content_length(
             b"C-L value with extra data in the end\x00" as *const u8 as *const i8,
         );
     }
-    return r;
+    r
 }
 
 /// Parses chunk length (positive hexadecimal number). White space is allowed before
@@ -519,7 +518,7 @@ pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64
     if chunk_len > 2147483647 {
         return -1;
     }
-    return chunk_len;
+    chunk_len
 }
 
 /// A somewhat forgiving parser for a positive integer in a given base.
@@ -557,7 +556,7 @@ pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize,
         }
         pos = pos.wrapping_add(1)
     }
-    return r;
+    r
 }
 
 /// Records one log message.
@@ -619,15 +618,14 @@ pub unsafe fn htp_connp_is_line_folded(data: *const u8, len: usize) -> i32 {
     if data.is_null() || len == 0 {
         return -1;
     }
-    return htp_is_folding_char(*data.offset(0) as i32);
+    htp_is_folding_char(*data.offset(0) as i32)
 }
 
 pub unsafe fn htp_is_folding_char(c: i32) -> i32 {
     if htp_is_lws(c) != 0 || c == 0 {
         return 1;
-    } else {
-        return 0;
-    };
+    }
+    0
 }
 
 /// Determines if the given line is a request terminator.
@@ -657,7 +655,7 @@ pub unsafe fn htp_connp_is_line_terminator(
     if len == 2 && htp_is_lws(*data.offset(0) as i32) != 0 && *data.offset(1) == '\n' as u8 {
         return next_no_lf;
     }
-    return 0;
+    0
 }
 
 /// Determines if the given line can be ignored when it appears before a request.
@@ -668,7 +666,7 @@ pub unsafe fn htp_connp_is_line_ignorable(
     data: *mut u8,
     len: usize,
 ) -> i32 {
-    return htp_connp_is_line_terminator(connp, data, len, 0);
+    htp_connp_is_line_terminator(connp, data, len, 0)
 }
 
 unsafe fn htp_parse_port(data: *mut u8, len: usize, port: *mut i32, invalid: *mut i32) -> Status {
@@ -690,7 +688,7 @@ unsafe fn htp_parse_port(data: *mut u8, len: usize, port: *mut i32, invalid: *mu
         *port = -1;
         *invalid = 1
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses an authority string, which consists of a hostname with an optional port number; username
@@ -815,7 +813,7 @@ pub unsafe fn htp_parse_hostport(
             );
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses hostport provided in the URI.
@@ -840,12 +838,10 @@ pub unsafe fn htp_parse_uri_hostport(
     if invalid != 0 {
         (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
     }
-    if !(*uri).hostname.is_null() {
-        if htp_validate_hostname((*uri).hostname) == 0 {
-            (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
-        }
+    if !(*uri).hostname.is_null() && htp_validate_hostname((*uri).hostname) == 0 {
+        (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses hostport provided in the Host header.
@@ -866,12 +862,10 @@ pub unsafe fn htp_parse_header_hostport(
     if invalid != 0 {
         *flags |= Flags::HTP_HOSTH_INVALID
     }
-    if !(*hostname).is_null() {
-        if htp_validate_hostname(*hostname) == 0 {
-            *flags |= Flags::HTP_HOSTH_INVALID
-        }
+    if !(*hostname).is_null() && htp_validate_hostname(*hostname) == 0 {
+        *flags |= Flags::HTP_HOSTH_INVALID
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses request URI, making no attempt to validate the contents.
@@ -931,156 +925,153 @@ pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri
     // Authority test: two forward slash characters and it's an authority.
     // One, three or more slash characters, and it's a path. We, however,
     // only attempt to parse authority if we've seen a scheme.
-    if !(**uri).scheme.is_null() {
-        if pos.wrapping_add(2) < len
-            && *data.offset(pos as isize) == '/' as u8
-            && *data.offset(pos.wrapping_add(1) as isize) == '/' as u8
-            && *data.offset(pos.wrapping_add(2) as isize) != '/' as u8
+    if !(**uri).scheme.is_null()
+        && pos.wrapping_add(2) < len
+        && *data.offset(pos as isize) == '/' as u8
+        && *data.offset(pos.wrapping_add(1) as isize) == '/' as u8
+        && *data.offset(pos.wrapping_add(2) as isize) != '/' as u8
+    {
+        // Parse authority
+        // Go over the two slash characters
+        pos = pos.wrapping_add(2);
+        start = pos;
+        // Authority ends with a question mark, forward slash or hash
+        while pos < len
+            && *data.offset(pos as isize) != '?' as u8
+            && *data.offset(pos as isize) != '/' as u8
+            && *data.offset(pos as isize) != '#' as u8
         {
-            // Parse authority
-            // Go over the two slash characters
-            pos = pos.wrapping_add(2);
-            start = pos;
-            // Authority ends with a question mark, forward slash or hash
-            while pos < len
-                && *data.offset(pos as isize) != '?' as u8
-                && *data.offset(pos as isize) != '/' as u8
-                && *data.offset(pos as isize) != '#' as u8
-            {
-                pos = pos.wrapping_add(1)
-            }
-            let mut hostname_start: *mut u8 = 0 as *mut u8;
-            let mut hostname_len: usize = 0;
-            // Are the credentials included in the authority?
-            let mut m: *mut u8 = memchr(
-                data.offset(start as isize) as *const core::ffi::c_void,
-                '@' as i32,
-                pos.wrapping_sub(start),
+            pos = pos.wrapping_add(1)
+        }
+        let mut hostname_start: *mut u8 = 0 as *mut u8;
+        let mut hostname_len: usize = 0;
+        // Are the credentials included in the authority?
+        let mut m: *mut u8 = memchr(
+            data.offset(start as isize) as *const core::ffi::c_void,
+            '@' as i32,
+            pos.wrapping_sub(start),
+        ) as *mut u8;
+        if !m.is_null() {
+            // Credentials present
+            let credentials_start: *mut u8 = data.offset(start as isize);
+            let credentials_len: usize =
+                (m.wrapping_offset_from(data) as usize).wrapping_sub(start);
+            // Figure out just the hostname part
+            hostname_start = data
+                .offset(start as isize)
+                .offset(credentials_len as isize)
+                .offset(1);
+            hostname_len = pos
+                .wrapping_sub(start)
+                .wrapping_sub(credentials_len)
+                .wrapping_sub(1);
+            // Extract the username and the password
+            m = memchr(
+                credentials_start as *const core::ffi::c_void,
+                ':' as i32,
+                credentials_len,
             ) as *mut u8;
             if !m.is_null() {
-                // Credentials present
-                let credentials_start: *mut u8 = data.offset(start as isize);
-                let credentials_len: usize =
-                    (m.wrapping_offset_from(data) as usize).wrapping_sub(start);
-                // Figure out just the hostname part
-                hostname_start = data
-                    .offset(start as isize)
-                    .offset(credentials_len as isize)
-                    .offset(1);
-                hostname_len = pos
-                    .wrapping_sub(start)
-                    .wrapping_sub(credentials_len)
-                    .wrapping_sub(1);
-                // Extract the username and the password
-                m = memchr(
+                // Username and password
+                (**uri).username = bstr::bstr_dup_mem(
                     credentials_start as *const core::ffi::c_void,
-                    ':' as i32,
+                    m.wrapping_offset_from(credentials_start) as usize,
+                );
+                if (**uri).username.is_null() {
+                    return Status::ERROR;
+                }
+                (**uri).password = bstr::bstr_dup_mem(
+                    m.offset(1) as *const core::ffi::c_void,
+                    credentials_len
+                        .wrapping_sub(m.wrapping_offset_from(credentials_start) as usize)
+                        .wrapping_sub(1),
+                );
+                if (**uri).password.is_null() {
+                    return Status::ERROR;
+                }
+            } else {
+                // Username alone
+                (**uri).username = bstr::bstr_dup_mem(
+                    credentials_start as *const core::ffi::c_void,
                     credentials_len,
-                ) as *mut u8;
-                if !m.is_null() {
-                    // Username and password
-                    (**uri).username = bstr::bstr_dup_mem(
-                        credentials_start as *const core::ffi::c_void,
-                        m.wrapping_offset_from(credentials_start) as usize,
-                    );
-                    if (**uri).username.is_null() {
-                        return Status::ERROR;
-                    }
-                    (**uri).password = bstr::bstr_dup_mem(
-                        m.offset(1) as *const core::ffi::c_void,
-                        credentials_len
-                            .wrapping_sub(m.wrapping_offset_from(credentials_start) as usize)
-                            .wrapping_sub(1),
-                    );
-                    if (**uri).password.is_null() {
-                        return Status::ERROR;
-                    }
-                } else {
-                    // Username alone
-                    (**uri).username = bstr::bstr_dup_mem(
-                        credentials_start as *const core::ffi::c_void,
-                        credentials_len,
-                    );
-                    if (**uri).username.is_null() {
-                        return Status::ERROR;
-                    }
+                );
+                if (**uri).username.is_null() {
+                    return Status::ERROR;
                 }
-            } else {
-                // No credentials
-                hostname_start = data.offset(start as isize);
-                hostname_len = pos.wrapping_sub(start)
             }
-            // Parsing authority without credentials.
-            if hostname_len > 0 && *hostname_start.offset(0) == '[' as u8 {
-                // IPv6 address.
-                m = memchr(
-                    hostname_start as *const core::ffi::c_void,
-                    ']' as i32,
-                    hostname_len,
-                ) as *mut u8;
-                if m.is_null() {
-                    // Invalid IPv6 address; use the entire string as hostname.
-                    (**uri).hostname = bstr::bstr_dup_mem(
-                        hostname_start as *const core::ffi::c_void,
-                        hostname_len,
-                    );
-                    if (**uri).hostname.is_null() {
-                        return Status::ERROR;
-                    }
-                } else {
-                    (**uri).hostname = bstr::bstr_dup_mem(
-                        hostname_start as *const core::ffi::c_void,
-                        (m.wrapping_offset_from(hostname_start) + 1) as usize,
-                    );
-                    if (**uri).hostname.is_null() {
-                        return Status::ERROR;
-                    }
-                    // Is there a port?
-                    hostname_len = hostname_len
-                        .wrapping_sub((m.wrapping_offset_from(hostname_start) + 1) as usize);
-                    hostname_start = m.offset(1);
-                    // Port string
-                    m = memchr(
-                        hostname_start as *const core::ffi::c_void,
-                        ':' as i32,
-                        hostname_len,
-                    ) as *mut u8;
-                    if !m.is_null() {
-                        let port_len: usize = hostname_len
-                            .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
-                            .wrapping_sub(1);
-                        (**uri).port =
-                            bstr::bstr_dup_mem(m.offset(1) as *const core::ffi::c_void, port_len);
-                        if (**uri).port.is_null() {
-                            return Status::ERROR;
-                        }
-                    }
-                }
-            } else {
-                // Not IPv6 address.
-                m = memchr(
-                    hostname_start as *const core::ffi::c_void,
-                    ':' as i32,
-                    hostname_len,
-                ) as *mut u8;
-                if !m.is_null() {
-                    let port_len_0: usize = hostname_len
-                        .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
-                        .wrapping_sub(1);
-                    hostname_len = hostname_len.wrapping_sub(port_len_0).wrapping_sub(1);
-                    // Port string
-                    (**uri).port =
-                        bstr::bstr_dup_mem(m.offset(1) as *const core::ffi::c_void, port_len_0);
-                    if (**uri).port.is_null() {
-                        return Status::ERROR;
-                    }
-                }
-                // Hostname
+        } else {
+            // No credentials
+            hostname_start = data.offset(start as isize);
+            hostname_len = pos.wrapping_sub(start)
+        }
+        // Parsing authority without credentials.
+        if hostname_len > 0 && *hostname_start.offset(0) == '[' as u8 {
+            // IPv6 address.
+            m = memchr(
+                hostname_start as *const core::ffi::c_void,
+                ']' as i32,
+                hostname_len,
+            ) as *mut u8;
+            if m.is_null() {
+                // Invalid IPv6 address; use the entire string as hostname.
                 (**uri).hostname =
                     bstr::bstr_dup_mem(hostname_start as *const core::ffi::c_void, hostname_len);
                 if (**uri).hostname.is_null() {
                     return Status::ERROR;
                 }
+            } else {
+                (**uri).hostname = bstr::bstr_dup_mem(
+                    hostname_start as *const core::ffi::c_void,
+                    (m.wrapping_offset_from(hostname_start) + 1) as usize,
+                );
+                if (**uri).hostname.is_null() {
+                    return Status::ERROR;
+                }
+                // Is there a port?
+                hostname_len = hostname_len
+                    .wrapping_sub((m.wrapping_offset_from(hostname_start) + 1) as usize);
+                hostname_start = m.offset(1);
+                // Port string
+                m = memchr(
+                    hostname_start as *const core::ffi::c_void,
+                    ':' as i32,
+                    hostname_len,
+                ) as *mut u8;
+                if !m.is_null() {
+                    let port_len: usize = hostname_len
+                        .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
+                        .wrapping_sub(1);
+                    (**uri).port =
+                        bstr::bstr_dup_mem(m.offset(1) as *const core::ffi::c_void, port_len);
+                    if (**uri).port.is_null() {
+                        return Status::ERROR;
+                    }
+                }
+            }
+        } else {
+            // Not IPv6 address.
+            m = memchr(
+                hostname_start as *const core::ffi::c_void,
+                ':' as i32,
+                hostname_len,
+            ) as *mut u8;
+            if !m.is_null() {
+                let port_len_0: usize = hostname_len
+                    .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
+                    .wrapping_sub(1);
+                hostname_len = hostname_len.wrapping_sub(port_len_0).wrapping_sub(1);
+                // Port string
+                (**uri).port =
+                    bstr::bstr_dup_mem(m.offset(1) as *const core::ffi::c_void, port_len_0);
+                if (**uri).port.is_null() {
+                    return Status::ERROR;
+                }
+            }
+            // Hostname
+            (**uri).hostname =
+                bstr::bstr_dup_mem(hostname_start as *const core::ffi::c_void, hostname_len);
+            if (**uri).hostname.is_null() {
+                return Status::ERROR;
             }
         }
     }
@@ -1139,7 +1130,7 @@ pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri
             return Status::ERROR;
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Convert two input bytes, pointed to by the pointer parameter,
@@ -1161,7 +1152,7 @@ unsafe fn x2c(what: *mut u8) -> u8 {
         } else {
             (*what.offset(1)) - '0' as u8
         };
-    return digit;
+    digit
 }
 
 /// Convert a Unicode codepoint into a single-byte, using best-fit
@@ -1440,7 +1431,7 @@ unsafe fn decode_u_encoding_path(
     {
         (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR
     }
-    return r;
+    r
 }
 
 /// Decode a %u-encoded character, using best-fit mapping as necessary. Params version.
@@ -1479,7 +1470,7 @@ unsafe fn decode_u_encoding_params(
             p = p.offset(3 as isize)
         }
     }
-    return r;
+    r
 }
 
 /// Decode a request path according to the settings in the
@@ -1921,16 +1912,14 @@ pub unsafe fn htp_decode_path_inplace(
         //       is encountered. Thus no check for a separator here.
         // Place the character into output
         // Check for control characters
-        if c < 0x20 as i32 {
-            if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+        if c < 0x20 as i32
+            && (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                 .control_chars_unwanted
                 != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-            {
-                (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .control_chars_unwanted
-                    as i32
-            }
+        {
+            (*tx).response_status_expected_number = (*cfg).decoder_cfgs
+                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+                .control_chars_unwanted as i32
         }
         // Convert backslashes to forward slashes, if necessary
         if c == '\\' as i32
@@ -1973,7 +1962,7 @@ pub unsafe fn htp_decode_path_inplace(
         }
     }
     bstr::bstr_adjust_len(path, wpos);
-    return 1;
+    1
 }
 
 pub unsafe fn htp_tx_urldecode_uri_inplace(
@@ -1997,20 +1986,20 @@ pub unsafe fn htp_tx_urldecode_uri_inplace(
     if flags.contains(Flags::HTP_URLEN_RAW_NUL) {
         (*tx).flags |= Flags::HTP_PATH_RAW_NUL;
     }
-    return rc;
+    rc
 }
 
 pub unsafe fn htp_tx_urldecode_params_inplace(
     tx: *mut htp_transaction::htp_tx_t,
     input: *mut bstr::bstr_t,
 ) -> Status {
-    return htp_urldecode_inplace_ex(
+    htp_urldecode_inplace_ex(
         (*tx).cfg,
         htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
         input,
         &mut (*tx).flags,
         &mut (*tx).response_status_expected_number,
-    );
+    )
 }
 
 /// Performs in-place decoding of the input string, according to the configuration specified
@@ -2024,7 +2013,7 @@ pub unsafe fn htp_urldecode_inplace(
     flags: *mut Flags,
 ) -> Status {
     let mut expected_status_code: i32 = 0;
-    return htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code);
+    htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code)
 }
 
 /// Performs in-place decoding of the input string, according to the configuration specified
@@ -2434,7 +2423,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
         }
     }
     bstr::bstr_adjust_len(input, wpos);
-    return Status::OK;
+    Status::OK
 }
 
 /// Normalize a previously-parsed request URI.
@@ -2541,7 +2530,7 @@ pub unsafe fn htp_normalize_parsed_uri(
         }
         htp_tx_urldecode_uri_inplace(tx, (*normalized).fragment);
     }
-    return 1;
+    1
 }
 
 /// Normalize request hostname. Convert all characters to lowercase and
@@ -2557,7 +2546,7 @@ pub unsafe fn htp_normalize_hostname_inplace(hostname: *mut bstr::bstr_t) -> *mu
     while bstr::bstr_char_at_end(hostname, 0) == '.' as i32 {
         bstr::bstr_chop(hostname);
     }
-    return hostname;
+    hostname
 }
 
 /// Normalize URL path. This function implements the remove dot segments algorithm
@@ -2719,7 +2708,7 @@ pub unsafe fn htp_treat_response_line_as_body(data: *const u8, len: usize) -> i3
     {
         return 1;
     }
-    return 0;
+    0
 }
 
 /// Run the REQUEST_BODY_DATA hook.
@@ -2770,7 +2759,7 @@ pub unsafe fn htp_req_run_hook_body_data(
             return rc;
         }
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Run the RESPONSE_BODY_DATA hook.
@@ -2798,7 +2787,7 @@ pub unsafe fn htp_res_run_hook_body_data(
     if rc != Status::OK {
         return rc;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses the provided memory region, extracting the double-quoted string.
@@ -2878,7 +2867,7 @@ pub unsafe fn htp_extract_quoted_string_as_bstr(
     if !endoffset.is_null() {
         *endoffset = pos
     }
-    return Status::OK;
+    Status::OK
 }
 
 pub unsafe fn htp_parse_ct_header(
@@ -2908,7 +2897,7 @@ pub unsafe fn htp_parse_ct_header(
         return Status::ERROR;
     }
     bstr::bstr_to_lowercase(*ct);
-    return Status::OK;
+    Status::OK
 }
 
 /// Implements relaxed (not strictly RFC) hostname validation.
@@ -2954,7 +2943,7 @@ pub unsafe fn htp_validate_hostname(hostname: *mut bstr::bstr_t) -> i32 {
             return 0;
         }
     }
-    return 1;
+    1
 }
 
 /// Frees all data contained in the uri, and then the uri itself.
@@ -2982,7 +2971,7 @@ pub unsafe fn htp_uri_alloc() -> *mut htp_uri_t {
         return 0 as *mut htp_uri_t;
     }
     (*u).port_number = -1;
-    return u;
+    u
 }
 
 /// Returns the LibHTP version string.

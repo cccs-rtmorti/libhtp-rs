@@ -39,15 +39,13 @@ pub unsafe extern "C" fn htp_parse_protocol(protocol: *const bstr::bstr_t) -> Pr
             } else if *ptr.offset(5) == '1' as u8 {
                 if *ptr.offset(7) == '0' as u8 {
                     return Protocol::V1_0;
-                } else {
-                    if *ptr.offset(7) == '1' as u8 {
-                        return Protocol::V1_1;
-                    }
+                } else if *ptr.offset(7) == '1' as u8 {
+                    return Protocol::V1_1;
                 }
             }
         }
     }
-    return Protocol::INVALID;
+    Protocol::INVALID
 }
 
 /// Determines the numerical value of a response status given as a string.
@@ -58,9 +56,8 @@ pub unsafe extern "C" fn htp_parse_status(status: *const bstr::bstr_t) -> i32 {
         htp_util::htp_parse_positive_integer_whitespace(bstr_ptr(status), bstr_len(status), 10);
     if r >= 100 && r <= 999 {
         return r as i32;
-    } else {
-        return -1;
-    };
+    }
+    -1
 }
 
 /// Parses Digest Authorization request header.
@@ -91,12 +88,12 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     if *data.offset(pos as isize) != '\"' as u8 {
         return Status::DECLINED;
     }
-    return htp_util::htp_extract_quoted_string_as_bstr(
+    htp_util::htp_extract_quoted_string_as_bstr(
         data.offset(pos as isize),
         len.wrapping_sub(pos),
         &mut (*(*connp).in_tx).request_auth_username,
         0 as *mut usize,
-    );
+    )
 }
 
 /// Parses Basic Authorization request header.
@@ -146,7 +143,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
         return Status::ERROR;
     }
     bstr::bstr_free(decoded);
-    return Status::OK;
+    Status::OK
 }
 
 /// Parses Authorization request header.
@@ -166,20 +163,18 @@ pub unsafe extern "C" fn htp_parse_authorization(
         // Basic authentication
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
         return htp_parse_authorization_basic(connp, auth_header);
+    } else if bstr::bstr_begins_with_c_nocase(
+        (*auth_header).value,
+        b"digest\x00" as *const u8 as *const i8,
+    ) != 0
+    {
+        // Digest authentication
+        (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
+        return htp_parse_authorization_digest(connp, auth_header);
     } else {
-        if bstr::bstr_begins_with_c_nocase(
-            (*auth_header).value,
-            b"digest\x00" as *const u8 as *const i8,
-        ) != 0
-        {
-            // Digest authentication
-            (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
-            return htp_parse_authorization_digest(connp, auth_header);
-        } else {
-            // Unrecognized authentication method
-            (*(*connp).in_tx).request_auth_type =
-                htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
-        }
+        // Unrecognized authentication method
+        (*(*connp).in_tx).request_auth_type =
+            htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
     }
-    return Status::OK;
+    Status::OK
 }

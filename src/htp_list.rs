@@ -44,7 +44,7 @@ pub unsafe fn htp_list_array_init(mut l: *mut htp_list_array_t, size: usize) -> 
     (*l).last = 0;
     (*l).current_size = 0;
     (*l).max_size = size;
-    return Status::OK;
+    Status::OK
 }
 
 /// Create new array-backed list.
@@ -65,7 +65,7 @@ pub unsafe fn htp_list_array_create(size: usize) -> *mut htp_list_array_t {
         free(l as *mut core::ffi::c_void);
         return 0 as *mut htp_list_array_t;
     }
-    return l;
+    l
 }
 
 /// Remove all elements from the list. It is the responsibility of the caller
@@ -114,11 +114,10 @@ pub unsafe fn htp_list_array_get(l: *const htp_list_array_t, idx: usize) -> *mut
     }
     if (*l).first.wrapping_add(idx) < (*l).max_size {
         return *(*l).elements.offset((*l).first.wrapping_add(idx) as isize);
-    } else {
-        return *(*l)
-            .elements
-            .offset(idx.wrapping_sub((*l).max_size.wrapping_sub((*l).first)) as isize);
-    };
+    }
+    *(*l)
+        .elements
+        .offset(idx.wrapping_sub((*l).max_size.wrapping_sub((*l).first)) as isize)
 }
 
 /// Remove one element from the end of the list.
@@ -139,7 +138,7 @@ pub unsafe fn htp_list_array_pop(mut l: *mut htp_list_array_t) -> *mut core::ffi
     r = *(*l).elements.offset(pos as isize);
     (*l).last = pos;
     (*l).current_size = (*l).current_size.wrapping_sub(1);
-    return r as *mut core::ffi::c_void;
+    r as *mut core::ffi::c_void
 }
 
 /// Add new element to the end of the list, expanding the list as necessary.
@@ -215,7 +214,7 @@ pub unsafe fn htp_list_array_push(
     if (*l).last == (*l).max_size {
         (*l).last = 0
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Replace the element at the given index with the provided element.
@@ -237,7 +236,7 @@ pub unsafe fn htp_list_array_replace(
         .elements
         .offset((*l).first.wrapping_add(idx).wrapping_rem((*l).max_size) as isize);
     *fresh1 = e;
-    return Status::OK;
+    Status::OK
 }
 
 /// Returns the size of the list.
@@ -247,5 +246,5 @@ pub unsafe fn htp_list_array_size(l: *const htp_list_array_t) -> usize {
     if l.is_null() {
         return (-1 as i32) as usize;
     }
-    return (*l).current_size;
+    (*l).current_size
 }

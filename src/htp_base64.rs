@@ -37,7 +37,7 @@ pub unsafe fn htp_base64_decode_single(mut value_in: i8) -> i32 {
     if value_in < 0 || value_in > decoding_size - 1 {
         return -1;
     }
-    return decoding[value_in as usize] as i32;
+    decoding[value_in as usize] as i32
 }
 
 /// Initialize base64 decoder.
@@ -185,7 +185,7 @@ pub unsafe fn htp_base64_decode(
         }
     }
     // control should not reach here
-    return plainchar.wrapping_offset_from(plaintext_out) as i32;
+    plainchar.wrapping_offset_from(plaintext_out) as i32
 }
 
 /// Base64-decode input, given as memory range.
@@ -216,5 +216,5 @@ pub unsafe fn htp_base64_decode_mem(
         r = bstr::bstr_dup_mem(tmpstr as *const core::ffi::c_void, resulting_len as usize)
     }
     free(tmpstr as *mut core::ffi::c_void);
-    return r;
+    r
 }

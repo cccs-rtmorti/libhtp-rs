@@ -27,7 +27,7 @@ pub unsafe fn bstr_builder_append_mem(
     if b.is_null() {
         return Status::ERROR;
     }
-    return htp_list::htp_list_array_push((*bb).pieces, b as *mut core::ffi::c_void);
+    htp_list::htp_list_array_push((*bb).pieces, b as *mut core::ffi::c_void)
 }
 
 /// Clears this string builder, destroying all existing pieces. You may
@@ -64,7 +64,7 @@ pub unsafe fn bstr_builder_create() -> *mut bstr_builder_t {
         free(bb as *mut core::ffi::c_void);
         return 0 as *mut bstr_builder_t;
     }
-    return bb;
+    bb
 }
 
 /// Destroys an existing string builder, also destroying all
@@ -90,7 +90,7 @@ pub unsafe fn bstr_builder_destroy(bb: *const bstr_builder_t) {
 ///
 /// Returns size
 pub unsafe fn bstr_builder_size(bb: *const bstr_builder_t) -> usize {
-    return htp_list::htp_list_array_size((*bb).pieces);
+    htp_list::htp_list_array_size((*bb).pieces)
 }
 
 /// Creates a single string out of all the pieces held in a
@@ -122,5 +122,5 @@ pub unsafe fn bstr_builder_to_str(bb: *const bstr_builder_t) -> *mut bstr::bstr_
         bstr::bstr_add_noex(bnew, b_0);
         i_0 = i_0.wrapping_add(1)
     }
-    return bnew;
+    bnew
 }

@@ -34,7 +34,7 @@ pub unsafe fn htp_hook_create() -> *mut htp_hook_t {
         free(hook as *mut core::ffi::c_void);
         return 0 as *mut htp_hook_t;
     }
-    return hook;
+    hook
 }
 
 /// Destroys an existing hook. It is all right to send a NULL
@@ -92,7 +92,7 @@ pub unsafe fn htp_hook_register(
         free(callback as *mut core::ffi::c_void);
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Runs all the callbacks associated with a given hook. Only stops if
@@ -123,5 +123,5 @@ pub unsafe fn htp_hook_run_all(
         }
         i = i.wrapping_add(1)
     }
-    return Status::OK;
+    Status::OK
 }

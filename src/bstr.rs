@@ -903,7 +903,7 @@ pub unsafe fn bstr_util_mem_to_pint(
         }
     }
     *lastlen += 1;
-    return rval;
+    rval
 }
 
 /// Searches a memory block for the given NUL-terminated string. Case insensitive.

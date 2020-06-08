@@ -66,5 +66,5 @@ pub unsafe fn htp_utf8_decode_allow_overlong(state: *mut u32, codep: *mut u32, b
     *state = utf8d[(256 as u32)
         .wrapping_add((*state).wrapping_mul(16))
         .wrapping_add(type_0) as usize] as u32;
-    return *state;
+    *state
 }

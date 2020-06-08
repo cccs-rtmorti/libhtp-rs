@@ -86,7 +86,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     if (*tx).response_message.is_null() {
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Generic response header parser.
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
         bstr::bstr_free((*h).value);
         return Status::ERROR;
     }
-    return Status::OK;
+    Status::OK
 }
 
 /// Generic response header line(s) processor, which assembles folded lines

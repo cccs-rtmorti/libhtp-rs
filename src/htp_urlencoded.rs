@@ -155,7 +155,7 @@ pub unsafe fn htp_urlenp_create(tx: *mut htp_transaction::htp_tx_t) -> *mut htp_
     (*urlenp).argument_separator = '&' as u8;
     (*urlenp).decode_url_encoding = 1;
     (*urlenp)._state = 1;
-    return urlenp;
+    urlenp
 }
 
 /// Destroys an existing URLENCODED parser.
@@ -182,7 +182,7 @@ pub unsafe fn htp_urlenp_destroy(urlenp: *mut htp_urlenp_t) {
 /// Returns Success indication
 pub unsafe fn htp_urlenp_finalize(mut urlenp: *mut htp_urlenp_t) -> Status {
     (*urlenp)._complete = 1;
-    return htp_urlenp_parse_partial(urlenp, 0 as *const core::ffi::c_void, 0);
+    htp_urlenp_parse_partial(urlenp, 0 as *const core::ffi::c_void, 0)
 }
 
 /// Parses the provided data chunk under the assumption
@@ -195,7 +195,7 @@ pub unsafe fn htp_urlenp_parse_complete(
     len: usize,
 ) -> Status {
     htp_urlenp_parse_partial(urlenp, data, len);
-    return htp_urlenp_finalize(urlenp);
+    htp_urlenp_finalize(urlenp)
 }
 
 /// Parses the provided data chunk, keeping state to allow streaming parsing, i.e., the
@@ -262,5 +262,5 @@ pub unsafe fn htp_urlenp_parse_partial(
             break;
         }
     }
-    return Status::OK;
+    Status::OK
 }
