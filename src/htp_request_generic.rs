@@ -67,8 +67,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         (*h_existing).flags |= Flags::HTP_FIELD_REPEATED;
         // Having multiple C-L headers is against the RFC but
         // servers may ignore the subsequent headers if the values are the same.
-        if bstr::bstr_cmp_c_nocase((*h).name, b"Content-Length\x00" as *const u8 as *const i8) == 0
-        {
+        if bstr::bstr_cmp_str_nocase((*h).name, "Content-Length") == 0 {
             // Don't use string comparison here because we want to
             // ignore small formatting differences.
             let existing_cl: i64 = htp_util::htp_parse_content_length(
@@ -105,11 +104,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
                 return Status::ERROR;
             }
             (*h_existing).value = new_value;
-            bstr::bstr_add_mem_noex(
-                (*h_existing).value,
-                b", \x00" as *const u8 as *const core::ffi::c_void,
-                2,
-            );
+            (*(*h_existing).value).add_noex(", ");
             bstr::bstr_add_noex((*h_existing).value, (*h).value);
         }
         // The new header structure is no longer needed.
@@ -167,7 +162,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         // to the entire input string.
         // TODO Apache will respond to this problem with a 400.
         // Now extract the name and the value
-        (*h).name = bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
+        (*h).name = bstr::bstr_alloc(0);
         if (*h).name.is_null() {
             return Status::ERROR;
         }

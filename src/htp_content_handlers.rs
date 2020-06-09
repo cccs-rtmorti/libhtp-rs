@@ -63,10 +63,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
 ) -> Status {
     // Check the request content type to see if it matches our MIME type.
     if (*tx).request_content_type.is_null()
-        || bstr::bstr_begins_with_c(
-            (*tx).request_content_type,
-            b"application/x-www-form-urlencoded\x00" as *const u8 as *const i8,
-        ) == 0
+        || !(*(*tx).request_content_type).starts_with("application/x-www-form-urlencoded")
     {
         return Status::DECLINED;
     }

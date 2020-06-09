@@ -376,7 +376,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
     }
     let h = h_opt.unwrap().1;
     // Require "form-data" at the beginning of the header.
-    if bstr::bstr_index_of_c((*h).value, b"form-data\x00" as *const u8 as *const i8) != 0 {
+    if bstr::bstr_index_of((*h).value, "form-data") != 0 {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
         return Status::DECLINED;
     }
@@ -682,11 +682,8 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         free(h as *mut core::ffi::c_void);
         return Status::ERROR;
     }
-    if bstr::bstr_cmp_c_nocase(
-        (*h).name,
-        b"content-disposition\x00" as *const u8 as *const i8,
-    ) != 0
-        && bstr::bstr_cmp_c_nocase((*h).name, b"content-type\x00" as *const u8 as *const i8) != 0
+    if bstr::bstr_cmp_str_nocase((*h).name, "content-disposition") != 0
+        && bstr::bstr_cmp_str_nocase((*h).name, "content-type") != 0
     {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
     }
@@ -708,11 +705,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
             return Status::ERROR;
         }
         (*h_existing).value = new_value;
-        bstr::bstr_add_mem_noex(
-            (*h_existing).value,
-            b", \x00" as *const u8 as *const i8 as *const core::ffi::c_void,
-            2,
-        );
+        (*(*h_existing).value).add_noex(", ");
         bstr::bstr_add_noex((*h_existing).value, (*h).value);
         // The header is no longer needed.
         bstr::bstr_free((*h).name);
@@ -1765,11 +1758,8 @@ unsafe extern "C" fn htp_mpartp_validate_content_type(
     let mut len: usize = bstr_len(content_type);
     let mut counter: usize = 0;
     while len > 0 {
-        let i: i32 = bstr::bstr_util_mem_index_of_c_nocase(
-            data as *const core::ffi::c_void,
-            len,
-            b"boundary\x00" as *const u8 as *const i8,
-        );
+        let i =
+            bstr::bstr_util_mem_index_of_nocase(data as *const core::ffi::c_void, len, "boundary");
         if i == -1 {
             break;
         }
@@ -1824,8 +1814,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     *flags = MultipartFlags::empty();
     // Look for the boundary, case insensitive.
 
-    let i: i32 =
-        bstr::bstr_index_of_c_nocase(content_type, b"boundary\x00" as *const u8 as *const i8);
+    let i: i32 = bstr::bstr_index_of_nocase(content_type, "boundary");
     if i == -1 {
         return Status::DECLINED;
     }
@@ -1945,11 +1934,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Correlate with the MIME type. This might be a tad too
     // sensitive because it may catch non-browser access with sloppy
     // implementations, but let's go with it for now.
-    if bstr::bstr_begins_with_c(
-        content_type,
-        b"multipart/form-data;\x00" as *const u8 as *const i8,
-    ) == 0
-    {
+    if !(*content_type).starts_with("multipart/form-data;") {
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
     htp_mpartp_validate_content_type(content_type, flags);

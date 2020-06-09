@@ -707,13 +707,10 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         //   indicates that the "chunked" transfer coding has been applied, then
         //   the length is defined by the chunked encoding (section 3.6).
         if te_opt.is_some()
-            && bstr::bstr_index_of_c_nocasenorzero(
-                (*(*te_opt.unwrap()).1).value,
-                b"chunked\x00" as *const u8 as *const i8,
-            ) != -1
+            && bstr::bstr_index_of_nocasenorzero((*(*te_opt.unwrap()).1).value, "chunked") != -1
         {
             let te = te_opt.unwrap().1;
-            if bstr::bstr_cmp_c_nocase((*te).value, b"chunked\x00" as *const u8 as *const i8) != 0 {
+            if bstr::bstr_cmp_str_nocase((*te).value, "chunked") != 0 {
                 htp_util::htp_log(
                     connp,
                     b"htp_response.c\x00" as *const u8 as *const i8,
@@ -805,11 +802,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             if ct_opt.is_some() {
                 let ct = ct_opt.unwrap().1;
                 // TODO Handle multipart/byteranges
-                if bstr::bstr_index_of_c_nocase(
-                    (*ct).value,
-                    b"multipart/byteranges\x00" as *const u8 as *const i8,
-                ) != -1
-                {
+                if bstr::bstr_index_of_nocase((*ct).value, "multipart/byteranges") != -1 {
                     htp_util::htp_log(
                         connp,
                         b"htp_response.c\x00" as *const u8 as *const i8,
@@ -1486,13 +1479,11 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
         if (*(*connp).out_tx).parsed_uri.is_null() {
             return Status::ERROR;
         }
-        (*(*(*connp).out_tx).parsed_uri).path =
-            bstr::bstr_dup_c(b"/libhtp::request_uri_not_seen\x00" as *const u8 as *const i8);
+        (*(*(*connp).out_tx).parsed_uri).path = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
         if (*(*(*connp).out_tx).parsed_uri).path.is_null() {
             return Status::ERROR;
         }
-        (*(*connp).out_tx).request_uri =
-            bstr::bstr_dup_c(b"/libhtp::request_uri_not_seen\x00" as *const u8 as *const i8);
+        (*(*connp).out_tx).request_uri = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
         if (*(*connp).out_tx).request_uri.is_null() {
             return Status::ERROR;
         }

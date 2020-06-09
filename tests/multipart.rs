@@ -130,27 +130,27 @@ impl Test {
             assert!(!field1.is_null());
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*field1).type_0);
             assert!(!(*field1).name.is_null());
-            assert_eq!(0, bstr_cmp_c((*field1).name, cstr!("field1")));
+            assert_eq!(0, bstr_cmp_str((*field1).name, "field1"));
             assert!(!(*field1).value.is_null());
-            assert_eq!(0, bstr_cmp_c((*field1).value, cstr!("ABCDEF")));
+            assert_eq!(0, bstr_cmp_str((*field1).value, "ABCDEF"));
 
             // File 1
             let file1 = htp_list_array_get((*self.body).parts, 1) as *mut htp_multipart_part_t;
             assert!(!file1.is_null());
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*file1).type_0);
             assert!(!(*file1).name.is_null());
-            assert_eq!(0, bstr_cmp_c((*file1).name, cstr!("file1")));
+            assert_eq!(0, bstr_cmp_str((*file1).name, "file1"));
             assert!(!(*(*file1).file).filename.is_null());
-            assert_eq!(0, bstr_cmp_c((*(*file1).file).filename, cstr!("file.bin")));
+            assert_eq!(0, bstr_cmp_str((*(*file1).file).filename, "file.bin"));
 
             // Field 2
             let field2 = htp_list_array_get((*self.body).parts, 2) as *mut htp_multipart_part_t;
             assert!(!field2.is_null());
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*field2).type_0);
             assert!(!(*field2).name.is_null());
-            assert_eq!(0, bstr_cmp_c((*field2).name, cstr!("field2")));
+            assert_eq!(0, bstr_cmp_str((*field2).name, "field2"));
             assert!(!(*field2).value.is_null());
-            assert_eq!(0, bstr_cmp_c((*field2).value, cstr!("GHIJKL")));
+            assert_eq!(0, bstr_cmp_str((*field2).value, "GHIJKL"));
         }
     }
 
@@ -158,7 +158,7 @@ impl Test {
         unsafe {
             self.mpartp = htp_mpartp_create(
                 self.cfg,
-                bstr_dup_c(cstr!("0123456789")),
+                bstr_dup_str("0123456789"),
                 MultipartFlags::empty(),
             );
             assert!(!self.mpartp.is_null());
@@ -188,16 +188,16 @@ impl Test {
             let mut part = htp_list_array_get((*self.body).parts, 0) as *mut htp_multipart_part_t;
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*part).type_0);
             assert!(!(*part).name.is_null());
-            assert_eq!(0, bstr_cmp_c((*part).name, cstr!("field1")));
+            assert_eq!(0, bstr_cmp_str((*part).name, "field1"));
             assert!(!(*part).value.is_null());
-            assert_eq!(0, bstr_cmp_c((*part).value, cstr!("ABCDEF")));
+            assert_eq!(0, bstr_cmp_str((*part).value, "ABCDEF"));
 
             part = htp_list_array_get((*self.body).parts, 1) as *mut htp_multipart_part_t;
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*part).type_0);
             assert!(!(*part).name.is_null());
-            assert_eq!(0, bstr_cmp_c((*part).name, cstr!("field2")));
+            assert_eq!(0, bstr_cmp_str((*part).name, "field2"));
             assert!(!(*part).value.is_null());
-            assert_eq!(0, bstr_cmp_c((*part).value, cstr!("GHIJKL")));
+            assert_eq!(0, bstr_cmp_str((*part).value, "GHIJKL"));
         }
     }
 }
@@ -221,7 +221,7 @@ fn Test1() {
     unsafe {
         t.mpartp = htp_mpartp_create(
             t.cfg,
-            bstr_dup_c(cstr!("---------------------------41184676334")),
+            bstr_dup_str("---------------------------41184676334"),
             MultipartFlags::empty(),
         );
 
@@ -275,39 +275,36 @@ fn Test1() {
 
         let mut part = htp_list_array_get((*t.body).parts, 0) as *mut htp_multipart_part_t;
         assert!(!(*part).name.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).name, cstr!("field1")));
+        assert_eq!(0, bstr_cmp_str((*part).name, "field1"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*part).type_0);
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("0123456789")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "0123456789"));
 
         part = htp_list_array_get((*t.body).parts, 1) as *mut htp_multipart_part_t;
         assert!(!(*part).name.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).name, cstr!("field2")));
+        assert_eq!(0, bstr_cmp_str((*part).name, "field2"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*part).type_0);
         assert!(!(*part).value.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c(
-                (*part).value,
-                cstr!("0123456789\r\n----------------------------X")
-            )
+            bstr_cmp_str((*part).value, "0123456789\r\n----------------------------X")
         );
 
         part = htp_list_array_get((*t.body).parts, 2) as *mut htp_multipart_part_t;
         assert!(!(*part).name.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).name, cstr!("field3")));
+        assert_eq!(0, bstr_cmp_str((*part).name, "field3"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*part).type_0);
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("9876543210")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "9876543210"));
 
         part = htp_list_array_get((*t.body).parts, 3) as *mut htp_multipart_part_t;
         assert!(!(*part).name.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).name, cstr!("file1")));
+        assert_eq!(0, bstr_cmp_str((*part).name, "file1"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*part).type_0);
 
         part = htp_list_array_get((*t.body).parts, 4) as *mut htp_multipart_part_t;
         assert!(!(*part).name.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).name, cstr!("file2")));
+        assert_eq!(0, bstr_cmp_str((*part).name, "file2"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*part).type_0);
 
         assert!(!(*t.body)
@@ -323,7 +320,7 @@ fn Test1() {
 fn Test2() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_c(cstr!("BBB")), MultipartFlags::empty());
+        t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_str("BBB"), MultipartFlags::empty());
 
         let parts = vec![
             "x0000x\n--BBB\n\nx1111x\n--\nx2222x\n--",
@@ -358,28 +355,25 @@ fn Test2() {
             (*part).type_0
         );
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("x0000x")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "x0000x"));
 
         part = htp_list_array_get((*t.body).parts, 1) as *mut htp_multipart_part_t;
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_UNKNOWN, (*part).type_0);
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("x1111x\n--\nx2222x")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "x1111x\n--\nx2222x"));
 
         part = htp_list_array_get((*t.body).parts, 2) as *mut htp_multipart_part_t;
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_UNKNOWN, (*part).type_0);
         assert!(!(*part).value.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*part).value, cstr!("x3333x\n--BB\n\nx4444x\n--BB"))
+            bstr_cmp_str((*part).value, "x3333x\n--BB\n\nx4444x\n--BB")
         );
 
         part = htp_list_array_get((*t.body).parts, 3) as *mut htp_multipart_part_t;
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_UNKNOWN, (*part).type_0);
         assert!(!(*part).value.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*part).value, cstr!("x5555x\r\n--x6666x\r--"))
-        );
+        assert_eq!(0, bstr_cmp_str((*part).value, "x5555x\r\n--x6666x\r--"));
 
         assert!((*t.body)
             .flags
@@ -768,7 +762,7 @@ fn WithPreamble() {
             (*part).type_0
         );
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("Preamble")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "Preamble"));
     }
 }
 
@@ -806,7 +800,7 @@ fn WithEpilogue1() {
             (*part).type_0
         );
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("Epilogue")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "Epilogue"));
         assert!(!(*t.body)
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_INCOMPLETE));
@@ -850,7 +844,7 @@ fn WithEpilogue2() {
             (*part).type_0
         );
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("Epi\nlogue")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "Epi\nlogue"));
         assert!(!(*t.body)
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_INCOMPLETE));
@@ -895,7 +889,7 @@ fn WithEpilogue3() {
             (*part).type_0
         );
         assert!(!(*part).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*part).value, cstr!("Epi\r\n--logue")));
+        assert_eq!(0, bstr_cmp_str((*part).value, "Epi\r\n--logue"));
         assert!(!(*t.body)
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_INCOMPLETE));
@@ -938,13 +932,13 @@ fn WithEpilogue4() {
         assert!(!ep1.is_null());
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_EPILOGUE, (*ep1).type_0);
         assert!(!(*ep1).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*ep1).value, cstr!("Epilogue1")));
+        assert_eq!(0, bstr_cmp_str((*ep1).value, "Epilogue1"));
 
         let ep2 = htp_list_array_get((*t.body).parts, 3) as *mut htp_multipart_part_t;
         assert!(!ep2.is_null());
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_EPILOGUE, (*ep2).type_0);
         assert!(!(*ep2).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*ep2).value, cstr!("Epilogue2")));
+        assert_eq!(0, bstr_cmp_str((*ep2).value, "Epilogue2"));
 
         assert!(!(*t.body)
             .flags
@@ -1083,10 +1077,10 @@ fn WithFile() {
         assert!(!(*part).content_type.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*part).content_type, cstr!("application/octet-stream"))
+            bstr_cmp_str((*part).content_type, "application/octet-stream")
         );
         assert!(!(*part).file.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*part).file).filename, cstr!("test.bin")));
+        assert_eq!(0, bstr_cmp_str((*(*part).file).filename, "test.bin"));
         assert_eq!(6, (*(*part).file).len);
     }
 }
@@ -1124,10 +1118,10 @@ fn WithFileExternallyStored() {
         assert!(!(*part).content_type.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*part).content_type, cstr!("application/octet-stream"))
+            bstr_cmp_str((*part).content_type, "application/octet-stream")
         );
         assert!(!(*part).file.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*part).file).filename, cstr!("test.bin")));
+        assert_eq!(0, bstr_cmp_str((*(*part).file).filename, "test.bin"));
         assert_eq!(6, (*(*part).file).len);
 
         assert!(!(*(*part).file).tmpname.is_null());
@@ -1451,11 +1445,7 @@ fn InvalidHeader6() {
 fn NullByte() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = htp_mpartp_create(
-            t.cfg,
-            bstr_dup_c(cstr!("0123456789")),
-            MultipartFlags::empty(),
-        );
+        t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_str("0123456789"), MultipartFlags::empty());
     }
 
     // NUL byte in the part header.
@@ -1533,7 +1523,7 @@ fn MultipleContentTypeHeadersEvasion() {
         assert!(!(*t.tx).request_content_type.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*t.tx).request_content_type, cstr!("multipart/form-data"))
+            bstr_cmp_str((*t.tx).request_content_type, "multipart/form-data")
         );
     }
 }
@@ -1559,13 +1549,13 @@ fn BoundaryNormal() {
     unsafe {
         for i in 0..inputs.len() {
             let input: *mut bstr_t;
-            input = bstr_dup_c(cstr!(inputs[i]));
+            input = bstr_dup_str(inputs[i]);
             let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
             assert_eq!(Status::OK, rc);
             assert!(!boundary.is_null());
-            assert_eq!(0, bstr_cmp_c(boundary, cstr!(outputs[i])));
+            assert_eq!(0, bstr_cmp_str(boundary, outputs[i]));
             assert_eq!(MultipartFlags::empty(), flags);
             bstr_free(boundary);
             bstr_free(input);
@@ -1588,13 +1578,13 @@ fn BoundaryParsing() {
     unsafe {
         for i in 0..inputs.len() {
             let input: *mut bstr_t;
-            input = bstr_dup_c(cstr!(inputs[i]));
+            input = bstr_dup_str(inputs[i]);
             let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
             assert_eq!(Status::OK, rc);
             assert!(!boundary.is_null());
-            assert_eq!(0, bstr_cmp_c(boundary, cstr!(outputs[i])));
+            assert_eq!(0, bstr_cmp_str(boundary, outputs[i]));
             bstr_free(boundary);
             bstr_free(input);
         }
@@ -1627,7 +1617,7 @@ fn BoundaryInvalid() {
     unsafe {
         for i in inputs {
             let input: *mut bstr_t;
-            input = bstr_dup_c(cstr!(i));
+            input = bstr_dup_str(i);
             let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
@@ -1654,7 +1644,7 @@ fn BoundaryUnusual() {
     unsafe {
         for i in inputs {
             let input: *mut bstr_t;
-            input = bstr_dup_c(cstr!(i));
+            input = bstr_dup_str(i);
             let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
             let mut flags: MultipartFlags = MultipartFlags::empty();
             let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
@@ -2106,7 +2096,7 @@ fn InvalidContentDispositionSyntax() {
 
     unsafe {
         for input in inputs {
-            t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_c(cstr!("123")), MultipartFlags::empty());
+            t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_str("123"), MultipartFlags::empty());
 
             let mut part: *mut htp_multipart_part_t =
                 calloc(1, ::std::mem::size_of::<htp_multipart_part_t>())
@@ -2116,8 +2106,8 @@ fn InvalidContentDispositionSyntax() {
 
             let mut h: *mut htp_header_t =
                 calloc(1, ::std::mem::size_of::<htp_header_t>()) as *mut htp_header_t;
-            (*h).name = bstr_dup_c(cstr!("Content-Disposition"));
-            (*h).value = bstr_dup_c(cstr!(input));
+            (*h).name = bstr_dup_str("Content-Disposition");
+            (*h).value = bstr_dup_str(input);
 
             (*part).headers.add((*(*h).name).clone(), h);
             let rc: Status = htp_mpart_part_parse_c_d(part);
@@ -2177,9 +2167,9 @@ fn ParamValueEscaping() {
         assert!(!field1.is_null());
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*field1).type_0);
         assert!(!(*field1).name.is_null());
-        assert_eq!(0, bstr_cmp_c((*field1).name, cstr!("---\"---\\---")));
+        assert_eq!(0, bstr_cmp_str((*field1).name, "---\"---\\---"));
         assert!(!(*field1).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*field1).value, cstr!("ABCDEF")));
+        assert_eq!(0, bstr_cmp_str((*field1).value, "ABCDEF"));
     }
 }
 
@@ -2219,9 +2209,6 @@ fn HeaderValueTrim() {
         assert!(h_opt.is_some());
         let h = h_opt.unwrap().1;
         assert!(!h.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*h).value, cstr!("form-data; name=\"field1\" "))
-        );
+        assert_eq!(0, bstr_cmp_str((*h).value, "form-data; name=\"field1\" "));
     }
 }

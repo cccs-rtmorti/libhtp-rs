@@ -45,7 +45,7 @@ fn Decode() {
             input.as_ptr() as *const core::ffi::c_void,
             libc::strlen(input.as_ptr()),
         );
-        assert_eq!(0, bstr_cmp_c(out, cstr!("this is a test..")));
+        assert_eq!(0, bstr_cmp_str(out, "this is a test.."));
         bstr_free(out);
     }
 }
@@ -148,7 +148,7 @@ fn Space() {
 #[test]
 fn Method() {
     unsafe {
-        let method: *mut bstr_t = bstr_dup_c(cstr!("GET"));
+        let method: *mut bstr_t = bstr_dup_str("GET");
 
         assert_eq!(
             htp_method_t::HTP_M_GET as i32,
@@ -236,7 +236,7 @@ fn ParsePositiveIntegerWhitespace() {
 #[test]
 fn ParseContentLength() {
     unsafe {
-        let data: *mut bstr_t = bstr_dup_c(cstr!("134"));
+        let data: *mut bstr_t = bstr_dup_str("134");
 
         assert_eq!(134, htp_parse_content_length(data, std::ptr::null_mut()));
 
@@ -558,7 +558,7 @@ fn HtpParseUri() {
         let mut input: *mut bstr_t;
         let mut uri: *mut htp_uri_t = std::ptr::null_mut();
 
-        input = bstr_dup_c(cstr!(""));
+        input = bstr_dup_str("");
         assert_eq!(Status::OK, htp_parse_uri(input, &mut uri));
         bstr_free(input);
         free_htp_uri_t(&mut uri);
@@ -588,7 +588,7 @@ fn HtpParseUri() {
 #[test]
 fn ParseHostPort_1() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -610,8 +610,8 @@ fn ParseHostPort_1() {
 #[test]
 fn ParseHostPort_2() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!(" www.example.com "));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str(" www.example.com ");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -635,8 +635,8 @@ fn ParseHostPort_2() {
 #[test]
 fn ParseHostPort_3() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!(" www.example.com:8001 "));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str(" www.example.com:8001 ");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -660,8 +660,8 @@ fn ParseHostPort_3() {
 #[test]
 fn ParseHostPort_4() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!(" www.example.com :  8001 "));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str(" www.example.com :  8001 ");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -685,8 +685,8 @@ fn ParseHostPort_4() {
 #[test]
 fn ParseHostPort_5() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com."));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com."));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com.");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com.");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -710,8 +710,8 @@ fn ParseHostPort_5() {
 #[test]
 fn ParseHostPort_6() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com.:8001"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com."));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com.:8001");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com.");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -735,8 +735,8 @@ fn ParseHostPort_6() {
 #[test]
 fn ParseHostPort_7() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com:"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com:");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -760,8 +760,8 @@ fn ParseHostPort_7() {
 #[test]
 fn ParseHostPort_8() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com:ff"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com:ff");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -785,8 +785,8 @@ fn ParseHostPort_8() {
 #[test]
 fn ParseHostPort_9() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com:0"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com:0");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -810,8 +810,8 @@ fn ParseHostPort_9() {
 #[test]
 fn ParseHostPort_10() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com:65536"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com:65536");
+        let e: *mut bstr_t = bstr_dup_str("www.example.com");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut flag = 0;
@@ -835,8 +835,8 @@ fn ParseHostPort_10() {
 #[test]
 fn ParseHostPort_11() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("[::1]:8080"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("[::1]"));
+        let i: *mut bstr_t = bstr_dup_str("[::1]:8080");
+        let e: *mut bstr_t = bstr_dup_str("[::1]");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut invalid = 0;
@@ -860,8 +860,8 @@ fn ParseHostPort_11() {
 #[test]
 fn ParseHostPort_12() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("[::1]:"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("[::1]"));
+        let i: *mut bstr_t = bstr_dup_str("[::1]:");
+        let e: *mut bstr_t = bstr_dup_str("[::1]");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut invalid = 0;
@@ -885,8 +885,8 @@ fn ParseHostPort_12() {
 #[test]
 fn ParseHostPort_13() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("[::1]x"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("[::1]"));
+        let i: *mut bstr_t = bstr_dup_str("[::1]x");
+        let e: *mut bstr_t = bstr_dup_str("[::1]");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut invalid = 0;
@@ -910,7 +910,7 @@ fn ParseHostPort_13() {
 #[test]
 fn ParseHostPort_14() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("[::1"));
+        let i: *mut bstr_t = bstr_dup_str("[::1");
         let mut host: *mut bstr_t = std::ptr::null_mut();
         let mut port = 0;
         let mut invalid = 0;
@@ -932,8 +932,8 @@ fn ParseHostPort_14() {
 #[test]
 fn ParseContentType_1() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data"));
+        let i: *mut bstr_t = bstr_dup_str("multipart/form-data");
+        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
         let mut ct: *mut bstr_t = std::ptr::null_mut();
 
         assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
@@ -950,8 +950,8 @@ fn ParseContentType_1() {
 #[test]
 fn ParseContentType_2() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data;boundary=X"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data"));
+        let i: *mut bstr_t = bstr_dup_str("multipart/form-data;boundary=X");
+        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
         let mut ct: *mut bstr_t = std::ptr::null_mut();
 
         assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
@@ -968,8 +968,8 @@ fn ParseContentType_2() {
 #[test]
 fn ParseContentType_3() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data boundary=X"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data"));
+        let i: *mut bstr_t = bstr_dup_str("multipart/form-data boundary=X");
+        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
         let mut ct: *mut bstr_t = std::ptr::null_mut();
 
         assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
@@ -986,8 +986,8 @@ fn ParseContentType_3() {
 #[test]
 fn ParseContentType_4() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data,boundary=X"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data"));
+        let i: *mut bstr_t = bstr_dup_str("multipart/form-data,boundary=X");
+        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
         let mut ct: *mut bstr_t = std::ptr::null_mut();
 
         assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
@@ -1004,8 +1004,8 @@ fn ParseContentType_4() {
 #[test]
 fn ParseContentType_5() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("multipart/FoRm-data"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data"));
+        let i: *mut bstr_t = bstr_dup_str("multipart/FoRm-data");
+        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
         let mut ct: *mut bstr_t = std::ptr::null_mut();
 
         assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
@@ -1022,8 +1022,8 @@ fn ParseContentType_5() {
 #[test]
 fn ParseContentType_6() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data\t boundary=X"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("multipart/form-data\t"));
+        let i: *mut bstr_t = bstr_dup_str("multipart/form-data\t boundary=X");
+        let e: *mut bstr_t = bstr_dup_str("multipart/form-data\t");
         let mut ct: *mut bstr_t = std::ptr::null_mut();
 
         assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
@@ -1040,7 +1040,7 @@ fn ParseContentType_6() {
 #[test]
 fn ValidateHostname_1() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com");
         assert_eq!(1, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1049,7 +1049,7 @@ fn ValidateHostname_1() {
 #[test]
 fn ValidateHostname_2() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!(".www.example.com"));
+        let i: *mut bstr_t = bstr_dup_str(".www.example.com");
         assert_eq!(0, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1058,7 +1058,7 @@ fn ValidateHostname_2() {
 #[test]
 fn ValidateHostname_3() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www..example.com"));
+        let i: *mut bstr_t = bstr_dup_str("www..example.com");
         assert_eq!(0, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1067,7 +1067,7 @@ fn ValidateHostname_3() {
 #[test]
 fn ValidateHostname_4() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.example.com.."));
+        let i: *mut bstr_t = bstr_dup_str("www.example.com..");
         assert_eq!(0, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1076,7 +1076,7 @@ fn ValidateHostname_4() {
 #[test]
 fn ValidateHostname_5() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www example com"));
+        let i: *mut bstr_t = bstr_dup_str("www example com");
         assert_eq!(0, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1085,7 +1085,7 @@ fn ValidateHostname_5() {
 #[test]
 fn ValidateHostname_6() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!(""));
+        let i: *mut bstr_t = bstr_dup_str("");
         assert_eq!(0, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1095,9 +1095,9 @@ fn ValidateHostname_6() {
 fn ValidateHostname_7() {
     unsafe {
         // Label over 63 characters.
-        let i: *mut bstr_t = bstr_dup_c(cstr!(
-            "www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com"
-        ));
+        let i: *mut bstr_t = bstr_dup_str(
+            "www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com",
+        );
         assert_eq!(0, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1106,7 +1106,7 @@ fn ValidateHostname_7() {
 #[test]
 fn ValidateHostname_8() {
     unsafe {
-        let i: *mut bstr_t = bstr_dup_c(cstr!("www.ExAmplE-1984.com"));
+        let i: *mut bstr_t = bstr_dup_str("www.ExAmplE-1984.com");
         assert_eq!(1, htp_validate_hostname(i));
         bstr_free(i);
     }
@@ -1155,8 +1155,8 @@ impl Drop for DecodingTest {
 fn DecodingTest_DecodeUrlencodedInplace1_Identity() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/dest"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/dest"));
+        let i: *mut bstr_t = bstr_dup_str("/dest");
+        let e: *mut bstr_t = bstr_dup_str("/dest");
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1168,8 +1168,8 @@ fn DecodingTest_DecodeUrlencodedInplace1_Identity() {
 fn DecodingTest_DecodeUrlencodedInplace2_Urlencoded() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%64est"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/dest"));
+        let i: *mut bstr_t = bstr_dup_str("/%64est");
+        let e: *mut bstr_t = bstr_dup_str("/dest");
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1181,8 +1181,8 @@ fn DecodingTest_DecodeUrlencodedInplace2_Urlencoded() {
 fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%xxest"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%xxest"));
+        let i: *mut bstr_t = bstr_dup_str("/%xxest");
+        let e: *mut bstr_t = bstr_dup_str("/%xxest");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1199,8 +1199,8 @@ fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
 fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%xxest"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/xxest"));
+        let i: *mut bstr_t = bstr_dup_str("/%xxest");
+        let e: *mut bstr_t = bstr_dup_str("/xxest");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1217,8 +1217,8 @@ fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
 fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%}9est"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/iest"));
+        let i: *mut bstr_t = bstr_dup_str("/%}9est");
+        let e: *mut bstr_t = bstr_dup_str("/iest");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1235,8 +1235,8 @@ fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
 fn DecodingTest_DecodeUrlencodedInplace6_UrlencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%a"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%a"));
+        let i: *mut bstr_t = bstr_dup_str("/%a");
+        let e: *mut bstr_t = bstr_dup_str("/%a");
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1248,8 +1248,8 @@ fn DecodingTest_DecodeUrlencodedInplace6_UrlencodedInvalidNotEnoughBytes() {
 fn DecodingTest_DecodeUrlencodedInplace7_UrlencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%"));
+        let i: *mut bstr_t = bstr_dup_str("/%");
+        let e: *mut bstr_t = bstr_dup_str("/%");
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1261,8 +1261,8 @@ fn DecodingTest_DecodeUrlencodedInplace7_UrlencodedInvalidNotEnoughBytes() {
 fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0064"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/d"));
+        let i: *mut bstr_t = bstr_dup_str("/%u0064");
+        let e: *mut bstr_t = bstr_dup_str("/d");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1279,8 +1279,8 @@ fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
 fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0064"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%u0064"));
+        let i: *mut bstr_t = bstr_dup_str("/%u0064");
+        let e: *mut bstr_t = bstr_dup_str("/%u0064");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1302,8 +1302,8 @@ fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
 fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u006"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%u006"));
+        let i: *mut bstr_t = bstr_dup_str("/%u006");
+        let e: *mut bstr_t = bstr_dup_str("/%u006");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1325,8 +1325,8 @@ fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
 fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u006"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%u006"));
+        let i: *mut bstr_t = bstr_dup_str("/%u006");
+        let e: *mut bstr_t = bstr_dup_str("/%u006");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1348,8 +1348,8 @@ fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
 fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%uXXXX"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/uXXXX"));
+        let i: *mut bstr_t = bstr_dup_str("/%uXXXX");
+        let e: *mut bstr_t = bstr_dup_str("/uXXXX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1371,8 +1371,8 @@ fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
 fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u00}9"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/i"));
+        let i: *mut bstr_t = bstr_dup_str("/%u00}9");
+        let e: *mut bstr_t = bstr_dup_str("/i");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1394,8 +1394,8 @@ fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
 fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u00"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%u00"));
+        let i: *mut bstr_t = bstr_dup_str("/%u00");
+        let e: *mut bstr_t = bstr_dup_str("/%u00");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1417,8 +1417,8 @@ fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
 fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%u0"));
+        let i: *mut bstr_t = bstr_dup_str("/%u0");
+        let e: *mut bstr_t = bstr_dup_str("/%u0");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1440,8 +1440,8 @@ fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
 fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%u"));
+        let i: *mut bstr_t = bstr_dup_str("/%u");
+        let e: *mut bstr_t = bstr_dup_str("/%u");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1463,7 +1463,7 @@ fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
 fn DecodingTest_DecodeUrlencodedInplace17_UrlencodedNul() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%00"));
+        let i: *mut bstr_t = bstr_dup_str("/%00");
         let e: *mut bstr_t = bstr_dup_mem("/\0".as_ptr() as *const core::ffi::c_void, 2);
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
@@ -1476,8 +1476,8 @@ fn DecodingTest_DecodeUrlencodedInplace17_UrlencodedNul() {
 fn DecodingTest_DecodeUrlencodedInplace18_UrlencodedNulTerminates() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%00ABC"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/"));
+        let i: *mut bstr_t = bstr_dup_str("/%00ABC");
+        let e: *mut bstr_t = bstr_dup_str("/");
         htp_config_set_nul_encoded_terminates(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1495,7 +1495,7 @@ fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
     unsafe {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_mem("/\0ABC".as_ptr() as *const core::ffi::c_void, 5);
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/"));
+        let e: *mut bstr_t = bstr_dup_str("/");
         htp_config_set_nul_raw_terminates(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1512,8 +1512,8 @@ fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
 fn DecodingTes_DecodeUrlencodedInplace20_UencodedBestFit() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0107"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/c"));
+        let i: *mut bstr_t = bstr_dup_str("/%u0107");
+        let e: *mut bstr_t = bstr_dup_str("/c");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1530,8 +1530,8 @@ fn DecodingTes_DecodeUrlencodedInplace20_UencodedBestFit() {
 fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%a"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%a"));
+        let i: *mut bstr_t = bstr_dup_str("/%a");
+        let e: *mut bstr_t = bstr_dup_str("/%a");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1549,8 +1549,8 @@ fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
 fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%uX"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%uX"));
+        let i: *mut bstr_t = bstr_dup_str("/%uX");
+        let e: *mut bstr_t = bstr_dup_str("/%uX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1573,8 +1573,8 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
 fn DecodingTest_DecodePathInplace3_UencodedValid() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0107"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/c"));
+        let i: *mut bstr_t = bstr_dup_str("/%u0107");
+        let e: *mut bstr_t = bstr_dup_str("/c");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1596,8 +1596,8 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
 fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%uXXXX"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/uXXXX"));
+        let i: *mut bstr_t = bstr_dup_str("/%uXXXX");
+        let e: *mut bstr_t = bstr_dup_str("/uXXXX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1620,8 +1620,8 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
 fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%uXXXX"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%uXXXX"));
+        let i: *mut bstr_t = bstr_dup_str("/%uXXXX");
+        let e: *mut bstr_t = bstr_dup_str("/%uXXXX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1644,8 +1644,8 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
 fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u00}9"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/i"));
+        let i: *mut bstr_t = bstr_dup_str("/%u00}9");
+        let e: *mut bstr_t = bstr_dup_str("/i");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1668,7 +1668,7 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
 fn DecodingTest_DecodePathInplace7_UencodedNul() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%u0000"));
+        let i: *mut bstr_t = bstr_dup_str("/%u0000");
         let e: *mut bstr_t = bstr_dup_mem("/\0".as_ptr() as *const core::ffi::c_void, 2);
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
@@ -1692,8 +1692,8 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
 fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%uXXX"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/uXXX"));
+        let i: *mut bstr_t = bstr_dup_str("/%uXXX");
+        let e: *mut bstr_t = bstr_dup_str("/uXXX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1716,8 +1716,8 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
 fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%uXXX"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%uXXX"));
+        let i: *mut bstr_t = bstr_dup_str("/%uXXX");
+        let e: *mut bstr_t = bstr_dup_str("/%uXXX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1740,7 +1740,7 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
 fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%00123"));
+        let i: *mut bstr_t = bstr_dup_str("/%00123");
         let e: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
@@ -1754,7 +1754,7 @@ fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
 fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%00123"));
+        let i: *mut bstr_t = bstr_dup_str("/%00123");
         let e: *mut bstr_t = bstr_dup_mem("/".as_ptr() as *const core::ffi::c_void, 1);
         htp_config_set_nul_encoded_terminates(
             &mut *test.cfg,
@@ -1773,8 +1773,8 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
 fn DecodingTest_DecodePathInplace12_EncodedSlash() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/one%2ftwo"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/one%2ftwo"));
+        let i: *mut bstr_t = bstr_dup_str("/one%2ftwo");
+        let e: *mut bstr_t = bstr_dup_str("/one%2ftwo");
         htp_config_set_path_separators_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1792,8 +1792,8 @@ fn DecodingTest_DecodePathInplace12_EncodedSlash() {
 fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/one%2ftwo"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/one/two"));
+        let i: *mut bstr_t = bstr_dup_str("/one%2ftwo");
+        let e: *mut bstr_t = bstr_dup_str("/one/two");
         htp_config_set_path_separators_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1811,8 +1811,8 @@ fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
 fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%HH"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%HH"));
+        let i: *mut bstr_t = bstr_dup_str("/%HH");
+        let e: *mut bstr_t = bstr_dup_str("/%HH");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1830,8 +1830,8 @@ fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
 fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%HH"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/HH"));
+        let i: *mut bstr_t = bstr_dup_str("/%HH");
+        let e: *mut bstr_t = bstr_dup_str("/HH");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1849,8 +1849,8 @@ fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
 fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%}9"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/i"));
+        let i: *mut bstr_t = bstr_dup_str("/%}9");
+        let e: *mut bstr_t = bstr_dup_str("/i");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1868,8 +1868,8 @@ fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
 fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%H"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/H"));
+        let i: *mut bstr_t = bstr_dup_str("/%H");
+        let e: *mut bstr_t = bstr_dup_str("/H");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1887,8 +1887,8 @@ fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
 fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%H"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%H"));
+        let i: *mut bstr_t = bstr_dup_str("/%H");
+        let e: *mut bstr_t = bstr_dup_str("/%H");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1906,8 +1906,8 @@ fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
 fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/%H"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/%H"));
+        let i: *mut bstr_t = bstr_dup_str("/%H");
+        let e: *mut bstr_t = bstr_dup_str("/%H");
         htp_config_set_url_encoding_invalid_handling(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1926,7 +1926,7 @@ fn DecodingTest_DecodePathInplace20_RawNul1() {
     unsafe {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/"));
+        let e: *mut bstr_t = bstr_dup_str("/");
         htp_config_set_nul_raw_terminates(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1961,8 +1961,8 @@ fn DecodingTest_DecodePathInplace21_RawNul1() {
 fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/one\\two"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/one/two"));
+        let i: *mut bstr_t = bstr_dup_str("/one\\two");
+        let e: *mut bstr_t = bstr_dup_str("/one/two");
         htp_config_set_backslash_convert_slashes(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1979,8 +1979,8 @@ fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
 fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(cstr!("/one\\two"));
-        let e: *mut bstr_t = bstr_dup_c(cstr!("/one\\two"));
+        let i: *mut bstr_t = bstr_dup_str("/one\\two");
+        let e: *mut bstr_t = bstr_dup_str("/one\\two");
         htp_config_set_backslash_convert_slashes(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -1997,8 +1997,8 @@ fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
 fn DecodingTest_InvalidUtf8() {
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_c(b"\xf1.\x00".as_ptr() as *const i8);
-        let e: *mut bstr_t = bstr_dup_c(cstr!("?.") as *const i8);
+        let i: *mut bstr_t = bstr_dup_str(b"\xf1.");
+        let e: *mut bstr_t = bstr_dup_str("?.");
         htp_config_set_utf8_convert_bestfit(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
@@ -2075,7 +2075,7 @@ fn UrlencodedParser_EmptyKey1() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2090,7 +2090,7 @@ fn UrlencodedParser_EmptyKey2() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2105,7 +2105,7 @@ fn UrlencodedParser_EmptyKey3() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str(p.1, "1"));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2120,7 +2120,7 @@ fn UrlencodedParser_EmptyKeyAndValue() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2135,7 +2135,7 @@ fn UrlencodedParser_OnePairEmptyValue() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2150,7 +2150,7 @@ fn UrlencodedParser_OnePair() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str(p.1, "1"));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2169,13 +2169,13 @@ fn UrlencodedParser_TwoPairs() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str(p.1, "1"));
 
         let q_opt = (*test.urlenp).params.get_nocase("q");
         assert!(q_opt.is_some());
         let q = q_opt.unwrap();
         assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_c(q.1, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str(q.1, "2"));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2190,7 +2190,7 @@ fn UrlencodedParser_KeyNoValue1() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2205,7 +2205,7 @@ fn UrlencodedParser_KeyNoValue2() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2220,13 +2220,13 @@ fn UrlencodedParser_KeyNoValue3() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
 
         let q_opt = (*test.urlenp).params.get_nocase("q");
         assert!(q_opt.is_some());
         let q = q_opt.unwrap();
         assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_c(q.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(q.1, ""));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2241,13 +2241,13 @@ fn UrlencodedParser_KeyNoValue4() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
 
         let q_opt = (*test.urlenp).params.get_nocase("q");
         assert!(q_opt.is_some());
         let q = q_opt.unwrap();
         assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_c(q.1, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str(q.1, "2"));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2263,7 +2263,7 @@ fn UrlencodedParser_Partial1() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2280,7 +2280,7 @@ fn UrlencodedParser_Partial2() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2297,7 +2297,7 @@ fn UrlencodedParser_Partial3() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2314,7 +2314,7 @@ fn UrlencodedParser_Partial4() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2333,7 +2333,7 @@ fn UrlencodedParser_Partial5() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(p.1, ""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2362,13 +2362,13 @@ fn UrlencodedParser_Partial6i() {
         assert!(p_opt.is_some());
         let p = p_opt.unwrap();
         assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_c(p.1, cstr!("12")));
+        assert_eq!(0, bstr_cmp_str(p.1, "12"));
 
         let q_opt = (*test.urlenp).params.get_nocase("qzn");
         assert!(q_opt.is_some());
         let q = q_opt.unwrap();
         assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_c(q.1, cstr!("23")));
+        assert_eq!(0, bstr_cmp_str(q.1, "23"));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2497,32 +2497,30 @@ fn List_Expand2() {
 
 #[test]
 fn Table_Misc() {
-    unsafe {
-        let mut t: htp_table_t<*mut i8> = htp_table_t::with_capacity(2);
+    let mut t: htp_table_t<&str> = htp_table_t::with_capacity(2);
 
-        let mut pkey = bstr_t::with_capacity(1);
-        pkey.add("p");
+    let mut pkey = bstr_t::with_capacity(1);
+    pkey.add("p");
 
-        let mut qkey = bstr_t::with_capacity(1);
-        qkey.add("q");
+    let mut qkey = bstr_t::with_capacity(1);
+    qkey.add("q");
 
-        t.add(pkey, cstr!("1") as *mut i8);
-        t.add(qkey, cstr!("2") as *mut i8);
+    t.add(pkey, "1");
+    t.add(qkey, "2");
 
-        let mut p_opt = t.get_nocase("z");
-        assert!(p_opt.is_none());
+    let mut p_opt = t.get_nocase("z");
+    assert!(p_opt.is_none());
 
-        p_opt = t.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap().1;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp(cstr!("1") as *const i8, p));
-    }
+    p_opt = t.get_nocase("p");
+    assert!(p_opt.is_some());
+    let p = p_opt.unwrap().1;
+    assert_eq!("1", p);
 }
+
 #[test]
 fn Util_ExtractQuotedString() {
+    let mut s: *mut bstr_t = &mut bstr_t::from("") as *mut bstr_t;
     unsafe {
-        let mut s: *mut bstr_t = bstr_alloc(0);
         let mut end_offset = 0;
 
         let rc: Status = htp_extract_quoted_string_as_bstr(
@@ -2533,7 +2531,7 @@ fn Util_ExtractQuotedString() {
         );
         assert_eq!(Status::OK, rc);
         assert!(!s.is_null());
-        assert_eq!(0, bstr_cmp_c(s, cstr!("test")));
+        assert_eq!(0, bstr_cmp_str(s, "test"));
         assert_eq!(5, end_offset);
         bstr_free(s);
 
@@ -2545,7 +2543,7 @@ fn Util_ExtractQuotedString() {
         );
         assert_eq!(Status::OK, rc);
         assert!(!s.is_null());
-        assert_eq!(0, bstr_cmp_c(s, cstr!("te\"st")));
+        assert_eq!(0, bstr_cmp_str(s, "te\"st"));
         assert_eq!(7, end_offset);
         bstr_free(s);
     }
@@ -2554,49 +2552,49 @@ fn Util_ExtractQuotedString() {
 #[test]
 fn Util_NormalizeUriPath() {
     unsafe {
-        let s: *mut bstr_t = bstr_dup_c(cstr!("/a/b/c/./../../g"));
+        let s: *mut bstr_t = bstr_dup_str("/a/b/c/./../../g");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("/a/g")));
+        assert_eq!(0, bstr_cmp_str(s, "/a/g"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("mid/content=5/../6"));
+        let s = bstr_dup_str("mid/content=5/../6");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("mid/6")));
+        assert_eq!(0, bstr_cmp_str(s, "mid/6"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("./one"));
+        let s = bstr_dup_str("./one");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("one")));
+        assert_eq!(0, bstr_cmp_str(s, "one"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("../one"));
+        let s = bstr_dup_str("../one");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("one")));
+        assert_eq!(0, bstr_cmp_str(s, "one"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("."));
+        let s = bstr_dup_str(".");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(s, ""));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!(".."));
+        let s = bstr_dup_str("..");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(s, ""));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("one/."));
+        let s = bstr_dup_str("one/.");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("one")));
+        assert_eq!(0, bstr_cmp_str(s, "one"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("one/.."));
+        let s = bstr_dup_str("one/..");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(s, ""));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("one/../"));
+        let s = bstr_dup_str("one/../");
         htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_c(s, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(s, ""));
         bstr_free(s);
     }
 }
@@ -2607,7 +2605,7 @@ fn UrlencodedParser_UrlDecode1() {
         let test = UrlEncodedParserTest::new();
         let mut flags: Flags = Flags::empty();
 
-        let s = bstr_dup_c(cstr!("/one/tw%u006f/three/%u123"));
+        let s = bstr_dup_str("/one/tw%u006f/three/%u123");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
@@ -2624,10 +2622,10 @@ fn UrlencodedParser_UrlDecode1() {
             s,
             &mut flags,
         );
-        assert_eq!(0, bstr_cmp_c(s, cstr!("/one/two/three/%u123")));
+        assert_eq!(0, bstr_cmp_str(s, "/one/two/three/%u123"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("/one/tw%u006f/three/%uXXXX"));
+        let s = bstr_dup_str("/one/tw%u006f/three/%uXXXX");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
@@ -2644,10 +2642,10 @@ fn UrlencodedParser_UrlDecode1() {
             s,
             &mut flags,
         );
-        assert_eq!(0, bstr_cmp_c(s, cstr!("/one/two/three/%uXXXX")));
+        assert_eq!(0, bstr_cmp_str(s, "/one/two/three/%uXXXX"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("/one/tw%u006f/three/%u123"));
+        let s = bstr_dup_str("/one/tw%u006f/three/%u123");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
@@ -2664,10 +2662,10 @@ fn UrlencodedParser_UrlDecode1() {
             s,
             &mut flags,
         );
-        assert_eq!(0, bstr_cmp_c(s, cstr!("/one/two/three/u123")));
+        assert_eq!(0, bstr_cmp_str(s, "/one/two/three/u123"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("/one/tw%u006f/three/%3"));
+        let s = bstr_dup_str("/one/tw%u006f/three/%3");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
@@ -2684,10 +2682,10 @@ fn UrlencodedParser_UrlDecode1() {
             s,
             &mut flags,
         );
-        assert_eq!(0, bstr_cmp_c(s, cstr!("/one/two/three/3")));
+        assert_eq!(0, bstr_cmp_str(s, "/one/two/three/3"));
         bstr_free(s);
 
-        let s = bstr_dup_c(cstr!("/one/tw%u006f/three/%3"));
+        let s = bstr_dup_str("/one/tw%u006f/three/%3");
         htp_config_set_u_encoding_decode(
             &mut *test.cfg,
             htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
@@ -2704,7 +2702,7 @@ fn UrlencodedParser_UrlDecode1() {
             s,
             &mut flags,
         );
-        assert_eq!(0, bstr_cmp_c(s, cstr!("/one/two/three/%3")));
+        assert_eq!(0, bstr_cmp_str(s, "/one/two/three/%3"));
         bstr_free(s);
     }
 }

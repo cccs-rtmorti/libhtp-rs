@@ -30,7 +30,7 @@ pub unsafe fn htp_parse_single_cookie_v0(
     let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     if pos == len {
         // The cookie is empty.
-        value = bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8)
+        value = bstr::bstr_alloc(0);
     } else {
         // The cookie is not empty.
         value = bstr::bstr_dup_mem(

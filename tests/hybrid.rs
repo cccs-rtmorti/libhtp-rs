@@ -18,8 +18,6 @@ macro_rules! cstr {
     }};
 }
 
-const HTP_URLENCODED_MIME_TYPE: &[u8; 34] = b"application/x-www-form-urlencoded\x00";
-
 struct HybridParsing_Get_User_Data {
     // Request callback indicators.
     callback_REQUEST_START_invoked: i32,
@@ -302,7 +300,7 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        htp_tx_req_set_line(tx, cstr!("GET /?p=1&q=2 HTTP/1.1"), 22, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET /?p=1&q=2 HTTP/1.1");
 
         // Request line complete
         htp_tx_state_request_line(tx);
@@ -310,54 +308,33 @@ fn GetTest() {
 
         // Check request line data
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=1&q=2")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_protocol, cstr!("HTTP/1.1")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP/1.1"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/"));
 
         assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).query, cstr!("p=1&q=2")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=1&q=2"));
 
         // Check parameters
-        let param_p = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_p).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
 
-        let param_q = htp_tx_req_get_param(tx, cstr!("q"), 1) as *mut htp_param_t;
+        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
 
         // Request headers
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Host"),
-            4,
-            cstr!("www.example.com"),
-            15,
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Connection"),
-            10,
-            cstr!("keep-alive"),
-            10,
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_req_set_header(
-            tx,
-            cstr!("User-Agent"),
-            10,
-            cstr!("Mozilla/5.0"),
-            11,
-            HTP_ALLOC_COPY,
-        );
+        htp_tx_req_set_header(tx, "Host", "www.example.com");
+        htp_tx_req_set_header(tx, "Connection", "keep-alive");
+        htp_tx_req_set_header(tx, "User-Agent", "Mozilla/5.0");
 
         // Request headers complete
         htp_tx_state_request_headers(tx);
@@ -369,19 +346,19 @@ fn GetTest() {
         assert!(h_host_opt.is_some());
         let h_host = h_host_opt.unwrap().1;
         assert!(!h_host.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_host).value, cstr!("www.example.com")));
+        assert_eq!(0, bstr_cmp_str((*h_host).value, "www.example.com"));
 
         let h_connection_opt = (*(*tx).request_headers).get_nocase_nozero("connection");
         assert!(h_connection_opt.is_some());
         let h_connection = h_connection_opt.unwrap().1;
         assert!(!h_connection.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_connection).value, cstr!("keep-alive")));
+        assert_eq!(0, bstr_cmp_str((*h_connection).value, "keep-alive"));
 
         let h_ua_opt = (*(*tx).request_headers).get_nocase_nozero("user-agent");
         assert!(h_ua_opt.is_some());
         let h_ua = h_ua_opt.unwrap().1;
         assert!(!h_ua.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_ua).value, cstr!("Mozilla/5.0")));
+        assert_eq!(0, bstr_cmp_str((*h_ua).value, "Mozilla/5.0"));
 
         // Request complete
         htp_tx_state_request_complete(tx);
@@ -392,26 +369,19 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
 
         // Response line data
-        htp_tx_res_set_status_line(tx, cstr!("HTTP/1.1 200 OK"), 15, HTP_ALLOC_COPY);
-        assert_eq!(0, bstr_cmp_c((*tx).response_protocol, cstr!("HTTP/1.1")));
+        htp_tx_res_set_status_line(tx, "HTTP/1.1 200 OK");
+        assert_eq!(0, bstr_cmp_str((*tx).response_protocol, "HTTP/1.1"));
         assert_eq!(Protocol::V1_1 as i32, (*tx).response_protocol_number);
         assert_eq!(200, (*tx).response_status_number);
-        assert_eq!(0, bstr_cmp_c((*tx).response_message, cstr!("OK")));
+        assert_eq!(0, bstr_cmp_str((*tx).response_message, "OK"));
 
         // Response line complete
         htp_tx_state_response_line(tx);
         assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
 
         // Response header data
-        htp_tx_res_set_header(
-            tx,
-            cstr!("Content-Type"),
-            12,
-            cstr!("text/html"),
-            9,
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_res_set_header(tx, cstr!("Server"), 6, cstr!("Apache"), 6, HTP_ALLOC_COPY);
+        htp_tx_res_set_header(tx, "Content-Type", "text/html");
+        htp_tx_res_set_header(tx, "Server", "Apache");
 
         // Response headers complete
         htp_tx_state_response_headers(tx);
@@ -422,48 +392,35 @@ fn GetTest() {
         assert!(h_content_type_opt.is_some());
         let mut h_content_type = h_content_type_opt.unwrap().1;
         assert!(!h_content_type.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_content_type).value, cstr!("text/html")));
+        assert_eq!(0, bstr_cmp_str((*h_content_type).value, "text/html"));
 
         let mut h_server_opt = (*(*tx).response_headers).get_nocase_nozero("server");
         assert!(h_server_opt.is_some());
         let mut h_server = h_server_opt.unwrap().1;
         assert!(!h_server.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_server).value, cstr!("Apache")));
+        assert_eq!(0, bstr_cmp_str((*h_server).value, "Apache"));
 
         // Response body data
-        htp_tx_res_process_body_data(tx, cstr!("<h1>Hello") as *const core::ffi::c_void, 9);
-        htp_tx_res_process_body_data(tx, cstr!(" ") as *const core::ffi::c_void, 1);
-        htp_tx_res_process_body_data(tx, cstr!("World!</h1>") as *const core::ffi::c_void, 11);
+        htp_tx_res_process_body_data(tx, "<h1>Hello");
+        htp_tx_res_process_body_data(tx, " ");
+        htp_tx_res_process_body_data(tx, "World!</h1>");
         assert_eq!(1, t.user_data.response_body_correctly_received);
 
-        // Check that the API is rejecting std::ptr::null_mut() data.
-        assert_eq!(
-            Status::ERROR,
-            htp_tx_res_process_body_data(tx, std::ptr::null_mut(), 1)
-        );
-
-        htp_tx_res_set_header(
-            tx,
-            cstr!("Content-Type"),
-            12,
-            cstr!("text/html"),
-            9,
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_res_set_header(tx, cstr!("Server"), 6, cstr!("Apache"), 6, HTP_ALLOC_COPY);
+        htp_tx_res_set_header(tx, "Content-Type", "text/html");
+        htp_tx_res_set_header(tx, "Server", "Apache");
 
         // Check trailing response headers
         h_content_type_opt = (*(*tx).response_headers).get_nocase_nozero("content-type");
         assert!(h_content_type_opt.is_some());
         h_content_type = h_content_type_opt.unwrap().1;
         assert!(!h_content_type.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_content_type).value, cstr!("text/html")));
+        assert_eq!(0, bstr_cmp_str((*h_content_type).value, "text/html"));
 
         h_server_opt = (*(*tx).response_headers).get_nocase_nozero("server");
         assert!(h_server_opt.is_some());
         h_server = h_server_opt.unwrap().1;
         assert!(!h_server.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_server).value, cstr!("Apache")));
+        assert_eq!(0, bstr_cmp_str((*h_server).value, "Apache"));
 
         htp_tx_state_response_complete(tx);
         assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
@@ -483,99 +440,58 @@ fn PostUrlecodedTest() {
         htp_tx_state_request_start(tx);
 
         // Request line data
-        htp_tx_req_set_line(tx, cstr!("POST / HTTP/1.1"), 15, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "POST / HTTP/1.1");
 
         // Request line complete
         htp_tx_state_request_line(tx);
 
         // Configure headers to trigger the URLENCODED parser
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Content-Type"),
-            12,
-            HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8,
-            libc::strlen(HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8),
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Content-Length"),
-            14,
-            cstr!("7"),
-            1,
-            HTP_ALLOC_COPY,
-        );
+        htp_tx_req_set_header(tx, "Content-Type", "application/x-www-form-urlencoded");
+        htp_tx_req_set_header(tx, "Content-Length", "7");
 
         // Request headers complete
         htp_tx_state_request_headers(tx);
 
         // Send request body
-        htp_tx_req_process_body_data(tx, cstr!("p=1") as *const core::ffi::c_void, 3);
-        htp_tx_req_process_body_data(tx, std::ptr::null_mut(), 0);
-        htp_tx_req_process_body_data(tx, cstr!("&") as *const core::ffi::c_void, 1);
-        htp_tx_req_process_body_data(tx, cstr!("q=2") as *const core::ffi::c_void, 3);
+        htp_tx_req_process_body_data(tx, "p=1");
+        htp_tx_req_process_body_data(tx, "");
+        htp_tx_req_process_body_data(tx, "&");
+        htp_tx_req_process_body_data(tx, "q=2");
 
-        // Check that the API is rejecting std::ptr::null_mut() data.
-        assert_eq!(
-            Status::ERROR,
-            htp_tx_req_process_body_data(tx, std::ptr::null_mut(), 1)
-        );
-
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Host"),
-            4,
-            cstr!("www.example.com"),
-            15,
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Connection"),
-            10,
-            cstr!("keep-alive"),
-            10,
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_req_set_header(
-            tx,
-            cstr!("User-Agent"),
-            10,
-            cstr!("Mozilla/5.0"),
-            11,
-            HTP_ALLOC_COPY,
-        );
+        htp_tx_req_set_header(tx, "Host", "www.example.com");
+        htp_tx_req_set_header(tx, "Connection", "keep-alive");
+        htp_tx_req_set_header(tx, "User-Agent", "Mozilla/5.0");
 
         let h_host_opt = (*(*tx).request_headers).get_nocase_nozero("host");
         assert!(h_host_opt.is_some());
         let h_host = h_host_opt.unwrap().1;
         assert!(!h_host.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_host).value, cstr!("www.example.com")));
+        assert_eq!(0, bstr_cmp_str((*h_host).value, "www.example.com"));
 
         let h_connection_opt = (*(*tx).request_headers).get_nocase_nozero("connection");
         assert!(h_connection_opt.is_some());
         let h_connection = h_connection_opt.unwrap().1;
         assert!(!h_connection.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_connection).value, cstr!("keep-alive")));
+        assert_eq!(0, bstr_cmp_str((*h_connection).value, "keep-alive"));
 
         let h_ua_opt = (*(*tx).request_headers).get_nocase_nozero("user-agent");
         assert!(h_ua_opt.is_some());
         let h_ua = h_ua_opt.unwrap().1;
         assert!(!h_ua.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_ua).value, cstr!("Mozilla/5.0")));
+        assert_eq!(0, bstr_cmp_str((*h_ua).value, "Mozilla/5.0"));
 
         // Request complete
         htp_tx_state_request_complete(tx);
 
         // Check parameters
 
-        let param_p = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_p).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
 
-        let param_q = htp_tx_req_get_param(tx, cstr!("q"), 1) as *mut htp_param_t;
+        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
     }
 }
 
@@ -589,15 +505,7 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
     unsafe {
         htp_tx_state_request_start(tx);
 
-        // We need owned versions of these because we use HTP_ALLOC_REUSE below.
-        let request_line = CString::new("GET / HTTP/1.1").unwrap();
-        let response_line = CString::new("HTTP/1.1 200 OK").unwrap();
-        let content_encoding = CString::new("Content-Encoding").unwrap();
-        let content_encoding_value = CString::new("gzip").unwrap();
-        let content_length = CString::new("Content-Length").unwrap();
-        let content_length_value = CString::new("187").unwrap();
-
-        htp_tx_req_set_line(tx, request_line.as_ptr(), 14, HTP_ALLOC_REUSE);
+        htp_tx_req_set_line(tx, "GET / HTTP/1.1");
 
         htp_tx_state_request_line(tx);
         htp_tx_state_request_headers(tx);
@@ -605,23 +513,9 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
 
         htp_tx_state_response_start(tx);
 
-        htp_tx_res_set_status_line(tx, response_line.as_ptr(), 15, HTP_ALLOC_REUSE);
-        htp_tx_res_set_header(
-            tx,
-            content_encoding.as_ptr(),
-            16,
-            content_encoding_value.as_ptr(),
-            4,
-            HTP_ALLOC_REUSE,
-        );
-        htp_tx_res_set_header(
-            tx,
-            content_length.as_ptr(),
-            14,
-            content_length_value.as_ptr(),
-            3,
-            HTP_ALLOC_REUSE,
-        );
+        htp_tx_res_set_status_line(tx, "HTTP/1.1 200 OK");
+        htp_tx_res_set_header(tx, "Content-Encoding", "gzip");
+        htp_tx_res_set_header(tx, "Content-Length", "187");
 
         htp_tx_state_response_headers(tx);
 
@@ -631,11 +525,7 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
         );
         assert!(!body.is_null());
 
-        htp_tx_res_process_body_data(
-            tx,
-            bstr_ptr(body) as *const core::ffi::c_void,
-            bstr_len(body),
-        );
+        htp_tx_res_process_body_data(tx, (*body).as_slice());
         bstr_free(body);
 
         htp_tx_state_response_complete(tx);
@@ -670,32 +560,32 @@ fn ParamCaseSensitivity() {
         htp_tx_state_request_start(tx);
 
         // Request line data
-        htp_tx_req_set_line(tx, cstr!("GET /?p=1&Q=2 HTTP/1.1"), 22, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET /?p=1&Q=2 HTTP/1.1");
 
         // Request line complete
         htp_tx_state_request_line(tx);
 
         // Check the parameters.
 
-        let mut param_p = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let mut param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_p).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
 
-        param_p = htp_tx_req_get_param(tx, cstr!("P"), 1);
+        param_p = htp_tx_req_get_param(tx, "P");
         assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_p).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
 
-        let mut param_q = htp_tx_req_get_param(tx, cstr!("q"), 1) as *mut htp_param_t;
+        let mut param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
 
-        param_q = htp_tx_req_get_param_ex(tx, HTP_SOURCE_QUERY_STRING, cstr!("q"), 1);
+        param_q = htp_tx_req_get_param_ex(tx, HTP_SOURCE_QUERY_STRING, "q");
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
 
-        param_q = htp_tx_req_get_param_ex(tx, HTP_SOURCE_QUERY_STRING, cstr!("Q"), 1);
+        param_q = htp_tx_req_get_param_ex(tx, HTP_SOURCE_QUERY_STRING, "Q");
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
     }
 }
 
@@ -713,47 +603,33 @@ fn PostUrlecodedChunked() {
         htp_tx_state_request_start(tx);
 
         // Request line data.
-        htp_tx_req_set_line(tx, cstr!("POST / HTTP/1.1"), 15, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "POST / HTTP/1.1");
         htp_tx_state_request_line(tx);
 
         // Configure headers to trigger the URLENCODED parser.
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Content-Type"),
-            12,
-            HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8,
-            libc::strlen(HTP_URLENCODED_MIME_TYPE.as_ptr() as *const i8),
-            HTP_ALLOC_COPY,
-        );
-        htp_tx_req_set_header(
-            tx,
-            cstr!("Transfer-Encoding"),
-            17,
-            cstr!("chunked"),
-            7,
-            HTP_ALLOC_COPY,
-        );
+        htp_tx_req_set_header(tx, "Content-Type", "application/x-www-form-urlencoded");
+        htp_tx_req_set_header(tx, "Transfer-Encoding", "chunked");
 
         // Request headers complete.
         htp_tx_state_request_headers(tx);
 
         // Send request body.
-        htp_tx_req_process_body_data(tx, cstr!("p=1") as *const core::ffi::c_void, 3);
-        htp_tx_req_process_body_data(tx, cstr!("&") as *const core::ffi::c_void, 1);
-        htp_tx_req_process_body_data(tx, cstr!("q=2") as *const core::ffi::c_void, 3);
+        htp_tx_req_process_body_data(tx, "p=1");
+        htp_tx_req_process_body_data(tx, "&");
+        htp_tx_req_process_body_data(tx, "q=2");
 
         // Request complete.
         htp_tx_state_request_complete(tx);
 
         // Check the parameters.
 
-        let param_p = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_p).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
 
-        let param_q = htp_tx_req_get_param(tx, cstr!("q"), 1) as *mut htp_param_t;
+        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
     }
 }
 
@@ -769,26 +645,26 @@ fn RequestLineParsing1() {
         htp_tx_state_request_start(tx);
 
         // Request line data
-        htp_tx_req_set_line(tx, cstr!("GET /?p=1&q=2 HTTP/1.0"), 22, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET /?p=1&q=2 HTTP/1.0");
 
         // Request line complete
         htp_tx_state_request_line(tx);
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=1&q=2")));
-        assert_eq!(0, bstr_cmp_c((*tx).request_protocol, cstr!("HTTP/1.0")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).query, cstr!("p=1&q=2")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=1&q=2"));
 
         // Check parameters
-        let param_p = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_p).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
 
-        let param_q = htp_tx_req_get_param(tx, cstr!("q"), 1) as *mut htp_param_t;
+        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
         assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*param_q).value, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
     }
 }
 
@@ -802,16 +678,16 @@ fn RequestLineParsing2() {
         // Feed data to the parser.
 
         htp_tx_state_request_start(tx);
-        htp_tx_req_set_line(tx, cstr!("GET /"), 5, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET /");
         htp_tx_state_request_line(tx);
 
         // Check the results now.
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(1, (*tx).is_protocol_0_9);
         assert_eq!(Protocol::V0_9 as i32, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
     }
 }
 
@@ -825,26 +701,26 @@ fn ParsedUriSupplied() {
         // Feed data to the parser.
 
         htp_tx_state_request_start(tx);
-        htp_tx_req_set_line(tx, cstr!("GET /?p=1&q=2 HTTP/1.0"), 22, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET /?p=1&q=2 HTTP/1.0");
 
         //htp_uri_t *u = htp_uri_alloc();
         let u = htp_uri_alloc();
-        (*u).path = bstr_dup_c(cstr!("/123"));
+        (*u).path = bstr_dup_str("/123");
         htp_tx_req_set_parsed_uri(tx, u);
 
         htp_tx_state_request_line(tx);
 
         // Check the results now.
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert!(!(*tx).request_protocol.is_null());
         assert_eq!(Protocol::V1_0 as i32, (*tx).request_protocol_number);
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=1&q=2")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/123")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/123"));
     }
 }
 
@@ -869,7 +745,7 @@ fn TestRepeatCallbacks() {
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        htp_tx_req_set_line(tx, cstr!("GET / HTTP/1.0"), 14, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET / HTTP/1.0");
 
         // Request line complete
         htp_tx_state_request_line(tx);
@@ -877,16 +753,16 @@ fn TestRepeatCallbacks() {
 
         // Check request line data
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_protocol, cstr!("HTTP/1.0")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/"));
 
         // Request headers complete
         htp_tx_state_request_headers(tx);
@@ -901,7 +777,7 @@ fn TestRepeatCallbacks() {
         assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
 
         // Response line data
-        htp_tx_res_set_status_line(tx, cstr!("HTTP/1.1 200 OK\r\n"), 17, HTP_ALLOC_COPY);
+        htp_tx_res_set_status_line(tx, "HTTP/1.1 200 OK\r\n");
 
         // Response line complete
         htp_tx_state_response_line(tx);
@@ -945,7 +821,7 @@ fn DeleteTransactionBeforeComplete() {
         htp_tx_state_request_start(tx);
 
         // Request line data
-        htp_tx_req_set_line(tx, cstr!("GET / HTTP/1.0"), 14, HTP_ALLOC_COPY);
+        htp_tx_req_set_line(tx, "GET / HTTP/1.0");
 
         assert_eq!(htp_tx_destroy(tx), Status::ERROR);
 

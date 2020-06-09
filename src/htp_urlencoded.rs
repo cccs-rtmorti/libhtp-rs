@@ -87,8 +87,7 @@ unsafe fn htp_urlenp_add_field_piece(
                     } else {
                         bstr::bstr_t::from("")
                     };
-                    let value: *mut bstr::bstr_t =
-                        bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
+                    let value: *mut bstr::bstr_t = bstr::bstr_alloc(0);
                     if value.is_null() {
                         return;
                     }
@@ -107,7 +106,7 @@ unsafe fn htp_urlenp_add_field_piece(
             let mut name_0: *mut bstr::bstr_t = (*urlenp)._name;
             (*urlenp)._name = 0 as *mut bstr::bstr_t;
             if name_0.is_null() {
-                name_0 = bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
+                name_0 = bstr::bstr_alloc(0);
                 if name_0.is_null() {
                     bstr::bstr_free(field);
                     return;
@@ -115,7 +114,7 @@ unsafe fn htp_urlenp_add_field_piece(
             }
             let mut value_0: *mut bstr::bstr_t = field;
             if value_0.is_null() {
-                value_0 = bstr::bstr_dup_c(b"\x00" as *const u8 as *const i8);
+                value_0 = bstr::bstr_alloc(0);
                 if value_0.is_null() {
                     bstr::bstr_free(name_0);
                     return;

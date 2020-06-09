@@ -283,8 +283,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         // For simplicity reasons, we count the repetitions of all headers
         // Having multiple C-L headers is against the RFC but many
         // browsers ignore the subsequent headers if the values are the same.
-        if bstr::bstr_cmp_c_nocase((*h).name, b"Content-Length\x00" as *const u8 as *const i8) == 0
-        {
+        if bstr::bstr_cmp_str_nocase((*h).name, "Content-Length") == 0 {
             // Don't use string comparison here because we want to
             // ignore small formatting differences.
             let mut existing_cl: i64 = 0;
@@ -323,11 +322,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
                 return Status::ERROR;
             }
             (*h_existing).value = new_value;
-            bstr::bstr_add_mem_noex(
-                (*h_existing).value,
-                b", \x00" as *const u8 as *const core::ffi::c_void,
-                2,
-            );
+            (*(*h_existing).value).add_noex(", ");
             bstr::bstr_add_noex((*h_existing).value, (*h).value);
         }
         // The new header structure is no longer needed.

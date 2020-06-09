@@ -15,6 +15,7 @@ use htp::htp_transaction::*;
 use htp::htp_util::htp_log_level_t::*;
 use htp::htp_util::*;
 use htp::Status;
+use std::cmp::Ordering;
 use std::env;
 use std::ffi::CString;
 use std::iter::IntoIterator;
@@ -287,15 +288,15 @@ fn Get() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
 
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=%20")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=%20"));
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).query, cstr!("p=%20")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=%20"));
 
-        let p: *const htp_param_t = htp_tx_req_get_param(tx, cstr!("p"), 1);
+        let p: *const htp_param_t = htp_tx_req_get_param(tx, "p");
         assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c((*p).value, cstr!(" ")));
+        assert_eq!(0, bstr_cmp_str((*p).value, " "));
     }
 }
 
@@ -316,56 +317,56 @@ fn ApacheHeaderParsing() {
         let mut res = &(*(*tx).request_headers)[0];
         let mut h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!(" Invalid-Folding")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str((*h).name, " Invalid-Folding"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "1"));
 
         res = &(*(*tx).request_headers)[1];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Valid-Folding")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("2 2")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Valid-Folding"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "2 2"));
 
         res = &(*(*tx).request_headers)[2];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Normal-Header")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("3")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Normal-Header"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "3"));
 
         res = &(*(*tx).request_headers)[3];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Invalid Header Name")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("4")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Invalid Header Name"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "4"));
 
         res = &(*(*tx).request_headers)[4];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Same-Name-Headers")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("5, 6")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Same-Name-Headers"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "5, 6"));
 
         res = &(*(*tx).request_headers)[5];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Empty-Value-Header")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Empty-Value-Header"));
+        assert_eq!(0, bstr_cmp_str((*h).value, ""));
 
         res = &(*(*tx).request_headers)[6];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("8, ")));
+        assert_eq!(0, bstr_cmp_str((*h).name, ""));
+        assert_eq!(0, bstr_cmp_str((*h).value, "8, "));
 
         res = &(*(*tx).request_headers)[7];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Header-With-LWS-After")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("9")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Header-With-LWS-After"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "9"));
 
         res = &(*(*tx).request_headers)[8];
         h = res.1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).name, cstr!("Header-With-NUL")));
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("BEFORE")));
+        assert_eq!(0, bstr_cmp_str((*h).name, "Header-With-NUL"));
+        assert_eq!(0, bstr_cmp_str((*h).value, "BEFORE"));
     }
 }
 
@@ -382,10 +383,10 @@ fn PostUrlencoded() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let param: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("p"), 1);
+        let param: *mut htp_param_t = htp_tx_req_get_param(tx, "p");
         assert!(!param.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*param).value, cstr!("0123456789")));
+        assert_eq!(0, bstr_cmp_str((*param).value, "0123456789"));
 
         assert_eq!((*tx).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx).response_progress, HTP_RESPONSE_COMPLETE);
@@ -395,7 +396,7 @@ fn PostUrlencoded() {
         let h = h_opt.unwrap().1;
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("Apache")));
+        assert_eq!(0, bstr_cmp_str((*h).value, "Apache"));
 
         // Transaction 2
         let tx2: *mut htp_tx_t =
@@ -410,7 +411,7 @@ fn PostUrlencoded() {
         let h2 = h2_opt.unwrap().1;
         assert!(!h2.is_null());
         assert!(!(*h2).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*h2).value, cstr!("Apache")));
+        assert_eq!(0, bstr_cmp_str((*h2).value, "Apache"));
     }
 }
 
@@ -426,9 +427,9 @@ fn PostUrlencodedChunked() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let p: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("p"), 1);
+        let p: *mut htp_param_t = htp_tx_req_get_param(tx, "p");
         assert!(!p.is_null());
-        assert_eq!(0, bstr_cmp_c((*p).value, cstr!("0123456789")));
+        assert_eq!(0, bstr_cmp_str((*p).value, "0123456789"));
         assert_eq!(25, (*tx).request_message_len);
         assert_eq!(12, (*tx).request_entity_len);
     }
@@ -531,37 +532,25 @@ fn HeaderHostParsing() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx1.is_null());
         assert!(!(*tx1).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx1).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx1).request_hostname, "www.example.com"));
 
         let tx2: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
         assert!(!tx2.is_null());
         assert!(!(*tx2).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx2).request_hostname, cstr!("www.example.com."))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx2).request_hostname, "www.example.com."));
 
         let tx3: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 2) as *mut htp_tx_t;
         assert!(!tx3.is_null());
         assert!(!(*tx3).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx3).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx3).request_hostname, "www.example.com"));
 
         let tx4: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 3) as *mut htp_tx_t;
         assert!(!tx4.is_null());
         assert!(!(*tx4).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx4).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx4).request_hostname, "www.example.com"));
     }
 }
 
@@ -595,7 +584,7 @@ fn FailedConnectRequest() {
 
         assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("CONNECT")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "CONNECT"));
 
         assert_eq!(405, (*tx).response_status_number);
     }
@@ -659,7 +648,7 @@ fn SuccessfulConnectRequest() {
         //       HTP_DATA_OTHER, which is why the check below fails.
         //assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("CONNECT")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "CONNECT"));
 
         assert_eq!(200, (*tx).response_status_number);
     }
@@ -701,15 +690,13 @@ fn Multipart() {
 
         assert!(0 != htp_tx_is_complete(tx));
 
-        let field1: *mut htp_param_t =
-            htp_tx_req_get_param(tx, cstr!("field1"), 6) as *mut htp_param_t;
+        let field1: *mut htp_param_t = htp_tx_req_get_param(tx, "field1") as *mut htp_param_t;
         assert!(!field1.is_null());
-        assert_eq!(0, bstr_cmp_c((*field1).value, cstr!("0123456789")));
+        assert_eq!(0, bstr_cmp_str((*field1).value, "0123456789"));
 
-        let field2: *mut htp_param_t =
-            htp_tx_req_get_param(tx, cstr!("field2"), 6) as *mut htp_param_t;
+        let field2: *mut htp_param_t = htp_tx_req_get_param(tx, "field2") as *mut htp_param_t;
         assert!(!field2.is_null());
-        assert_eq!(0, bstr_cmp_c((*field2).value, cstr!("9876543210")));
+        assert_eq!(0, bstr_cmp_str((*field2).value, "9876543210"));
     }
 }
 
@@ -747,23 +734,23 @@ fn UrlEncoded() {
 
         assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("POST")));
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=1&q=2")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "POST"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
 
         let body_p: *mut htp_param_t =
-            htp_tx_req_get_param_ex(tx, HTP_SOURCE_BODY, cstr!("p"), 1) as *mut htp_param_t;
+            htp_tx_req_get_param_ex(tx, HTP_SOURCE_BODY, "p") as *mut htp_param_t;
         assert!(!body_p.is_null());
-        assert_eq!(0, bstr_cmp_c((*body_p).value, cstr!("3")));
+        assert_eq!(0, bstr_cmp_str((*body_p).value, "3"));
 
         let body_q: *mut htp_param_t =
-            htp_tx_req_get_param_ex(tx, HTP_SOURCE_BODY, cstr!("q"), 1) as *mut htp_param_t;
+            htp_tx_req_get_param_ex(tx, HTP_SOURCE_BODY, "q") as *mut htp_param_t;
         assert!(!body_q.is_null());
-        assert_eq!(0, bstr_cmp_c((*body_q).value, cstr!("4")));
+        assert_eq!(0, bstr_cmp_str((*body_q).value, "4"));
 
         let body_z: *mut htp_param_t =
-            htp_tx_req_get_param_ex(tx, HTP_SOURCE_BODY, cstr!("z"), 1) as *mut htp_param_t;
+            htp_tx_req_get_param_ex(tx, HTP_SOURCE_BODY, "z") as *mut htp_param_t;
         assert!(!body_z.is_null());
-        assert_eq!(0, bstr_cmp_c((*body_z).value, cstr!("5")));
+        assert_eq!(0, bstr_cmp_str((*body_z).value, "5"));
     }
 }
 
@@ -787,7 +774,7 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx2));
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx2).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx2).request_hostname, cstr!("example.com")));
+        assert_eq!(0, bstr_cmp_str((*tx2).request_hostname, "example.com"));
 
         let tx3: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 2) as *mut htp_tx_t;
@@ -795,10 +782,7 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx3));
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx3).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx3).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx3).request_hostname, "www.example.com"));
         assert_eq!(8001, (*tx3).request_port_number);
 
         let tx4: *mut htp_tx_t =
@@ -807,10 +791,7 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx4));
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx4).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx4).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx4).request_hostname, "www.example.com"));
         assert_eq!(8002, (*tx4).request_port_number);
 
         let tx5: *mut htp_tx_t =
@@ -819,10 +800,7 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx5));
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx5).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx5).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx5).request_hostname, "www.example.com"));
         assert_eq!(80, (*tx5).request_port_number);
     }
 }
@@ -1191,27 +1169,27 @@ fn GetIPv6() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
 
         assert!(!(*tx).request_uri.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*tx).request_uri, cstr!("http://[::1]:8080/?p=%20"))
+            bstr_cmp_str((*tx).request_uri, "http://[::1]:8080/?p=%20")
         );
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).hostname.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).hostname, cstr!("[::1]")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).hostname, "[::1]"));
         assert_eq!(8080, (*(*tx).parsed_uri).port_number);
 
         assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).query, cstr!("p=%20")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=%20"));
 
-        let p: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let p: *mut htp_param_t = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!p.is_null());
         assert!(!(*p).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*p).value, cstr!(" ")));
+        assert_eq!(0, bstr_cmp_str((*p).value, " "));
     }
 }
 
@@ -1229,7 +1207,7 @@ fn GetRequestLineNul() {
 
         assert!(!(*tx).request_uri.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=%20")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=%20"));
     }
 }
 
@@ -1394,10 +1372,10 @@ fn AuthBasic() {
         assert_eq!(HTP_AUTH_BASIC, (*tx).request_auth_type);
 
         assert!(!(*tx).request_auth_username.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_auth_username, cstr!("ivanr")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_auth_username, "ivanr"));
 
         assert!(!(*tx).request_auth_password.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_auth_password, cstr!("secret")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_auth_password, "secret"));
     }
 }
 
@@ -1416,7 +1394,7 @@ fn AuthDigest() {
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
         assert!(!(*tx).request_auth_username.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_auth_username, cstr!("ivanr")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_auth_username, "ivanr"));
 
         assert!((*tx).request_auth_password.is_null());
     }
@@ -1435,7 +1413,7 @@ fn Unknown_MethodOnly() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("HELLO")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "HELLO"));
 
         assert!((*tx).request_uri.is_null());
 
@@ -1563,7 +1541,7 @@ fn InvalidResponseHeaders1() {
         assert!(h_empty_opt.is_some());
         let h_empty = h_empty_opt.unwrap().1;
         assert!(!h_empty.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_empty).value, cstr!("No Colon")));
+        assert_eq!(0, bstr_cmp_str((*h_empty).value, "No Colon"));
         assert!((*h_empty).flags.contains(Flags::HTP_FIELD_INVALID));
         assert!((*h_empty).flags.contains(Flags::HTP_FIELD_UNPARSEABLE));
 
@@ -1571,14 +1549,14 @@ fn InvalidResponseHeaders1() {
         assert!(h_lws_opt.is_some());
         let h_lws = h_lws_opt.unwrap().1;
         assert!(!h_lws.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_lws).value, cstr!("After Header Name")));
+        assert_eq!(0, bstr_cmp_str((*h_lws).value, "After Header Name"));
         assert!((*h_lws).flags.contains(Flags::HTP_FIELD_INVALID));
 
         let h_nottoken_opt = (*(*tx).response_headers).get_nocase_nozero("Header@Name");
         assert!(h_nottoken_opt.is_some());
         let h_nottoken = h_nottoken_opt.unwrap().1;
         assert!(!h_nottoken.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_nottoken).value, cstr!("Not Token")));
+        assert_eq!(0, bstr_cmp_str((*h_nottoken).value, "Not Token"));
         assert!((*h_nottoken).flags.contains(Flags::HTP_FIELD_INVALID));
     }
 }
@@ -1601,7 +1579,7 @@ fn InvalidResponseHeaders2() {
         assert!(h_empty_opt.is_some());
         let h_empty = h_empty_opt.unwrap().1;
         assert!(!h_empty.is_null());
-        assert_eq!(0, bstr_cmp_c((*h_empty).value, cstr!("Empty Name")));
+        assert_eq!(0, bstr_cmp_str((*h_empty).value, "Empty Name"));
         assert!((*h_empty).flags.contains(Flags::HTP_FIELD_INVALID));
     }
 }
@@ -1665,21 +1643,18 @@ fn GetIPv6Invalid() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
 
         assert!(!(*tx).request_uri.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*tx).request_uri, cstr!("http://[::1:8080/?p=%20"))
+            bstr_cmp_str((*tx).request_uri, "http://[::1:8080/?p=%20")
         );
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*(*tx).parsed_uri).hostname, cstr!("[::1:8080"))
-        );
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).hostname, "[::1:8080"));
     }
 }
 
@@ -1696,21 +1671,15 @@ fn InvalidPath() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
 
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx).request_uri, cstr!("invalid/path?p=%20"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "invalid/path?p=%20"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("invalid/path"))
-        );
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "invalid/path"));
     }
 }
 
@@ -1844,10 +1813,7 @@ fn PathUtf8_Decode_Valid() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/Ristic.txt"))
-        );
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/Ristic.txt"));
     }
 }
 
@@ -1868,7 +1834,7 @@ fn PathUtf8_Decode_Overlong2() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/&.txt")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
     }
 }
 
@@ -1889,7 +1855,7 @@ fn PathUtf8_Decode_Overlong3() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/&.txt")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
     }
 }
 
@@ -1910,7 +1876,7 @@ fn PathUtf8_Decode_Overlong4() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/&.txt")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
     }
 }
 
@@ -1933,10 +1899,7 @@ fn PathUtf8_Decode_Invalid() {
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
 
-        assert_eq!(
-            0,
-            bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/Ristic?.txt"))
-        );
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/Ristic?.txt"));
     }
 }
 
@@ -1957,7 +1920,7 @@ fn PathUtf8_Decode_FullWidth() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).path, cstr!("/&.txt")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
     }
 }
 
@@ -1976,19 +1939,19 @@ fn RequestCookies() {
         assert_eq!(3, (*(*tx).request_cookies).size());
 
         let mut res = &(*(*tx).request_cookies)[0];
-        assert_eq!(std::cmp::Ordering::Equal, res.0.cmp("p"));
+        assert_eq!(Ordering::Equal, res.0.cmp("p"));
         assert!(!res.1.is_null());
-        assert_eq!(0, bstr_cmp_c(res.1, cstr!("1")));
+        assert_eq!(0, bstr_cmp_str(res.1, "1"));
 
         res = &(*(*tx).request_cookies)[1];
-        assert_eq!(std::cmp::Ordering::Equal, res.0.cmp("q"));
+        assert_eq!(Ordering::Equal, res.0.cmp("q"));
         assert!(!res.1.is_null());
-        assert_eq!(0, bstr_cmp_c(res.1, cstr!("2")));
+        assert_eq!(0, bstr_cmp_str(res.1, "2"));
 
         res = &(*(*tx).request_cookies)[2];
-        assert_eq!(std::cmp::Ordering::Equal, res.0.cmp("z"));
+        assert_eq!(Ordering::Equal, res.0.cmp("z"));
         assert!(!res.1.is_null());
-        assert_eq!(0, bstr_cmp_c(res.1, cstr!("")));
+        assert_eq!(0, bstr_cmp_str(res.1, ""));
     }
 }
 
@@ -2062,10 +2025,10 @@ fn PostChunkedSplitChunk() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let p: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let p: *mut htp_param_t = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!p.is_null());
         assert!(!(*p).value.is_null());
-        assert_eq!(0, bstr_cmp_c((*p).value, cstr!("0123456789")));
+        assert_eq!(0, bstr_cmp_str((*p).value, "0123456789"));
     }
 }
 
@@ -2083,7 +2046,7 @@ fn LongRequestLine1() {
 
         assert_eq!(
             0,
-            bstr_cmp_c((*tx).request_uri, cstr!("/0123456789/0123456789/"))
+            bstr_cmp_str((*tx).request_uri, "/0123456789/0123456789/")
         );
     }
 }
@@ -2119,7 +2082,7 @@ fn InvalidRequestHeader() {
         assert!(h_opt.is_some());
         let h = h_opt.unwrap().1;
         assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("BEFORE")));
+        assert_eq!(0, bstr_cmp_str((*h).value, "BEFORE"));
     }
 }
 
@@ -2237,7 +2200,7 @@ fn ResponseMultipleCl() {
         assert!(!(*h).value.is_null());
         assert!((*h).flags.contains(Flags::HTP_FIELD_REPEATED));
 
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("12")));
+        assert_eq!(0, bstr_cmp_str((*h).value, "12"));
     }
 }
 
@@ -2265,7 +2228,7 @@ fn ResponseMultipleClMismatch() {
         assert!(!(*h).value.is_null());
         assert!((*h).flags.contains(Flags::HTP_FIELD_REPEATED));
 
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("12")));
+        assert_eq!(0, bstr_cmp_str((*h).value, "12"));
 
         assert_eq!(2, htp_list_array_size((*(*tx).conn).messages));
         let log: *mut htp_log_t = htp_list_array_get((*(*tx).conn).messages, 1) as *mut htp_log_t;
@@ -2318,7 +2281,7 @@ fn ResponseNoBody() {
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("Apache")));
+        assert_eq!(0, bstr_cmp_str((*h).value, "Apache"));
 
         let tx2: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
@@ -2352,7 +2315,7 @@ fn ResponseFoldedHeaders() {
         assert!(!h.is_null());
         assert!(!(*h).value.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*h).value, cstr!("Apache Server")));
+        assert_eq!(0, bstr_cmp_str((*h).value, "Apache Server"));
 
         let tx2: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
@@ -2423,10 +2386,7 @@ fn Put() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx).request_hostname, "www.example.com"));
     }
 }
 
@@ -2519,21 +2479,18 @@ fn IncorrectHostAmbiguousWarning() {
         assert!(!(*tx).parsed_uri_raw.is_null());
 
         assert!(!(*(*tx).parsed_uri_raw).port.is_null());
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri_raw).port, cstr!("443")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri_raw).port, "443"));
 
         assert!(!(*(*tx).parsed_uri_raw).hostname.is_null());
         assert_eq!(
             0,
-            bstr_cmp_c((*(*tx).parsed_uri_raw).hostname, cstr!("www.example.com"))
+            bstr_cmp_str((*(*tx).parsed_uri_raw).hostname, "www.example.com")
         );
 
         assert_eq!(443, (*(*tx).parsed_uri_raw).port_number);
 
         assert!(!(*tx).request_hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_c((*tx).request_hostname, cstr!("www.example.com"))
-        );
+        assert_eq!(0, bstr_cmp_str((*tx).request_hostname, "www.example.com"));
 
         assert!(!(*tx).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
     }
@@ -2551,20 +2508,20 @@ fn GetWhitespace() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!(" GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, " GET"));
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/?p=%20")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=%20"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).query.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*(*tx).parsed_uri).query, cstr!("p=%20")));
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=%20"));
 
-        let p: *mut htp_param_t = htp_tx_req_get_param(tx, cstr!("p"), 1) as *mut htp_param_t;
+        let p: *mut htp_param_t = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
         assert!(!p.is_null());
 
-        assert_eq!(0, bstr_cmp_c((*p).value, cstr!(" ")));
+        assert_eq!(0, bstr_cmp_str((*p).value, " "));
     }
 }
 
@@ -2596,13 +2553,13 @@ fn RequestInvalid() {
         let mut tx: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("POST")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "POST"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
         tx = htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_NOT_STARTED, (*tx).response_progress);
     }
@@ -2621,9 +2578,9 @@ fn Http_0_9_MethodOnly() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
 
-        assert_eq!(0, bstr_cmp_c((*tx).request_uri, cstr!("/")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
 
         assert_eq!(1, (*tx).is_protocol_0_9);
     }
@@ -2719,12 +2676,12 @@ fn RequestsCut() {
         let mut tx: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         tx = htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
     }
 }
@@ -2739,14 +2696,14 @@ fn ResponsesCut() {
         let mut tx: *mut htp_tx_t =
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
         tx = htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_c((*tx).request_method, cstr!("GET")));
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);

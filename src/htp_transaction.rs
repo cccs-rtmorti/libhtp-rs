@@ -4,6 +4,7 @@ use crate::{
     htp_hooks, htp_list, htp_multipart, htp_parsers, htp_request, htp_response, htp_table,
     htp_urlencoded, htp_util, Status,
 };
+use std::cmp::Ordering;
 
 extern "C" {
     #[no_mangle]
@@ -381,20 +382,6 @@ pub enum Protocol {
 }
 
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_void) -> Status>;
-pub type htp_alloc_strategy_t = u32;
-pub const HTP_ALLOC_REUSE: htp_alloc_strategy_t = 2;
-pub const HTP_ALLOC_COPY: htp_alloc_strategy_t = 1;
-
-unsafe fn copy_or_wrap_mem(
-    data: *const core::ffi::c_void,
-    len: usize,
-    _alloc: htp_alloc_strategy_t,
-) -> *mut bstr::bstr_t {
-    if data == 0 as *mut core::ffi::c_void {
-        return 0 as *mut bstr::bstr_t;
-    }
-    bstr::bstr_dup_mem(data, len)
-}
 
 /// Creates a new transaction structure.
 ///
@@ -552,7 +539,6 @@ pub unsafe fn htp_tx_req_add_param(tx: *mut htp_tx_t, param: *mut htp_param_t) -
     {
         return Status::ERROR;
     }
-
     let name = bstr::bstr_t::from((*(*param).name).as_slice());
     (*(*tx).request_params).add(name, param);
     Status::OK
@@ -566,16 +552,11 @@ pub unsafe fn htp_tx_req_add_param(tx: *mut htp_tx_t, param: *mut htp_param_t) -
 ///
 /// Returns htp_param_t instance, or NULL if parameter not found.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_get_param(
-    tx: *mut htp_tx_t,
-    name: *const i8,
-    name_len: usize,
-) -> *mut htp_param_t {
-    if tx.is_null() || name.is_null() {
+pub unsafe fn htp_tx_req_get_param<S: AsRef<[u8]>>(tx: *mut htp_tx_t, name: S) -> *mut htp_param_t {
+    if tx.is_null() {
         return 0 as *mut htp_param_t;
     }
-    let check = std::slice::from_raw_parts(name as *const u8, name_len);
-    let param_opt = (*(*tx).request_params).get_nocase(check);
+    let param_opt = (*(*tx).request_params).get_nocase(name);
     if param_opt.is_none() {
         return 0 as *mut htp_param_t;
     }
@@ -592,20 +573,18 @@ pub unsafe fn htp_tx_req_get_param(
 ///
 /// Returns htp_param_t instance, or NULL if parameter not found.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_get_param_ex(
+pub unsafe fn htp_tx_req_get_param_ex<S: AsRef<[u8]>>(
     tx: *mut htp_tx_t,
     source: htp_data_source_t,
-    name: *const i8,
-    name_len: usize,
+    name: S,
 ) -> *mut htp_param_t {
-    if tx.is_null() || name.is_null() {
+    if tx.is_null() {
         return 0 as *mut htp_param_t;
     }
-    let s = std::slice::from_raw_parts(name as *const u8, name_len);
     let param_opt = (*(*tx).request_params).elements.iter().find(|x| {
         !(*(*x)).1.is_null()
             && (*(*(*x)).1).source as u32 == source as u32
-            && (*(*x)).0.cmp_nocase(s) == std::cmp::Ordering::Equal
+            && (*(*x)).0.cmp_nocase(name.as_ref()) == Ordering::Equal
     });
     if param_opt.is_none() {
         return 0 as *mut htp_param_t;
@@ -643,15 +622,12 @@ pub unsafe fn htp_tx_req_has_body(tx: *const htp_tx_t) -> i32 {
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_header(
+pub unsafe fn htp_tx_req_set_header<S: AsRef<[u8]>>(
     tx: *mut htp_tx_t,
-    name: *const i8,
-    name_len: usize,
-    value: *const i8,
-    value_len: usize,
-    alloc: htp_alloc_strategy_t,
+    name: S,
+    value: S,
 ) -> Status {
-    if tx.is_null() || name.is_null() || value.is_null() {
+    if tx.is_null() {
         return Status::ERROR;
     }
     let mut h: *mut htp_header_t =
@@ -659,12 +635,12 @@ pub unsafe fn htp_tx_req_set_header(
     if h.is_null() {
         return Status::ERROR;
     }
-    (*h).name = copy_or_wrap_mem(name as *const core::ffi::c_void, name_len, alloc);
+    (*h).name = bstr::bstr_dup_str(name);
     if (*h).name.is_null() {
         free(h as *mut core::ffi::c_void);
         return Status::ERROR;
     }
-    (*h).value = copy_or_wrap_mem(value as *const core::ffi::c_void, value_len, alloc);
+    (*h).value = bstr::bstr_dup_str(value);
     if (*h).value.is_null() {
         bstr::bstr_free((*h).name);
         free(h as *mut core::ffi::c_void);
@@ -691,7 +667,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
         //      And it behaves strangely, too, sending a 501 and proceeding to process the request
         //      (e.g., PHP is run), but without the body. It then closes the connection.
-        if bstr::bstr_cmp_c_nocase((*te).value, b"chunked\x00" as *const u8 as *const i8) != 0 {
+        if bstr::bstr_cmp_str_nocase((*te).value, "chunked") != 0 {
             // Invalid T-E header value.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
@@ -890,18 +866,18 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_process_body_data(
-    tx: *mut htp_tx_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> Status {
-    if tx.is_null() || data == 0 as *mut core::ffi::c_void {
+pub unsafe fn htp_tx_req_process_body_data<S: AsRef<[u8]>>(tx: *mut htp_tx_t, data: S) -> Status {
+    if tx.is_null() {
         return Status::ERROR;
     }
-    if len == 0 {
+    if data.as_ref().len() == 0 {
         return Status::OK;
     }
-    htp_tx_req_process_body_data_ex(tx, data, len)
+    htp_tx_req_process_body_data_ex(
+        tx,
+        data.as_ref().as_ptr() as *const core::ffi::c_void,
+        data.as_ref().len(),
+    )
 }
 
 pub unsafe fn htp_tx_req_process_body_data_ex(
@@ -952,16 +928,11 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_line(
-    mut tx: *mut htp_tx_t,
-    line: *const i8,
-    line_len: usize,
-    alloc: htp_alloc_strategy_t,
-) -> Status {
-    if tx.is_null() || line.is_null() || line_len == 0 {
+pub unsafe fn htp_tx_req_set_line<S: AsRef<[u8]>>(mut tx: *mut htp_tx_t, line: S) -> Status {
+    if tx.is_null() {
         return Status::ERROR;
     }
-    (*tx).request_line = copy_or_wrap_mem(line as *const core::ffi::c_void, line_len, alloc);
+    (*tx).request_line = bstr::bstr_dup_str(line);
     if (*tx).request_line.is_null() {
         return Status::ERROR;
     }
@@ -1008,16 +979,11 @@ pub unsafe fn htp_tx_req_set_parsed_uri(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_res_set_status_line(
-    mut tx: *mut htp_tx_t,
-    line: *const i8,
-    line_len: usize,
-    alloc: htp_alloc_strategy_t,
-) -> Status {
-    if tx.is_null() || line.is_null() || line_len == 0 {
+pub unsafe fn htp_tx_res_set_status_line<S: AsRef<[u8]>>(mut tx: *mut htp_tx_t, line: S) -> Status {
+    if tx.is_null() {
         return Status::ERROR;
     }
-    (*tx).response_line = copy_or_wrap_mem(line as *const core::ffi::c_void, line_len, alloc);
+    (*tx).response_line = bstr::bstr_dup_str(line);
     if (*tx).response_line.is_null() {
         return Status::ERROR;
     }
@@ -1093,15 +1059,12 @@ pub unsafe fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_res_set_header(
+pub unsafe fn htp_tx_res_set_header<S: AsRef<[u8]>>(
     tx: *mut htp_tx_t,
-    name: *const i8,
-    name_len: usize,
-    value: *const i8,
-    value_len: usize,
-    alloc: htp_alloc_strategy_t,
+    name: S,
+    value: S,
 ) -> Status {
-    if tx.is_null() || name.is_null() || value.is_null() {
+    if tx.is_null() {
         return Status::ERROR;
     }
     let mut h: *mut htp_header_t =
@@ -1109,12 +1072,12 @@ pub unsafe fn htp_tx_res_set_header(
     if h.is_null() {
         return Status::ERROR;
     }
-    (*h).name = copy_or_wrap_mem(name as *const core::ffi::c_void, name_len, alloc);
+    (*h).name = bstr::bstr_dup_str(name);
     if (*h).name.is_null() {
         free(h as *mut core::ffi::c_void);
         return Status::ERROR;
     }
-    (*h).value = copy_or_wrap_mem(value as *const core::ffi::c_void, value_len, alloc);
+    (*h).value = bstr::bstr_dup_str(value);
     if (*h).value.is_null() {
         bstr::bstr_free((*h).name);
         free(h as *mut core::ffi::c_void);
@@ -1247,18 +1210,18 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_res_process_body_data(
-    tx: *mut htp_tx_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> Status {
-    if tx.is_null() || data == 0 as *mut core::ffi::c_void {
+pub unsafe fn htp_tx_res_process_body_data<S: AsRef<[u8]>>(tx: *mut htp_tx_t, data: S) -> Status {
+    if tx.is_null() {
         return Status::ERROR;
     }
-    if len == 0 {
+    if data.as_ref().len() == 0 {
         return Status::OK;
     }
-    htp_tx_res_process_body_data_ex(tx, data, len)
+    htp_tx_res_process_body_data_ex(
+        tx,
+        data.as_ref().as_ptr() as *const core::ffi::c_void,
+        data.as_ref().len(),
+    )
 }
 
 pub unsafe fn htp_tx_res_process_body_data_ex(
@@ -1684,57 +1647,6 @@ pub unsafe fn htp_tx_state_response_complete_ex(mut tx: *mut htp_tx_t, hybrid_mo
     Status::OK
 }
 
-///  split input into tokens separated by "seps"
-///
-///  seps: nul-terminated string: each character is a separator
-unsafe fn get_token(
-    mut in_0: *const u8,
-    mut in_len: usize,
-    seps: *const i8,
-    ret_tok_ptr: *mut *mut u8,
-    ret_tok_len: *mut usize,
-) -> i32 {
-    let mut i: usize = 0;
-    // skip leading 'separators'
-    while i < in_len {
-        let mut match_0: i32 = 0;
-        let mut s: *const i8 = seps;
-        while *s != '\u{0}' as i8 {
-            if *in_0.offset(i as isize) as i32 == *s as i32 {
-                match_0 += 1;
-                break;
-            } else {
-                s = s.offset(1)
-            }
-        }
-        if match_0 == 0 {
-            break;
-        }
-        i = i.wrapping_add(1)
-    }
-    if i >= in_len {
-        return 0;
-    }
-    in_0 = in_0.offset(i as isize);
-    in_len = (in_len).wrapping_sub(i);
-    i = 0;
-    while i < in_len {
-        let mut s_0: *const i8 = seps;
-        while *s_0 != '\u{0}' as i8 {
-            if *in_0.offset(i as isize) as i32 == *s_0 as i32 {
-                *ret_tok_ptr = in_0 as *mut u8;
-                *ret_tok_len = i;
-                return 1;
-            }
-            s_0 = s_0.offset(1)
-        }
-        i = i.wrapping_add(1)
-    }
-    *ret_tok_ptr = in_0 as *mut u8;
-    *ret_tok_len = in_len;
-    1
-}
-
 /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
 ///
 /// tx: Transaction pointer. Must not be NULL.
@@ -1754,33 +1666,20 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     if ce_opt.is_some() {
         let ce = ce_opt.unwrap().1;
         // fast paths: regular gzip and friends
-        if bstr::bstr_cmp_c_nocasenorzero((*ce).value, b"gzip\x00" as *const u8 as *const i8) == 0
-            || bstr::bstr_cmp_c_nocasenorzero((*ce).value, b"x-gzip\x00" as *const u8 as *const i8)
-                == 0
+        if bstr::bstr_cmp_str_nocasenorzero((*ce).value, "gzip") == 0
+            || bstr::bstr_cmp_str_nocasenorzero((*ce).value, "x-gzip") == 0
         {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        } else if bstr::bstr_cmp_c_nocasenorzero(
-            (*ce).value,
-            b"deflate\x00" as *const u8 as *const i8,
-        ) == 0
-            || bstr::bstr_cmp_c_nocasenorzero(
-                (*ce).value,
-                b"x-deflate\x00" as *const u8 as *const i8,
-            ) == 0
+        } else if bstr::bstr_cmp_str_nocasenorzero((*ce).value, "deflate") == 0
+            || bstr::bstr_cmp_str_nocasenorzero((*ce).value, "x-deflate") == 0
         {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-        } else if bstr::bstr_cmp_c_nocasenorzero((*ce).value, b"lzma\x00" as *const u8 as *const i8)
-            == 0
-        {
+        } else if bstr::bstr_cmp_str_nocasenorzero((*ce).value, "lzma") == 0 {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-        } else if !(bstr::bstr_cmp_c_nocasenorzero(
-            (*ce).value,
-            b"inflate\x00" as *const u8 as *const i8,
-        ) == 0)
-        {
+        } else if !(bstr::bstr_cmp_str_nocasenorzero((*ce).value, "inflate") == 0) {
             // exceptional cases: enter slow path
             ce_multi_comp = 1
         }
@@ -1847,19 +1746,9 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
             let mut layers: i32 = 0;
             let mut comp: *mut htp_decompressors::htp_decompressor_t =
                 0 as *mut htp_decompressors::htp_decompressor_t;
-            let mut tok: *mut u8 = 0 as *mut u8;
-            let mut tok_len: usize = 0;
-            let mut input: *mut u8 = bstr::bstr_ptr((*ce).value);
-            let mut input_len: usize = bstr::bstr_len((*ce).value);
-            while input_len > 0
-                && get_token(
-                    input,
-                    input_len,
-                    b", \x00" as *const u8 as *const i8,
-                    &mut tok,
-                    &mut tok_len,
-                ) != 0
-            {
+            let tokens = (*(*ce).value).split_str_collect(", ");
+            for tok in tokens {
+                let token = bstr::bstr_t::from(tok);
                 let mut cetype: htp_decompressors::htp_content_encoding_t =
                     htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                 // check depth limit (0 means no limit)
@@ -1877,24 +1766,9 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                     );
                     break;
                 } else {
-                    if bstr::bstr_util_mem_index_of_c_nocase(
-                        tok as *const core::ffi::c_void,
-                        tok_len,
-                        b"gzip\x00" as *const u8 as *const i8,
-                    ) != -1
-                    {
-                        if !(bstr::bstr_util_cmp_mem(
-                            tok as *const core::ffi::c_void,
-                            tok_len,
-                            b"gzip\x00" as *const u8 as *const i8 as *const core::ffi::c_void,
-                            4,
-                        ) == 0
-                            || bstr::bstr_util_cmp_mem(
-                                tok as *const core::ffi::c_void,
-                                tok_len,
-                                b"x-gzip\x00" as *const u8 as *const core::ffi::c_void,
-                                6,
-                            ) == 0)
+                    if token.index_of_nocase("gzip").is_some() {
+                        if !(token.cmp("gzip") == Ordering::Equal
+                            || token.cmp("x-gzip") == Ordering::Equal)
                         {
                             htp_util::htp_log(
                                 (*tx).connp,
@@ -1906,24 +1780,9 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                             );
                         }
                         cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-                    } else if bstr::bstr_util_mem_index_of_c_nocase(
-                        tok as *const core::ffi::c_void,
-                        tok_len,
-                        b"deflate\x00" as *const u8 as *const i8,
-                    ) != -1
-                    {
-                        if !(bstr::bstr_util_cmp_mem(
-                            tok as *const core::ffi::c_void,
-                            tok_len,
-                            b"deflate\x00" as *const u8 as *const core::ffi::c_void,
-                            7,
-                        ) == 0
-                            || bstr::bstr_util_cmp_mem(
-                                tok as *const core::ffi::c_void,
-                                tok_len,
-                                b"x-deflate\x00" as *const u8 as *const core::ffi::c_void,
-                                9,
-                            ) == 0)
+                    } else if token.index_of_nocase("deflate").is_some() {
+                        if !(token.cmp("deflate") == Ordering::Equal
+                            || token.cmp("x-deflate") == Ordering::Equal)
                         {
                             htp_util::htp_log(
                                 (*tx).connp,
@@ -1935,21 +1794,9 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                             );
                         }
                         cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-                    } else if bstr::bstr_util_cmp_mem(
-                        tok as *const core::ffi::c_void,
-                        tok_len,
-                        b"lzma\x00" as *const u8 as *const i8 as *const core::ffi::c_void,
-                        4,
-                    ) == 0
-                    {
+                    } else if token.index_of_nocase("lzma").is_some() {
                         cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-                    } else if bstr::bstr_util_cmp_mem(
-                        tok as *const core::ffi::c_void,
-                        tok_len,
-                        b"inflate\x00" as *const u8 as *const i8 as *const core::ffi::c_void,
-                        7,
-                    ) == 0
-                    {
+                    } else if token.index_of_nocase("inflate").is_some() {
                         cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
                     } else {
                         // continue
@@ -1993,11 +1840,6 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                             comp = (*comp).next
                         }
                     }
-                    if tok_len.wrapping_add(1) >= input_len {
-                        break;
-                    }
-                    input = input.offset(tok_len.wrapping_add(1) as isize);
-                    input_len = (input_len).wrapping_sub(tok_len.wrapping_add(1))
                 }
             }
         }

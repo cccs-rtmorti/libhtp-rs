@@ -66,10 +66,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     auth_header: *const htp_transaction::htp_header_t,
 ) -> Status {
     // Extract the username
-    let i: i32 = bstr::bstr_index_of_c(
-        (*auth_header).value,
-        b"username=\x00" as *const u8 as *const i8,
-    );
+    let i: i32 = bstr::bstr_index_of((*auth_header).value, "username=");
     if i == -1 {
         return Status::DECLINED;
     }
@@ -122,7 +119,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
         return Status::ERROR;
     }
     // Now extract the username and password
-    let i: i32 = bstr::bstr_index_of_c(decoded, b":\x00" as *const u8 as *const i8);
+    let i: i32 = bstr::bstr_index_of(decoded, ":");
     if i == -1 {
         bstr::bstr_free(decoded);
         return Status::DECLINED;
@@ -157,17 +154,11 @@ pub unsafe extern "C" fn htp_parse_authorization(
     }
     let auth_header = auth_header_opt.unwrap().1;
     // TODO Need a flag to raise when failing to parse authentication headers.
-    if bstr::bstr_begins_with_c_nocase((*auth_header).value, b"basic\x00" as *const u8 as *const i8)
-        != 0
-    {
+    if (*(*auth_header).value).starts_with_nocase("basic") {
         // Basic authentication
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
         return htp_parse_authorization_basic(connp, auth_header);
-    } else if bstr::bstr_begins_with_c_nocase(
-        (*auth_header).value,
-        b"digest\x00" as *const u8 as *const i8,
-    ) != 0
-    {
+    } else if (*(*auth_header).value).starts_with_nocase("digest") {
         // Digest authentication
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
         return htp_parse_authorization_digest(connp, auth_header);

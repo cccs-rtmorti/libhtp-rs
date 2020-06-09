@@ -310,88 +310,88 @@ pub unsafe fn htp_convert_method_to_number(method: *mut bstr::bstr_t) -> i32 {
         return htp_request::htp_method_t::HTP_M_UNKNOWN as i32;
     }
     // TODO Optimize using parallel matching, or something similar.
-    if bstr::bstr_cmp_c(method, b"GET\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "GET") == 0 {
         return htp_request::htp_method_t::HTP_M_GET as i32;
     }
-    if bstr::bstr_cmp_c(method, b"PUT\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "PUT") == 0 {
         return htp_request::htp_method_t::HTP_M_PUT as i32;
     }
-    if bstr::bstr_cmp_c(method, b"POST\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "POST") == 0 {
         return htp_request::htp_method_t::HTP_M_POST as i32;
     }
-    if bstr::bstr_cmp_c(method, b"DELETE\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "DELETE") == 0 {
         return htp_request::htp_method_t::HTP_M_DELETE as i32;
     }
-    if bstr::bstr_cmp_c(method, b"CONNECT\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "CONNECT") == 0 {
         return htp_request::htp_method_t::HTP_M_CONNECT as i32;
     }
-    if bstr::bstr_cmp_c(method, b"OPTIONS\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "OPTIONS") == 0 {
         return htp_request::htp_method_t::HTP_M_OPTIONS as i32;
     }
-    if bstr::bstr_cmp_c(method, b"TRACE\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "TRACE") == 0 {
         return htp_request::htp_method_t::HTP_M_TRACE as i32;
     }
-    if bstr::bstr_cmp_c(method, b"PATCH\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "PATCH") == 0 {
         return htp_request::htp_method_t::HTP_M_PATCH as i32;
     }
-    if bstr::bstr_cmp_c(method, b"PROPFIND\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "PROPFIND") == 0 {
         return htp_request::htp_method_t::HTP_M_PROPFIND as i32;
     }
-    if bstr::bstr_cmp_c(method, b"PROPPATCH\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "PROPPATCH") == 0 {
         return htp_request::htp_method_t::HTP_M_PROPPATCH as i32;
     }
-    if bstr::bstr_cmp_c(method, b"MKCOL\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "MKCOL") == 0 {
         return htp_request::htp_method_t::HTP_M_MKCOL as i32;
     }
-    if bstr::bstr_cmp_c(method, b"COPY\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "COPY") == 0 {
         return htp_request::htp_method_t::HTP_M_COPY as i32;
     }
-    if bstr::bstr_cmp_c(method, b"MOVE\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "MOVE") == 0 {
         return htp_request::htp_method_t::HTP_M_MOVE as i32;
     }
-    if bstr::bstr_cmp_c(method, b"LOCK\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "LOCK") == 0 {
         return htp_request::htp_method_t::HTP_M_LOCK as i32;
     }
-    if bstr::bstr_cmp_c(method, b"UNLOCK\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "UNLOCK") == 0 {
         return htp_request::htp_method_t::HTP_M_UNLOCK as i32;
     }
-    if bstr::bstr_cmp_c(method, b"VERSION-CONTROL\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "VERSION-CONTROL") == 0 {
         return htp_request::htp_method_t::HTP_M_VERSION_CONTROL as i32;
     }
-    if bstr::bstr_cmp_c(method, b"CHECKOUT\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "CHECKOUT") == 0 {
         return htp_request::htp_method_t::HTP_M_CHECKOUT as i32;
     }
-    if bstr::bstr_cmp_c(method, b"UNCHECKOUT\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "UNCHECKOUT") == 0 {
         return htp_request::htp_method_t::HTP_M_UNCHECKOUT as i32;
     }
-    if bstr::bstr_cmp_c(method, b"CHECKIN\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "CHECKIN") == 0 {
         return htp_request::htp_method_t::HTP_M_CHECKIN as i32;
     }
-    if bstr::bstr_cmp_c(method, b"UPDATE\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "UPDATE") == 0 {
         return htp_request::htp_method_t::HTP_M_UPDATE as i32;
     }
-    if bstr::bstr_cmp_c(method, b"LABEL\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "LABEL") == 0 {
         return htp_request::htp_method_t::HTP_M_LABEL as i32;
     }
-    if bstr::bstr_cmp_c(method, b"REPORT\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "REPORT") == 0 {
         return htp_request::htp_method_t::HTP_M_REPORT as i32;
     }
-    if bstr::bstr_cmp_c(method, b"MKWORKSPACE\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "MKWORKSPACE") == 0 {
         return htp_request::htp_method_t::HTP_M_MKWORKSPACE as i32;
     }
-    if bstr::bstr_cmp_c(method, b"MKACTIVITY\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "MKACTIVITY") == 0 {
         return htp_request::htp_method_t::HTP_M_MKACTIVITY as i32;
     }
-    if bstr::bstr_cmp_c(method, b"BASELINE-CONTROL\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "BASELINE-CONTROL") == 0 {
         return htp_request::htp_method_t::HTP_M_BASELINE_CONTROL as i32;
     }
-    if bstr::bstr_cmp_c(method, b"MERGE\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "MERGE") == 0 {
         return htp_request::htp_method_t::HTP_M_MERGE as i32;
     }
-    if bstr::bstr_cmp_c(method, b"INVALID\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "INVALID") == 0 {
         return htp_request::htp_method_t::HTP_M_INVALID as i32;
     }
-    if bstr::bstr_cmp_c(method, b"HEAD\x00" as *const u8 as *const i8) == 0 {
+    if bstr::bstr_cmp_str(method, "HEAD") == 0 {
         return htp_request::htp_method_t::HTP_M_HEAD as i32;
     }
     htp_request::htp_method_t::HTP_M_UNKNOWN as i32

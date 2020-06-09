@@ -31,6 +31,13 @@ impl bstr_t {
         }
     }
 
+    /// Split the bstr_t into a a collection of substrings, seperated by the given byte string.
+    /// Each element yielded is guaranteed not to include the splitter substring.
+    /// Returns a Vector of the substrings.
+    pub fn split_str_collect<'b, B: ?Sized + AsRef<[u8]>>(&'b self, splitter: &'b B) -> Vec<&[u8]> {
+        self.s.as_bstr().split_str(splitter.as_ref()).collect()
+    }
+
     /// Compare this bstr with the given slice
     pub fn cmp<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
         self.as_slice().cmp(other.as_ref())
@@ -389,23 +396,6 @@ pub unsafe fn bstr_add_mem(
     destination
 }
 
-/// Append as many bytes from the source to destination bstring. The
-/// destination storage will not be expanded if there is not enough space in it
-/// already to accommodate all of the data.
-///
-/// Returns The destination bstring.
-pub unsafe fn bstr_add_mem_noex(
-    destination: *mut bstr_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> *mut bstr_t {
-    nullcheck!(destination, data);
-
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    (*destination).add_noex(s);
-    destination
-}
-
 /// Append as many bytes from the source bstring to destination bstring. The
 /// destination storage will not be expanded if there is not enough space in it
 /// already to accommodate all of the data.
@@ -437,70 +427,6 @@ pub unsafe fn bstr_adjust_size(mut _b: *mut bstr_t, mut _newsize: usize) {
     // FIXME: This really shouldn't exist. What it wants to do
     // doesn't map to the universe where the underlying datatype
     // knows how big it is, so this is a no-op.
-}
-
-/// Checks whether bstring begins with another bstring. Case sensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with(haystack: *const bstr_t, needle: *const bstr_t) -> i32 {
-    nullcheck!(haystack, needle);
-    (*haystack).starts_with((*needle).as_slice()) as i32
-}
-
-/// Checks whether bstring begins with NUL-terminated string. Case sensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with_c(haystack: *const bstr_t, needle: *const i8) -> i32 {
-    nullcheck!(haystack, needle);
-
-    let cs = CStr::from_ptr(needle);
-    (*haystack).starts_with(cs.to_bytes()) as i32
-}
-
-/// Checks whether bstring begins with NUL-terminated string. Case insensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with_c_nocase(haystack: *const bstr_t, needle: *const i8) -> i32 {
-    nullcheck!(haystack, needle);
-
-    let cs = CStr::from_ptr(needle);
-    (*haystack).starts_with_nocase(cs.to_bytes()) as i32
-}
-
-/// Checks whether bstring begins with another bstring. Case insensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with_nocase(haystack: *const bstr_t, needle: *const bstr_t) -> i32 {
-    nullcheck!(haystack, needle);
-    (*haystack).starts_with_nocase((*needle).as_slice()) as i32
-}
-
-/// Checks whether the bstring begins with the given memory block. Case sensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with_mem(
-    haystack: *const bstr_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> i32 {
-    nullcheck!(haystack, data);
-
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    (*haystack).starts_with(s) as i32
-}
-
-/// Checks whether bstring begins with memory block. Case insensitive.
-///
-/// Returns 1 if true, otherwise 0.
-pub unsafe fn bstr_begins_with_mem_nocase(
-    haystack: *const bstr_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> i32 {
-    nullcheck!(haystack, data);
-
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    (*haystack).starts_with_nocase(s) as i32
 }
 
 /// Return the byte at the given position.
@@ -569,24 +495,29 @@ pub unsafe fn bstr_cmp_c(b: *const bstr_t, c: *const i8) -> i32 {
     ordering2int!((*b).cmp(cs.to_bytes()))
 }
 
-/// Case-insensitive comparison of a bstring with a NUL-terminated string.
-///
-/// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
-pub unsafe fn bstr_cmp_c_nocase(b: *const bstr_t, c: *const i8) -> i32 {
-    nullcheck!(b, c);
+/// Case-sensitive comparison of a bstring and an input.
+pub unsafe fn bstr_cmp_str<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
+    nullcheck!(b);
 
-    let cs = CStr::from_ptr(c);
-    ordering2int!((*b).cmp_nocase(cs.to_bytes()))
+    ordering2int!((*b).cmp(s.as_ref()))
 }
 
-/// Case-insensitive zero-skipping comparison of a bstring with a NUL-terminated string.
+/// Case-insensitive comparison of a bstring with an input.
 ///
 /// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
-pub unsafe fn bstr_cmp_c_nocasenorzero(b: *const bstr_t, c: *const i8) -> i32 {
-    nullcheck!(b, c);
+pub unsafe fn bstr_cmp_str_nocase<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
+    nullcheck!(b);
 
-    let cs = CStr::from_ptr(c);
-    ordering2int!((*b).cmp_nocase_nozero(cs.to_bytes()))
+    ordering2int!((*b).cmp_nocase(s.as_ref()))
+}
+
+/// Case-insensitive zero-skipping comparison of a bstring with an input.
+///
+/// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
+pub unsafe fn bstr_cmp_str_nocasenorzero<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
+    nullcheck!(b);
+
+    ordering2int!((*b).cmp_nocase_nozero(s.as_ref()))
 }
 
 /// Case-insensitive comparison two bstrings.
@@ -613,6 +544,15 @@ pub unsafe fn bstr_dup(b: *const bstr_t) -> *mut bstr_t {
     // functions, then we can delete bstr_alloc(), and be normal.
     let new = bstr_alloc((*b).len());
     (*new).add((*b).as_slice());
+    new
+}
+
+/// Create a new bstring by copying the provided input.
+///
+/// Returns New bstring, or NULL if memory allocation failed.
+pub unsafe fn bstr_dup_str<S: AsRef<[u8]>>(s: S) -> *mut bstr_t {
+    let new = bstr_alloc(s.as_ref().len());
+    (*new).add(s.as_ref());
     new
 }
 
@@ -702,52 +642,39 @@ pub unsafe fn bstr_expand(b: *mut bstr_t, newsize: usize) -> *mut bstr_t {
 /// Find the needle in the haystack.
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of(haystack: *const bstr_t, needle: *const bstr_t) -> i32 {
-    nullcheck!(haystack, needle);
+pub unsafe fn bstr_index_of<S: AsRef<[u8]>>(haystack: *const bstr_t, needle: S) -> i32 {
+    nullcheck!(haystack);
 
-    match (*haystack).find((*needle).as_slice()) {
+    match (*haystack).find(needle) {
         Some(idx) => idx as i32,
         None => -1,
     }
 }
 
-/// Find the needle in the haystack, with the needle being a NUL-terminated
-/// string.
+/// Find the needle in the haystack.
+/// Ignore case differences.
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_c(haystack: *const bstr_t, needle: *const i8) -> i32 {
-    nullcheck!(haystack, needle);
+pub unsafe fn bstr_index_of_nocase<S: AsRef<[u8]>>(haystack: *const bstr_t, needle: S) -> i32 {
+    nullcheck!(haystack);
 
-    let cs = CStr::from_ptr(needle);
-    match (*haystack).find(cs.to_bytes()) {
+    match (*haystack).index_of_nocase(needle.as_ref()) {
         Some(idx) => idx as i32,
         None => -1,
     }
 }
 
-/// Find the needle in the haystack, with the needle being a NUL-terminated
-/// string. Ignore case differences.
+/// Find the needle in the haystack.
+/// Ignore case differences. Skip zeroes in haystack
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_c_nocase(haystack: *const bstr_t, needle: *const i8) -> i32 {
-    nullcheck!(haystack, needle);
+pub unsafe fn bstr_index_of_nocasenorzero<S: AsRef<[u8]>>(
+    haystack: *const bstr_t,
+    needle: S,
+) -> i32 {
+    nullcheck!(haystack);
 
-    let cs = CStr::from_ptr(needle);
-    match (*haystack).index_of_nocase(cs.to_bytes()) {
-        Some(idx) => idx as i32,
-        None => -1,
-    }
-}
-
-/// Find the needle in the haystack, with the needle being a NUL-terminated
-/// string. Ignore case differences. Skip zeroes in haystack
-///
-/// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_c_nocasenorzero(haystack: *const bstr_t, needle: *const i8) -> i32 {
-    nullcheck!(haystack, needle);
-
-    let cs = CStr::from_ptr(needle);
-    match (*haystack).index_of_nocase_nozero(cs.to_bytes()) {
+    match (*haystack).index_of_nocase_nozero(needle.as_ref()) {
         Some(idx) => idx as i32,
         None => -1,
     }
@@ -788,18 +715,6 @@ pub unsafe fn bstr_index_of_mem_nocase(
     }
 }
 
-/// Find the needle in the haystack, ignoring case differences.
-///
-/// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_nocase(haystack: *const bstr_t, needle: *const bstr_t) -> i32 {
-    nullcheck!(haystack, needle);
-
-    match (*haystack).index_of_nocase((*needle).as_slice()) {
-        Some(idx) => idx as i32,
-        None => -1,
-    }
-}
-
 /// Return the last position of a character (byte).
 ///
 /// Returns The last position of the character, or -1 if it could not be found.
@@ -823,23 +738,6 @@ pub unsafe fn bstr_to_lowercase(b: *mut bstr_t) -> *mut bstr_t {
 
     (*b).make_ascii_lowercase();
     b
-}
-
-/// Case-sensitive comparison of two memory regions.
-///
-/// Returns Zero if the memory regions are identical, 1 if data1 is greater than
-///         data2, and -1 if data2 is greater than data1.
-pub unsafe fn bstr_util_cmp_mem(
-    data1: *const core::ffi::c_void,
-    len1: usize,
-    data2: *const core::ffi::c_void,
-    len2: usize,
-) -> i32 {
-    nullcheck!(data1, data2);
-
-    let left = &std::slice::from_raw_parts(data1 as *const u8, len1);
-    let right = &std::slice::from_raw_parts(data2 as *const u8, len2);
-    ordering2int!(left.cmp(right))
 }
 
 /// Convert contents of a memory region to a positive integer.
@@ -909,38 +807,18 @@ pub unsafe fn bstr_util_mem_to_pint(
 /// Searches a memory block for the given NUL-terminated string. Case insensitive.
 ///
 /// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
-pub unsafe fn bstr_util_mem_index_of_c_nocase(
+pub unsafe fn bstr_util_mem_index_of_nocase<S: AsRef<[u8]>>(
     data: *const core::ffi::c_void,
     len: usize,
-    cstr: *const i8,
+    s: S,
 ) -> i32 {
-    nullcheck!(data, cstr);
+    nullcheck!(data);
 
     let src_slice = std::slice::from_raw_parts(data as *const u8, len);
     let mut haystack = LowercaseIterator::new(&src_slice);
-    let needle = CStr::from_ptr(cstr).to_bytes().to_ascii_lowercase();
+    let needle = s.as_ref().to_ascii_lowercase();
 
     match haystack.index_of(needle) {
-        Some(idx) => idx as i32,
-        None => -1,
-    }
-}
-
-/// Searches the haystack memory block for the needle memory block. Case sensitive.
-///
-/// Returns Index of the first location of the needle on success, or -1 if the needle was not found.
-pub unsafe fn bstr_util_mem_index_of_mem(
-    data1: *const core::ffi::c_void,
-    len1: usize,
-    data2: *const core::ffi::c_void,
-    len2: usize,
-) -> i32 {
-    nullcheck!(data1, data2);
-
-    let haystack = std::slice::from_raw_parts(data1 as *const u8, len1);
-    let needle = std::slice::from_raw_parts(data2 as *const u8, len2);
-
-    match haystack.find(needle) {
         Some(idx) => idx as i32,
         None => -1,
     }

@@ -8,7 +8,6 @@ use htp::htp_decompressors::*;
 use htp::htp_transaction::*;
 use htp::Status;
 use std::env;
-use std::ffi::CString;
 use std::path::PathBuf;
 
 #[no_mangle]
@@ -49,11 +48,7 @@ impl Test {
 
             let decompressor = htp_gzip_decompressor_create(connp, HTP_COMPRESSION_GZIP);
             (*decompressor).callback = Some(GUnzip_decompressor_callback);
-            let o_boxing_wizards = bstr_dup_c(
-                CString::new("The five boxing wizards jump quickly.")
-                    .unwrap()
-                    .as_ptr(),
-            );
+            let o_boxing_wizards = bstr_dup_str("The five boxing wizards jump quickly.");
 
             Test {
                 cfg,
