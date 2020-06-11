@@ -15,7 +15,7 @@ pr:
 jobs:
 - job: install
   displayName: Install Rust
-  pool: builders
+  pool: libhtp-builders
 # Can't figure out strategies right now so just build nightly. See below
 #  strategy:
 #    matrix:
@@ -33,7 +33,7 @@ jobs:
 - job: rustfmt
   displayName: Format Check
   dependsOn: install
-  pool: builders
+  pool: libhtp-builders
   steps:
     - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
     - script: rustup component add rustfmt
@@ -45,7 +45,7 @@ jobs:
 #- job: clippy
 #  displayName: Clippy Check
 #  dependsOn: install
-#  pool: builders
+#  pool: libhtp-builders
 #  steps:
 #    - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
 #    - script: rustup component add clippy
@@ -56,7 +56,7 @@ jobs:
 - job: tests
   displayName: Run Tests
   dependsOn: install
-  pool: builders
+  pool: libhtp-builders
   steps:
   - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
   - script: cargo build
