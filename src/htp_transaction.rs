@@ -499,7 +499,7 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
 
     // If we're using a private configuration structure, destroy it.
     if (*tx).is_config_shared == 0 {
-        htp_config::htp_config_destroy((*tx).cfg);
+        (*(*tx).cfg).destroy();
     }
     free(tx as *mut core::ffi::c_void);
 }

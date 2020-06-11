@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
+use htp::htp_config;
 use htp::htp_config::htp_decoder_ctx_t::*;
 use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_list::*;
 use htp::htp_request::*;
@@ -104,7 +104,7 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     connp: *mut htp_connp_t,
     basedir: PathBuf,
 }
@@ -123,11 +123,11 @@ impl Test {
         };
 
         unsafe {
-            let cfg: *mut htp_cfg_t = htp_config_create();
+            let cfg: *mut htp_config::htp_cfg_t = htp_config::create();
             assert!(!cfg.is_null());
-            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
-            htp_config_register_urlencoded_parser(cfg);
-            htp_config_register_multipart_parser(cfg);
+            (*cfg).set_server_personality(HTP_SERVER_APACHE_2);
+            (*cfg).register_urlencoded_parser();
+            (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
 
@@ -265,7 +265,7 @@ impl Drop for Test {
     fn drop(&mut self) {
         unsafe {
             htp_connp_destroy(self.connp);
-            htp_config_destroy(self.cfg);
+            (*self.cfg).destroy();
         }
     }
 }
@@ -932,10 +932,9 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
 fn RequestHeaderData() {
     let mut t = Test::new();
     unsafe {
-        htp_config_register_request_header_data(
-            &mut *t.cfg,
-            Some(ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA),
-        );
+        (*t.cfg).register_request_header_data(Some(
+            ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA,
+        ));
         assert!(t.run("26-request-headers-raw.t").is_ok());
 
         let tx: *mut htp_tx_t =
@@ -992,10 +991,9 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
 fn RequestTrailerData() {
     let mut t = Test::new();
     unsafe {
-        htp_config_register_request_trailer_data(
-            &mut *t.cfg,
-            Some(ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA),
-        );
+        (*t.cfg).register_request_trailer_data(Some(
+            ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA,
+        ));
         assert!(t.run("27-request-trailer-raw.t").is_ok());
 
         let tx: *mut htp_tx_t =
@@ -1064,10 +1062,9 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
 fn ResponseHeaderData() {
     let mut t = Test::new();
     unsafe {
-        htp_config_register_response_header_data(
-            &mut *t.cfg,
-            Some(ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA),
-        );
+        (*t.cfg).register_response_header_data(Some(
+            ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA,
+        ));
         assert!(t.run("28-response-headers-raw.t").is_ok());
 
         let tx: *mut htp_tx_t =
@@ -1140,10 +1137,9 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
 fn ResponseTrailerData() {
     let mut t = Test::new();
     unsafe {
-        htp_config_register_response_trailer_data(
-            &mut *t.cfg,
-            Some(ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA),
-        );
+        (*t.cfg).register_response_trailer_data(Some(
+            ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA,
+        ));
         assert!(t.run("29-response-trailer-raw.t").is_ok());
 
         let tx: *mut htp_tx_t =
@@ -1350,7 +1346,7 @@ fn InvalidRequest3() {
 fn AutoDestroyCrash() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_tx_auto_destroy(&mut *t.cfg, 1);
+        (*t.cfg).set_tx_auto_destroy(1);
         assert!(t.run("39-auto-destroy-crash.t").is_ok());
 
         assert_eq!(4, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -1802,7 +1798,7 @@ fn PathUtf8_FullWidth() {
 fn PathUtf8_Decode_Valid() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_utf8_convert_bestfit(&mut *t.cfg, HTP_DECODER_URL_PATH, 1);
+        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, 1);
         assert!(t.run("54-path-utf8-valid.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -1821,7 +1817,7 @@ fn PathUtf8_Decode_Valid() {
 fn PathUtf8_Decode_Overlong2() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_utf8_convert_bestfit(&mut *t.cfg, HTP_DECODER_URL_PATH, 1);
+        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, 1);
         assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -1842,7 +1838,7 @@ fn PathUtf8_Decode_Overlong2() {
 fn PathUtf8_Decode_Overlong3() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_utf8_convert_bestfit(&mut *t.cfg, HTP_DECODER_URL_PATH, 1);
+        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, 1);
         assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -1863,7 +1859,7 @@ fn PathUtf8_Decode_Overlong3() {
 fn PathUtf8_Decode_Overlong4() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_utf8_convert_bestfit(&mut *t.cfg, HTP_DECODER_URL_PATH, 1);
+        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, 1);
         assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -1884,7 +1880,7 @@ fn PathUtf8_Decode_Overlong4() {
 fn PathUtf8_Decode_Invalid() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_utf8_convert_bestfit(&mut *t.cfg, HTP_DECODER_URL_PATH, 1);
+        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, 1);
         assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -1907,7 +1903,7 @@ fn PathUtf8_Decode_Invalid() {
 fn PathUtf8_Decode_FullWidth() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_utf8_convert_bestfit(&mut *t.cfg, HTP_DECODER_URL_PATH, 1);
+        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, 1);
         assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -2055,7 +2051,7 @@ fn LongRequestLine1() {
 fn LongRequestLine2() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_field_limits(&mut *t.cfg, 0, 16);
+        (*t.cfg).set_field_limits(0, 16);
         assert!(t.run("67-long-request-line.t").is_err());
 
         let tx: *mut htp_tx_t =
@@ -2090,7 +2086,7 @@ fn InvalidRequestHeader() {
 fn TestGenericPersonality() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_server_personality(&mut *t.cfg, HTP_SERVER_IDS);
+        (*t.cfg).set_server_personality(HTP_SERVER_IDS);
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
         assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
@@ -2105,7 +2101,7 @@ fn TestGenericPersonality() {
 fn LongResponseHeader() {
     let mut t = Test::new();
     unsafe {
-        htp_config_set_field_limits(&mut *t.cfg, 0, 16);
+        (*t.cfg).set_field_limits(0, 16);
         assert!(t.run("69-long-response-header.t").is_err());
 
         let tx: *mut htp_tx_t =

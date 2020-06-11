@@ -15,13 +15,15 @@ use crate::Status;
 /// copying.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_create() -> *mut htp_config::htp_cfg_t {
-    htp_config::htp_config_create()
+    htp_config::create()
 }
 
 /// Destroy a configuration structure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_destroy(cfg: *mut htp_config::htp_cfg_t) {
-    htp_config::htp_config_destroy(cfg)
+    if !cfg.is_null() {
+        (*cfg).destroy()
+    }
 }
 
 /// Registers a REQUEST_BODY_DATA callback.
@@ -31,7 +33,7 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_body_data(&mut *cfg, callback_fn)
+        (*cfg).register_request_body_data(callback_fn)
     }
 }
 
@@ -42,7 +44,7 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_complete(&mut *cfg, callback_fn)
+        (*cfg).register_request_complete(callback_fn)
     }
 }
 
@@ -53,7 +55,7 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_headers(&mut *cfg, callback_fn)
+        (*cfg).register_request_headers(callback_fn)
     }
 }
 
@@ -64,7 +66,7 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_header_data(&mut *cfg, callback_fn)
+        (*cfg).register_request_header_data(callback_fn)
     }
 }
 
@@ -75,7 +77,7 @@ pub unsafe extern "C" fn htp_config_register_request_line(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_line(&mut *cfg, callback_fn)
+        (*cfg).register_request_line(callback_fn)
     }
 }
 
@@ -87,7 +89,7 @@ pub unsafe extern "C" fn htp_config_register_request_start(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_start(&mut *cfg, callback_fn);
+        (*cfg).register_request_start(callback_fn);
     }
 }
 
@@ -98,7 +100,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_trailer(&mut *cfg, callback_fn)
+        (*cfg).register_request_trailer(callback_fn)
     }
 }
 
@@ -109,7 +111,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_request_trailer_data(&mut *cfg, callback_fn)
+        (*cfg).register_request_trailer_data(callback_fn)
     }
 }
 
@@ -120,7 +122,7 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_body_data(&mut *cfg, callback_fn)
+        (*cfg).register_response_body_data(callback_fn)
     }
 }
 
@@ -131,7 +133,7 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_complete(&mut *cfg, callback_fn)
+        (*cfg).register_response_complete(callback_fn)
     }
 }
 
@@ -142,7 +144,7 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_complete(&mut *cfg, callback_fn)
+        (*cfg).register_response_headers(callback_fn)
     }
 }
 
@@ -153,7 +155,7 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_header_data(&mut *cfg, callback_fn)
+        (*cfg).register_response_header_data(callback_fn)
     }
 }
 
@@ -164,7 +166,7 @@ pub unsafe extern "C" fn htp_config_register_response_start(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_start(&mut *cfg, callback_fn)
+        (*cfg).register_response_start(callback_fn)
     }
 }
 
@@ -175,7 +177,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_trailer(&mut *cfg, callback_fn)
+        (*cfg).register_response_trailer(callback_fn)
     }
 }
 
@@ -186,7 +188,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_response_trailer_data(&mut *cfg, callback_fn)
+        (*cfg).register_response_trailer_data(callback_fn)
     }
 }
 
@@ -197,7 +199,7 @@ pub unsafe extern "C" fn htp_config_register_transaction_complete(
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_register_transaction_complete(&mut *cfg, callback_fn)
+        (*cfg).register_transaction_complete(callback_fn)
     }
 }
 
@@ -212,7 +214,7 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_backslash_convert_slashes(&mut *cfg, ctx, enabled)
+        (*cfg).set_backslash_convert_slashes(ctx, enabled)
     }
 }
 
@@ -226,7 +228,7 @@ pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
     b: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_bestfit_replacement_byte(&mut *cfg, ctx, b)
+        (*cfg).set_bestfit_replacement_byte(ctx, b)
     }
 }
 
@@ -237,7 +239,7 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
     bomblimit: libc::size_t,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_compression_bomb_limit(&mut *cfg, bomblimit)
+        (*cfg).set_compression_bomb_limit(bomblimit)
     }
 }
 
@@ -252,7 +254,7 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_convert_lowercase(&mut *cfg, ctx, enabled)
+        (*cfg).set_convert_lowercase(ctx, enabled)
     }
 }
 
@@ -266,7 +268,7 @@ pub unsafe extern "C" fn htp_config_set_field_limits(
     hard_limit: libc::size_t,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_field_limits(&mut *cfg, soft_limit, hard_limit)
+        (*cfg).set_field_limits(soft_limit, hard_limit)
     }
 }
 
@@ -277,7 +279,7 @@ pub unsafe extern "C" fn htp_config_set_lzma_memlimit(
     memlimit: libc::size_t,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_lzma_memlimit(&mut *cfg, memlimit)
+        (*cfg).set_lzma_memlimit(memlimit)
     }
 }
 
@@ -291,7 +293,7 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_nul_encoded_terminates(&mut *cfg, ctx, enabled)
+        (*cfg).set_nul_encoded_terminates(ctx, enabled)
     }
 }
 
@@ -303,7 +305,7 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_nul_raw_terminates(&mut *cfg, ctx, enabled)
+        (*cfg).set_nul_raw_terminates(ctx, enabled)
     }
 }
 
@@ -314,7 +316,7 @@ pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
     parse_request_cookies: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_parse_request_cookies(&mut *cfg, parse_request_cookies)
+        (*cfg).set_parse_request_cookies(parse_request_cookies)
     }
 }
 
@@ -330,7 +332,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_compress(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_path_separators_compress(&mut *cfg, ctx, enabled)
+        (*cfg).set_path_separators_compress(ctx, enabled)
     }
 }
 
@@ -344,7 +346,7 @@ pub unsafe extern "C" fn htp_config_set_plusspace_decode(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_plusspace_decode(&mut *cfg, ctx, enabled)
+        (*cfg).set_plusspace_decode(ctx, enabled)
     }
 }
 
@@ -360,7 +362,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_path_separators_decode(&mut *cfg, ctx, enabled)
+        (*cfg).set_path_separators_decode(ctx, enabled)
     }
 }
 
@@ -371,7 +373,7 @@ pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
     limit: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_response_decompression_layer_limit(&mut *cfg, limit)
+        (*cfg).set_response_decompression_layer_limit(limit)
     }
 }
 
@@ -382,7 +384,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
     personality: htp_config::htp_server_personality_t,
 ) -> Status {
     if !cfg.is_null() {
-        htp_config::htp_config_set_server_personality(&mut *cfg, personality)
+        (*cfg).set_server_personality(personality)
     } else {
         Status::ERROR
     }
@@ -397,7 +399,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_u_encoding_decode(&mut *cfg, ctx, enabled)
+        (*cfg).set_u_encoding_decode(ctx, enabled)
     }
 }
 
@@ -409,7 +411,7 @@ pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
     handling: htp_config::htp_url_encoding_handling_t,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_url_encoding_invalid_handling(&mut *cfg, ctx, handling)
+        (*cfg).set_url_encoding_invalid_handling(ctx, handling)
     }
 }
 
@@ -422,7 +424,7 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        htp_config::htp_config_set_utf8_convert_bestfit(&mut *cfg, ctx, enabled)
+        (*cfg).set_utf8_convert_bestfit(ctx, enabled)
     }
 }
 
@@ -724,7 +726,9 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
     cfg: *mut htp_config::htp_cfg_t,
     tx_auto_destroy: libc::c_int,
 ) {
-    htp_config::htp_config_set_tx_auto_destroy(cfg, tx_auto_destroy)
+    if !cfg.is_null() {
+        (*cfg).set_tx_auto_destroy(tx_auto_destroy)
+    }
 }
 
 /// Registers a callback that is invoked every time there is a log message with
@@ -734,14 +738,18 @@ pub unsafe extern "C" fn htp_config_register_log(
     cfg: *mut htp_config::htp_cfg_t,
     callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
 ) {
-    htp_config::htp_config_register_log(cfg, callback_fn)
+    if !cfg.is_null() {
+        (*cfg).register_log(callback_fn)
+    }
 }
 
 /// Adds the built-in Multipart parser to the configuration. This parser will extract information
 /// stored in request bodies, when they are in multipart/form-data format.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_multipart_parser(cfg: *mut htp_config::htp_cfg_t) {
-    htp_config::htp_config_register_multipart_parser(cfg)
+    if !cfg.is_null() {
+        (*cfg).register_multipart_parser()
+    }
 }
 
 /// Retrieves the pointer to the active outbound transaction. In connection

@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
+use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_decompressors::htp_content_encoding_t::*;
 use htp::htp_decompressors::*;
@@ -21,7 +21,7 @@ extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
 
 #[derive(Debug)]
 struct Test {
-    cfg: *mut htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     connp: *mut htp_connp_t,
     output: *mut bstr_t,
     o_boxing_wizards: *mut bstr_t,
@@ -37,9 +37,9 @@ enum TestError {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg = htp_config_create();
+            let cfg = htp_config::create();
             assert!(!cfg.is_null());
-            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
+            (*cfg).set_server_personality(HTP_SERVER_APACHE_2);
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let tx = htp_connp_tx_create(connp);
@@ -102,7 +102,7 @@ impl Drop for Test {
             bstr_free(self.o_boxing_wizards);
             (*self.decompressor).destroy.unwrap()(self.decompressor);
             htp_connp_destroy_all(self.connp);
-            htp_config_destroy(self.cfg);
+            (*self.cfg).destroy();
         }
     }
 }

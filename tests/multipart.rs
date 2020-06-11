@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
+use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_list::*;
 use htp::htp_multipart::*;
@@ -22,7 +22,7 @@ macro_rules! cstr {
 
 struct Test {
     connp: *mut htp_connp_t,
-    cfg: *mut htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     body: *mut htp_multipart_t,
     mpartp: *mut htp_mpartp_t,
     tx: *mut htp_tx_t,
@@ -31,10 +31,10 @@ struct Test {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut htp_cfg_t = htp_config_create();
+            let cfg: *mut htp_config::htp_cfg_t = htp_config::create();
             assert!(!cfg.is_null());
-            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
-            htp_config_register_multipart_parser(cfg);
+            (*cfg).set_server_personality(HTP_SERVER_APACHE_2);
+            (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let body = std::ptr::null_mut();
@@ -210,7 +210,7 @@ impl Drop for Test {
             }
 
             htp_connp_destroy(self.connp);
-            htp_config_destroy(self.cfg);
+            (*self.cfg).destroy();
         }
     }
 }

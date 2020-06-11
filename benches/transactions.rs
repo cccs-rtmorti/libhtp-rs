@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_request::*;
 use htp::htp_response::*;
@@ -48,17 +48,17 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     connp: *mut htp_connp_t,
 }
 
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg = htp_config_create();
-            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
-            htp_config_register_urlencoded_parser(cfg);
-            htp_config_register_multipart_parser(cfg);
+            let cfg = htp_config::create();
+            (*cfg).set_server_personality(HTP_SERVER_APACHE_2);
+            (*cfg).register_urlencoded_parser();
+            (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
 
@@ -189,7 +189,7 @@ impl Drop for Test {
     fn drop(&mut self) {
         unsafe {
             htp_connp_destroy(self.connp);
-            htp_config_destroy(self.cfg);
+            (*self.cfg).destroy();
         }
     }
 }

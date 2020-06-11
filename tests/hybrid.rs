@@ -2,8 +2,8 @@
 #![allow(non_camel_case_types)]
 use htp::bstr::*;
 use htp::htp_base64::*;
+use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_config::*;
 use htp::htp_connection_parser::*;
 use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::*;
@@ -175,7 +175,7 @@ unsafe extern "C" fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut ht
 
 struct HybridParsingTest {
     connp: *mut htp_connp_t,
-    cfg: *mut htp_cfg_t,
+    cfg: *mut htp_config::htp_cfg_t,
     connp_open: bool,
     user_data: HybridParsing_Get_User_Data,
 }
@@ -183,11 +183,11 @@ struct HybridParsingTest {
 impl HybridParsingTest {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut htp_cfg_t = htp_config_create();
+            let cfg: *mut htp_config::htp_cfg_t = htp_config::create();
             assert!(!cfg.is_null());
-            htp_config_set_server_personality(&mut *cfg, HTP_SERVER_APACHE_2);
-            htp_config_register_urlencoded_parser(cfg);
-            htp_config_register_multipart_parser(cfg);
+            (*cfg).set_server_personality(HTP_SERVER_APACHE_2);
+            (*cfg).register_urlencoded_parser();
+            (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             htp_connp_open(
@@ -221,50 +221,26 @@ impl HybridParsingTest {
     fn register_user_callbacks(&mut self) {
         unsafe {
             // Request callbacks
-            htp_config_register_request_start(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_REQUEST_START),
-            );
-            htp_config_register_request_line(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_REQUEST_LINE),
-            );
-            htp_config_register_request_headers(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_REQUEST_HEADERS),
-            );
-            htp_config_register_request_complete(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_REQUEST_COMPLETE),
-            );
+            (*self.cfg).register_request_start(Some(HybridParsing_Get_Callback_REQUEST_START));
+            (*self.cfg).register_request_line(Some(HybridParsing_Get_Callback_REQUEST_LINE));
+            (*self.cfg).register_request_headers(Some(HybridParsing_Get_Callback_REQUEST_HEADERS));
+            (*self.cfg)
+                .register_request_complete(Some(HybridParsing_Get_Callback_REQUEST_COMPLETE));
 
             // Response callbacks
-            htp_config_register_response_start(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_RESPONSE_START),
-            );
-            htp_config_register_response_line(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_RESPONSE_LINE),
-            );
-            htp_config_register_response_headers(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_RESPONSE_HEADERS),
-            );
-            htp_config_register_response_body_data(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_RESPONSE_BODY_DATA),
-            );
-            htp_config_register_response_complete(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_RESPONSE_COMPLETE),
-            );
+            (*self.cfg).register_response_start(Some(HybridParsing_Get_Callback_RESPONSE_START));
+            (*self.cfg).register_response_line(Some(HybridParsing_Get_Callback_RESPONSE_LINE));
+            (*self.cfg)
+                .register_response_headers(Some(HybridParsing_Get_Callback_RESPONSE_HEADERS));
+            (*self.cfg)
+                .register_response_body_data(Some(HybridParsing_Get_Callback_RESPONSE_BODY_DATA));
+            (*self.cfg)
+                .register_response_complete(Some(HybridParsing_Get_Callback_RESPONSE_COMPLETE));
 
             // Transaction calllbacks
-            htp_config_register_transaction_complete(
-                self.cfg,
-                Some(HybridParsing_Get_Callback_TRANSACTION_COMPLETE),
-            );
+            (*self.cfg).register_transaction_complete(Some(
+                HybridParsing_Get_Callback_TRANSACTION_COMPLETE,
+            ));
         }
     }
 }
@@ -274,7 +250,7 @@ impl Drop for HybridParsingTest {
         unsafe {
             self.close_conn_parser();
             htp_connp_destroy_all(self.connp);
-            htp_config_destroy(self.cfg);
+            (*self.cfg).destroy();
         }
     }
 }

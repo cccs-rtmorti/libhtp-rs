@@ -203,26 +203,20 @@ impl Default for htp_cfg_t {
             compression_bomb_limit: 1048576,
             compression_time_limit: 100000,
         };
-        htp_config_set_bestfit_map(
-            &mut cfg,
+        cfg.set_bestfit_map(
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             bestfit_1252.as_ptr() as *const core::ffi::c_void,
         );
-        htp_config_set_bestfit_replacement_byte(
-            &mut cfg,
-            htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-            '?' as i32,
-        );
-        htp_config_set_url_encoding_invalid_handling(
-            &mut cfg,
+        cfg.set_bestfit_replacement_byte(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, '?' as i32);
+        cfg.set_url_encoding_invalid_handling(
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_config_set_nul_raw_terminates(&mut cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
-        htp_config_set_nul_encoded_terminates(&mut cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
-        htp_config_set_u_encoding_decode(&mut cfg, htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
-        htp_config_set_plusspace_decode(&mut cfg, htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
-        htp_config_set_server_personality(&mut cfg, htp_server_personality_t::HTP_SERVER_MINIMAL);
+        cfg.set_nul_raw_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+        cfg.set_nul_encoded_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+        cfg.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+        cfg.set_plusspace_decode(htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        cfg.set_server_personality(htp_server_personality_t::HTP_SERVER_MINIMAL);
         cfg
     }
 }
@@ -459,1129 +453,949 @@ fn config_free(cfg: *mut htp_cfg_t) {
 /// Creates a new configuration structure. Configuration structures created at
 /// configuration time must not be changed afterwards in order to support lock-less
 /// copying.
-pub unsafe fn htp_config_create() -> *mut htp_cfg_t {
+pub fn create() -> *mut htp_cfg_t {
     let cfg: *mut htp_cfg_t = config_alloc();
-    if cfg.is_null() {
-        return 0 as *mut htp_cfg_t;
-    } // 2 layers seem fairly common
     cfg
-}
-
-/// Destroy a configuration structure.
-pub unsafe fn htp_config_destroy(cfg: *mut htp_cfg_t) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_start);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_line);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_uri_normalize);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_header_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_headers);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_body_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_file_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_trailer);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_trailer_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_request_complete);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_start);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_line);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_header_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_headers);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_body_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_trailer);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_trailer_data);
-    htp_hooks::htp_hook_destroy((*cfg).hook_response_complete);
-    htp_hooks::htp_hook_destroy((*cfg).hook_transaction_complete);
-    htp_hooks::htp_hook_destroy((*cfg).hook_log);
-    config_free(cfg);
-}
-
-/// Registers a callback that is invoked every time there is a log message with
-/// severity equal and higher than the configured log level.
-pub unsafe fn htp_config_register_log(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_log,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Adds the built-in Multipart parser to the configuration. This parser will extract information
-/// stored in request bodies, when they are in multipart/form-data format.
-pub unsafe fn htp_config_register_multipart_parser(cfg: *mut htp_cfg_t) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_config_register_request_headers(
-        cfg,
-        Some(
-            htp_content_handlers::htp_ch_multipart_callback_request_headers
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
-        ),
-    );
-}
-
-/// Registers a REQUEST_COMPLETE callback.
-pub unsafe fn htp_config_register_request_complete(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_complete,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_BODY_DATA callback.
-pub unsafe fn htp_config_register_request_body_data(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_body_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_HEADER_DATA callback.
-pub unsafe fn htp_config_register_request_header_data(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_header_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_HEADERS callback.
-pub unsafe fn htp_config_register_request_headers(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_headers,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_LINE callback.
-pub unsafe fn htp_config_register_request_line(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_line,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_START callback, which is invoked every time a new
-/// request begins and before any parsing is done.
-pub unsafe fn htp_config_register_request_start(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_start,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a HTP_REQUEST_TRAILER callback.
-pub unsafe fn htp_config_register_request_trailer(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_trailer,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a REQUEST_TRAILER_DATA callback.
-pub unsafe fn htp_config_register_request_trailer_data(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_request_trailer_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_BODY_DATA callback.
-pub unsafe fn htp_config_register_response_body_data(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_body_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_COMPLETE callback.
-pub unsafe fn htp_config_register_response_complete(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_complete,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_HEADER_DATA callback.
-pub unsafe fn htp_config_register_response_header_data(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_header_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_HEADERS callback.
-#[allow(dead_code)]
-pub unsafe fn htp_config_register_response_headers(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_headers,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_LINE callback.
-#[allow(dead_code)]
-pub unsafe fn htp_config_register_response_line(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_line,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_START callback.
-pub unsafe fn htp_config_register_response_start(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_start,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_TRAILER callback.
-pub unsafe fn htp_config_register_response_trailer(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_trailer,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a RESPONSE_TRAILER_DATA callback.
-pub unsafe fn htp_config_register_response_trailer_data(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_response_trailer_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Registers a TRANSACTION_COMPLETE callback.
-pub unsafe fn htp_config_register_transaction_complete(
-    cfg: *mut htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*cfg).hook_transaction_complete,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Adds the built-in Urlencoded parser to the configuration. The parser will
-/// parse query strings and request bodies with the appropriate MIME type.
-#[allow(dead_code)]
-pub unsafe fn htp_config_register_urlencoded_parser(cfg: *mut htp_cfg_t) {
-    if cfg.is_null() {
-        return;
-    }
-    htp_config_register_request_line(
-        cfg,
-        Some(
-            htp_content_handlers::htp_ch_urlencoded_callback_request_line
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
-        ),
-    );
-    htp_config_register_request_headers(
-        cfg,
-        Some(
-            htp_content_handlers::htp_ch_urlencoded_callback_request_headers
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
-        ),
-    );
-}
-
-/// Configures the maximum size of the buffer LibHTP will use when all data is not available
-/// in the current buffer (e.g., a very long header line that might span several packets). This
-/// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
-/// soft_limit is NOT IMPLEMENTED.
-pub unsafe fn htp_config_set_field_limits(
-    mut cfg: *mut htp_cfg_t,
-    soft_limit: usize,
-    hard_limit: usize,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).field_limit_soft = soft_limit;
-    (*cfg).field_limit_hard = hard_limit;
-}
-
-/// Configures the maximum memlimit LibHTP will pass to liblzma.
-pub unsafe fn htp_config_set_lzma_memlimit(mut cfg: *mut htp_cfg_t, memlimit: usize) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).lzma_memlimit = memlimit;
-}
-
-/// Configures the maximum compression bomb size LibHTP will decompress.
-pub unsafe fn htp_config_set_compression_bomb_limit(mut cfg: *mut htp_cfg_t, bomblimit: usize) {
-    if cfg.is_null() {
-        return;
-    }
-    if bomblimit > 2147483647 {
-        (*cfg).compression_bomb_limit = 2147483647
-    } else {
-        (*cfg).compression_bomb_limit = bomblimit as i32
-    };
-}
-
-/// Enable or disable request cookie parsing. Enabled by default.
-pub unsafe fn htp_config_set_parse_request_cookies(
-    mut cfg: *mut htp_cfg_t,
-    parse_request_cookies: i32,
-) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).parse_request_cookies = parse_request_cookies;
-}
-
-/// Configure desired server personality.
-/// Returns Status::OK if the personality is supported, Status::ERROR if it isn't.
-pub fn htp_config_set_server_personality(
-    mut cfg: &mut htp_cfg_t,
-    personality: htp_server_personality_t,
-) -> Status {
-    match personality as u32 {
-        0 => {
-            cfg.parse_request_line = Some(
-                htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_generic::htp_process_request_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            )
-        }
-        1 => {
-            cfg.parse_request_line = Some(
-                htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_generic::htp_process_request_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            htp_config_set_backslash_convert_slashes(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_path_separators_compress(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-        }
-        2 => {
-            cfg.parse_request_line = Some(
-                htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_generic::htp_process_request_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            htp_config_set_backslash_convert_slashes(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_path_separators_compress(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_convert_lowercase(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_utf8_convert_bestfit(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_requestline_leading_whitespace_unwanted(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-                htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            );
-        }
-        9 => {
-            cfg.parse_request_line = Some(
-                htp_request_apache_2_2::htp_parse_request_line_apache_2_2
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_apache_2_2::htp_process_request_header_apache_2_2
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            htp_config_set_backslash_convert_slashes(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                0,
-            );
-            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
-            htp_config_set_path_separators_compress(
-                cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
-            htp_config_set_url_encoding_invalid_handling(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-            );
-            htp_config_set_url_encoding_invalid_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_400,
-            );
-            htp_config_set_control_chars_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            );
-            htp_config_set_requestline_leading_whitespace_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-                htp_unwanted_t::HTP_UNWANTED_400,
-            );
-        }
-        5 => {
-            cfg.parse_request_line = Some(
-                htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_generic::htp_process_request_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            htp_config_set_backslash_convert_slashes(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_path_separators_compress(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
-            htp_config_set_url_encoding_invalid_handling(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-            );
-            htp_config_set_control_chars_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            );
-            htp_config_set_requestline_leading_whitespace_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-                htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            );
-        }
-        6 => {
-            cfg.parse_request_line = Some(
-                htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_generic::htp_process_request_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            htp_config_set_backslash_convert_slashes(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_path_separators_compress(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_url_encoding_invalid_handling(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-            );
-            htp_config_set_u_encoding_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_400,
-            );
-            htp_config_set_control_chars_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_400,
-            );
-            htp_config_set_requestline_leading_whitespace_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-                htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            );
-        }
-        7 | 8 => {
-            cfg.parse_request_line = Some(
-                htp_request_generic::htp_parse_request_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_request_header = Some(
-                htp_request_generic::htp_process_request_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            cfg.parse_response_line = Some(
-                htp_response_generic::htp_parse_response_line_generic
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            );
-            cfg.process_response_header = Some(
-                htp_response_generic::htp_process_response_header_generic
-                    as unsafe extern "C" fn(
-                        _: *mut htp_connection_parser::htp_connp_t,
-                        _: *mut u8,
-                        _: usize,
-                    ) -> Status,
-            );
-            htp_config_set_backslash_convert_slashes(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_path_separators_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_path_separators_compress(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                1,
-            );
-            htp_config_set_u_encoding_decode(cfg, htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-            htp_config_set_url_encoding_invalid_handling(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-            );
-            htp_config_set_url_encoding_invalid_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_400,
-            );
-            htp_config_set_control_chars_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                htp_unwanted_t::HTP_UNWANTED_400,
-            );
-            htp_config_set_requestline_leading_whitespace_unwanted(
-                &mut cfg,
-                htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-                htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            );
-        }
-        _ => return Status::ERROR,
-    }
-    // Remember the personality
-    (*cfg).server_personality = personality;
-    Status::OK
-}
-
-/// Configures whether transactions will be automatically destroyed once they
-/// are processed and all callbacks invoked. This option is appropriate for
-/// programs that process transactions as they are processed.
-pub unsafe fn htp_config_set_tx_auto_destroy(mut cfg: *mut htp_cfg_t, tx_auto_destroy: i32) {
-    if cfg.is_null() {
-        return;
-    }
-    (*cfg).tx_auto_destroy = tx_auto_destroy;
 }
 
 fn convert_to_0_or_1(b: i32) -> i32 {
     if b != 0 {
         return 1;
     }
-    0
+    return 0;
 }
-
-/// Configures a best-fit map, which is used whenever characters longer than one byte
-/// need to be converted to a single-byte. By default a Windows 1252 best-fit map is used.
-/// The map is an list of triplets, the first 2 bytes being an UCS-2 character to map from,
-/// and the third byte being the single byte to map to. Make sure that your map contains
-/// the mappings to cover the full-width and half-width form characters (U+FF00-FFEF). The
-/// last triplet in the map must be all zeros (3 NUL bytes).
-pub fn htp_config_set_bestfit_map(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    map: *const core::ffi::c_void,
-) {
-    if ctx as u32 >= 3 {
-        return;
-    }
-    cfg.decoder_cfgs[ctx as usize].bestfit_map = map as *mut u8;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].bestfit_map = map as *mut u8;
-            i = i.wrapping_add(1)
+impl htp_cfg_t {
+    /// Destroy a configuration structure.
+    pub fn destroy(&mut self) {
+        unsafe {
+            htp_hooks::htp_hook_destroy(self.hook_request_start);
+            htp_hooks::htp_hook_destroy(self.hook_request_line);
+            htp_hooks::htp_hook_destroy(self.hook_request_uri_normalize);
+            htp_hooks::htp_hook_destroy(self.hook_request_header_data);
+            htp_hooks::htp_hook_destroy(self.hook_request_headers);
+            htp_hooks::htp_hook_destroy(self.hook_request_body_data);
+            htp_hooks::htp_hook_destroy(self.hook_request_file_data);
+            htp_hooks::htp_hook_destroy(self.hook_request_trailer);
+            htp_hooks::htp_hook_destroy(self.hook_request_trailer_data);
+            htp_hooks::htp_hook_destroy(self.hook_request_complete);
+            htp_hooks::htp_hook_destroy(self.hook_response_start);
+            htp_hooks::htp_hook_destroy(self.hook_response_line);
+            htp_hooks::htp_hook_destroy(self.hook_response_header_data);
+            htp_hooks::htp_hook_destroy(self.hook_response_headers);
+            htp_hooks::htp_hook_destroy(self.hook_response_body_data);
+            htp_hooks::htp_hook_destroy(self.hook_response_trailer);
+            htp_hooks::htp_hook_destroy(self.hook_response_trailer_data);
+            htp_hooks::htp_hook_destroy(self.hook_response_complete);
+            htp_hooks::htp_hook_destroy(self.hook_transaction_complete);
+            htp_hooks::htp_hook_destroy(self.hook_log);
+            config_free(self);
         }
-    };
-}
-
-/// Sets the replacement character that will be used to in the lossy best-fit
-/// mapping from multi-byte to single-byte streams. The question mark character
-/// is used as the default replacement byte.
-pub fn htp_config_set_bestfit_replacement_byte(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    b: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
     }
-    cfg.decoder_cfgs[ctx as usize].bestfit_replacement_byte = b as u8;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].bestfit_replacement_byte = b as u8;
-            i = i.wrapping_add(1)
+
+    /// Registers a callback that is invoked every time there is a log message with
+    /// severity equal and higher than the configured log level.
+    pub unsafe fn register_log(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_log,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Adds the built-in Multipart parser to the configuration. This parser will extract information
+    /// stored in request bodies, when they are in multipart/form-data format.
+    pub fn register_multipart_parser(&mut self) {
+        unsafe {
+            self.register_request_headers(Some(
+                htp_content_handlers::htp_ch_multipart_callback_request_headers
+                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
+            ));
         }
-    };
-}
-
-/// Configures how the server handles to invalid URL encoding.
-pub fn htp_config_set_url_encoding_invalid_handling(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    handling: htp_url_encoding_handling_t,
-) {
-    if ctx as u32 >= 3 {
-        return;
     }
-    cfg.decoder_cfgs[ctx as usize].url_encoding_invalid_handling = handling;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].url_encoding_invalid_handling = handling;
-            i = i.wrapping_add(1)
+
+    /// Registers a REQUEST_COMPLETE callback.
+    pub unsafe fn register_request_complete(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_complete,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a REQUEST_BODY_DATA callback.
+    pub unsafe fn register_request_body_data(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_body_data,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a REQUEST_HEADER_DATA callback.
+    pub unsafe fn register_request_header_data(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_header_data,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a REQUEST_HEADERS callback.
+    pub unsafe fn register_request_headers(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_headers,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a REQUEST_LINE callback.
+    pub unsafe fn register_request_line(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_line,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a REQUEST_START callback, which is invoked every time a new
+    /// request begins and before any parsing is done.
+    pub unsafe fn register_request_start(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_start,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a HTP_REQUEST_TRAILER callback.
+    pub unsafe fn register_request_trailer(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_trailer,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a REQUEST_TRAILER_DATA callback.
+    pub unsafe fn register_request_trailer_data(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_request_trailer_data,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_BODY_DATA callback.
+    pub unsafe fn register_response_body_data(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_body_data,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_COMPLETE callback.
+    pub unsafe fn register_response_complete(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_complete,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_HEADER_DATA callback.
+    pub unsafe fn register_response_header_data(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_header_data,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_HEADERS callback.
+    #[allow(dead_code)]
+    pub unsafe fn register_response_headers(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_headers,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_LINE callback.
+    #[allow(dead_code)]
+    pub unsafe fn register_response_line(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_line,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_START callback.
+    pub unsafe fn register_response_start(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_start,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_TRAILER callback.
+    pub unsafe fn register_response_trailer(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_trailer,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a RESPONSE_TRAILER_DATA callback.
+    pub unsafe fn register_response_trailer_data(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_response_trailer_data,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Registers a TRANSACTION_COMPLETE callback.
+    pub unsafe fn register_transaction_complete(
+        &mut self,
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    ) {
+        htp_hooks::htp_hook_register(
+            &mut self.hook_transaction_complete,
+            ::std::mem::transmute::<
+                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+                htp_callback_fn_t,
+            >(callback_fn),
+        );
+    }
+
+    /// Adds the built-in Urlencoded parser to the configuration. The parser will
+    /// parse query strings and request bodies with the appropriate MIME type.
+    #[allow(dead_code)]
+    pub fn register_urlencoded_parser(&mut self) {
+        unsafe {
+            self.register_request_line(Some(
+                htp_content_handlers::htp_ch_urlencoded_callback_request_line
+                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
+            ));
+            self.register_request_headers(Some(
+                htp_content_handlers::htp_ch_urlencoded_callback_request_headers
+                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
+            ));
         }
-    };
-}
-
-/// Configures the handling of raw NUL bytes. If enabled, raw NUL terminates strings.
-pub fn htp_config_set_nul_raw_terminates(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
     }
-    cfg.decoder_cfgs[ctx as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures the maximum size of the buffer LibHTP will use when all data is not available
+    /// in the current buffer (e.g., a very long header line that might span several packets). This
+    /// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
+    /// soft_limit is NOT IMPLEMENTED.
+    pub fn set_field_limits(&mut self, soft_limit: usize, hard_limit: usize) {
+        self.field_limit_soft = soft_limit;
+        self.field_limit_hard = hard_limit;
+    }
+
+    /// Configures the maximum memlimit LibHTP will pass to liblzma.
+    pub fn set_lzma_memlimit(&mut self, memlimit: usize) {
+        self.lzma_memlimit = memlimit;
+    }
+
+    /// Configures the maximum compression bomb size LibHTP will decompress.
+    pub fn set_compression_bomb_limit(&mut self, bomblimit: usize) {
+        if bomblimit > 2147483647 {
+            self.compression_bomb_limit = 2147483647
+        } else {
+            self.compression_bomb_limit = bomblimit as i32
+        };
+    }
+
+    /// Enable or disable request cookie parsing. Enabled by default.
+    pub fn set_parse_request_cookies(&mut self, parse_request_cookies: i32) {
+        self.parse_request_cookies = parse_request_cookies;
+    }
+
+    /// Configure desired server personality.
+    /// Returns Status::OK if the personality is supported, Status::ERROR if it isn't.
+    pub fn set_server_personality(&mut self, personality: htp_server_personality_t) -> Status {
+        match personality {
+            htp_server_personality_t::HTP_SERVER_MINIMAL => {
+                self.parse_request_line = Some(
+                    htp_request_generic::htp_parse_request_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_generic::htp_process_request_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                )
+            }
+            htp_server_personality_t::HTP_SERVER_GENERIC => {
+                self.parse_request_line = Some(
+                    htp_request_generic::htp_parse_request_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_generic::htp_process_request_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+            }
+            htp_server_personality_t::HTP_SERVER_IDS => {
+                self.parse_request_line = Some(
+                    htp_request_generic::htp_parse_request_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_generic::htp_process_request_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_convert_lowercase(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_utf8_convert_bestfit(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_requestline_leading_whitespace_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
+                );
+            }
+            htp_server_personality_t::HTP_SERVER_APACHE_2 => {
+                self.parse_request_line = Some(
+                    htp_request_apache_2_2::htp_parse_request_line_apache_2_2
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_apache_2_2::htp_process_request_header_apache_2_2
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
+                self.set_url_encoding_invalid_handling(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
+                );
+                self.set_url_encoding_invalid_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_400,
+                );
+                self.set_control_chars_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
+                );
+                self.set_requestline_leading_whitespace_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                    htp_unwanted_t::HTP_UNWANTED_400,
+                );
+            }
+            htp_server_personality_t::HTP_SERVER_IIS_5_1 => {
+                self.parse_request_line = Some(
+                    htp_request_generic::htp_parse_request_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_generic::htp_process_request_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
+                self.set_url_encoding_invalid_handling(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
+                );
+                self.set_control_chars_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
+                );
+                self.set_requestline_leading_whitespace_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
+                );
+            }
+            htp_server_personality_t::HTP_SERVER_IIS_6_0 => {
+                self.parse_request_line = Some(
+                    htp_request_generic::htp_parse_request_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_generic::htp_process_request_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_url_encoding_invalid_handling(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
+                );
+                self.set_u_encoding_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_400,
+                );
+                self.set_control_chars_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_400,
+                );
+                self.set_requestline_leading_whitespace_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
+                );
+            }
+            htp_server_personality_t::HTP_SERVER_IIS_7_0 | htp_server_personality_t::HTP_SERVER_IIS_7_5 => {
+                self.parse_request_line = Some(
+                    htp_request_generic::htp_parse_request_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_request_header = Some(
+                    htp_request_generic::htp_process_request_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.parse_response_line = Some(
+                    htp_response_generic::htp_parse_response_line_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                        ) -> Status,
+                );
+                self.process_response_header = Some(
+                    htp_response_generic::htp_process_response_header_generic
+                        as unsafe extern "C" fn(
+                            _: *mut htp_connection_parser::htp_connp_t,
+                            _: *mut u8,
+                            _: usize,
+                        ) -> Status,
+                );
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_url_encoding_invalid_handling(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
+                );
+                self.set_url_encoding_invalid_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_400,
+                );
+                self.set_control_chars_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
+                    htp_unwanted_t::HTP_UNWANTED_400,
+                );
+                self.set_requestline_leading_whitespace_unwanted(
+                    htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
+                );
+            }
+            _ => return Status::ERROR,
         }
-    };
-}
-
-/// Configures how the server reacts to encoded NUL bytes. Some servers will stop at
-/// at NUL, while some will respond with 400 or 404. When the termination option is not
-/// used, the NUL byte will remain in the path.
-pub fn htp_config_set_nul_encoded_terminates(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        // Remember the personality
+        self.server_personality = personality;
+        return Status::OK;
     }
-    cfg.decoder_cfgs[ctx as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures whether transactions will be automatically destroyed once they
+    /// are processed and all callbacks invoked. This option is appropriate for
+    /// programs that process transactions as they are processed.
+    pub fn set_tx_auto_destroy(&mut self, tx_auto_destroy: i32) {
+        self.tx_auto_destroy = tx_auto_destroy;
+    }
+
+    /// Configures a best-fit map, which is used whenever characters longer than one byte
+    /// need to be converted to a single-byte. By default a Windows 1252 best-fit map is used.
+    /// The map is an list of triplets, the first 2 bytes being an UCS-2 character to map from,
+    /// and the third byte being the single byte to map to. Make sure that your map contains
+    /// the mappings to cover the full-width and half-width form characters (U+FF00-FFEF). The
+    /// last triplet in the map must be all zeros (3 NUL bytes).
+    pub fn set_bestfit_map(&mut self, ctx: htp_decoder_ctx_t, map: *const core::ffi::c_void) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures whether %u-encoded sequences are decoded. Such sequences
-/// will be treated as invalid URL encoding if decoding is not desirable.
-pub fn htp_config_set_u_encoding_decode(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].bestfit_map = map as *mut u8;
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].bestfit_map = map as *mut u8;
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].u_encoding_decode = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].u_encoding_decode = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Sets the replacement character that will be used to in the lossy best-fit
+    /// mapping from multi-byte to single-byte streams. The question mark character
+    /// is used as the default replacement byte.
+    pub fn set_bestfit_replacement_byte(&mut self, ctx: htp_decoder_ctx_t, b: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures whether backslash characters are treated as path segment separators. They
-/// are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
-/// such as "/one\two/three" will be converted to "/one/two/three".
-/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub fn htp_config_set_backslash_convert_slashes(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].bestfit_replacement_byte = b as u8;
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].bestfit_replacement_byte = b as u8;
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    (*cfg).decoder_cfgs[ctx as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            (*cfg).decoder_cfgs[i as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures how the server handles to invalid URL encoding.
+    pub fn set_url_encoding_invalid_handling(
+        &mut self,
+        ctx: htp_decoder_ctx_t,
+        handling: htp_url_encoding_handling_t,
+    ) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures whether encoded path segment separators will be decoded. Apache does not do
-/// this by default, but IIS does. If enabled, a path such as "/one%2ftwo" will be normalized
-/// to "/one/two". If the backslash_separators option is also enabled, encoded backslash
-/// characters will be converted too (and subsequently normalized to forward slashes). Implemented
-/// only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub fn htp_config_set_path_separators_decode(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].url_encoding_invalid_handling = handling;
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].url_encoding_invalid_handling = handling;
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].path_separators_decode = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].path_separators_decode = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures the handling of raw NUL bytes. If enabled, raw NUL terminates strings.
+    pub fn set_nul_raw_terminates(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures whether consecutive path segment separators will be compressed. When enabled, a path
-/// such as "/one//two" will be normalized to "/one/two". Backslash conversion and path segment separator
-/// decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
-/// will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
-/// htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub fn htp_config_set_path_separators_compress(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].path_separators_compress = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].path_separators_compress = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures how the server reacts to encoded NUL bytes. Some servers will stop at
+    /// at NUL, while some will respond with 400 or 404. When the termination option is not
+    /// used, the NUL byte will remain in the path.
+    pub fn set_nul_encoded_terminates(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures whether plus characters are converted to spaces when decoding URL-encoded strings. This
-/// is appropriate to do for parameters, but not for URLs. Only applies to contexts where decoding
-/// is taking place.
-pub fn htp_config_set_plusspace_decode(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].plusspace_decode = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].plusspace_decode = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures whether %u-encoded sequences are decoded. Such sequences
+    /// will be treated as invalid URL encoding if decoding is not desirable.
+    pub fn set_u_encoding_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures whether input data will be converted to lowercase. Useful when set on the
-/// htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with
-/// case-insensitive filesystems.
-/// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub fn htp_config_set_convert_lowercase(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].u_encoding_decode = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].u_encoding_decode = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].convert_lowercase = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].convert_lowercase = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures whether backslash characters are treated as path segment separators. They
+    /// are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
+    /// such as "/one\two/three" will be converted to "/one/two/three".
+    /// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+    pub fn set_backslash_convert_slashes(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Controls whether the data should be treated as UTF-8 and converted to a single-byte
-/// stream using best-fit mapping. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-pub fn htp_config_set_utf8_convert_bestfit(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    enabled: i32,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].backslash_convert_slashes =
+                    convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
-            i = i.wrapping_add(1)
+
+    /// Configures whether encoded path segment separators will be decoded. Apache does not do
+    /// this by default, but IIS does. If enabled, a path such as "/one%2ftwo" will be normalized
+    /// to "/one/two". If the backslash_separators option is also enabled, encoded backslash
+    /// characters will be converted too (and subsequently normalized to forward slashes). Implemented
+    /// only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+    pub fn set_path_separators_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures reaction to %u-encoded sequences in input data.
-pub fn htp_config_set_u_encoding_unwanted(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    unwanted: htp_unwanted_t,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].path_separators_decode = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].path_separators_decode = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
-            i = i.wrapping_add(1)
+
+    /// Configures whether consecutive path segment separators will be compressed. When enabled, a path
+    /// such as "/one//two" will be normalized to "/one/two". Backslash conversion and path segment separator
+    /// decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
+    /// will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
+    /// htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+    pub fn set_path_separators_compress(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Controls reaction to raw control characters in the data.
-pub fn htp_config_set_control_chars_unwanted(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    unwanted: htp_unwanted_t,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].path_separators_compress = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].path_separators_compress = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
-            i = i.wrapping_add(1)
+
+    /// Configures whether plus characters are converted to spaces when decoding URL-encoded strings. This
+    /// is appropriate to do for parameters, but not for URLs. Only applies to contexts where decoding
+    /// is taking place.
+    pub fn set_plusspace_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures how the server reacts to invalid URL encoding.
-pub fn htp_config_set_url_encoding_invalid_unwanted(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    unwanted: htp_unwanted_t,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].plusspace_decode = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].plusspace_decode = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted = unwanted;
-    if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
-        let mut i: usize = 0;
-        while i < 3 {
-            cfg.decoder_cfgs[i as usize].url_encoding_invalid_unwanted = unwanted;
-            i = i.wrapping_add(1)
+
+    /// Configures whether input data will be converted to lowercase. Useful when set on the
+    /// htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with
+    /// case-insensitive filesystems.
+    /// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+    pub fn set_convert_lowercase(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
         }
-    };
-}
-
-/// Configures how the server reacts to leading whitespace on the request line.
-pub fn htp_config_set_requestline_leading_whitespace_unwanted(
-    mut cfg: &mut htp_cfg_t,
-    ctx: htp_decoder_ctx_t,
-    unwanted: htp_unwanted_t,
-) {
-    if ctx as u32 >= 3 {
-        return;
+        self.decoder_cfgs[ctx as usize].convert_lowercase = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].convert_lowercase = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
     }
-    cfg.requestline_leading_whitespace_unwanted = unwanted;
-}
 
-/// Configures many layers of compression we try to decompress.
-/// limit: 0 disables limit
-pub fn htp_config_set_response_decompression_layer_limit(mut cfg: &mut htp_cfg_t, limit: i32) {
-    cfg.response_decompression_layer_limit = limit;
+    /// Controls whether the data should be treated as UTF-8 and converted to a single-byte
+    /// stream using best-fit mapping. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+    pub fn set_utf8_convert_bestfit(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+        if ctx as u32 >= 3 {
+            return;
+        }
+        self.decoder_cfgs[ctx as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
+                i = i.wrapping_add(1)
+            }
+        };
+    }
+
+    /// Configures reaction to %u-encoded sequences in input data.
+    pub fn set_u_encoding_unwanted(&mut self, ctx: htp_decoder_ctx_t, unwanted: htp_unwanted_t) {
+        if ctx as u32 >= 3 {
+            return;
+        }
+        self.decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
+                i = i.wrapping_add(1)
+            }
+        };
+    }
+
+    /// Controls reaction to raw control characters in the data.
+    pub fn set_control_chars_unwanted(&mut self, ctx: htp_decoder_ctx_t, unwanted: htp_unwanted_t) {
+        if ctx as u32 >= 3 {
+            return;
+        }
+        self.decoder_cfgs[ctx as usize].u_encoding_unwanted = unwanted;
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].u_encoding_unwanted = unwanted;
+                i = i.wrapping_add(1)
+            }
+        };
+    }
+
+    /// Configures how the server reacts to invalid URL encoding.
+    pub fn set_url_encoding_invalid_unwanted(
+        &mut self,
+        ctx: htp_decoder_ctx_t,
+        unwanted: htp_unwanted_t,
+    ) {
+        if ctx as u32 >= 3 {
+            return;
+        }
+        self.decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted = unwanted;
+        if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
+            let mut i: usize = 0;
+            while i < 3 {
+                self.decoder_cfgs[i as usize].url_encoding_invalid_unwanted = unwanted;
+                i = i.wrapping_add(1)
+            }
+        };
+    }
+
+    /// Configures how the server reacts to leading whitespace on the request line.
+    pub fn set_requestline_leading_whitespace_unwanted(
+        &mut self,
+        ctx: htp_decoder_ctx_t,
+        unwanted: htp_unwanted_t,
+    ) {
+        if ctx as u32 >= 3 {
+            return;
+        }
+        self.requestline_leading_whitespace_unwanted = unwanted;
+    }
+
+    /// Configures many layers of compression we try to decompress.
+    /// limit: 0 disables limit
+    pub fn set_response_decompression_layer_limit(&mut self, limit: i32) {
+        self.response_decompression_layer_limit = limit;
+    }
 }
