@@ -28,11 +28,11 @@ fn main() {
         cbindgen::Config::from_root_or_default(crate_dir.clone()),
     )
     .expect("Unable to generate bindings")
-    .write_to_file("htp.h");
+    .write_to_file("htp/htp.h");
 
     // Write a version.h to include with the c_api
     let mut hdr_path = PathBuf::from(crate_dir.clone());
-    hdr_path.push("version.h");
+    hdr_path.push("htp/version.h");
     std::fs::write(
         hdr_path,
         format!(

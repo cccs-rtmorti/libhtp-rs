@@ -7,8 +7,6 @@ all:
 	cargo build --features cbindgen
 	mkdir -p htp/.libs
 	mkdir -p htp/lzma
-	mv htp.h htp/
-	mv version.h htp/
 	cp src/c_api/forward_decls.h htp/
 	cp src/c_api/libhtp.la htp/
 	cp src/c_api/7zTypes.h htp/lzma/
