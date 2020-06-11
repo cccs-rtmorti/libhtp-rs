@@ -1056,7 +1056,8 @@ impl htp_cfg_t {
                     htp_unwanted_t::HTP_UNWANTED_IGNORE,
                 );
             }
-            htp_server_personality_t::HTP_SERVER_IIS_7_0 | htp_server_personality_t::HTP_SERVER_IIS_7_5 => {
+            htp_server_personality_t::HTP_SERVER_IIS_7_0
+            | htp_server_personality_t::HTP_SERVER_IIS_7_5 => {
                 self.parse_request_line = Some(
                     htp_request_generic::htp_parse_request_line_generic
                         as unsafe extern "C" fn(
