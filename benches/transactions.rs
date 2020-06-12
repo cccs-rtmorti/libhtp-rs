@@ -8,6 +8,7 @@ use std::ffi::CString;
 use std::fmt;
 use std::iter::IntoIterator;
 use std::ops::Drop;
+use std::time::Duration;
 
 macro_rules! cstr {
     ( $x:expr ) => {{
@@ -194,7 +195,11 @@ impl Drop for Test {
     }
 }
 
-criterion_group!(benches, small_transaction);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().measurement_time(Duration::new(2, 0)).sample_size(50).without_plots();
+    targets = small_transaction
+}
 criterion_main!(benches);
 
 pub fn small_transaction(c: &mut Criterion) {
