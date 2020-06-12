@@ -1,9 +1,9 @@
 use crate::bstr::{bstr_len, bstr_ptr};
+use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_hooks, htp_list, htp_request, htp_transaction,
     htp_utf8_decoder, Status,
 };
-
 use bitflags;
 
 pub const HTP_VERSION_STRING_FULL: &'static str =
@@ -1491,7 +1491,9 @@ pub unsafe fn htp_decode_path_inplace(
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
     let mut previous_was_separator: i32 = 0;
-    let mut current_block_104: u64;
+    let encoding_handling = (*cfg).decoder_cfgs
+        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+        .url_encoding_invalid_handling;
     while rpos < len && wpos < len {
         let mut c: i32 = *data.offset(rpos as isize) as i32;
         // Decode encoded characters
@@ -1575,75 +1577,22 @@ pub unsafe fn htp_decode_path_inplace(
                                         .url_encoding_invalid_unwanted
                                         as i32
                                 }
-                                match (*cfg).decoder_cfgs
-                                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                    .url_encoding_invalid_handling
-                                    as u32
+                                rpos = rpos.wrapping_add(1);
+                                if encoding_handling
+                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
                                 {
-                                    1 => {
-                                        current_block_104 = 5193467589189724848;
-                                        match current_block_104 {
-                                            15044848815912959287 => {
-                                                // Leave the percent character in output
-                                                rpos = rpos.wrapping_add(1)
-                                            }
-                                            5193467589189724848 => {
-                                                // Do not place anything in output; eat
-                                                // the percent character
-                                                rpos = rpos.wrapping_add(1);
-                                                continue;
-                                            }
-                                            _ => {
-                                                // Decode invalid %u encoding
-                                                c = decode_u_encoding_path(
-                                                    cfg,
-                                                    tx,
-                                                    &mut *data
-                                                        .offset(rpos.wrapping_add(2) as isize),
-                                                );
-                                                rpos = (rpos).wrapping_add(6)
-                                            }
-                                        }
-                                    }
-                                    0 => {
-                                        current_block_104 = 15044848815912959287;
-                                        match current_block_104 {
-                                            15044848815912959287 => rpos = rpos.wrapping_add(1),
-                                            5193467589189724848 => {
-                                                rpos = rpos.wrapping_add(1);
-                                                continue;
-                                            }
-                                            _ => {
-                                                c = decode_u_encoding_path(
-                                                    cfg,
-                                                    tx,
-                                                    &mut *data
-                                                        .offset(rpos.wrapping_add(2) as isize),
-                                                );
-                                                rpos = (rpos).wrapping_add(6)
-                                            }
-                                        }
-                                    }
-                                    2 => {
-                                        current_block_104 = 3531489836707249550;
-                                        match current_block_104 {
-                                            15044848815912959287 => rpos = rpos.wrapping_add(1),
-                                            5193467589189724848 => {
-                                                rpos = rpos.wrapping_add(1);
-                                                continue;
-                                            }
-                                            _ => {
-                                                c = decode_u_encoding_path(
-                                                    cfg,
-                                                    tx,
-                                                    &mut *data
-                                                        .offset(rpos.wrapping_add(2) as isize),
-                                                );
-                                                rpos = (rpos).wrapping_add(6)
-                                            }
-                                        }
-                                    }
-                                    _ => {}
+                                    // Do not place anything in output; eat
+                                    // the percent character
+                                    continue;
+                                } else if encoding_handling
+                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+                                {
+                                    c = decode_u_encoding_path(
+                                        cfg,
+                                        tx,
+                                        &mut *data.offset(rpos.wrapping_add(1) as isize),
+                                    );
+                                    rpos = (rpos).wrapping_add(5)
                                 }
                             }
                         } else {
@@ -1659,54 +1608,13 @@ pub unsafe fn htp_decode_path_inplace(
                                     .url_encoding_invalid_unwanted
                                     as i32
                             }
-                            match (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .url_encoding_invalid_handling
-                                as u32
+                            rpos = rpos.wrapping_add(1);
+                            if encoding_handling
+                                == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
                             {
-                                1 => {
-                                    current_block_104 = 15984154738040588190;
-                                    match current_block_104 {
-                                        11934984557441853882 => {
-                                            // Leave the percent character in output
-                                            rpos = rpos.wrapping_add(1)
-                                        }
-                                        15984154738040588190 => {
-                                            // Do not place anything in output; eat
-                                            // the percent character
-                                            rpos = rpos.wrapping_add(1);
-                                            continue;
-                                        }
-                                        _ => {
-                                            // Cannot decode, because there's not enough data.
-                                            // Leave the percent character in output
-                                            rpos = rpos.wrapping_add(1)
-                                        }
-                                    }
-                                }
-                                0 => {
-                                    current_block_104 = 11934984557441853882;
-                                    match current_block_104 {
-                                        11934984557441853882 => rpos = rpos.wrapping_add(1),
-                                        15984154738040588190 => {
-                                            rpos = rpos.wrapping_add(1);
-                                            continue;
-                                        }
-                                        _ => rpos = rpos.wrapping_add(1),
-                                    }
-                                }
-                                2 => {
-                                    current_block_104 = 14856184476078576297;
-                                    match current_block_104 {
-                                        11934984557441853882 => rpos = rpos.wrapping_add(1),
-                                        15984154738040588190 => {
-                                            rpos = rpos.wrapping_add(1);
-                                            continue;
-                                        }
-                                        _ => rpos = rpos.wrapping_add(1),
-                                    }
-                                }
-                                _ => {}
+                                // Do not place anything in output; eat
+                                // the percent character
+                                continue;
                             }
                         }
                     }
@@ -1831,54 +1739,11 @@ pub unsafe fn htp_decode_path_inplace(
                         .url_encoding_invalid_unwanted
                         as i32
                 }
-                match (*cfg).decoder_cfgs
-                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .url_encoding_invalid_handling as u32
-                {
-                    1 => {
-                        current_block_104 = 5650022063725743123;
-                        match current_block_104 {
-                            10614498797110429124 => {
-                                // Cannot decode, because there's not enough data.
-                                // Leave the percent character in output.
-                                // TODO Configurable handling.
-                                rpos = rpos.wrapping_add(1)
-                            }
-                            5986777620604961003 => {
-                                // Leave the percent character in output
-                                rpos = rpos.wrapping_add(1)
-                            }
-                            _ => {
-                                // Do not place anything in output; eat
-                                // the percent character
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                        }
-                    }
-                    0 => {
-                        current_block_104 = 5986777620604961003;
-                        match current_block_104 {
-                            10614498797110429124 => rpos = rpos.wrapping_add(1),
-                            5986777620604961003 => rpos = rpos.wrapping_add(1),
-                            _ => {
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                        }
-                    }
-                    2 => {
-                        current_block_104 = 10614498797110429124;
-                        match current_block_104 {
-                            10614498797110429124 => rpos = rpos.wrapping_add(1),
-                            5986777620604961003 => rpos = rpos.wrapping_add(1),
-                            _ => {
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                        }
-                    }
-                    _ => {}
+                rpos = rpos.wrapping_add(1);
+                if encoding_handling == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT {
+                    // Do not place anything in output; eat
+                    // the percent character
+                    continue;
                 }
             }
         } else {
@@ -2040,7 +1905,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
     let len: usize = bstr_len(input);
     let mut rpos: usize = 0;
     let mut wpos: usize = 0;
-    let mut current_block_74: u64;
+    let encoding_handling = (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling;
     while rpos < len && wpos < len {
         let mut c: i32 = *data.offset(rpos as isize) as i32;
         // Decode encoded characters.
@@ -2102,76 +1967,22 @@ pub unsafe fn htp_urldecode_inplace_ex(
                                         .url_encoding_invalid_unwanted
                                         as i32
                                 }
-                                match (*cfg).decoder_cfgs[ctx as usize]
-                                    .url_encoding_invalid_handling
-                                    as u32
+                                rpos = rpos.wrapping_add(1);
+                                if encoding_handling
+                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
                                 {
-                                    1 => {
-                                        current_block_74 = 15769233237055051138;
-                                        match current_block_74 {
-                                            10436515788539709011 => {
-                                                // Leave the % in output.
-                                                rpos = rpos.wrapping_add(1)
-                                            }
-                                            15769233237055051138 => {
-                                                // Do not place anything in output; consume the %.
-                                                rpos = rpos.wrapping_add(1);
-                                                continue;
-                                            }
-                                            _ => {
-                                                // Decode invalid %u encoding.
-                                                c = decode_u_encoding_params(
-                                                    cfg,
-                                                    ctx,
-                                                    &mut *data
-                                                        .offset(rpos.wrapping_add(2) as isize),
-                                                    flags,
-                                                );
-                                                rpos = (rpos).wrapping_add(6)
-                                            }
-                                        }
-                                    }
-                                    0 => {
-                                        current_block_74 = 10436515788539709011;
-                                        match current_block_74 {
-                                            10436515788539709011 => rpos = rpos.wrapping_add(1),
-                                            15769233237055051138 => {
-                                                rpos = rpos.wrapping_add(1);
-                                                continue;
-                                            }
-                                            _ => {
-                                                c = decode_u_encoding_params(
-                                                    cfg,
-                                                    ctx,
-                                                    &mut *data
-                                                        .offset(rpos.wrapping_add(2) as isize),
-                                                    flags,
-                                                );
-                                                rpos = (rpos).wrapping_add(6)
-                                            }
-                                        }
-                                    }
-                                    2 => {
-                                        current_block_74 = 16443981440205402410;
-                                        match current_block_74 {
-                                            10436515788539709011 => rpos = rpos.wrapping_add(1),
-                                            15769233237055051138 => {
-                                                rpos = rpos.wrapping_add(1);
-                                                continue;
-                                            }
-                                            _ => {
-                                                c = decode_u_encoding_params(
-                                                    cfg,
-                                                    ctx,
-                                                    &mut *data
-                                                        .offset(rpos.wrapping_add(2) as isize),
-                                                    flags,
-                                                );
-                                                rpos = (rpos).wrapping_add(6)
-                                            }
-                                        }
-                                    }
-                                    _ => {}
+                                    // Do not place anything in output; consume the %.
+                                    continue;
+                                } else if encoding_handling
+                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+                                {
+                                    c = decode_u_encoding_params(
+                                        cfg,
+                                        ctx,
+                                        &mut *data.offset(rpos.wrapping_add(1) as isize),
+                                        flags,
+                                    );
+                                    rpos = (rpos).wrapping_add(5)
                                 }
                             }
                         } else {
@@ -2184,52 +1995,12 @@ pub unsafe fn htp_urldecode_inplace_ex(
                                     .url_encoding_invalid_unwanted
                                     as i32
                             }
-                            match (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling
-                                as u32
+                            rpos = rpos.wrapping_add(1);
+                            if encoding_handling
+                                == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
                             {
-                                1 => {
-                                    current_block_74 = 16383797545558020236;
-                                    match current_block_74 {
-                                        16032006980801283503 => {
-                                            // Cannot decode because there's not enough data.
-                                            // Leave the % in output.
-                                            // TODO Configurable handling of %, u, etc.
-                                            rpos = rpos.wrapping_add(1)
-                                        }
-                                        8223123178938535296 => {
-                                            // Leave the % in output.
-                                            rpos = rpos.wrapping_add(1)
-                                        }
-                                        _ => {
-                                            // Do not place anything in output; consume the %.
-                                            rpos = rpos.wrapping_add(1);
-                                            continue;
-                                        }
-                                    }
-                                }
-                                0 => {
-                                    current_block_74 = 8223123178938535296;
-                                    match current_block_74 {
-                                        16032006980801283503 => rpos = rpos.wrapping_add(1),
-                                        8223123178938535296 => rpos = rpos.wrapping_add(1),
-                                        _ => {
-                                            rpos = rpos.wrapping_add(1);
-                                            continue;
-                                        }
-                                    }
-                                }
-                                2 => {
-                                    current_block_74 = 16032006980801283503;
-                                    match current_block_74 {
-                                        16032006980801283503 => rpos = rpos.wrapping_add(1),
-                                        8223123178938535296 => rpos = rpos.wrapping_add(1),
-                                        _ => {
-                                            rpos = rpos.wrapping_add(1);
-                                            continue;
-                                        }
-                                    }
-                                }
-                                _ => {}
+                                // Do not place anything in output; consume the %.
+                                continue;
                             }
                         }
                     }
@@ -2261,59 +2032,17 @@ pub unsafe fn htp_urldecode_inplace_ex(
                                 .url_encoding_invalid_unwanted
                                 as i32
                         }
-                        match (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling as u32
+                        rpos = rpos.wrapping_add(1);
+                        if encoding_handling
+                            == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
                         {
-                            1 => {
-                                current_block_74 = 15028968826697170054;
-                                match current_block_74 {
-                                    7617508444621897972 => {
-                                        // Leave the % in output.
-                                        rpos = rpos.wrapping_add(1)
-                                    }
-                                    15028968826697170054 => {
-                                        // Do not place anything in output; consume the %.
-                                        rpos = rpos.wrapping_add(1);
-                                        continue;
-                                    }
-                                    _ => {
-                                        // Decode.
-                                        c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize))
-                                            as i32;
-                                        rpos = (rpos).wrapping_add(3)
-                                    }
-                                }
-                            }
-                            0 => {
-                                current_block_74 = 7617508444621897972;
-                                match current_block_74 {
-                                    7617508444621897972 => rpos = rpos.wrapping_add(1),
-                                    15028968826697170054 => {
-                                        rpos = rpos.wrapping_add(1);
-                                        continue;
-                                    }
-                                    _ => {
-                                        c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize))
-                                            as i32;
-                                        rpos = (rpos).wrapping_add(3)
-                                    }
-                                }
-                            }
-                            2 => {
-                                current_block_74 = 3516197883607697062;
-                                match current_block_74 {
-                                    7617508444621897972 => rpos = rpos.wrapping_add(1),
-                                    15028968826697170054 => {
-                                        rpos = rpos.wrapping_add(1);
-                                        continue;
-                                    }
-                                    _ => {
-                                        c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize))
-                                            as i32;
-                                        rpos = (rpos).wrapping_add(3)
-                                    }
-                                }
-                            }
-                            _ => {}
+                            // Do not place anything in output; consume the %.
+                            continue;
+                        } else if encoding_handling
+                            == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+                        {
+                            c = x2c(&mut *data.offset(rpos as isize)) as i32;
+                            rpos = (rpos).wrapping_add(2)
                         }
                     }
                 }
@@ -2326,50 +2055,10 @@ pub unsafe fn htp_urldecode_inplace_ex(
                     *expected_status_code =
                         (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted as i32
                 }
-                match (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling as u32 {
-                    1 => {
-                        current_block_74 = 8697558811166951253;
-                        match current_block_74 {
-                            13503558473217943653 => {
-                                // Cannot decode because there's not enough data.
-                                // Leave the % in output.
-                                // TODO Configurable handling of %, etc.
-                                rpos = rpos.wrapping_add(1)
-                            }
-                            821486359641935908 => {
-                                // Leave the % in output.
-                                rpos = rpos.wrapping_add(1)
-                            }
-                            _ => {
-                                // Do not place anything in output; consume the %.
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                        }
-                    }
-                    0 => {
-                        current_block_74 = 821486359641935908;
-                        match current_block_74 {
-                            13503558473217943653 => rpos = rpos.wrapping_add(1),
-                            821486359641935908 => rpos = rpos.wrapping_add(1),
-                            _ => {
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                        }
-                    }
-                    2 => {
-                        current_block_74 = 13503558473217943653;
-                        match current_block_74 {
-                            13503558473217943653 => rpos = rpos.wrapping_add(1),
-                            821486359641935908 => rpos = rpos.wrapping_add(1),
-                            _ => {
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                        }
-                    }
-                    _ => {}
+                rpos = rpos.wrapping_add(1);
+                if encoding_handling == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT {
+                    // Do not place anything in output; consume the %.
+                    continue;
                 }
             }
             // Did we get an encoded NUL byte?
