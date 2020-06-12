@@ -2,12 +2,6 @@ use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::{bstr, htp_base64, htp_connection_parser, htp_transaction, htp_util, Status};
 
-extern "C" {
-    #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-}
-pub const _ISspace: i32 = 8192;
-
 /// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
 /// function will only understand a properly formatted protocol information. It does
 /// not try to be flexible.
@@ -74,9 +68,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
     let len: usize = bstr_len((*auth_header).value);
     let mut pos: usize = (i + 9) as usize;
     // Ignore whitespace
-    while pos < len
-        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace != 0
-    {
+    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
         pos = pos.wrapping_add(1)
     }
     if pos == len {
@@ -102,9 +94,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     let len: usize = bstr_len((*auth_header).value);
     let mut pos: usize = 5;
     // Ignore whitespace
-    while pos < len
-        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace != 0
-    {
+    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
         pos = pos.wrapping_add(1)
     }
     if pos == len {

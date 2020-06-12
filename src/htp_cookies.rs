@@ -1,11 +1,5 @@
 use crate::{bstr, htp_connection_parser, htp_table, Status};
 
-extern "C" {
-    #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-}
-pub const _ISspace: i32 = 8192;
-
 /// Parses a single v0 request cookie and places the results into tx->request_cookies.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error.
@@ -61,10 +55,7 @@ pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_co
     let mut pos: usize = 0;
     while pos < len {
         // Ignore whitespace at the beginning.
-        while pos < len
-            && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace
-                != 0
-        {
+        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
             pos = pos.wrapping_add(1)
         }
         if pos == len {

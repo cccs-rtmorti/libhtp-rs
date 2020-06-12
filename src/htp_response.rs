@@ -8,8 +8,6 @@ use crate::{
 
 extern "C" {
     #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
     fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn realloc(_: *mut core::ffi::c_void, _: libc::size_t) -> *mut core::ffi::c_void;
@@ -22,7 +20,6 @@ extern "C" {
         _: libc::size_t,
     ) -> *mut core::ffi::c_void;
 }
-pub const _ISdigit: i32 = 2048;
 
 pub type htp_time_t = libc::timeval;
 
@@ -336,7 +333,7 @@ unsafe fn data_probe_chunk_length(connp: *mut htp_connection_parser::htp_connp_t
     while i < len {
         let c: u8 = *data.offset(i as isize);
         if c == 0xd || c == 0xa || c == 0x20 || c == 0x9 || c == 0xb || c == 0xc {
-        } else if *(*__ctype_b_loc()).offset(c as isize) as i32 & _ISdigit != 0
+        } else if c.is_ascii_digit()
             || c >= 'a' as u8 && c <= 'f' as u8
             || c >= 'A' as u8 && c <= 'F' as u8
         {

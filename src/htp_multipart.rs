@@ -95,8 +95,6 @@ bitflags::bitflags! {
 }
 extern "C" {
     #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
     fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
@@ -137,8 +135,6 @@ extern "C" {
     #[no_mangle]
     fn strlen(_: *const libc::c_char) -> libc::size_t;
 }
-
-pub const _ISspace: i32 = 8192;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -388,10 +384,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
     // Main parameter parsing loop (once per parameter).
     while pos < len {
         // Ignore whitespace.
-        while pos < len
-            && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace
-                != 0
-        {
+        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
             pos = pos.wrapping_add(1)
         }
         if pos == len {
@@ -404,9 +397,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
             return Status::DECLINED;
         }
         pos = pos.wrapping_add(1);
-        while pos < len
-            && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace
-                != 0
+        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace()
         // Expecting a semicolon.
         // Go over the whitespace before parameter name.
         {
@@ -418,8 +409,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
         }
         let mut start: usize = pos;
         while pos < len
-            && (*(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace
-                == 0
+            && (!(*data.offset(pos as isize)).is_ascii_whitespace()
                 && *data.offset(pos as isize) != '=' as u8)
         // Found the starting position of the parameter name.
         // Look for the ending position.
@@ -431,9 +421,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
             return Status::DECLINED;
         }
         let param_type: i32 = htp_mpartp_cd_param_type(data, start, pos);
-        while pos < len
-            && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace
-                != 0
+        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace()
         // Ending position is in "pos" now.
         // Determine parameter type ("name", "filename", or other).
         // Ignore whitespace after parameter name, if any.
@@ -449,9 +437,7 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
             return Status::DECLINED;
         }
         pos = pos.wrapping_add(1);
-        while pos < len
-            && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace
-                != 0
+        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace()
         // Equals.
         // Go over the whitespace before the parameter value.
         {
@@ -990,7 +976,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                         return Status::ERROR;
                     }
                 }
-            } else if *(*__ctype_b_loc()).offset(*data.offset(0) as isize) as i32 & _ISspace != 0 {
+            } else if (*data.offset(0)).is_ascii_whitespace() {
                 // Not an empty line.
                 // Is there a pending header?
                 // Is this a folded line?

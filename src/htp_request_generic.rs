@@ -7,14 +7,10 @@ use crate::{
 
 extern "C" {
     #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
     fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
 }
-
-pub const _ISspace: i32 = 8192;
 
 /// Extract one request header. A header can span multiple lines, in
 /// which case they will be folded into one before parsing is attempted.
@@ -351,9 +347,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     // for only one SP, but then suggests any number of SP and HT
     // should be permitted. Apache uses isspace(), which is even
     // more permitting, so that's what we use here.
-    while pos < len
-        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace != 0
-    {
+    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
         if bad_delim == 0 && *data.offset(pos as isize) != 0x20 {
             bad_delim = bad_delim.wrapping_add(1)
         }

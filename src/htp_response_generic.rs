@@ -4,13 +4,10 @@ use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util,
 
 extern "C" {
     #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
     fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
 }
-pub const _ISspace: i32 = 8192;
 
 /// Generic response line parser.
 pub unsafe extern "C" fn htp_parse_response_line_generic(
@@ -70,9 +67,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     }
     (*tx).response_status_number = htp_parsers::htp_parse_status((*tx).response_status);
     // Ignore whitespace that follows the status code.
-    while pos < len
-        && *(*__ctype_b_loc()).offset(*data.offset(pos as isize) as isize) as i32 & _ISspace != 0
-    {
+    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
         pos = pos.wrapping_add(1)
     }
     if pos == len {

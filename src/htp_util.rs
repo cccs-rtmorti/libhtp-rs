@@ -72,8 +72,6 @@ bitflags::bitflags! {
 
 extern "C" {
     #[no_mangle]
-    fn __ctype_b_loc() -> *mut *const libc::c_ushort;
-    #[no_mangle]
     fn tolower(_: libc::c_int) -> libc::c_int;
     #[no_mangle]
     fn snprintf(
@@ -102,10 +100,6 @@ extern "C" {
     #[no_mangle]
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
 }
-
-pub const _ISspace: i32 = 8192;
-pub const _ISxdigit: i32 = 4096;
-pub const _ISdigit: i32 = 2048;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -414,7 +408,7 @@ pub unsafe fn htp_is_line_whitespace(data: *mut u8, len: usize) -> i32 {
     let mut i: usize = 0;
     i = 0;
     while i < len {
-        if *(*__ctype_b_loc()).offset(*data.offset(i as isize) as isize) as i32 & _ISspace == 0 {
+        if !(*data.offset(i as isize)).is_ascii_whitespace() {
             return 0;
         }
         i = i.wrapping_add(1)
@@ -499,10 +493,8 @@ pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64
     let mut i: usize = 0;
     while i < len {
         let c_0: u8 = *data.offset(i as isize);
-        if !(*(*__ctype_b_loc()).offset(c_0 as isize) as i32 & _ISdigit != 0
-            || c_0 >= 'a' as u8 && c_0 <= 'f' as u8
-            || c_0 >= 'A' as u8 && c_0 <= 'F' as u8)
-        {
+
+        if !c_0.is_ascii_hexdigit() {
             break;
         }
         i = i.wrapping_add(1)
@@ -783,9 +775,7 @@ pub unsafe fn htp_parse_hostport(
             // Hostname and port.
             // Ignore whitespace at the end of hostname.
             let mut hostend: *mut u8 = colon;
-            while hostend > data
-                && *(*__ctype_b_loc()).offset(*hostend.offset(-(1)) as isize) as i32 & _ISspace != 0
-            {
+            while hostend > data && (*hostend.offset(-1)).is_ascii_whitespace() {
                 hostend = hostend.offset(-1)
             }
             *hostname = bstr::bstr_dup_mem(
@@ -1520,26 +1510,10 @@ pub unsafe fn htp_decode_path_inplace(
                                 as i32
                         }
                         if rpos.wrapping_add(5) < len {
-                            if *(*__ctype_b_loc())
-                                .offset(*data.offset(rpos.wrapping_add(2) as isize) as isize)
-                                as i32
-                                & _ISxdigit
-                                != 0
-                                && *(*__ctype_b_loc())
-                                    .offset(*data.offset(rpos.wrapping_add(3) as isize) as isize)
-                                    as i32
-                                    & _ISxdigit
-                                    != 0
-                                && *(*__ctype_b_loc())
-                                    .offset(*data.offset(rpos.wrapping_add(4) as isize) as isize)
-                                    as i32
-                                    & _ISxdigit
-                                    != 0
-                                && *(*__ctype_b_loc())
-                                    .offset(*data.offset(rpos.wrapping_add(5) as isize) as isize)
-                                    as i32
-                                    & _ISxdigit
-                                    != 0
+                            if (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
+                                && (*data.offset(rpos.wrapping_add(3) as isize)).is_ascii_hexdigit()
+                                && (*data.offset(rpos.wrapping_add(4) as isize)).is_ascii_hexdigit()
+                                && (*data.offset(rpos.wrapping_add(5) as isize)).is_ascii_hexdigit()
                             {
                                 // Decode a valid %u encoding
                                 c = decode_u_encoding_path(
@@ -1621,16 +1595,8 @@ pub unsafe fn htp_decode_path_inplace(
                 }
                 // Handle standard URL encoding
                 if handled == 0 {
-                    if *(*__ctype_b_loc())
-                        .offset(*data.offset(rpos.wrapping_add(1) as isize) as isize)
-                        as i32
-                        & _ISxdigit
-                        != 0
-                        && *(*__ctype_b_loc())
-                            .offset(*data.offset(rpos.wrapping_add(2) as isize) as isize)
-                            as i32
-                            & _ISxdigit
-                            != 0
+                    if (*data.offset(rpos.wrapping_add(1) as isize)).is_ascii_hexdigit()
+                        && (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
                     {
                         c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize)) as i32;
                         if c == 0 {
@@ -1928,26 +1894,10 @@ pub unsafe fn htp_urldecode_inplace_ex(
                         }
                         // Need at least 5 additional bytes for %uHHHH.
                         if rpos.wrapping_add(5) < len {
-                            if *(*__ctype_b_loc())
-                                .offset(*data.offset(rpos.wrapping_add(2) as isize) as isize)
-                                as i32
-                                & _ISxdigit
-                                != 0
-                                && *(*__ctype_b_loc())
-                                    .offset(*data.offset(rpos.wrapping_add(3) as isize) as isize)
-                                    as i32
-                                    & _ISxdigit
-                                    != 0
-                                && *(*__ctype_b_loc())
-                                    .offset(*data.offset(rpos.wrapping_add(4) as isize) as isize)
-                                    as i32
-                                    & _ISxdigit
-                                    != 0
-                                && *(*__ctype_b_loc())
-                                    .offset(*data.offset(rpos.wrapping_add(5) as isize) as isize)
-                                    as i32
-                                    & _ISxdigit
-                                    != 0
+                            if (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
+                                && (*data.offset(rpos.wrapping_add(3) as isize)).is_ascii_hexdigit()
+                                && (*data.offset(rpos.wrapping_add(4) as isize)).is_ascii_hexdigit()
+                                && (*data.offset(rpos.wrapping_add(5) as isize)).is_ascii_hexdigit()
                             {
                                 // Decode a valid %u encoding.
                                 c = decode_u_encoding_params(
@@ -2008,16 +1958,8 @@ pub unsafe fn htp_urldecode_inplace_ex(
                 // Handle standard URL encoding.
                 if handled == 0 {
                     // Need 2 hexadecimal digits.
-                    if *(*__ctype_b_loc())
-                        .offset(*data.offset(rpos.wrapping_add(1) as isize) as isize)
-                        as i32
-                        & _ISxdigit
-                        != 0
-                        && *(*__ctype_b_loc())
-                            .offset(*data.offset(rpos.wrapping_add(2) as isize) as isize)
-                            as i32
-                            & _ISxdigit
-                            != 0
+                    if (*data.offset(rpos.wrapping_add(1) as isize)).is_ascii_hexdigit()
+                        && (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
                     {
                         // Decode %HH encoding.
                         c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize)) as i32;
