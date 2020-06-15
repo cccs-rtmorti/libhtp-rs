@@ -1685,7 +1685,7 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
         }
     }
     // Configure decompression, if enabled in the configuration.
-    if (*(*(*tx).connp).cfg).response_decompression_enabled != 0 {
+    if (*(*(*tx).connp).cfg).response_decompression_enabled {
         (*tx).response_content_encoding_processing = (*tx).response_content_encoding
     } else {
         (*tx).response_content_encoding_processing =

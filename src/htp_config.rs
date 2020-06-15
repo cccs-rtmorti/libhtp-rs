@@ -51,7 +51,7 @@ pub struct htp_cfg_t {
     /// Whether to generate the request_uri_normalized field.
     pub generate_request_uri_normalized: i32,
     /// Whether to decompress compressed response bodies.
-    pub response_decompression_enabled: i32,
+    pub response_decompression_enabled: bool,
     /// Not fully implemented at the moment.
     pub request_encoding: *mut i8,
     /// Not fully implemented at the moment.
@@ -168,7 +168,7 @@ impl Default for htp_cfg_t {
             parameter_processor: None,
             decoder_cfgs: [Default::default(), Default::default(), Default::default()],
             generate_request_uri_normalized: 0,
-            response_decompression_enabled: 1,
+            response_decompression_enabled: true,
             request_encoding: std::ptr::null_mut(),
             internal_encoding: std::ptr::null_mut(),
             parse_request_cookies: 1,
