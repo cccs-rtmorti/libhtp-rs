@@ -1210,9 +1210,8 @@ pub unsafe fn htp_utf8_decode_path_inplace(
             0 => {
                 if counter == 1 {
                     // ASCII character, which we just copy.
-                    let fresh0 = wpos;
-                    wpos = wpos.wrapping_add(1);
-                    *data.offset(fresh0 as isize) = codepoint as u8
+                    *data.offset(wpos as isize) = codepoint as u8;
+                    wpos = wpos.wrapping_add(1)
                 } else {
                     // A valid UTF-8 character, which we need to convert.
                     seen_valid = 1;
@@ -1240,13 +1239,12 @@ pub unsafe fn htp_utf8_decode_path_inplace(
                         (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
                     }
                     // Use best-fit mapping to convert to a single byte.
-                    let fresh1 = wpos;
-                    wpos = wpos.wrapping_add(1);
-                    *data.offset(fresh1 as isize) = bestfit_codepoint(
+                    *data.offset(wpos as isize) = bestfit_codepoint(
                         cfg,
                         htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
                         codepoint,
-                    )
+                    );
+                    wpos = wpos.wrapping_add(1)
                 }
                 // Advance over the consumed byte and reset the byte counter.
                 rpos = rpos.wrapping_add(1);
@@ -1266,11 +1264,10 @@ pub unsafe fn htp_utf8_decode_path_inplace(
                         as i32
                 }
                 // Output the replacement byte, replacing one or more invalid bytes.
-                let fresh2 = wpos;
-                wpos = wpos.wrapping_add(1);
-                *data.offset(fresh2 as isize) = (*cfg).decoder_cfgs
+                *data.offset(wpos as isize) = (*cfg).decoder_cfgs
                     [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .bestfit_replacement_byte;
+                wpos = wpos.wrapping_add(1);
                 // If the invalid byte was first in a sequence, consume it. Otherwise,
                 // assume it's the starting byte of the next character.
                 if counter == 1 {
@@ -1775,21 +1772,18 @@ pub unsafe fn htp_decode_path_inplace(
         {
             if c == '/' as i32 {
                 if previous_was_separator == 0 {
-                    let fresh3 = wpos;
+                    *data.offset(wpos as isize) = c as u8;
                     wpos = wpos.wrapping_add(1);
-                    *data.offset(fresh3 as isize) = c as u8;
                     previous_was_separator = 1
                 }
             } else {
-                let fresh4 = wpos;
+                *data.offset(wpos as isize) = c as u8;
                 wpos = wpos.wrapping_add(1);
-                *data.offset(fresh4 as isize) = c as u8;
                 previous_was_separator = 0
             }
         } else {
-            let fresh5 = wpos;
-            wpos = wpos.wrapping_add(1);
-            *data.offset(fresh5 as isize) = c as u8
+            *data.offset(wpos as isize) = c as u8;
+            wpos = wpos.wrapping_add(1)
         }
     }
     bstr::bstr_adjust_len(path, wpos);
@@ -2018,18 +2012,16 @@ pub unsafe fn htp_urldecode_inplace_ex(
                     return Status::OK;
                 }
             }
-            let fresh6 = wpos;
-            wpos = wpos.wrapping_add(1);
-            *data.offset(fresh6 as isize) = c as u8
+            *data.offset(wpos as isize) = c as u8;
+            wpos = wpos.wrapping_add(1)
         } else if c == '+' as i32 {
             // Decoding of the plus character is conditional on the configuration.
             if (*cfg).decoder_cfgs[ctx as usize].plusspace_decode != 0 {
                 c = 0x20 as i32
             }
+            *data.offset(wpos as isize) = c as u8;
             rpos = rpos.wrapping_add(1);
-            let fresh7 = wpos;
-            wpos = wpos.wrapping_add(1);
-            *data.offset(fresh7 as isize) = c as u8
+            wpos = wpos.wrapping_add(1)
         } else {
             // One non-encoded byte.
             // Did we get a raw NUL byte?
@@ -2047,10 +2039,9 @@ pub unsafe fn htp_urldecode_inplace_ex(
                     return Status::OK;
                 }
             }
+            *data.offset(wpos as isize) = c as u8;
             rpos = rpos.wrapping_add(1);
-            let fresh8 = wpos;
-            wpos = wpos.wrapping_add(1);
-            *data.offset(fresh8 as isize) = c as u8
+            wpos = wpos.wrapping_add(1)
         }
     }
     bstr::bstr_adjust_len(input, wpos);
@@ -2196,9 +2187,8 @@ pub unsafe fn htp_normalize_uri_path_inplace(s: *mut bstr::bstr_t) {
     let mut c: i32 = -1;
     while rpos < len && wpos < len {
         if c == -1 {
-            let fresh9 = rpos;
-            rpos = rpos.wrapping_add(1);
-            c = *data.offset(fresh9 as isize) as i32
+            c = *data.offset(rpos as isize) as i32;
+            rpos = rpos.wrapping_add(1)
         }
         // A. If the input buffer begins with a prefix of "../" or "./",
         //    then remove that prefix from the input buffer; otherwise,
@@ -2281,15 +2271,12 @@ pub unsafe fn htp_normalize_uri_path_inplace(s: *mut bstr::bstr_t) {
             // the output buffer, including the initial "/" character (if
             // any) and any subsequent characters up to, but not including,
             // the next "/" character or the end of the input buffer.
-            let fresh10 = wpos;
+            *data.offset(wpos as isize) = c as u8;
             wpos = wpos.wrapping_add(1);
-            *data.offset(fresh10 as isize) = c as u8;
             while rpos < len && *data.offset(rpos as isize) != '/' as u8 && wpos < len {
-                let fresh11 = rpos;
+                *data.offset(wpos as isize) = *data.offset(rpos as isize);
                 rpos = rpos.wrapping_add(1);
-                let fresh12 = wpos;
-                wpos = wpos.wrapping_add(1);
-                *data.offset(fresh12 as isize) = *data.offset(fresh11 as isize)
+                wpos = wpos.wrapping_add(1)
             }
             c = -1
         }
@@ -2479,20 +2466,17 @@ pub unsafe fn htp_extract_quoted_string_as_bstr(
         //      handling escaped double quotes.
         if *data.offset(pos as isize) == '\\' as u8 {
             if pos.wrapping_add(1) < len {
-                let fresh17 = outpos;
+                *outptr.offset(outpos as isize) = *data.offset(pos.wrapping_add(1) as isize);
                 outpos = outpos.wrapping_add(1);
-                *outptr.offset(fresh17 as isize) = *data.offset(pos.wrapping_add(1) as isize);
                 pos = (pos).wrapping_add(2);
                 continue;
             }
         } else if *data.offset(pos as isize) == '\"' as u8 {
             break;
         }
-        let fresh18 = pos;
+        *outptr.offset(outpos as isize) = *data.offset(pos as isize);
         pos = pos.wrapping_add(1);
-        let fresh19 = outpos;
-        outpos = outpos.wrapping_add(1);
-        *outptr.offset(fresh19 as isize) = *data.offset(fresh18 as isize)
+        outpos = outpos.wrapping_add(1)
     }
     bstr::bstr_adjust_len(*out, outlen);
     if !endoffset.is_null() {

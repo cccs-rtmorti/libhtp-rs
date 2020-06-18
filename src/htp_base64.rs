@@ -93,9 +93,8 @@ pub unsafe fn htp_base64_decode(
                             (*decoder).plainchar = *plainchar as i8;
                             return plainchar.wrapping_offset_from(plaintext_out) as i32;
                         }
-                        let fresh0 = codechar;
+                        fragment = htp_base64_decode_single(*codechar as i8) as i8;
                         codechar = codechar.offset(1);
-                        fragment = htp_base64_decode_single(*fresh0 as i8) as i8;
                         if !((fragment) < 0) {
                             break;
                         }
@@ -113,16 +112,14 @@ pub unsafe fn htp_base64_decode(
                             (*decoder).plainchar = *plainchar as i8;
                             return plainchar.wrapping_offset_from(plaintext_out) as i32;
                         }
-                        let fresh3 = codechar;
+                        fragment = htp_base64_decode_single(*codechar as i8) as i8;
                         codechar = codechar.offset(1);
-                        fragment = htp_base64_decode_single(*fresh3 as i8) as i8;
                         if !((fragment) < 0) {
                             break;
                         }
                     }
-                    let fresh4 = plainchar;
+                    *plainchar = *plainchar | ((fragment & 0x3c) >> 2) as u8;
                     plainchar = plainchar.offset(1);
-                    *fresh4 = *fresh4 | ((fragment & 0x3c) >> 2) as u8;
                     *plainchar = ((fragment & 0x3) << 6) as u8;
                     length_out -= 1;
                     if length_out == 0 {
@@ -139,16 +136,14 @@ pub unsafe fn htp_base64_decode(
                             (*decoder).plainchar = *plainchar as i8;
                             return plainchar.wrapping_offset_from(plaintext_out) as i32;
                         }
-                        let fresh1 = codechar;
+                        fragment = htp_base64_decode_single(*codechar as i8) as i8;
                         codechar = codechar.offset(1);
-                        fragment = htp_base64_decode_single(*fresh1 as i8) as i8;
                         if !((fragment) < 0) {
                             break;
                         }
                     }
-                    let fresh2 = plainchar;
+                    *plainchar = *plainchar | ((fragment & 0x30) >> 4) as u8;
                     plainchar = plainchar.offset(1);
-                    *fresh2 = *fresh2 | ((fragment & 0x30) >> 4) as u8;
                     *plainchar = ((fragment & 0xf) << 4) as u8;
                     length_out -= 1;
                     if length_out == 0 {
@@ -165,16 +160,14 @@ pub unsafe fn htp_base64_decode(
                             (*decoder).plainchar = *plainchar as i8;
                             return plainchar.wrapping_offset_from(plaintext_out) as i32;
                         }
-                        let fresh5 = codechar;
+                        fragment = htp_base64_decode_single(*codechar as i8) as i8;
                         codechar = codechar.offset(1);
-                        fragment = htp_base64_decode_single(*fresh5 as i8) as i8;
                         if !((fragment) < 0) {
                             break;
                         }
                     }
-                    let fresh6 = plainchar;
+                    *plainchar = *plainchar | (fragment & 0x3f) as u8;
                     plainchar = plainchar.offset(1);
-                    *fresh6 = *fresh6 | (fragment & 0x3f) as u8;
                     length_out -= 1;
                     if length_out == 0 {
                         return plainchar.wrapping_offset_from(plaintext_out) as i32;

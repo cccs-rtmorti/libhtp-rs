@@ -207,8 +207,7 @@ pub unsafe fn htp_list_array_push(
         (*l).max_size = new_size;
         (*l).elements = newblock as *mut *mut core::ffi::c_void
     }
-    let ref mut fresh0 = *(*l).elements.offset((*l).last as isize);
-    *fresh0 = e;
+    *(*l).elements.offset((*l).last as isize) = e;
     (*l).current_size = (*l).current_size.wrapping_add(1);
     (*l).last = (*l).last.wrapping_add(1);
     if (*l).last == (*l).max_size {
@@ -232,10 +231,9 @@ pub unsafe fn htp_list_array_replace(
     if idx.wrapping_add(1) > (*l).current_size {
         return Status::DECLINED;
     }
-    let ref mut fresh1 = *(*l)
+    *(*l)
         .elements
-        .offset((*l).first.wrapping_add(idx).wrapping_rem((*l).max_size) as isize);
-    *fresh1 = e;
+        .offset((*l).first.wrapping_add(idx).wrapping_rem((*l).max_size) as isize) = e;
     Status::OK
 }
 
