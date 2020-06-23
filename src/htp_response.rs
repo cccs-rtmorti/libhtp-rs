@@ -153,15 +153,15 @@ unsafe fn htp_connp_res_buffer(mut connp: *mut htp_connection_parser::htp_connp_
         newlen = newlen.wrapping_add(bstr_len((*connp).out_header))
     }
     if newlen > (*(*(*connp).out_tx).cfg).field_limit_hard {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            212,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Response the buffer limit: size %zd limit %zd.\x00" as *const u8 as *const i8,
-            newlen,
-            (*(*(*connp).out_tx).cfg).field_limit_hard,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::RESPONSE_FIELD_TOO_LONG,
+            format!(
+                "Response the buffer limit: size {} limit {}.",
+                newlen,
+                (*(*(*connp).out_tx).cfg).field_limit_hard
+            )
         );
         return Status::ERROR;
     }
@@ -396,14 +396,14 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
             );
             (*(*connp).out_tx).response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response.c\x00" as *const u8 as *const i8,
-                421,
-                htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                0,
-                b"Response chunk encoding: Invalid chunk length: %ld\x00" as *const u8 as *const i8,
-                (*connp).out_chunked_length,
+                htp_log_level_t::HTP_LOG_ERROR,
+                htp_log_code::INVALID_RESPONSE_CHUNK_LEN,
+                format!(
+                    "Response chunk encoding: Invalid chunk length: {}",
+                    (*connp).out_chunked_length
+                )
             );
             return Status::OK;
         }
@@ -591,26 +591,22 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             // we may have response headers
             return htp_transaction::htp_tx_state_response_headers((*connp).out_tx);
         } else {
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response.c\x00" as *const u8 as *const i8,
-                581,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Switching Protocol with Content-Length\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::SWITCHING_PROTO_WITH_CONTENT_LENGTH,
+                "Switching Protocol with Content-Length"
             );
         }
     }
     // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
     if (*(*connp).out_tx).response_status_number == 100 && te_opt.is_none() && cl_opt.is_none() {
         if (*(*connp).out_tx).seen_100continue != 0 {
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response.c\x00" as *const u8 as *const i8,
-                588,
-                htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                0,
-                b"Already seen 100-Continue.\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_ERROR,
+                htp_log_code::CONTINUE_ALREADY_SEEN,
+                "Already seen 100-Continue."
             );
             return Status::ERROR;
         }
@@ -659,13 +655,11 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                     as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             )
         } else {
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response.c\x00" as *const u8 as *const i8,
-                629,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Unexpected Response body\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::RESPONSE_BODY_UNEXPECTED,
+                "Unexpected Response body"
             );
         }
     }
@@ -708,26 +702,21 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         {
             let te = te_opt.unwrap().1;
             if bstr::bstr_cmp_str_nocase((*te).value, "chunked") != 0 {
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response.c\x00" as *const u8 as *const i8,
-                    660,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Transfer-encoding has abnormal chunked value\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::RESPONSE_ABNORMAL_TRANSFER_ENCODING,
+                    "Transfer-encoding has abnormal chunked value"
                 ); // 3. If a Content-Length header field (section 14.14) is present, its
             }
             // spec says chunked is HTTP/1.1 only, but some browsers accept it
             // with 1.0 as well
             if (*(*connp).out_tx).response_protocol_number < Protocol::V1_1 as i32 {
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response.c\x00" as *const u8 as *const i8,
-                    667,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Chunked transfer-encoding on HTTP/0.9 or HTTP/1.0\x00" as *const u8
-                        as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::RESPONSE_CHUNKED_OLD_PROTO,
+                    "Chunked transfer-encoding on HTTP/0.9 or HTTP/1.0"
                 );
             }
             // If the T-E header is present we are going to use it.
@@ -758,14 +747,14 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*(*connp).out_tx).response_content_length =
                 htp_util::htp_parse_content_length((*cl).value, connp);
             if (*(*connp).out_tx).response_content_length < 0 {
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response.c\x00" as *const u8 as *const i8,
-                    696,
-                    htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                    0,
-                    b"Invalid C-L field in response: %ld\x00" as *const u8 as *const i8,
-                    (*(*connp).out_tx).response_content_length,
+                    htp_log_level_t::HTP_LOG_ERROR,
+                    htp_log_code::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
+                    format!(
+                        "Invalid C-L field in response: {}",
+                        (*(*connp).out_tx).response_content_length
+                    )
                 );
                 return Status::ERROR;
             } else {
@@ -800,14 +789,11 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                 let ct = ct_opt.unwrap().1;
                 // TODO Handle multipart/byteranges
                 if bstr::bstr_index_of_nocase((*ct).value, "multipart/byteranges") != -1 {
-                    htp_util::htp_log(
+                    htp_log!(
                         connp,
-                        b"htp_response.c\x00" as *const u8 as *const i8,
-                        720,
-                        htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                        0,
-                        b"C-T multipart/byteranges in responses not supported\x00" as *const u8
-                            as *const i8,
+                        htp_log_level_t::HTP_LOG_ERROR,
+                        htp_log_code::RESPONSE_MULTIPART_BYTERANGES,
+                        "C-T multipart/byteranges in responses not supported"
                     );
                     return Status::ERROR;
                 }
@@ -945,14 +931,11 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                                         return Status::DATA_BUFFER;
                                     }
                                     (*connp).out_current_consume_offset += 1;
-                                    htp_util::htp_log(
+                                    htp_log!(
                                         connp,
-                                        b"htp_response.c\x00" as *const u8 as *const i8,
-                                        792,
-                                        htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                                        0,
-                                        b"Weird response end of lines mix\x00" as *const u8
-                                            as *const i8,
+                                        htp_log_level_t::HTP_LOG_WARNING,
+                                        htp_log_code::DEFORMED_EOL,
+                                        "Weird response end of lines mix"
                                     );
                                 }
                             }
@@ -1114,13 +1097,11 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                     .contains(Flags::HTP_INVALID_FOLDING)
                 {
                     (*(*connp).out_tx).flags |= Flags::HTP_INVALID_FOLDING;
-                    htp_util::htp_log(
+                    htp_log!(
                         connp,
-                        b"htp_response.c\x00" as *const u8 as *const i8,
-                        899,
-                        htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                        0,
-                        b"Invalid response field folding\x00" as *const u8 as *const i8,
+                        htp_log_level_t::HTP_LOG_WARNING,
+                        htp_log_code::INVALID_RESPONSE_FIELD_FOLDING,
+                        "Invalid response field folding"
                     );
                 }
                 // Keep the header data for parsing later.
@@ -1143,13 +1124,11 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                         .contains(Flags::HTP_INVALID_FOLDING)
                     {
                         (*(*connp).out_tx).flags |= Flags::HTP_INVALID_FOLDING;
-                        htp_util::htp_log(
+                        htp_log!(
                             connp,
-                            b"htp_response.c\x00" as *const u8 as *const i8,
-                            915,
-                            htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                            0,
-                            b"Invalid response field folding\x00" as *const u8 as *const i8,
+                            htp_log_level_t::HTP_LOG_WARNING,
+                            htp_log_code::INVALID_RESPONSE_FIELD_FOLDING,
+                            "Invalid response field folding"
                         );
                     }
                     if (*(*connp).cfg)
@@ -1399,13 +1378,11 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     }
     if htp_util::htp_treat_response_line_as_body(data, bytes_left) != 0 {
         // Interpret remaining bytes as body data
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            1104,
-            htp_util::htp_log_level_t::HTP_LOG_WARNING,
-            0,
-            b"Unexpected response body\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_WARNING,
+            htp_log_code::RESPONSE_BODY_UNEXPECTED,
+            "Unexpected response body"
         );
         let rc: Status = htp_transaction::htp_tx_res_process_body_data_ex(
             (*connp).out_tx,
@@ -1451,13 +1428,11 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
         htp_list::htp_list_array_get((*(*connp).conn).transactions, (*connp).out_next_tx_index)
             as *mut htp_transaction::htp_tx_t;
     if (*connp).out_tx.is_null() {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            1145,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Unable to match response to request\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::UNABLE_TO_MATCH_RESPONSE_TO_REQUEST,
+            "Unable to match response to request"
         );
         // finalize dangling request waiting for next request or body
         if (*connp).in_state
@@ -1517,25 +1492,21 @@ pub unsafe fn htp_connp_res_data(
 ) -> i32 {
     // Return if the connection is in stop state
     if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            1197,
-            htp_util::htp_log_level_t::HTP_LOG_INFO,
-            0,
-            b"Outbound parser is in HTP_STREAM_STOP\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_INFO,
+            htp_log_code::PARSER_STATE_ERROR,
+            "Outbound parser is in HTP_STREAM_STOP"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP as i32;
     }
     // Return if the connection has had a fatal error
     if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            1204,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Outbound parser is in HTP_STREAM_ERROR\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::PARSER_STATE_ERROR,
+            "Outbound parser is in HTP_STREAM_ERROR"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
     }
@@ -1548,13 +1519,11 @@ pub unsafe fn htp_connp_res_data(
             )
     {
         (*connp).out_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            1217,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Missing outbound transaction data\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::MISSING_OUTBOUND_TRANSACTION_DATA,
+            "Missing outbound transaction data"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
     }
@@ -1565,13 +1534,11 @@ pub unsafe fn htp_connp_res_data(
     if (data == 0 as *mut core::ffi::c_void || len == 0)
         && (*connp).out_status != htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
     {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_response.c\x00" as *const u8 as *const i8,
-            1227,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Zero-length data chunks are not allowed\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
+            "Zero-length data chunks are not allowed"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED as i32;
     }

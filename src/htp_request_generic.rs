@@ -41,13 +41,11 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         //      allowed to be combined in this way?
         if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                75,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Repetition for header\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_HEADER_REPETITION,
+                "Repetition for header"
             );
         } else if ((*(*connp).in_tx).req_header_repetitions) < 64 {
             (*(*connp).in_tx).req_header_repetitions =
@@ -76,13 +74,11 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
             );
             // Ambiguous response C-L value.
             if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                    100,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Ambiguous request C-L value\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
+                    "Ambiguous request C-L value"
                 );
             }
         } else {
@@ -145,13 +141,11 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
             .contains(Flags::HTP_FIELD_UNPARSEABLE)
         {
             (*(*connp).in_tx).flags |= Flags::HTP_FIELD_UNPARSEABLE;
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                163,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Request field invalid: colon missing\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_FIELD_MISSING_COLON,
+                "Request field invalid: colon missing"
             );
         }
         // We handle this case as a header with an empty name, with the value equal
@@ -175,13 +169,11 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         // Log only once per transaction.
         if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
             (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                192,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Request field invalid: empty name\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_INVALID_EMPTY_NAME,
+                "Request field invalid: empty name"
             );
         }
     }
@@ -198,13 +190,11 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         // Log only once per transaction.
         if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
             (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                211,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Request field invalid: LWS after name\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
+                "Request field invalid: LWS after name"
             );
         }
     }
@@ -239,13 +229,11 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
             // Log only once per transaction.
             if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                    251,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Request header name is not a token\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::REQUEST_HEADER_INVALID,
+                    "Request header name is not a token"
                 );
             }
             break;
@@ -308,13 +296,11 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         pos = pos.wrapping_add(1)
     }
     if pos != 0 {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request_generic.c\x00" as *const u8 as *const i8,
-            309,
-            htp_util::htp_log_level_t::HTP_LOG_WARNING,
-            0,
-            b"Request line: leading whitespace\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_WARNING,
+            htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
+            "Request line: leading whitespace"
         );
         mstart = pos;
         if (*(*connp).cfg).requestline_leading_whitespace_unwanted
@@ -355,14 +341,11 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     }
     // Too much performance overhead for fuzzing
     if bad_delim != 0 {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request_generic.c\x00" as *const u8 as *const i8,
-            349,
-            htp_util::htp_log_level_t::HTP_LOG_WARNING,
-            0,
-            b"Request line: non-compliant delimiter between Method and URI\x00" as *const u8
-                as *const i8,
+            htp_log_level_t::HTP_LOG_WARNING,
+            htp_log_code::METHOD_DELIM_NON_COMPLIANT,
+            "Request line: non-compliant delimiter between Method and URI"
         );
     }
     // Is there anything after the request method?
@@ -371,13 +354,11 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         (*tx).is_protocol_0_9 = 1;
         (*tx).request_protocol_number = Protocol::V0_9 as i32;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32 {
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                360,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Request line: unknown method only\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
+                "Request line: unknown method only"
             );
         }
         return Status::OK;
@@ -404,13 +385,11 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     // Too much performance overhead for fuzzing
     if bad_delim != 0 {
         // warn regardless if we've seen non-compliant chars
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request_generic.c\x00" as *const u8 as *const i8,
-            387,
-            htp_util::htp_log_level_t::HTP_LOG_WARNING,
-            0,
-            b"Request line: URI contains non-compliant delimiter\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_WARNING,
+            htp_log_code::URI_DELIM_NON_COMPLIANT,
+            "Request line: URI contains non-compliant delimiter"
         );
     }
     (*tx).request_uri = bstr::bstr_dup_mem(
@@ -430,13 +409,11 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         (*tx).is_protocol_0_9 = 1;
         (*tx).request_protocol_number = Protocol::V0_9 as i32;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32 {
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request_generic.c\x00" as *const u8 as *const i8,
-                408,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Request line: unknown method and no protocol\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
+                "Request line: unknown method and no protocol"
             );
         }
         return Status::OK;
@@ -453,13 +430,11 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32
         && (*tx).request_protocol_number == Protocol::INVALID as i32
     {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request_generic.c\x00" as *const u8 as *const i8,
-            419,
-            htp_util::htp_log_level_t::HTP_LOG_WARNING,
-            0,
-            b"Request line: unknown method and invalid protocol\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_WARNING,
+            htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
+            "Request line: unknown method and invalid protocol"
         );
     }
     Status::OK

@@ -1,7 +1,7 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_hooks, htp_list, htp_request, htp_transaction,
+    bstr, htp_config, htp_connection_parser, htp_hooks, htp_request, htp_transaction,
     htp_utf8_decoder, Status,
 };
 use bitflags;
@@ -154,39 +154,6 @@ pub struct htp_uri_t {
     /// Fragment identifier. This field will rarely be available in a server-side
     /// setting, but it's not impossible to see it.
     pub fragment: *mut bstr::bstr_t,
-}
-
-/// Enumerates all log levels.
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_log_level_t {
-    HTP_LOG_NONE,
-    HTP_LOG_ERROR,
-    HTP_LOG_WARNING,
-    HTP_LOG_NOTICE,
-    HTP_LOG_INFO,
-    HTP_LOG_DEBUG,
-    HTP_LOG_DEBUG2,
-}
-
-/// Represents a single log entry.
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct htp_log_t {
-    /// The connection parser associated with this log message.
-    pub connp: *mut htp_connection_parser::htp_connp_t,
-    /// The transaction associated with this log message, if any.
-    pub tx: *mut htp_transaction::htp_tx_t,
-    /// Log message.
-    pub msg: *const i8,
-    /// Message level.
-    pub level: htp_log_level_t,
-    /// Message code.
-    pub code: i32,
-    /// File in which the code that emitted the message resides.
-    pub file: *const i8,
-    /// Line number on which the code that emitted the message resides.
-    pub line: u32,
 }
 
 /// Represents a chunk of file data.
@@ -436,13 +403,11 @@ pub unsafe fn htp_parse_content_length(
         && ((*data.offset(pos as isize)) < '0' as u8 || *data.offset(pos as isize) > '9' as u8)
     {
         if htp_is_lws(*data.offset(pos as isize) as i32) == 0 && !connp.is_null() && r == 0 {
-            htp_log(
+            htp_log!(
                 connp,
-                b"htp_util.c\x00" as *const u8 as *const i8,
-                267,
                 htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"C-L value with extra data in the beginnning\x00" as *const u8 as *const i8,
+                htp_log_code::CONTENT_LENGTH_EXTRA_DATA_START,
+                "C-L value with extra data in the beginning"
             );
             r = -1
         }
@@ -459,13 +424,11 @@ pub unsafe fn htp_parse_content_length(
     );
     // Ok to have junk afterwards
     if pos < len && !connp.is_null() {
-        htp_log(
+        htp_log!(
             connp,
-            b"htp_util.c\x00" as *const u8 as *const i8,
-            278,
             htp_log_level_t::HTP_LOG_WARNING,
-            0,
-            b"C-L value with extra data in the end\x00" as *const u8 as *const i8,
+            htp_log_code::CONTENT_LENGTH_EXTRA_DATA_END,
+            "C-L value with extra data in the end"
         );
     }
     r
@@ -549,58 +512,6 @@ pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize,
         pos = pos.wrapping_add(1)
     }
     r
-}
-
-/// Records one log message.
-pub unsafe extern "C" fn htp_log(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
-    file: *const i8,
-    line: i32,
-    level: htp_log_level_t,
-    code: i32,
-    fmt: *const i8,
-    args: ...
-) {
-    if connp.is_null() {
-        return;
-    }
-    let mut buf: [i8; 1024] = [0; 1024];
-    let mut args_0: ::std::ffi::VaListImpl;
-    // Ignore messages below our log level.
-    if ((*(*connp).cfg).log_level as u32) < level as u32 {
-        return;
-    }
-    args_0 = args.clone();
-    let r: i32 = vsnprintf(buf.as_mut_ptr(), 1024, fmt, args_0.as_va_list());
-    if r < 0 {
-        snprintf(
-            buf.as_mut_ptr(),
-            1024,
-            b"[vnsprintf returned error %d]\x00" as *const u8 as *const i8,
-            r,
-        );
-    } else if r >= 1024 {
-        // Indicate overflow with a '+' at the end.
-        buf[1022] = '+' as i8;
-        buf[1023] = '\u{0}' as i8
-    }
-    // Create a new log entry.
-    let mut log: *mut htp_log_t = calloc(1, ::std::mem::size_of::<htp_log_t>()) as *mut htp_log_t;
-    if log.is_null() {
-        return;
-    }
-    (*log).connp = connp;
-    (*log).file = file;
-    (*log).line = line as u32;
-    (*log).level = level;
-    (*log).code = code;
-    (*log).msg = strdup(buf.as_mut_ptr());
-    htp_list::htp_list_array_push((*(*connp).conn).messages, log as *mut core::ffi::c_void);
-    if level == htp_log_level_t::HTP_LOG_ERROR {
-        (*connp).last_error = log
-    }
-    // coverity[check_return]
-    htp_hooks::htp_hook_run_all((*(*connp).cfg).hook_log, log as *mut core::ffi::c_void);
 }
 
 /// Determines if the given line is a continuation (of some previous line).

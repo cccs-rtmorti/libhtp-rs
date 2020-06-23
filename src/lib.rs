@@ -75,6 +75,8 @@ macro_rules! nullcheck {
     }
 }
 
+#[macro_use]
+pub mod log;
 pub mod bstr;
 pub mod bstr_builder;
 pub mod c_api;

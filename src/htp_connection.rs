@@ -1,3 +1,4 @@
+use crate::log::*;
 use crate::{htp_list, htp_transaction, htp_util, Status};
 
 extern "C" {
@@ -114,17 +115,7 @@ pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
         (*conn).transactions = 0 as *mut htp_list::htp_list_array_t
     }
     if !(*conn).messages.is_null() {
-        // Destroy individual messages.
-        let mut i_0: usize = 0;
-        let n_0: usize = htp_list::htp_list_array_size((*conn).messages);
-        while i_0 < n_0 {
-            let l: *mut htp_util::htp_log_t =
-                htp_list::htp_list_array_get((*conn).messages, i_0) as *mut htp_util::htp_log_t;
-            free((*l).msg as *mut core::ffi::c_void);
-            free(l as *mut core::ffi::c_void);
-            i_0 = i_0.wrapping_add(1)
-        }
-        htp_list::htp_list_array_destroy((*conn).messages);
+        htp_logs_free((*conn).messages);
         (*conn).messages = 0 as *mut htp_list::htp_list_array_t
     }
     if !(*conn).server_addr.is_null() {

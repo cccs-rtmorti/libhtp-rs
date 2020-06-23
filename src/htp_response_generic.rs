@@ -114,13 +114,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             // Only once per transaction.
             (*(*connp).out_tx).flags |= Flags::HTP_FIELD_UNPARSEABLE;
             (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                147,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Response field invalid: missing colon.\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::RESPONSE_FIELD_MISSING_COLON,
+                "Response field invalid: missing colon."
             );
         }
         // Reset the position. We're going to treat this invalid header
@@ -138,13 +136,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                    168,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Response field invalid: empty name.\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
+                    "Response field invalid: empty name."
                 );
             }
         }
@@ -158,13 +154,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                    185,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Response field invalid: LWS after name.\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
+                    "Response field invalid: LWS after name"
                 );
             }
         }
@@ -185,13 +179,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             (*h).flags |= Flags::HTP_FIELD_INVALID;
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                    210,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Response header name is not a token.\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
+                    "Response header name is not a token."
                 );
             }
             break;
@@ -202,13 +194,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     i = value_start;
     while i < value_end {
         if *data.offset(i as isize) == 0 {
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                220,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Response header value contains null.\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_HEADER_INVALID,
+                "Response header value contains null."
             );
             break;
         } else {
@@ -257,13 +247,11 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         // Keep track of repeated same-name headers.
         if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                267,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Repetition for header\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::RESPONSE_HEADER_REPETITION,
+                "Repetition for header"
             );
         } else if ((*(*connp).out_tx).res_header_repetitions) < 64 {
             (*(*connp).out_tx).res_header_repetitions =
@@ -293,13 +281,11 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             );
             if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
                 // Ambiguous response C-L value.
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_response_generic.c\x00" as *const u8 as *const i8,
-                    293,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Ambiguous response C-L value\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
+                    "Ambiguous response C-L value"
                 );
             }
         } else {

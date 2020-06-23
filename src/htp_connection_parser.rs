@@ -35,10 +35,6 @@ pub struct htp_connp_t {
     pub conn: *mut htp_connection::htp_conn_t,
     /// Opaque user data associated with this parser.
     pub user_data: *const core::ffi::c_void,
-    /// On parser failure, this field will contain the error information. Do note, however,
-    /// that the value in this field will only be valid immediately after an error condition,
-    /// but it is not guaranteed to remain valid if the parser is invoked again.
-    pub last_error: *mut htp_util::htp_log_t,
     // Request parser fields
     /// Parser inbound status. Starts as HTP_OK, but may turn into HTP_ERROR.
     pub in_status: htp_stream_state_t,
@@ -154,11 +150,6 @@ pub struct htp_connp_t {
 
 pub type htp_time_t = libc::timeval;
 
-/// Clears the most recent error, if any.
-pub unsafe fn htp_connp_clear_error(mut connp: *mut htp_connp_t) {
-    (*connp).last_error = 0 as *mut htp_util::htp_log_t;
-}
-
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
@@ -209,7 +200,6 @@ pub unsafe fn htp_connp_create(cfg: *mut htp_config::htp_cfg_t) -> *mut htp_conn
         cfg: cfg,
         conn: htp_connection::htp_conn_create(),
         user_data: std::ptr::null(),
-        last_error: std::ptr::null_mut(),
         in_status: htp_stream_state_t::HTP_STREAM_NEW,
         out_status: htp_stream_state_t::HTP_STREAM_NEW,
         out_data_other_at_tx_end: 0,
@@ -340,19 +330,6 @@ pub unsafe fn htp_connp_get_in_tx(connp: *const htp_connp_t) -> *mut htp_transac
     (*connp).in_tx
 }
 
-/// Returns the last error that occurred with this connection parser. Do note, however,
-/// that the value in this field will only be valid immediately after an error condition,
-/// but it is not guaranteed to remain valid if the parser is invoked again.
-///
-/// Returns a pointer to an htp_util::htp_log_t instance if there is an error, or NULL
-///         if there isn't.
-pub unsafe fn htp_connp_get_last_error(connp: *const htp_connp_t) -> *mut htp_util::htp_log_t {
-    if connp.is_null() {
-        return 0 as *mut htp_util::htp_log_t;
-    }
-    (*connp).last_error
-}
-
 /// Retrieves the pointer to the active outbound transaction. In connection
 /// parsing mode there can be many open transactions, and up to 2 active
 /// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
@@ -403,13 +380,11 @@ pub unsafe fn htp_connp_open(
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_NEW
         || (*connp).out_status != htp_stream_state_t::HTP_STREAM_NEW
     {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_connection_parser.c\x00" as *const u8 as *const i8,
-            181,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Connection is already open\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::CONNECTION_ALREADY_OPEN,
+            "Connection is already open"
         );
         return;
     }

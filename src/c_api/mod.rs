@@ -8,7 +8,9 @@ use crate::htp_response;
 use crate::htp_table;
 use crate::htp_transaction;
 use crate::htp_util;
+use crate::log::*;
 use crate::Status;
+use std::ffi::CString;
 
 /// Creates a new configuration structure. Configuration structures created at
 /// configuration time must not be changed afterwards in order to support lock-less
@@ -573,20 +575,6 @@ pub unsafe extern "C" fn htp_list_size(l: *const htp_list::htp_list_array_t) -> 
     htp_list::htp_list_array_size(l)
 }
 
-/// Records one log message.
-#[no_mangle]
-pub unsafe extern "C" fn htp_log(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    file: *const libc::c_char,
-    line: libc::c_int,
-    level: htp_util::htp_log_level_t,
-    code: libc::c_int,
-    fmt: *const libc::c_char,
-    args: ...
-) {
-    htp_util::htp_log(connp, file, line, level, code, fmt, args)
-}
-
 /// Retrieve the first element that matches the given NUL-terminated key.
 /// returns Matched element, or NULL if no elements match the key.
 ///
@@ -736,7 +724,7 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_log(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
+    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_log_t) -> Status>,
 ) {
     if !cfg.is_null() {
         (*cfg).register_log(callback_fn)
@@ -774,25 +762,6 @@ pub unsafe extern "C" fn htp_connp_get_in_tx(
     connp: *const htp_connection_parser::htp_connp_t,
 ) -> *mut htp_transaction::htp_tx_t {
     htp_connection_parser::htp_connp_get_in_tx(connp)
-}
-
-/// Clears the most recent error, if any.
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_clear_error(connp: *mut htp_connection_parser::htp_connp_t) {
-    htp_connection_parser::htp_connp_clear_error(connp)
-}
-
-/// Returns the last error that occurred with this connection parser. Do note, however,
-/// that the value in this field will only be valid immediately after an error condition,
-/// but it is not guaranteed to remain valid if the parser is invoked again.
-///
-/// Returns a pointer to an htp_util::htp_log_t instance if there is an error, or NULL
-///         if there isn't.
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_last_error(
-    connp: *const htp_connection_parser::htp_connp_t,
-) -> *mut htp_util::htp_log_t {
-    htp_connection_parser::htp_connp_get_last_error(connp)
 }
 
 /// Destroys the connection parser and its data structures, leaving
@@ -936,4 +905,47 @@ pub unsafe extern "C" fn bstr_util_mem_to_pint(
 #[no_mangle]
 pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const bstr::bstr_t) -> *mut libc::c_char {
     bstr::bstr_util_strdup_to_c(b)
+}
+
+// Get the log message
+// returns a pointer to a null-terminated string
+// The caller is responsible for freeing the memory
+#[no_mangle]
+pub unsafe extern "C" fn htp_log_get(
+    messages: *mut htp_list::htp_list_array_t,
+    idx: libc::size_t,
+) -> *mut libc::c_char {
+    let log: *mut htp_log_t = htp_list_get(messages, idx) as *mut htp_log_t;
+    if log.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    if let Ok(msg_cstr) = CString::new((*log).msg.clone()) {
+        msg_cstr.into_raw()
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+// Free the message
+#[no_mangle]
+pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) -> () {
+    if !msg.is_null() {
+        CString::from_raw(msg);
+    }
+}
+
+// Get the message code
+#[no_mangle]
+pub unsafe extern "C" fn htp_log_get_code(
+    messages: *mut htp_list::htp_list_array_t,
+    idx: libc::size_t,
+) -> htp_log_code {
+    let log: *mut htp_log_t = htp_list_get(messages, idx) as *mut htp_log_t;
+
+    if log.is_null() {
+        return htp_log_code::UNKNOWN;
+    }
+
+    return (*log).code;
 }

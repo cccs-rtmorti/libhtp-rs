@@ -190,15 +190,15 @@ unsafe fn htp_connp_req_buffer(mut connp: *mut htp_connection_parser::htp_connp_
         newlen = newlen.wrapping_add(bstr_len((*connp).in_header))
     }
     if newlen > (*(*(*connp).in_tx).cfg).field_limit_hard {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request.c\x00" as *const u8 as *const i8,
-            211,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Request buffer over the limit: size %zd limit %zd.\x00" as *const u8 as *const i8,
-            newlen,
-            (*(*(*connp).in_tx).cfg).field_limit_hard,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::REQUEST_FIELD_TOO_LONG,
+            format!(
+                "Request buffer over the limit: size {} limit {}.",
+                newlen,
+                (*(*(*connp).in_tx).cfg).field_limit_hard
+            )
         );
         return Status::ERROR;
     }
@@ -553,13 +553,11 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_LENGTH(
                     htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER
             } else {
                 // Invalid chunk length.
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_request.c\x00" as *const u8 as *const i8,
-                    516,
-                    htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                    0,
-                    b"Request chunk encoding: Invalid chunk length\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_ERROR,
+                    htp_log_code::INVALID_REQUEST_CHUNK_LEN,
+                    "Request chunk encoding: Invalid chunk length"
                 );
                 return Status::ERROR;
             }
@@ -794,13 +792,11 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 // Warn only once per transaction.
                 if !(*(*connp).in_tx).flags.contains(Flags::HTP_INVALID_FOLDING) {
                     (*(*connp).in_tx).flags |= Flags::HTP_INVALID_FOLDING;
-                    htp_util::htp_log(
+                    htp_log!(
                         connp,
-                        b"htp_request.c\x00" as *const u8 as *const i8,
-                        699,
-                        htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                        0,
-                        b"Invalid request field folding\x00" as *const u8 as *const i8,
+                        htp_log_level_t::HTP_LOG_WARNING,
+                        htp_log_code::INVALID_REQUEST_FIELD_FOLDING,
+                        "Invalid request field folding"
                     );
                 }
                 // Keep the header data for parsing later.
@@ -846,13 +842,11 @@ pub unsafe extern "C" fn htp_connp_REQ_PROTOCOL(
         // Probe if data looks like a header line
         while pos < (*connp).in_current_len {
             if *(*connp).in_current_data.offset(pos as isize) == ':' as u8 {
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_request.c\x00" as *const u8 as *const i8,
-                    740,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"Request line: missing protocol\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::REQUEST_LINE_NO_PROTOCOL,
+                    "Request line: missing protocol"
                 );
                 (*(*connp).in_tx).is_protocol_0_9 = 0;
                 // Switch to request header parsing.
@@ -1053,13 +1047,11 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
         if methodi == htp_method_t::HTP_M_UNKNOWN as i32 {
             // else continue
             // Interpret remaining bytes as body data
-            htp_util::htp_log(
+            htp_log!(
                 connp,
-                b"htp_request.c\x00" as *const u8 as *const i8,
-                890,
-                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                0,
-                b"Unexpected request body\x00" as *const u8 as *const i8,
+                htp_log_level_t::HTP_LOG_WARNING,
+                htp_log_code::REQUEST_BODY_UNEXPECTED,
+                "Unexpected request body"
             );
             let rc_0: Status = htp_transaction::htp_tx_req_process_body_data_ex(
                 (*connp).in_tx,
@@ -1142,25 +1134,21 @@ pub unsafe fn htp_connp_req_data(
 ) -> i32 {
     // Return if the connection is in stop state.
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request.c\x00" as *const u8 as *const i8,
-            959,
-            htp_util::htp_log_level_t::HTP_LOG_INFO,
-            0,
-            b"Inbound parser is in HTP_STREAM_STOP\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_INFO,
+            htp_log_code::PARSER_STATE_ERROR,
+            "Inbound parser is in HTP_STREAM_STOP"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP as i32;
     }
     // Return if the connection had a fatal error earlier
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request.c\x00" as *const u8 as *const i8,
-            965,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Inbound parser is in HTP_STREAM_ERROR\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::PARSER_STATE_ERROR,
+            "Inbound parser is in HTP_STREAM_ERROR"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
     }
@@ -1173,13 +1161,11 @@ pub unsafe fn htp_connp_req_data(
             )
     {
         (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request.c\x00" as *const u8 as *const i8,
-            978,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Missing inbound transaction data\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::MISSING_INBOUND_TRANSACTION_DATA,
+            "Missing inbound transaction data"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
     }
@@ -1190,13 +1176,11 @@ pub unsafe fn htp_connp_req_data(
     if (data == 0 as *mut core::ffi::c_void || len == 0)
         && (*connp).in_status != htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
     {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_request.c\x00" as *const u8 as *const i8,
-            988,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"Zero-length data chunks are not allowed\x00" as *const u8 as *const i8,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
+            "Zero-length data chunks are not allowed"
         );
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED as i32;
     }

@@ -246,3 +246,11 @@ pub unsafe fn htp_list_array_size(l: *const htp_list_array_t) -> usize {
     }
     (*l).current_size
 }
+
+/// Returns the last element in the list.
+pub unsafe fn htp_list_array_get_last(l: *const htp_list_array_t) -> *mut core::ffi::c_void {
+    if l.is_null() {
+        return 0 as *mut core::ffi::c_void;
+    }
+    return htp_list_array_get(l, (*l).current_size - 1);
+}

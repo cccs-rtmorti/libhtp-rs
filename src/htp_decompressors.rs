@@ -1,4 +1,4 @@
-use crate::{htp_connection_parser, htp_transaction, htp_util, lzma, Status};
+use crate::{htp_connection_parser, htp_transaction, lzma, Status};
 extern "C" {
     pub type internal_state;
     #[no_mangle]
@@ -306,14 +306,13 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     'c_5645: loop
     // we'll be restarting the compressor
     {
+        let connp = (*(*d).tx).connp;
         if consumed > (*d).len {
-            htp_util::htp_log(
-                (*(*d).tx).connp,
-                b"htp_decompressors.c\x00" as *const u8 as *const i8,
-                235,
-                htp_util::htp_log_level_t::HTP_LOG_ERROR,
-                0,
-                b"GZip decompressor: consumed > d->len\x00" as *const u8 as *const i8,
+            htp_log!(
+                connp,
+                htp_log_level_t::HTP_LOG_ERROR,
+                htp_log_code::GZIP_DECOMPRESSION_FAILED,
+                "GZip decompressor: consumed > d->len"
             );
             return Status::ERROR;
         }
@@ -419,14 +418,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                             current_block_82 = 17019156190352891614;
                         }
                         2 => {
-                            htp_util::htp_log(
-                                (*(*d).tx).connp,
-                                b"htp_decompressors.c\x00" as *const u8 as *const i8,
-                                306,
-                                htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                                0,
-                                b"LZMA decompressor: memory limit reached\x00" as *const u8
-                                    as *const i8,
+                            htp_log!(
+                                connp,
+                                htp_log_level_t::HTP_LOG_WARNING,
+                                htp_log_code::LZMA_MEMLIMIT_REACHED,
+                                "LZMA decompressor: memory limit reached"
                             );
                             current_block_82 = 1497605668091507245;
                         }
@@ -452,14 +448,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             if 8192 > (*drec).stream.avail_out && rc == -3 {
                 // There is data even if there is an error
                 // So use this data and log a warning
-                htp_util::htp_log(
-                    (*(*d).tx).connp,
-                    b"htp_decompressors.c\x00" as *const u8 as *const i8,
-                    322,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"GZip decompressor: inflate failed with %d\x00" as *const u8 as *const i8,
-                    rc,
+                htp_log!(
+                    connp,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::GZIP_DECOMPRESSION_FAILED,
+                    format!("GZip decompressor: inflate failed with {}", rc)
                 );
                 rc = 1;
             }
@@ -500,14 +493,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 if !(rc != 0) {
                     continue;
                 }
-                htp_util::htp_log(
-                    (*(*d).tx).connp,
-                    b"htp_decompressors.c\x00" as *const u8 as *const i8,
-                    356,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"GZip decompressor: inflate failed with %d\x00" as *const u8 as *const i8,
-                    rc,
+                htp_log!(
+                    connp,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::GZIP_DECOMPRESSION_FAILED,
+                    format!("GZip decompressor: inflate failed with {}", rc)
                 );
                 if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA as i32 {
                     lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
@@ -615,13 +605,11 @@ pub unsafe fn htp_gzip_decompressor_create(
                 (*drec).state.dic = 0 as *mut u8;
                 (*drec).state.probs = 0 as *mut lzma::LzmaDec::CLzmaProb
             } else {
-                htp_util::htp_log(
+                htp_log!(
                     connp,
-                    b"htp_decompressors.c\x00" as *const u8 as *const i8,
-                    445,
-                    htp_util::htp_log_level_t::HTP_LOG_WARNING,
-                    0,
-                    b"LZMA decompression disabled\x00" as *const u8 as *const i8,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::LZMA_DECOMPRESSION_DISABLED,
+                    "LZMA decompression disabled"
                 );
                 (*drec).passthrough = 1
             }
@@ -651,15 +639,13 @@ pub unsafe fn htp_gzip_decompressor_create(
             rc = -3
         }
     }
+
     if rc != 0 {
-        htp_util::htp_log(
+        htp_log!(
             connp,
-            b"htp_decompressors.c\x00" as *const u8 as *const i8,
-            465,
-            htp_util::htp_log_level_t::HTP_LOG_ERROR,
-            0,
-            b"GZip decompressor: inflateInit2 failed with code %d\x00" as *const u8 as *const i8,
-            rc,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::GZIP_DECOMPRESSION_FAILED,
+            format!("GZip decompressor: inflateInit2 failed with code {}", rc)
         );
         if format == htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
             || format == htp_content_encoding_t::HTP_COMPRESSION_GZIP

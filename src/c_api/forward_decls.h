@@ -8,7 +8,6 @@ typedef struct htp_file_t htp_file_t;
 typedef struct htp_file_data_t htp_file_data_t;
 typedef struct htp_header_t htp_header_t;
 typedef struct htp_header_line_t htp_header_line_t;
-typedef struct htp_log_t htp_log_t;
 typedef struct htp_param_t htp_param_t;
 typedef struct htp_mpartp_t htp_mpartp_t;
 typedef struct htp_tx_data_t htp_tx_data_t;

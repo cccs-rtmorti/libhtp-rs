@@ -1,6 +1,8 @@
+use crate::log::htp_log_level_t;
+use crate::log::htp_log_t;
 use crate::{
     htp_connection_parser, htp_content_handlers, htp_hooks, htp_request_apache_2_2,
-    htp_request_generic, htp_response_generic, htp_transaction, htp_util, Status,
+    htp_request_generic, htp_response_generic, htp_transaction, Status,
 };
 
 #[repr(C)]
@@ -15,7 +17,7 @@ pub struct htp_cfg_t {
     pub field_limit_soft: usize,
     /// Log level, which will be used when deciding whether to store or
     /// ignore the messages issued by the parser.
-    pub log_level: htp_util::htp_log_level_t,
+    pub log_level: htp_log_level_t,
     /// Whether to delete each transaction after the last hook is invoked. This
     /// feature should be used when parsing traffic streams in real time.
     pub tx_auto_destroy: i32,
@@ -158,7 +160,7 @@ impl Default for htp_cfg_t {
         let mut cfg = Self {
             field_limit_hard: 18000,
             field_limit_soft: 9000,
-            log_level: htp_util::htp_log_level_t::HTP_LOG_NOTICE,
+            log_level: htp_log_level_t::HTP_LOG_NOTICE,
             tx_auto_destroy: 0,
             server_personality: htp_server_personality_t::HTP_SERVER_GENERIC,
             parse_request_line: None,
@@ -496,12 +498,13 @@ impl htp_cfg_t {
     /// severity equal and higher than the configured log level.
     pub unsafe fn register_log(
         &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
+
+        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_log_t) -> Status>,
     ) {
         htp_hooks::htp_hook_register(
             &mut self.hook_log,
             ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_util::htp_log_t) -> Status>,
+                Option<unsafe extern "C" fn(_: *mut htp_log_t) -> Status>,
                 htp_callback_fn_t,
             >(callback_fn),
         );

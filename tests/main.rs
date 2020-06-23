@@ -12,8 +12,8 @@ use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::htp_tx_req_progress_t::*;
 use htp::htp_transaction::htp_tx_res_progress_t::*;
 use htp::htp_transaction::*;
-use htp::htp_util::htp_log_level_t::*;
 use htp::htp_util::*;
+use htp::log::*;
 use htp::Status;
 use std::cmp::Ordering;
 use std::env;
@@ -1582,6 +1582,7 @@ fn InvalidResponseHeaders2() {
 
 #[test]
 fn Util() {
+    use htp::htp_log;
     let mut t = Test::new();
     unsafe {
         assert!(t.run("50-util.t").is_ok());
@@ -1590,35 +1591,17 @@ fn Util() {
             htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        // Message too long.
-        (*(*(*tx).connp).cfg).log_level = HTP_LOG_ERROR;
-        let mut long_message: [i8; 1300] = [b'X' as i8; 1300];
-        long_message[1299] = 0;
-
-        htp_log(
-            (*tx).connp,
-            cstr!(file!()),
-            line!() as i32,
-            HTP_LOG_ERROR,
-            0,
-            long_message.as_ptr(),
-        );
-        assert!(!(*(*tx).connp).last_error.is_null());
-        assert!(!(*(*(*tx).connp).last_error).msg.is_null());
-        assert_eq!(1023, libc::strlen((*(*(*tx).connp).last_error).msg));
-        assert_eq!(b'+', *(*(*(*tx).connp).last_error).msg.offset(1022) as u8);
-
         // A message that should not be logged.
         let log_message_count = htp_list_array_size((*(*(*tx).connp).conn).messages);
-        (*(*(*tx).connp).cfg).log_level = HTP_LOG_NONE;
-        htp_log(
-            (*tx).connp,
-            cstr!(file!()),
-            line!() as i32,
-            HTP_LOG_ERROR,
-            0,
-            cstr!("Log message"),
+        (*(*(*tx).connp).cfg).log_level = htp_log_level_t::HTP_LOG_NONE;
+        let connp = (*tx).connp;
+        htp_log!(
+            connp,
+            htp_log_level_t::HTP_LOG_ERROR,
+            htp_log_code::UNKNOWN,
+            "Log message"
         );
+
         assert_eq!(
             log_message_count,
             htp_list_array_size((*(*(*tx).connp).conn).messages)
@@ -2229,11 +2212,8 @@ fn ResponseMultipleClMismatch() {
         assert_eq!(2, htp_list_array_size((*(*tx).conn).messages));
         let log: *mut htp_log_t = htp_list_array_get((*(*tx).conn).messages, 1) as *mut htp_log_t;
         assert!(!log.is_null());
-        assert_eq!(
-            0,
-            libc::strcmp((*log).msg, cstr!("Ambiguous response C-L value"))
-        );
-        assert_eq!(HTP_LOG_WARNING, (*log).level);
+        assert_eq!((*log).msg, "Ambiguous response C-L value");
+        assert_eq!(htp_log_level_t::HTP_LOG_WARNING, (*log).level);
     }
 }
 
