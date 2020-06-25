@@ -180,9 +180,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     name_end = colon_pos;
     // Ignore LWS after field-name.
     let mut prev: usize = name_end;
-    while prev > name_start
-        && htp_util::htp_is_lws(*data.offset(prev.wrapping_sub(1) as isize) as i32) != 0
-    {
+    while prev > name_start && htp_util::htp_is_lws(*data.offset(prev.wrapping_sub(1) as isize)) {
         // LWS after header name.
         prev = prev.wrapping_sub(1);
         name_end = name_end.wrapping_sub(1);
@@ -205,8 +203,7 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
         value_start = value_start.wrapping_add(1)
     }
     // Ignore LWS before field-content.
-    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize) as i32) != 0
-    {
+    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize)) {
         value_start = value_start.wrapping_add(1)
     }
     // Look for the end of field-content.
@@ -216,14 +213,14 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     }
     // Ignore LWS after field-content.
     prev = value_end.wrapping_sub(1);
-    while prev > value_start && htp_util::htp_is_lws(*data.offset(prev as isize) as i32) != 0 {
+    while prev > value_start && htp_util::htp_is_lws(*data.offset(prev as isize)) {
         prev = prev.wrapping_sub(1);
         value_end = value_end.wrapping_sub(1)
     }
     // Check that the header name is a token.
     let mut i: usize = name_start;
     while i < name_end {
-        if htp_util::htp_is_token(*data.offset(i as isize) as i32) == 0 {
+        if !htp_util::htp_is_token(*data.offset(i as isize)) {
             // Incorrectly formed header name.
             (*h).flags |= Flags::HTP_FIELD_INVALID;
             // Log only once per transaction.
@@ -292,7 +289,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         pos = 0
     }
     // skip past leading whitespace. IIS allows this
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos != 0 {
@@ -315,7 +312,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     }
     // The request method starts at the beginning of the
     // line and ends with the first whitespace character.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     // No, we don't care if the method is empty.
@@ -367,7 +364,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     bad_delim = 0;
     // The URI ends with the first whitespace.
     while pos < len && *data.offset(pos as isize) != 0x20 {
-        if bad_delim == 0 && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+        if bad_delim == 0 && htp_util::htp_is_space(*data.offset(pos as isize)) {
             bad_delim = bad_delim.wrapping_add(1)
         }
         pos = pos.wrapping_add(1)
@@ -378,7 +375,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         // implementations allow other delimiters, like tab or other
         // characters that isspace() accepts.
         pos = start;
-        while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+        while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
             pos = pos.wrapping_add(1)
         }
     }
@@ -400,7 +397,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         return Status::ERROR;
     }
     // Ignore whitespace after URI.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     // Is there protocol information available?

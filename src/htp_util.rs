@@ -170,27 +170,26 @@ pub struct htp_file_data_t {
 
 /// Is character a linear white space character?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_lws(c: i32) -> i32 {
-    if c == ' ' as i32 || c == '\t' as i32 {
-        return 1;
+/// Returns true or false
+pub fn htp_is_lws(c: u8) -> bool {
+    match c as char {
+        ' ' | '\t' => true,
+        _ => false,
     }
-    0
 }
 
 /// Is character a separator character?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_separator(c: i32) -> i32 {
+/// Returns true or false
+pub fn htp_is_separator(c: u8) -> bool {
     // separators = "(" | ")" | "<" | ">" | "@"
     // | "," | ";" | ":" | "\" | <">
     // | "/" | "[" | "]" | "?" | "="
     // | "{" | "}" | SP | HT
-
-    match c {
-        40 | 41 | 60 | 62 | 64 | 44 | 59 | 58 | 92 | 34 | 47 | 91 | 93 | 63 | 61 | 123 | 125
-        | 32 | 9 => 1,
-        _ => 0,
+    match c as char {
+        '(' | ')' | '<' | '>' | '@' | ',' | ';' | ':' | '\\' | '"' | '/' | '[' | ']' | '?'
+        | '=' | '{' | '}' | ' ' | '\t' => true,
+        _ => false,
     }
 }
 
@@ -209,17 +208,17 @@ pub unsafe fn htp_is_text(c: i32) -> i32 {
 
 /// Is character a token character?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_token(c: i32) -> i32 {
+/// Returns true or false
+pub fn htp_is_token(c: u8) -> bool {
     // token = 1*<any CHAR except CTLs or separators>
     // CHAR  = <any US-ASCII character (octets 0 - 127)>
     if c < 32 || c > 126 {
-        return 0;
+        return false;
     }
-    if htp_is_separator(c) != 0 {
-        return 0;
+    if htp_is_separator(c) {
+        return false;
     }
-    1
+    true
 }
 
 /// Remove all line terminators (LF, CR or CRLF) from
@@ -255,11 +254,11 @@ pub unsafe fn htp_chomp(data: *mut u8, len: *mut usize) -> i32 {
 
 /// Is character a white space character?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_space(c: i32) -> i32 {
-    match c {
-        32 | 12 | 11 | 9 | 13 | 10 => 1,
-        _ => 0,
+/// Returns true or false
+pub fn htp_is_space(c: u8) -> bool {
+    match c as char {
+        ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c' => true,
+        _ => false,
     }
 }
 
@@ -360,27 +359,24 @@ pub unsafe fn htp_convert_method_to_number(method: *mut bstr::bstr_t) -> i32 {
 
 /// Is the given line empty?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_line_empty(data: *mut u8, len: usize) -> i32 {
-    if len == 1 || len == 2 && *data.offset(0) == '\r' as u8 && *data.offset(1) == '\n' as u8 {
-        return 1;
+/// Returns true or false
+pub fn htp_is_line_empty(data: &[u8]) -> bool {
+    match data {
+        b"\x0d" | b"\x0a" | b"\x0d\x0a" => true,
+        _ => false,
     }
-    0
 }
 
 /// Does line consist entirely of whitespace characters?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_line_whitespace(data: *mut u8, len: usize) -> i32 {
-    let mut i: usize = 0;
-    i = 0;
-    while i < len {
-        if !(*data.offset(i as isize)).is_ascii_whitespace() {
-            return 0;
+/// Returns bool
+pub fn htp_is_line_whitespace(data: &[u8]) -> bool {
+    for c in data {
+        if !htp_is_space(*c) {
+            return false;
         }
-        i = i.wrapping_add(1)
     }
-    1
+    true
 }
 
 /// Parses Content-Length string (positive decimal number).
@@ -402,7 +398,7 @@ pub unsafe fn htp_parse_content_length(
     while pos < len
         && ((*data.offset(pos as isize)) < '0' as u8 || *data.offset(pos as isize) > '9' as u8)
     {
-        if htp_is_lws(*data.offset(pos as isize) as i32) == 0 && !connp.is_null() && r == 0 {
+        if !htp_is_lws(*data.offset(pos as isize)) && !connp.is_null() && r == 0 {
             htp_log!(
                 connp,
                 htp_log_level_t::HTP_LOG_WARNING,
@@ -487,7 +483,7 @@ pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize,
     let mut last_pos: usize = 0;
     let mut pos: usize = 0;
     // Ignore LWS before
-    while pos < len && htp_is_lws(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_is_lws(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos == len {
@@ -506,7 +502,7 @@ pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize,
     pos = (pos).wrapping_add(last_pos);
     // Ignore LWS after
     while pos < len {
-        if htp_is_lws(*data.offset(pos as isize) as i32) == 0 {
+        if !htp_is_lws(*data.offset(pos as isize)) {
             return -1002;
         }
         pos = pos.wrapping_add(1)
@@ -516,60 +512,55 @@ pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize,
 
 /// Determines if the given line is a continuation (of some previous line).
 ///
-/// Returns 0 or 1 for false and true, respectively. Returns -1 on error (NULL pointer or length zero).
-pub unsafe fn htp_connp_is_line_folded(data: *const u8, len: usize) -> i32 {
-    if data.is_null() || len == 0 {
-        return -1;
+/// Returns false or true, respectively.
+pub fn htp_connp_is_line_folded(data: &[u8]) -> bool {
+    if data.is_empty() {
+        return false;
     }
-    htp_is_folding_char(*data.offset(0) as i32)
+    htp_is_folding_char(data[0])
 }
 
-pub unsafe fn htp_is_folding_char(c: i32) -> i32 {
-    if htp_is_lws(c) != 0 || c == 0 {
-        return 1;
+pub fn htp_is_folding_char(c: u8) -> bool {
+    if htp_is_lws(c) || c == 0 {
+        return true;
     }
-    0
+    false
 }
 
 /// Determines if the given line is a request terminator.
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_connp_is_line_terminator(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    data: *mut u8,
-    len: usize,
-    next_no_lf: i32,
-) -> i32 {
+/// Returns true or false
+pub fn htp_connp_is_line_terminator(
+    server_personality: htp_config::htp_server_personality_t,
+    data: &[u8],
+    next_no_lf: bool,
+) -> bool {
     // Is this the end of request headers?
-    match (*(*connp).cfg).server_personality as u32 {
-        5 => {
-            // IIS 5 will accept a whitespace line as a terminator
-            if htp_is_line_whitespace(data, len) != 0 {
-                return 1;
-            }
+    if server_personality == htp_config::htp_server_personality_t::HTP_SERVER_IIS_5_0 {
+        // IIS 5 will accept a whitespace line as a terminator
+        if htp_is_line_whitespace(data) {
+            return true;
         }
-        _ => {}
     }
-    // Fall through
+
     // Treat an empty line as terminator
-    if htp_is_line_empty(data, len) != 0 {
-        return 1;
+    if htp_is_line_empty(data) {
+        return true;
     }
-    if len == 2 && htp_is_lws(*data.offset(0) as i32) != 0 && *data.offset(1) == '\n' as u8 {
+    if data.len() == 2 && htp_is_lws(data[0]) && data[1] == '\n' as u8 {
         return next_no_lf;
     }
-    0
+    false
 }
 
 /// Determines if the given line can be ignored when it appears before a request.
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_connp_is_line_ignorable(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    data: *mut u8,
-    len: usize,
-) -> i32 {
-    htp_connp_is_line_terminator(connp, data, len, 0)
+/// Returns true or false
+pub fn htp_connp_is_line_ignorable(
+    server_personality: htp_config::htp_server_personality_t,
+    data: &[u8],
+) -> bool {
+    htp_connp_is_line_terminator(server_personality, data, false)
 }
 
 unsafe fn htp_parse_port(data: *mut u8, len: usize, port: *mut i32, invalid: *mut i32) -> Status {
@@ -2211,8 +2202,7 @@ pub unsafe fn htp_treat_response_line_as_body(data: *const u8, len: usize) -> i3
         return 1;
     }
     while pos < len
-        && (htp_is_space(*data.offset(pos as isize) as i32) != 0
-            || *data.offset(pos as isize) as i32 == 0)
+        && (htp_is_space(*data.offset(pos as isize)) || *data.offset(pos as isize) as i32 == 0)
     {
         pos = pos.wrapping_add(1)
     }

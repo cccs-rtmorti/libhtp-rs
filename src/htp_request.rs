@@ -346,7 +346,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_PROBE_DATA(
     let mut pos: usize = 0;
     let mut mstart: usize = 0;
     // skip past leading whitespace. IIS allows this
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos != 0 {
@@ -354,7 +354,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_PROBE_DATA(
     }
     // The request method starts at the beginning of the
     // line and ends with the first whitespace character.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     let mut methodi: i32 = htp_method_t::HTP_M_UNKNOWN as i32;
@@ -721,7 +721,13 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 return Status::ERROR;
             }
             // Should we terminate headers?
-            if htp_util::htp_connp_is_line_terminator(connp, data, len, 0) != 0 {
+            if !data.is_null()
+                && htp_util::htp_connp_is_line_terminator(
+                    (*(*connp).cfg).server_personality,
+                    std::slice::from_raw_parts(data, len),
+                    false,
+                )
+            {
                 // Parse previous header, if any.
                 if !(*connp).in_header.is_null() {
                     if (*(*connp).cfg)
@@ -743,7 +749,9 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
             }
             htp_util::htp_chomp(data, &mut len);
             // Check for header folding.
-            if htp_util::htp_connp_is_line_folded(data, len) == 0 {
+            if !data.is_null()
+                && !htp_util::htp_connp_is_line_folded(std::slice::from_raw_parts(data, len))
+            {
                 // New header line.
                 // Parse previous header, if any.
                 if !(*connp).in_header.is_null() {
@@ -769,7 +777,7 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                         as i32;
                 }
                 if (*connp).in_next_byte != -1
-                    && htp_util::htp_is_folding_char((*connp).in_next_byte) == 0
+                    && !htp_util::htp_is_folding_char((*connp).in_next_byte as u8)
                 {
                     // Because we know this header is not folded, we can process the buffer straight away.
                     if (*(*connp).cfg)
@@ -860,13 +868,10 @@ pub unsafe extern "C" fn htp_connp_REQ_PROTOCOL(
                     htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS;
                 return Status::OK;
             } else {
-                if htp_util::htp_is_lws(*(*connp).in_current_data.offset(pos as isize) as i32) != 0
-                {
+                if htp_util::htp_is_lws(*(*connp).in_current_data.offset(pos as isize)) {
                     // Allows spaces after header name
                     afterspaces = 1
-                } else if htp_util::htp_is_space(
-                    *(*connp).in_current_data.offset(pos as isize) as i32
-                ) != 0
+                } else if htp_util::htp_is_space(*(*connp).in_current_data.offset(pos as isize))
                     || afterspaces == 1
                 {
                     break;
@@ -896,7 +901,12 @@ pub unsafe extern "C" fn htp_connp_REQ_LINE_complete(
         return Status::ERROR;
     }
     // Is this a line that should be ignored?
-    if htp_util::htp_connp_is_line_ignorable(connp, data, len) != 0 {
+    if !data.is_null()
+        && htp_util::htp_connp_is_line_ignorable(
+            (*(*connp).cfg).server_personality,
+            std::slice::from_raw_parts(data, len),
+        )
+    {
         // We have an empty/whitespace line, which we'll note, ignore and move on.
         (*(*connp).in_tx).request_ignored_lines =
             (*(*connp).in_tx).request_ignored_lines.wrapping_add(1);
@@ -1014,7 +1024,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     let mut pos: usize = 0;
     let mut mstart: usize = 0;
     // skip past leading whitespace. IIS allows this
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos != 0 {
@@ -1022,7 +1032,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     }
     // The request method starts at the beginning of the
     // line and ends with the first whitespace character.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos <= mstart {

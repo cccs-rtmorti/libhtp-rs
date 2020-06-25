@@ -684,7 +684,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             let mut newlen: usize = 0;
             while newlen < len {
                 // TODO Some platforms may do things differently here.
-                if htp_util::htp_is_space(*data.offset(newlen as isize) as i32) != 0
+                if htp_util::htp_is_space(*data.offset(newlen as isize))
                     || *data.offset(newlen as isize) as i32 == ';' as i32
                 {
                     bstr::bstr_adjust_len((*(*connp).out_tx).response_content_type, newlen);
@@ -981,17 +981,23 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
             if endwithcr != 0 && len < 2 {
                 continue;
             }
-            let mut next_no_lf: i32 = 0;
+            let mut next_no_lf: bool = false;
             if (*connp).out_current_read_offset < (*connp).out_current_len
                 && *(*connp)
                     .out_current_data
                     .offset((*connp).out_current_read_offset as isize) as i32
                     != '\n' as i32
             {
-                next_no_lf = 1
+                next_no_lf = true
             }
             // Should we terminate headers?
-            if htp_util::htp_connp_is_line_terminator(connp, data, len, next_no_lf) != 0 {
+            if !data.is_null()
+                && htp_util::htp_connp_is_line_terminator(
+                    (*(*connp).cfg).server_personality,
+                    std::slice::from_raw_parts(data, len),
+                    next_no_lf,
+                )
+            {
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
                     if (*(*connp).cfg)
@@ -1047,7 +1053,9 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
             }
             htp_util::htp_chomp(data, &mut len);
             // Check for header folding.
-            if htp_util::htp_connp_is_line_folded(data, len) == 0 {
+            if !data.is_null()
+                && !htp_util::htp_connp_is_line_folded(std::slice::from_raw_parts(data, len))
+            {
                 // New header line.
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
@@ -1072,7 +1080,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                         .offset((*connp).out_current_read_offset as isize)
                         as i32
                 }
-                if htp_util::htp_is_folding_char((*connp).out_next_byte) == 0 {
+                if !htp_util::htp_is_folding_char((*connp).out_next_byte as u8) {
                     // Because we know this header is not folded, we can process the buffer straight away.
                     if (*(*connp).cfg)
                         .process_response_header
@@ -1218,7 +1226,12 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                 return Status::ERROR;
             }
             // Is this a line that should be ignored?
-            if htp_util::htp_connp_is_line_ignorable(connp, data, len) != 0 {
+            if !data.is_null()
+                && htp_util::htp_connp_is_line_ignorable(
+                    (*(*connp).cfg).server_personality,
+                    std::slice::from_raw_parts(data, len),
+                )
+            {
                 if (*connp).out_status
                     == htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
                 {

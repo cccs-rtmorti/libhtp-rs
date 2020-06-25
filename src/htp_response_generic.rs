@@ -23,12 +23,12 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     (*tx).response_status_number = -1;
     (*tx).response_message = 0 as *mut bstr::bstr_t;
     // Ignore whitespace at the beginning of the line.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     let mut start: usize = pos;
     // Find the end of the protocol string.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos.wrapping_sub(start) == 0 {
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     (*tx).response_protocol_number =
         htp_parsers::htp_parse_protocol((*tx).response_protocol) as i32;
     // Ignore whitespace after the response protocol.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos == len {
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     }
     start = pos;
     // Find the next whitespace character.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
     if pos.wrapping_sub(start) == 0 {
@@ -166,8 +166,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     }
     // Header value.
     // Ignore LWS before field-content.
-    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize) as i32) != 0
-    {
+    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize)) {
         value_start = value_start.wrapping_add(1)
     }
     // Look for the end of field-content.
@@ -175,7 +174,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     // Check that the header name is a token.
     let mut i: usize = name_start;
     while i < name_end {
-        if htp_util::htp_is_token(*data.offset(i as isize) as i32) == 0 {
+        if !htp_util::htp_is_token(*data.offset(i as isize)) {
             (*h).flags |= Flags::HTP_FIELD_INVALID;
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;

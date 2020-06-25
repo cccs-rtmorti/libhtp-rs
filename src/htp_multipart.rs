@@ -587,7 +587,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     name_start = 0;
     // Look for the starting position of the name first.
     let mut colon_pos: usize = 0;
-    while colon_pos < len && htp_util::htp_is_space(*data.offset(colon_pos as isize) as i32) != 0 {
+    while colon_pos < len && htp_util::htp_is_space(*data.offset(colon_pos as isize)) {
         colon_pos = colon_pos.wrapping_add(1)
     }
     if colon_pos != 0 {
@@ -612,9 +612,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     name_end = colon_pos;
     // Ignore LWS after header name.
     let mut prev: usize = name_end;
-    if prev > name_start
-        && htp_util::htp_is_lws(*data.offset(prev.wrapping_sub(1) as isize) as i32) != 0
-    {
+    if prev > name_start && htp_util::htp_is_lws(*data.offset(prev.wrapping_sub(1) as isize)) {
         prev = prev.wrapping_sub(1);
         name_end = name_end.wrapping_sub(1);
         // LWS after field name. Not allowing for now.
@@ -624,8 +622,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     // Header value.
     value_start = colon_pos.wrapping_add(1);
     // Ignore LWS before value.
-    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize) as i32) != 0
-    {
+    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize)) {
         value_start = value_start.wrapping_add(1)
     }
     if value_start == len {
@@ -638,7 +635,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
     // Check that the header name is a token.
     let mut i: usize = name_start;
     while i < name_end {
-        if htp_util::htp_is_token(*data.offset(i as isize) as i32) == 0 {
+        if !htp_util::htp_is_token(*data.offset(i as isize)) {
             (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
             return Status::DECLINED;
         }
@@ -1640,7 +1637,7 @@ pub unsafe extern "C" fn htp_mpartp_parse(
                         startpos = pos;
                         (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE;
                         (*parser).parser_state = htp_multipart_state_t::STATE_DATA
-                    } else if htp_util::htp_is_lws(*data.offset(pos as isize) as i32) != 0 {
+                    } else if htp_util::htp_is_lws(*data.offset(pos as isize)) {
                         // Linear white space is allowed here.
                         (*parser).multipart.flags |=
                             MultipartFlags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
@@ -1811,7 +1808,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Look for the boundary value.
     let mut pos: usize = 0;
     while pos < len && *data.offset(pos as isize) != '=' as u8 {
-        if htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+        if htp_util::htp_is_space(*data.offset(pos as isize)) {
             // It is unusual to see whitespace before the equals sign.
             *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
         } else {
@@ -1828,8 +1825,8 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     // Go over the '=' character.
     pos = pos.wrapping_add(1);
     // Ignore any whitespace after the equals sign.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
-        if htp_util::htp_is_space(*data.offset(pos as isize) as i32) != 0 {
+    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
+        if htp_util::htp_is_space(*data.offset(pos as isize)) {
             // It is unusual to see whitespace after
             // the equals sign.
             *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
@@ -1878,7 +1875,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         while pos < len
             && *data.offset(pos as isize) != ',' as u8
             && *data.offset(pos as isize) != ';' as u8
-            && htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0
+            && !htp_util::htp_is_space(*data.offset(pos as isize))
         {
             pos = pos.wrapping_add(1)
         }
@@ -1901,7 +1898,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     let mut seen_space: i32 = 0;
     let mut seen_non_space: i32 = 0;
     while pos < len {
-        if htp_util::htp_is_space(*data.offset(pos as isize) as i32) == 0 {
+        if !htp_util::htp_is_space(*data.offset(pos as isize)) {
             seen_non_space = 1
         } else {
             seen_space = 1

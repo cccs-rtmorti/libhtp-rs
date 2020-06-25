@@ -53,29 +53,25 @@ fn Decode() {
 // Util tests
 #[test]
 fn Separator() {
-    unsafe {
-        assert_eq!(0, htp_is_separator('a' as i32));
-        assert_eq!(0, htp_is_separator('^' as i32));
-        assert_eq!(0, htp_is_separator('-' as i32));
-        assert_eq!(0, htp_is_separator('_' as i32));
-        assert_eq!(0, htp_is_separator('&' as i32));
-        assert_eq!(1, htp_is_separator('(' as i32));
-        assert_eq!(1, htp_is_separator('\\' as i32));
-        assert_eq!(1, htp_is_separator('/' as i32));
-        assert_eq!(1, htp_is_separator('=' as i32));
-        assert_eq!(1, htp_is_separator('\t' as i32));
-    }
+    assert_eq!(false, htp_is_separator('a' as u8));
+    assert_eq!(false, htp_is_separator('^' as u8));
+    assert_eq!(false, htp_is_separator('-' as u8));
+    assert_eq!(false, htp_is_separator('_' as u8));
+    assert_eq!(false, htp_is_separator('&' as u8));
+    assert_eq!(true, htp_is_separator('(' as u8));
+    assert_eq!(true, htp_is_separator('\\' as u8));
+    assert_eq!(true, htp_is_separator('/' as u8));
+    assert_eq!(true, htp_is_separator('=' as u8));
+    assert_eq!(true, htp_is_separator('\t' as u8));
 }
 
 #[test]
 fn Token() {
-    unsafe {
-        assert_eq!(1, htp_is_token('a' as i32));
-        assert_eq!(1, htp_is_token('&' as i32));
-        assert_eq!(1, htp_is_token('+' as i32));
-        assert_eq!(0, htp_is_token('\t' as i32));
-        assert_eq!(0, htp_is_token('\n' as i32));
-    }
+    assert_eq!(true, htp_is_token('a' as u8));
+    assert_eq!(true, htp_is_token('&' as u8));
+    assert_eq!(true, htp_is_token('+' as u8));
+    assert_eq!(false, htp_is_token('\t' as u8));
+    assert_eq!(false, htp_is_token('\n' as u8));
 }
 
 fn unsize<T>(x: &[T]) -> &[T] {
@@ -135,15 +131,13 @@ fn Chomp() {
 
 #[test]
 fn Space() {
-    unsafe {
-        assert_eq!(0, htp_is_space(0x61)); // a
-        assert_eq!(1, htp_is_space(0x20)); // space
-        assert_eq!(1, htp_is_space(0x0c)); // Form feed
-        assert_eq!(1, htp_is_space(0x0a)); // newline
-        assert_eq!(1, htp_is_space(0x0d)); // carriage return
-        assert_eq!(1, htp_is_space(0x09)); // tab
-        assert_eq!(1, htp_is_space(0x0b)); // Vertical tab
-    }
+    assert_eq!(false, htp_is_space(0x61)); // a
+    assert_eq!(true, htp_is_space(0x20)); // space
+    assert_eq!(true, htp_is_space(0x0c)); // Form feed
+    assert_eq!(true, htp_is_space(0x0a)); // newline
+    assert_eq!(true, htp_is_space(0x0d)); // carriage return
+    assert_eq!(true, htp_is_space(0x09)); // tab
+    assert_eq!(true, htp_is_space(0x0b)); // Vertical tab
 }
 
 #[test]
@@ -162,33 +156,22 @@ fn Method() {
 
 #[test]
 fn IsLineEmpty() {
-    unsafe {
-        let data: [u8; 100] = [0; 100];
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("arfarf"));
-        assert_eq!(0, htp_is_line_empty(data.as_ptr() as *mut u8, 6));
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r\n"));
-        assert_eq!(1, htp_is_line_empty(data.as_ptr() as *mut u8, 2));
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r"));
-        assert_eq!(1, htp_is_line_empty(data.as_ptr() as *mut u8, 1));
-        assert_eq!(0, htp_is_line_empty(data.as_ptr() as *mut u8, 0));
-    }
+    let data = b"arfarf";
+    assert_eq!(false, htp_is_line_empty(data));
+    assert_eq!(true, htp_is_line_empty(b"\x0d\x0a"));
+    assert_eq!(true, htp_is_line_empty(b"\x0d"));
+    assert_eq!(true, htp_is_line_empty(b"\x0a"));
+    assert_eq!(false, htp_is_line_empty(b"\x0a\x0d"));
+    assert_eq!(false, htp_is_line_empty(b"\x0dabc"));
 }
 
 #[test]
 fn IsLineWhitespace() {
-    unsafe {
-        let data: [u8; 100] = [0; 100];
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("arfarf"));
-        assert_eq!(0, htp_is_line_whitespace(data.as_ptr() as *mut u8, 6));
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r\n"));
-        assert_eq!(1, htp_is_line_whitespace(data.as_ptr() as *mut u8, 2));
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("\r"));
-        assert_eq!(1, htp_is_line_whitespace(data.as_ptr() as *mut u8, 1));
-        assert_eq!(1, htp_is_line_whitespace(data.as_ptr() as *mut u8, 0));
-    }
-}
+    let data = b"arfarf";
+    assert_eq!(false, htp_is_line_whitespace(data));
+    assert_eq!(true, htp_is_line_whitespace(b"\x0d\x0a"));
+    assert_eq!(true, htp_is_line_whitespace(b"\x0d"));
+    assert_eq!(false, htp_is_line_whitespace(b"\x0dabc"));}
 
 #[test]
 fn ParsePositiveIntegerWhitespace() {
@@ -258,12 +241,9 @@ fn ParseChunkedLength() {
 
 #[test]
 fn IsLineFolded() {
-    unsafe {
-        assert_eq!(-1, htp_connp_is_line_folded(cstr!("") as *const u8, 0));
-        assert_eq!(1, htp_connp_is_line_folded(cstr!("\tline") as *const u8, 5));
-        assert_eq!(1, htp_connp_is_line_folded(cstr!(" line") as *const u8, 5));
-        assert_eq!(0, htp_connp_is_line_folded(cstr!("line ") as *const u8, 5));
-    }
+    assert_eq!(true, htp_connp_is_line_folded(b"\tline"));
+    assert_eq!(true, htp_connp_is_line_folded(b" line"));
+    assert_eq!(false, htp_connp_is_line_folded(b"line "));
 }
 
 fn free_htp_uri_t(urip: *mut *mut htp_uri_t) {
