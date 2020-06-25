@@ -19,7 +19,7 @@ pub struct htp_urlenp_t {
     /// Whether to perform URL-decoding on parameters.
     pub decode_url_encoding: i32,
     /// This table contains the list of parameters, indexed by name.
-    pub params: htp_table::htp_table_t<*mut bstr::bstr_t>,
+    pub params: htp_table::htp_table_t<bstr::bstr_t>,
     // Private fields; these are used during the parsing process only
     pub _state: i32,
     pub _complete: i32,
@@ -85,12 +85,9 @@ unsafe fn htp_urlenp_add_field_piece(
                     let mut name = if !field.is_null() {
                         (*field).clone()
                     } else {
-                        bstr::bstr_t::from("")
+                        bstr::bstr_t::new()
                     };
-                    let value: *mut bstr::bstr_t = bstr::bstr_alloc(0);
-                    if value.is_null() {
-                        return;
-                    }
+                    let value = bstr::bstr_t::new();
                     if (*urlenp).decode_url_encoding != 0 {
                         htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, &mut name);
                     }
@@ -103,28 +100,21 @@ unsafe fn htp_urlenp_add_field_piece(
             }
         } else {
             // Value (with a key remembered from before).
-            let mut name_0: *mut bstr::bstr_t = (*urlenp)._name;
-            (*urlenp)._name = 0 as *mut bstr::bstr_t;
-            if name_0.is_null() {
-                name_0 = bstr::bstr_alloc(0);
-                if name_0.is_null() {
-                    bstr::bstr_free(field);
-                    return;
-                }
-            }
-            let mut value_0: *mut bstr::bstr_t = field;
-            if value_0.is_null() {
-                value_0 = bstr::bstr_alloc(0);
-                if value_0.is_null() {
-                    bstr::bstr_free(name_0);
-                    return;
-                }
-            }
+            let mut name_0 = if !(*urlenp)._name.is_null() {
+                (*(*urlenp)._name).clone()
+            } else {
+                bstr::bstr_t::new()
+            };
+            let mut value_0 = if !field.is_null() {
+                (*field).clone()
+            } else {
+                bstr::bstr_t::new()
+            };
             if (*urlenp).decode_url_encoding != 0 {
-                htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, name_0);
-                htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, value_0);
+                htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, &mut name_0);
+                htp_util::htp_tx_urldecode_params_inplace((*urlenp).tx, &mut value_0);
             }
-            (*urlenp).params.add((*name_0).clone(), value_0);
+            (*urlenp).params.add(name_0, value_0);
         }
     } else if !data.is_null() && endpos.wrapping_sub(startpos) > 0 {
         bstr_builder::bstr_builder_append_mem(
@@ -166,10 +156,6 @@ pub unsafe fn htp_urlenp_destroy(urlenp: *mut htp_urlenp_t) {
         bstr::bstr_free((*urlenp)._name);
     }
     bstr_builder::bstr_builder_destroy((*urlenp)._bb);
-    for (_name, value) in (*urlenp).params.elements.iter_mut() {
-        // Destroy parameters.
-        bstr::bstr_free(*value);
-    }
     (*urlenp).params.elements.clear();
     free(urlenp as *mut core::ffi::c_void);
 }

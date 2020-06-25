@@ -38,13 +38,12 @@ pub enum htp_parser_id_t {
 }
 
 /// Represents a single request parameter.
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone, Debug)]
 pub struct htp_param_t {
     /// Parameter name.
-    pub name: *mut bstr::bstr_t,
+    pub name: bstr::bstr_t,
     /// Parameter value.
-    pub value: *mut bstr::bstr_t,
+    pub value: bstr::bstr_t,
     /// Source of the parameter, for example HTP_SOURCE_QUERY_STRING.
     pub source: htp_data_source_t,
     /// Type of the data structure referenced below.
@@ -52,6 +51,24 @@ pub struct htp_param_t {
     /// Pointer to the parser data structure that contains
     /// complete information about the parameter. Can be NULL.
     pub parser_data: *mut core::ffi::c_void,
+}
+
+impl htp_param_t {
+    /// Make a new owned htp_param_t
+    pub fn new(
+        name: bstr::bstr_t,
+        value: bstr::bstr_t,
+        source: htp_data_source_t,
+        parser_id: htp_parser_id_t,
+    ) -> Self {
+        htp_param_t {
+            name,
+            value,
+            source,
+            parser_id,
+            parser_data: std::ptr::null_mut(),
+        }
+    }
 }
 
 /// This structure is used to pass transaction data (for example
@@ -213,7 +230,7 @@ pub struct htp_tx_t {
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: *mut htp_multipart::htp_mpartp_t,
     /// Request parameters.
-    pub request_params: *mut htp_table::htp_table_t<*mut htp_param_t>,
+    pub request_params: *mut htp_table::htp_table_t<htp_param_t>,
     /// Request cookies
     pub request_cookies: *mut htp_table::htp_table_t<*mut bstr::bstr_t>,
     /// Authentication type used in the request.
@@ -467,11 +484,6 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
     htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_body);
     htp_multipart::htp_mpartp_destroy((*tx).request_mpartp);
     // Request parameters.
-    for (_key, param) in (*(*tx).request_params).elements.iter_mut() {
-        bstr::bstr_free((*(*param)).name);
-        bstr::bstr_free((*(*param)).value);
-        free(*param as *mut libc::c_void);
-    }
     htp_table::htp_table_free((*tx).request_params);
 
     // Request cookies.
@@ -527,69 +539,52 @@ pub unsafe fn htp_tx_set_user_data(mut tx: *mut htp_tx_t, user_data: *mut core::
 /// param: Parameter pointer. Must not be NULL.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_req_add_param(tx: *mut htp_tx_t, param: *mut htp_param_t) -> Status {
-    if tx.is_null() || param.is_null() {
+pub unsafe fn htp_tx_req_add_param(tx: *mut htp_tx_t, mut param: htp_param_t) -> Status {
+    if tx.is_null() {
         return Status::ERROR;
     }
     if (*(*tx).cfg).parameter_processor.is_some()
         && (*(*tx).cfg)
             .parameter_processor
-            .expect("non-null function pointer")(param)
+            .expect("non-null function pointer")(&mut param)
             != Status::OK
     {
         return Status::ERROR;
     }
-    let name = bstr::bstr_t::from((*(*param).name).as_slice());
-    (*(*tx).request_params).add(name, param);
+    (*(*tx).request_params).add(param.name.clone(), param);
     Status::OK
 }
 
-/// Returns the first request parameter that matches the given name, using case-insensitive matching.
+/// Returns the first parameter inside the given table that matches the given name, using case-insensitive matching.
 ///
-/// tx: Transaction pointer. Must not be NULL.
-/// name: Name data pointer. Must not be NULL.
-/// name_len: Name data length.
-///
-/// Returns htp_param_t instance, or NULL if parameter not found.
+/// Returns htp_param_t instance, or None if parameter not found.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_get_param<S: AsRef<[u8]>>(tx: *mut htp_tx_t, name: S) -> *mut htp_param_t {
-    if tx.is_null() {
-        return 0 as *mut htp_param_t;
+pub fn htp_tx_req_get_param<'a, S: AsRef<[u8]>>(
+    params: &'a htp_table::htp_table_t<htp_param_t>,
+    name: S,
+) -> Option<&'a htp_param_t> {
+    if let Some((_, param)) = params.get_nocase(name) {
+        return Some(param);
     }
-    let param_opt = (*(*tx).request_params).get_nocase(name);
-    if param_opt.is_none() {
-        return 0 as *mut htp_param_t;
-    }
-    param_opt.unwrap().1 as *mut htp_param_t
+    None
 }
 
-/// Returns the first request parameter from the given source that matches the given name,
+/// Returns the first parameter inside the given table from the given source that matches the given name,
 /// using case-insensitive matching.
 ///
-/// tx: Transaction pointer. Must not be NULL.
-/// source: Parameter source (where in request the parameter was located).
-/// name: Name data pointer. Must not be NULL.
-/// name_len: Name data length.
-///
-/// Returns htp_param_t instance, or NULL if parameter not found.
+/// Returns htp_param_t instance, or None if parameter not found.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_get_param_ex<S: AsRef<[u8]>>(
-    tx: *mut htp_tx_t,
+pub fn htp_tx_req_get_param_ex<'a, S: AsRef<[u8]>>(
+    params: &'a htp_table::htp_table_t<htp_param_t>,
     source: htp_data_source_t,
     name: S,
-) -> *mut htp_param_t {
-    if tx.is_null() {
-        return 0 as *mut htp_param_t;
+) -> Option<&htp_param_t> {
+    if let Some((_, param)) = params.elements.iter().find(|x| {
+        (*x).1.source as u32 == source as u32 && (*x).0.cmp_nocase(name.as_ref()) == Ordering::Equal
+    }) {
+        return Some(&param);
     }
-    let param_opt = (*(*tx).request_params).elements.iter().find(|x| {
-        !(*(*x)).1.is_null()
-            && (*(*(*x)).1).source as u32 == source as u32
-            && (*(*x)).0.cmp_nocase(name.as_ref()) == Ordering::Equal
-    });
-    if param_opt.is_none() {
-        return 0 as *mut htp_param_t;
-    }
-    param_opt.unwrap().1
+    None
 }
 
 /// Determine if the request has a body.

@@ -9,6 +9,7 @@ use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::*;
 use htp::htp_util::*;
 use htp::Status;
+use std::cmp::Ordering;
 use std::ffi::CString;
 use std::ops::Drop;
 
@@ -299,13 +300,20 @@ fn GetTest() {
         assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=1&q=2"));
 
         // Check parameters
-        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
-        assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
-
-        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "p")
+                .unwrap()
+                .value
+                .cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
 
         // Request headers
         htp_tx_req_set_header(tx, "Host", "www.example.com");
@@ -318,21 +326,24 @@ fn GetTest() {
         // Check headers
         assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
 
-        let h_host_opt = (*(*tx).request_headers).get_nocase_nozero("host");
-        assert!(h_host_opt.is_some());
-        let h_host = h_host_opt.unwrap().1;
+        let h_host = (*(*tx).request_headers)
+            .get_nocase_nozero("host")
+            .unwrap()
+            .1;
         assert!(!h_host.is_null());
         assert_eq!(0, bstr_cmp_str((*h_host).value, "www.example.com"));
 
-        let h_connection_opt = (*(*tx).request_headers).get_nocase_nozero("connection");
-        assert!(h_connection_opt.is_some());
-        let h_connection = h_connection_opt.unwrap().1;
+        let h_connection = (*(*tx).request_headers)
+            .get_nocase_nozero("connection")
+            .unwrap()
+            .1;
         assert!(!h_connection.is_null());
         assert_eq!(0, bstr_cmp_str((*h_connection).value, "keep-alive"));
 
-        let h_ua_opt = (*(*tx).request_headers).get_nocase_nozero("user-agent");
-        assert!(h_ua_opt.is_some());
-        let h_ua = h_ua_opt.unwrap().1;
+        let h_ua = (*(*tx).request_headers)
+            .get_nocase_nozero("user-agent")
+            .unwrap()
+            .1;
         assert!(!h_ua.is_null());
         assert_eq!(0, bstr_cmp_str((*h_ua).value, "Mozilla/5.0"));
 
@@ -364,15 +375,17 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
 
         // Check response headers
-        let mut h_content_type_opt = (*(*tx).response_headers).get_nocase_nozero("content-type");
-        assert!(h_content_type_opt.is_some());
-        let mut h_content_type = h_content_type_opt.unwrap().1;
+        let mut h_content_type = (*(*tx).response_headers)
+            .get_nocase_nozero("content-type")
+            .unwrap()
+            .1;
         assert!(!h_content_type.is_null());
         assert_eq!(0, bstr_cmp_str((*h_content_type).value, "text/html"));
 
-        let mut h_server_opt = (*(*tx).response_headers).get_nocase_nozero("server");
-        assert!(h_server_opt.is_some());
-        let mut h_server = h_server_opt.unwrap().1;
+        let mut h_server = (*(*tx).response_headers)
+            .get_nocase_nozero("server")
+            .unwrap()
+            .1;
         assert!(!h_server.is_null());
         assert_eq!(0, bstr_cmp_str((*h_server).value, "Apache"));
 
@@ -386,15 +399,17 @@ fn GetTest() {
         htp_tx_res_set_header(tx, "Server", "Apache");
 
         // Check trailing response headers
-        h_content_type_opt = (*(*tx).response_headers).get_nocase_nozero("content-type");
-        assert!(h_content_type_opt.is_some());
-        h_content_type = h_content_type_opt.unwrap().1;
+        h_content_type = (*(*tx).response_headers)
+            .get_nocase_nozero("content-type")
+            .unwrap()
+            .1;
         assert!(!h_content_type.is_null());
         assert_eq!(0, bstr_cmp_str((*h_content_type).value, "text/html"));
 
-        h_server_opt = (*(*tx).response_headers).get_nocase_nozero("server");
-        assert!(h_server_opt.is_some());
-        h_server = h_server_opt.unwrap().1;
+        h_server = (*(*tx).response_headers)
+            .get_nocase_nozero("server")
+            .unwrap()
+            .1;
         assert!(!h_server.is_null());
         assert_eq!(0, bstr_cmp_str((*h_server).value, "Apache"));
 
@@ -438,21 +453,24 @@ fn PostUrlecodedTest() {
         htp_tx_req_set_header(tx, "Connection", "keep-alive");
         htp_tx_req_set_header(tx, "User-Agent", "Mozilla/5.0");
 
-        let h_host_opt = (*(*tx).request_headers).get_nocase_nozero("host");
-        assert!(h_host_opt.is_some());
-        let h_host = h_host_opt.unwrap().1;
+        let h_host = (*(*tx).request_headers)
+            .get_nocase_nozero("host")
+            .unwrap()
+            .1;
         assert!(!h_host.is_null());
         assert_eq!(0, bstr_cmp_str((*h_host).value, "www.example.com"));
 
-        let h_connection_opt = (*(*tx).request_headers).get_nocase_nozero("connection");
-        assert!(h_connection_opt.is_some());
-        let h_connection = h_connection_opt.unwrap().1;
+        let h_connection = (*(*tx).request_headers)
+            .get_nocase_nozero("connection")
+            .unwrap()
+            .1;
         assert!(!h_connection.is_null());
         assert_eq!(0, bstr_cmp_str((*h_connection).value, "keep-alive"));
 
-        let h_ua_opt = (*(*tx).request_headers).get_nocase_nozero("user-agent");
-        assert!(h_ua_opt.is_some());
-        let h_ua = h_ua_opt.unwrap().1;
+        let h_ua = (*(*tx).request_headers)
+            .get_nocase_nozero("user-agent")
+            .unwrap()
+            .1;
         assert!(!h_ua.is_null());
         assert_eq!(0, bstr_cmp_str((*h_ua).value, "Mozilla/5.0"));
 
@@ -460,14 +478,20 @@ fn PostUrlecodedTest() {
         htp_tx_state_request_complete(tx);
 
         // Check parameters
-
-        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
-        assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
-
-        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "p")
+                .unwrap()
+                .value
+                .cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
     }
 }
 
@@ -542,26 +566,41 @@ fn ParamCaseSensitivity() {
         htp_tx_state_request_line(tx);
 
         // Check the parameters.
-
-        let mut param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
-        assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
-
-        param_p = htp_tx_req_get_param(tx, "P");
-        assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
-
-        let mut param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
-
-        param_q = htp_tx_req_get_param_ex(tx, HTP_SOURCE_QUERY_STRING, "q");
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
-
-        param_q = htp_tx_req_get_param_ex(tx, HTP_SOURCE_QUERY_STRING, "Q");
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "p")
+                .unwrap()
+                .value
+                .cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "p")
+                .unwrap()
+                .value
+                .cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
     }
 }
 
@@ -598,14 +637,20 @@ fn PostUrlecodedChunked() {
         htp_tx_state_request_complete(tx);
 
         // Check the parameters.
-
-        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
-        assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
-
-        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "p")
+                .unwrap()
+                .value
+                .cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
     }
 }
 
@@ -634,13 +679,20 @@ fn RequestLineParsing1() {
         assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=1&q=2"));
 
         // Check parameters
-        let param_p = htp_tx_req_get_param(tx, "p") as *mut htp_param_t;
-        assert!(!param_p.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_p).value, "1"));
-
-        let param_q = htp_tx_req_get_param(tx, "q") as *mut htp_param_t;
-        assert!(!param_q.is_null());
-        assert_eq!(0, bstr_cmp_str((*param_q).value, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "p")
+                .unwrap()
+                .value
+                .cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            htp_tx_req_get_param(&*(*tx).request_params, "q")
+                .unwrap()
+                .value
+                .cmp("2")
+        );
     }
 }
 

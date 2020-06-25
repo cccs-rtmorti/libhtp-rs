@@ -28,20 +28,14 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
         // Finalize parsing.
         htp_urlencoded::htp_urlenp_finalize((*tx).request_urlenp_body);
         // Add all parameters to the transaction.
-        for (name, value) in (*(*tx).request_urlenp_body).params.elements.iter_mut() {
-            let mut param: *mut htp_transaction::htp_param_t =
-                calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
-                    as *mut htp_transaction::htp_param_t;
-            if param.is_null() {
-                return Status::ERROR;
-            }
-            (*param).name = bstr::bstr_clone(name);
-            (*param).value = *value;
-            (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_BODY;
-            (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED;
-            (*param).parser_data = 0 as *mut core::ffi::c_void;
+        for (name, value) in (*(*tx).request_urlenp_body).params.elements.iter() {
+            let param = htp_transaction::htp_param_t::new(
+                bstr::bstr_t::from((*name).as_slice()),
+                bstr::bstr_t::from((*value).as_slice()),
+                htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
+                htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
+            );
             if htp_transaction::htp_tx_req_add_param(tx, param) != Status::OK {
-                free(param as *mut core::ffi::c_void);
                 return Status::ERROR;
             }
         }
@@ -110,20 +104,14 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
         return Status::ERROR;
     }
     // Add all parameters to the transaction.
-    for (name, value) in (*(*tx).request_urlenp_query).params.elements.iter_mut() {
-        let mut param: *mut htp_transaction::htp_param_t =
-            calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
-                as *mut htp_transaction::htp_param_t;
-        if param.is_null() {
-            return Status::ERROR;
-        }
-        (*param).name = bstr::bstr_clone(name);
-        (*param).value = *value;
-        (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_QUERY_STRING;
-        (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED;
-        (*param).parser_data = 0 as *mut core::ffi::c_void;
+    for (name, value) in (*(*tx).request_urlenp_query).params.elements.iter() {
+        let param = htp_transaction::htp_param_t::new(
+            bstr::bstr_t::from(name.as_slice()),
+            bstr::bstr_t::from(value.as_slice()),
+            htp_transaction::htp_data_source_t::HTP_SOURCE_QUERY_STRING,
+            htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
+        );
         if htp_transaction::htp_tx_req_add_param(tx, param) != Status::OK {
-            free(param as *mut core::ffi::c_void);
             return Status::ERROR;
         }
     }
@@ -165,19 +153,13 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
                     as *mut htp_multipart::htp_multipart_part_t;
             // Use text parameters.
             if (*part).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
-                let mut param: *mut htp_transaction::htp_param_t =
-                    calloc(1, ::std::mem::size_of::<htp_transaction::htp_param_t>())
-                        as *mut htp_transaction::htp_param_t;
-                if param.is_null() {
-                    return Status::ERROR;
-                }
-                (*param).name = (*part).name;
-                (*param).value = (*part).value;
-                (*param).source = htp_transaction::htp_data_source_t::HTP_SOURCE_BODY;
-                (*param).parser_id = htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART;
-                (*param).parser_data = part as *mut core::ffi::c_void;
+                let param = htp_transaction::htp_param_t::new(
+                    bstr::bstr_t::from((*(*part).name).as_slice()),
+                    bstr::bstr_t::from((*(*part).value).as_slice()),
+                    htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
+                    htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART,
+                );
                 if htp_transaction::htp_tx_req_add_param(tx, param) != Status::OK {
-                    free(param as *mut core::ffi::c_void);
                     return Status::ERROR;
                 }
             }

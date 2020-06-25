@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 use libc;
+use std::cmp::Ordering;
 use std::ffi::{CStr, CString};
 use std::io::Write;
 
@@ -1940,11 +1941,10 @@ fn UrlencodedParser_EmptyKey1() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "&".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p_opt = (*test.urlenp).params.get_nocase("");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1955,11 +1955,10 @@ fn UrlencodedParser_EmptyKey2() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=&".as_ptr() as *const core::ffi::c_void, 2);
 
-        let p_opt = (*test.urlenp).params.get_nocase("");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1970,11 +1969,10 @@ fn UrlencodedParser_EmptyKey3() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=1&".as_ptr() as *const core::ffi::c_void, 3);
 
-        let p_opt = (*test.urlenp).params.get_nocase("");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, "1"));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("1")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1985,11 +1983,10 @@ fn UrlencodedParser_EmptyKeyAndValue() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p_opt = (*test.urlenp).params.get_nocase("");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2000,11 +1997,10 @@ fn UrlencodedParser_OnePairEmptyValue() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p=".as_ptr() as *const core::ffi::c_void, 2);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2015,11 +2011,10 @@ fn UrlencodedParser_OnePair() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p=1".as_ptr() as *const core::ffi::c_void, 3);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, "1"));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("1")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2034,17 +2029,14 @@ fn UrlencodedParser_TwoPairs() {
             7,
         );
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, "1"));
-
-        let q_opt = (*test.urlenp).params.get_nocase("q");
-        assert!(q_opt.is_some());
-        let q = q_opt.unwrap();
-        assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_str(q.1, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("1")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("q").unwrap().1.cmp("2")
+        );
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2055,11 +2047,10 @@ fn UrlencodedParser_KeyNoValue1() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p".as_ptr() as *const core::ffi::c_void, 1);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2070,11 +2061,10 @@ fn UrlencodedParser_KeyNoValue2() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&".as_ptr() as *mut core::ffi::c_void, 2);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2085,17 +2075,14 @@ fn UrlencodedParser_KeyNoValue3() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&q".as_ptr() as *mut core::ffi::c_void, 3);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
-
-        let q_opt = (*test.urlenp).params.get_nocase("q");
-        assert!(q_opt.is_some());
-        let q = q_opt.unwrap();
-        assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_str(q.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("q").unwrap().1.cmp("")
+        );
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2106,17 +2093,14 @@ fn UrlencodedParser_KeyNoValue4() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&q=2".as_ptr() as *mut core::ffi::c_void, 5);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
-
-        let q_opt = (*test.urlenp).params.get_nocase("q");
-        assert!(q_opt.is_some());
-        let q = q_opt.unwrap();
-        assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_str(q.1, "2"));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("q").unwrap().1.cmp("2")
+        );
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2128,11 +2112,10 @@ fn UrlencodedParser_Partial1() {
         htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2145,11 +2128,10 @@ fn UrlencodedParser_Partial2() {
         htp_urlenp_parse_partial(test.urlenp, "x".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p_opt = (*test.urlenp).params.get_nocase("px");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("px").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2162,11 +2144,10 @@ fn UrlencodedParser_Partial3() {
         htp_urlenp_parse_partial(test.urlenp, "x&".as_ptr() as *mut core::ffi::c_void, 2);
         htp_urlenp_finalize(test.urlenp);
 
-        let p_opt = (*test.urlenp).params.get_nocase("px");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("px").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2179,11 +2160,10 @@ fn UrlencodedParser_Partial4() {
         htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2198,11 +2178,10 @@ fn UrlencodedParser_Partial5() {
         htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
         htp_urlenp_finalize(test.urlenp);
 
-        let p_opt = (*test.urlenp).params.get_nocase("p");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, ""));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
+        );
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2227,17 +2206,14 @@ fn UrlencodedParser_Partial6i() {
         htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        let p_opt = (*test.urlenp).params.get_nocase("pxn");
-        assert!(p_opt.is_some());
-        let p = p_opt.unwrap();
-        assert!(!p.1.is_null());
-        assert_eq!(0, bstr_cmp_str(p.1, "12"));
-
-        let q_opt = (*test.urlenp).params.get_nocase("qzn");
-        assert!(q_opt.is_some());
-        let q = q_opt.unwrap();
-        assert!(!q.1.is_null());
-        assert_eq!(0, bstr_cmp_str(q.1, "23"));
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("pxn").unwrap().1.cmp("12")
+        );
+        assert_eq!(
+            Ordering::Equal,
+            (*test.urlenp).params.get_nocase("qzn").unwrap().1.cmp("23")
+        );
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2377,19 +2353,14 @@ fn Table_Misc() {
     t.add(pkey, "1");
     t.add(qkey, "2");
 
-    let mut p_opt = t.get_nocase("z");
-    assert!(p_opt.is_none());
-
-    p_opt = t.get_nocase("p");
-    assert!(p_opt.is_some());
-    let p = p_opt.unwrap().1;
-    assert_eq!("1", p);
+    assert!(t.get_nocase("z").is_none());
+    assert_eq!("1", t.get_nocase("p").unwrap().1);
 }
 
 #[test]
 fn Util_ExtractQuotedString() {
-    let mut s: *mut bstr_t = &mut bstr_t::from("") as *mut bstr_t;
     unsafe {
+        let mut s: *mut bstr_t = bstr_alloc(0);
         let mut end_offset = 0;
 
         let rc: Status = htp_extract_quoted_string_as_bstr(
