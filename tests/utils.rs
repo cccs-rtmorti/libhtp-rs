@@ -171,7 +171,8 @@ fn IsLineWhitespace() {
     assert_eq!(false, htp_is_line_whitespace(data));
     assert_eq!(true, htp_is_line_whitespace(b"\x0d\x0a"));
     assert_eq!(true, htp_is_line_whitespace(b"\x0d"));
-    assert_eq!(false, htp_is_line_whitespace(b"\x0dabc"));}
+    assert_eq!(false, htp_is_line_whitespace(b"\x0dabc"));
+}
 
 #[test]
 fn ParsePositiveIntegerWhitespace() {
