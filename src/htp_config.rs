@@ -214,10 +214,10 @@ impl Default for htp_cfg_t {
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        cfg.set_nul_raw_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
-        cfg.set_nul_encoded_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
-        cfg.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
-        cfg.set_plusspace_decode(htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        cfg.set_nul_raw_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
+        cfg.set_nul_encoded_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
+        cfg.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
+        cfg.set_plusspace_decode(htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
         cfg.set_server_personality(htp_server_personality_t::HTP_SERVER_MINIMAL);
         cfg
     }
@@ -228,27 +228,27 @@ impl Default for htp_cfg_t {
 pub struct htp_decoder_cfg_t {
     // Path-specific decoding options.
     /// Convert backslash characters to slashes.
-    pub backslash_convert_slashes: i32,
+    pub backslash_convert_slashes: bool,
     /// Convert to lowercase.
-    pub convert_lowercase: i32,
+    pub convert_lowercase: bool,
     /// Compress slash characters.
-    pub path_separators_compress: i32,
+    pub path_separators_compress: bool,
     /// Should we URL-decode encoded path segment separators?
-    pub path_separators_decode: i32,
+    pub path_separators_decode: bool,
     /// Should we decode '+' characters to spaces?
-    pub plusspace_decode: i32,
+    pub plusspace_decode: bool,
     /// Reaction to encoded path separators.
     pub path_separators_encoded_unwanted: htp_unwanted_t,
     // Special characters options.
     /// Controls how raw NUL bytes are handled.
-    pub nul_raw_terminates: i32,
+    pub nul_raw_terminates: bool,
     /// Determines server response to a raw NUL byte in the path.
     pub nul_raw_unwanted: htp_unwanted_t,
     /// Reaction to control characters.
     pub control_chars_unwanted: htp_unwanted_t,
     // URL encoding options.
     /// Should we decode %u-encoded characters?
-    pub u_encoding_decode: i32,
+    pub u_encoding_decode: bool,
     /// Reaction to %u encoding.
     pub u_encoding_unwanted: htp_unwanted_t,
     /// Handling of invalid URL encodings.
@@ -256,14 +256,14 @@ pub struct htp_decoder_cfg_t {
     /// Reaction to invalid URL encoding.
     pub url_encoding_invalid_unwanted: htp_unwanted_t,
     /// Controls how encoded NUL bytes are handled.
-    pub nul_encoded_terminates: i32,
+    pub nul_encoded_terminates: bool,
     /// How are we expected to react to an encoded NUL byte?
     pub nul_encoded_unwanted: htp_unwanted_t,
     // UTF-8 options.
     /// Controls how invalid UTF-8 characters are handled.
     pub utf8_invalid_unwanted: htp_unwanted_t,
     /// Convert UTF-8 characters into bytes using best-fit mapping.
-    pub utf8_convert_bestfit: i32,
+    pub utf8_convert_bestfit: bool,
     // Best-fit mapping options.
     /// The best-fit map to use to decode %u-encoded characters.
     pub bestfit_map: *mut u8,
@@ -274,24 +274,24 @@ pub struct htp_decoder_cfg_t {
 impl Default for htp_decoder_cfg_t {
     fn default() -> Self {
         Self {
-            backslash_convert_slashes: 0,
-            convert_lowercase: 0,
-            path_separators_compress: 0,
-            path_separators_decode: 0,
-            plusspace_decode: 0,
+            backslash_convert_slashes: false,
+            convert_lowercase: false,
+            path_separators_compress: false,
+            path_separators_decode: false,
+            plusspace_decode: false,
             path_separators_encoded_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            nul_raw_terminates: 0,
+            nul_raw_terminates: false,
             nul_raw_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             control_chars_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            u_encoding_decode: 0,
+            u_encoding_decode: false,
             u_encoding_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             url_encoding_invalid_handling:
                 htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
             url_encoding_invalid_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            nul_encoded_terminates: 0,
+            nul_encoded_terminates: false,
             nul_encoded_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             utf8_invalid_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            utf8_convert_bestfit: 0,
+            utf8_convert_bestfit: false,
             bestfit_map: std::ptr::null_mut(),
             bestfit_replacement_byte: 0,
         }
@@ -460,12 +460,6 @@ pub fn create() -> *mut htp_cfg_t {
     cfg
 }
 
-fn convert_to_0_or_1(b: i32) -> i32 {
-    if b != 0 {
-        return 1;
-    }
-    return 0;
-}
 impl htp_cfg_t {
     /// Destroy a configuration structure.
     pub fn destroy(&mut self) {
@@ -869,9 +863,9 @@ impl htp_cfg_t {
                             _: usize,
                         ) -> Status,
                 );
-                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
             }
             htp_server_personality_t::HTP_SERVER_IDS => {
                 self.parse_request_line = Some(
@@ -902,12 +896,12 @@ impl htp_cfg_t {
                             _: usize,
                         ) -> Status,
                 );
-                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_convert_lowercase(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_utf8_convert_bestfit(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_convert_lowercase(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_utf8_convert_bestfit(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_requestline_leading_whitespace_unwanted(
                     htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
                     htp_unwanted_t::HTP_UNWANTED_IGNORE,
@@ -942,10 +936,10 @@ impl htp_cfg_t {
                             _: usize,
                         ) -> Status,
                 );
-                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
-                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
-                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, false);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, false);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, false);
                 self.set_url_encoding_invalid_handling(
                     htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
                     htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -992,10 +986,10 @@ impl htp_cfg_t {
                             _: usize,
                         ) -> Status,
                 );
-                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 0);
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, false);
                 self.set_url_encoding_invalid_handling(
                     htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
                     htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1038,10 +1032,10 @@ impl htp_cfg_t {
                             _: usize,
                         ) -> Status,
                 );
-                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_url_encoding_invalid_handling(
                     htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
                     htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1089,10 +1083,10 @@ impl htp_cfg_t {
                             _: usize,
                         ) -> Status,
                 );
-                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
-                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+                self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+                self.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_url_encoding_invalid_handling(
                     htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
                     htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1181,15 +1175,15 @@ impl htp_cfg_t {
     }
 
     /// Configures the handling of raw NUL bytes. If enabled, raw NUL terminates strings.
-    pub fn set_nul_raw_terminates(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_nul_raw_terminates(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].nul_raw_terminates = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].nul_raw_terminates = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].nul_raw_terminates = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1198,15 +1192,15 @@ impl htp_cfg_t {
     /// Configures how the server reacts to encoded NUL bytes. Some servers will stop at
     /// at NUL, while some will respond with 400 or 404. When the termination option is not
     /// used, the NUL byte will remain in the path.
-    pub fn set_nul_encoded_terminates(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_nul_encoded_terminates(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].nul_encoded_terminates = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].nul_encoded_terminates = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].nul_encoded_terminates = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1214,15 +1208,15 @@ impl htp_cfg_t {
 
     /// Configures whether %u-encoded sequences are decoded. Such sequences
     /// will be treated as invalid URL encoding if decoding is not desirable.
-    pub fn set_u_encoding_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_u_encoding_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].u_encoding_decode = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].u_encoding_decode = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].u_encoding_decode = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].u_encoding_decode = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1232,16 +1226,15 @@ impl htp_cfg_t {
     /// are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
     /// such as "/one\two/three" will be converted to "/one/two/three".
     /// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-    pub fn set_backslash_convert_slashes(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_backslash_convert_slashes(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].backslash_convert_slashes = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].backslash_convert_slashes = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].backslash_convert_slashes =
-                    convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].backslash_convert_slashes = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1252,15 +1245,15 @@ impl htp_cfg_t {
     /// to "/one/two". If the backslash_separators option is also enabled, encoded backslash
     /// characters will be converted too (and subsequently normalized to forward slashes). Implemented
     /// only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-    pub fn set_path_separators_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_path_separators_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].path_separators_decode = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].path_separators_decode = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].path_separators_decode = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].path_separators_decode = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1271,15 +1264,15 @@ impl htp_cfg_t {
     /// decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
     /// will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
     /// htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-    pub fn set_path_separators_compress(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_path_separators_compress(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].path_separators_compress = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].path_separators_compress = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].path_separators_compress = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].path_separators_compress = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1288,15 +1281,15 @@ impl htp_cfg_t {
     /// Configures whether plus characters are converted to spaces when decoding URL-encoded strings. This
     /// is appropriate to do for parameters, but not for URLs. Only applies to contexts where decoding
     /// is taking place.
-    pub fn set_plusspace_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_plusspace_decode(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].plusspace_decode = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].plusspace_decode = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].plusspace_decode = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].plusspace_decode = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1306,15 +1299,15 @@ impl htp_cfg_t {
     /// htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with
     /// case-insensitive filesystems.
     /// Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-    pub fn set_convert_lowercase(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_convert_lowercase(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].convert_lowercase = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].convert_lowercase = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].convert_lowercase = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].convert_lowercase = enabled;
                 i = i.wrapping_add(1)
             }
         };
@@ -1322,15 +1315,15 @@ impl htp_cfg_t {
 
     /// Controls whether the data should be treated as UTF-8 and converted to a single-byte
     /// stream using best-fit mapping. Implemented only for htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
-    pub fn set_utf8_convert_bestfit(&mut self, ctx: htp_decoder_ctx_t, enabled: i32) {
+    pub fn set_utf8_convert_bestfit(&mut self, ctx: htp_decoder_ctx_t, enabled: bool) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
+        self.decoder_cfgs[ctx as usize].utf8_convert_bestfit = enabled;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].utf8_convert_bestfit = convert_to_0_or_1(enabled);
+                self.decoder_cfgs[i as usize].utf8_convert_bestfit = enabled;
                 i = i.wrapping_add(1)
             }
         };

@@ -216,7 +216,7 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_backslash_convert_slashes(ctx, enabled)
+        (*cfg).set_backslash_convert_slashes(ctx, enabled == 1)
     }
 }
 
@@ -256,7 +256,7 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_convert_lowercase(ctx, enabled)
+        (*cfg).set_convert_lowercase(ctx, enabled == 1)
     }
 }
 
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_nul_encoded_terminates(ctx, enabled)
+        (*cfg).set_nul_encoded_terminates(ctx, enabled == 1)
     }
 }
 
@@ -307,7 +307,7 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_nul_raw_terminates(ctx, enabled)
+        (*cfg).set_nul_raw_terminates(ctx, enabled == 1)
     }
 }
 
@@ -334,7 +334,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_compress(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_path_separators_compress(ctx, enabled)
+        (*cfg).set_path_separators_compress(ctx, enabled == 1)
     }
 }
 
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn htp_config_set_plusspace_decode(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_plusspace_decode(ctx, enabled)
+        (*cfg).set_plusspace_decode(ctx, enabled == 1)
     }
 }
 
@@ -364,7 +364,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_path_separators_decode(ctx, enabled)
+        (*cfg).set_path_separators_decode(ctx, enabled == 1)
     }
 }
 
@@ -401,7 +401,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_u_encoding_decode(ctx, enabled)
+        (*cfg).set_u_encoding_decode(ctx, enabled == 1)
     }
 }
 
@@ -426,7 +426,7 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_utf8_convert_bestfit(ctx, enabled)
+        (*cfg).set_utf8_convert_bestfit(ctx, enabled == 1)
     }
 }
 

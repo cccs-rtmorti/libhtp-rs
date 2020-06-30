@@ -1242,7 +1242,8 @@ fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u0064");
         let e: *mut bstr_t = bstr_dup_str("/d");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1256,7 +1257,8 @@ fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u0064");
         let e: *mut bstr_t = bstr_dup_str("/%u0064");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1274,7 +1276,8 @@ fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u006");
         let e: *mut bstr_t = bstr_dup_str("/%u006");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
@@ -1292,7 +1295,8 @@ fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u006");
         let e: *mut bstr_t = bstr_dup_str("/%u006");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1310,7 +1314,8 @@ fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%uXXXX");
         let e: *mut bstr_t = bstr_dup_str("/uXXXX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -1328,7 +1333,8 @@ fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u00}9");
         let e: *mut bstr_t = bstr_dup_str("/i");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
@@ -1346,7 +1352,8 @@ fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u00");
         let e: *mut bstr_t = bstr_dup_str("/%u00");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1364,7 +1371,8 @@ fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u0");
         let e: *mut bstr_t = bstr_dup_str("/%u0");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1382,7 +1390,8 @@ fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u");
         let e: *mut bstr_t = bstr_dup_str("/%u");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1414,7 +1423,7 @@ fn DecodingTest_DecodeUrlencodedInplace18_UrlencodedNulTerminates() {
         let i: *mut bstr_t = bstr_dup_str("/%00ABC");
         let e: *mut bstr_t = bstr_dup_str("/");
         (*test.cfg)
-            .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+            .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1428,7 +1437,8 @@ fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_mem("/\0ABC".as_ptr() as *const core::ffi::c_void, 5);
         let e: *mut bstr_t = bstr_dup_str("/");
-        (*test.cfg).set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1442,7 +1452,8 @@ fn DecodingTes_DecodeUrlencodedInplace20_UencodedBestFit() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u0107");
         let e: *mut bstr_t = bstr_dup_str("/c");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_tx_urldecode_params_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1474,7 +1485,8 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%uX");
         let e: *mut bstr_t = bstr_dup_str("/%uX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
@@ -1493,7 +1505,8 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u0107");
         let e: *mut bstr_t = bstr_dup_str("/c");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
@@ -1511,7 +1524,8 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%uXXXX");
         let e: *mut bstr_t = bstr_dup_str("/uXXXX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -1530,7 +1544,8 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%uXXXX");
         let e: *mut bstr_t = bstr_dup_str("/%uXXXX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1549,7 +1564,8 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u00}9");
         let e: *mut bstr_t = bstr_dup_str("/i");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
@@ -1568,7 +1584,8 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%u0000");
         let e: *mut bstr_t = bstr_dup_mem("/\0".as_ptr() as *const core::ffi::c_void, 2);
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
@@ -1587,7 +1604,8 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%uXXX");
         let e: *mut bstr_t = bstr_dup_str("/uXXX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -1606,7 +1624,8 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/%uXXX");
         let e: *mut bstr_t = bstr_dup_str("/%uXXX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -1640,7 +1659,7 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
         let i: *mut bstr_t = bstr_dup_str("/%00123");
         let e: *mut bstr_t = bstr_dup_mem("/".as_ptr() as *const core::ffi::c_void, 1);
         (*test.cfg)
-            .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+            .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
@@ -1656,7 +1675,7 @@ fn DecodingTest_DecodePathInplace12_EncodedSlash() {
         let i: *mut bstr_t = bstr_dup_str("/one%2ftwo");
         let e: *mut bstr_t = bstr_dup_str("/one%2ftwo");
         (*test.cfg)
-            .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+            .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
@@ -1672,7 +1691,7 @@ fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
         let i: *mut bstr_t = bstr_dup_str("/one%2ftwo");
         let e: *mut bstr_t = bstr_dup_str("/one/two");
         (*test.cfg)
-            .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+            .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
@@ -1795,7 +1814,8 @@ fn DecodingTest_DecodePathInplace20_RawNul1() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
         let e: *mut bstr_t = bstr_dup_str("/");
-        (*test.cfg).set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg)
+            .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1809,7 +1829,8 @@ fn DecodingTest_DecodePathInplace21_RawNul1() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
         let e: *mut bstr_t = bstr_dup_mem("/\x00123".as_ptr() as *const core::ffi::c_void, 5);
-        (*test.cfg).set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+        (*test.cfg)
+            .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1823,8 +1844,10 @@ fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/one\\two");
         let e: *mut bstr_t = bstr_dup_str("/one/two");
-        (*test.cfg)
-            .set_backslash_convert_slashes(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 1);
+        (*test.cfg).set_backslash_convert_slashes(
+            htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+            true,
+        );
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1838,8 +1861,10 @@ fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
         let test = DecodingTest::new();
         let i: *mut bstr_t = bstr_dup_str("/one\\two");
         let e: *mut bstr_t = bstr_dup_str("/one\\two");
-        (*test.cfg)
-            .set_backslash_convert_slashes(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, 0);
+        (*test.cfg).set_backslash_convert_slashes(
+            htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
+            false,
+        );
         htp_decode_path_inplace(test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -1854,7 +1879,7 @@ fn DecodingTest_InvalidUtf8() {
         let i: *mut bstr_t = bstr_dup_str(b"\xf1.");
         let e: *mut bstr_t = bstr_dup_str("?.");
         (*test.cfg)
-            .set_utf8_convert_bestfit(htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH, 1);
+            .set_utf8_convert_bestfit(htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
         htp_utf8_decode_path_inplace(&mut *test.cfg, test.tx, i);
         assert_eq!(bstr_cmp(i, e), 0);
         bstr_free(e);
@@ -2427,7 +2452,8 @@ fn UrlencodedParser_UrlDecode1() {
         let mut flags: Flags = Flags::empty();
 
         let s = bstr_dup_str("/one/tw%u006f/three/%u123");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -2442,7 +2468,8 @@ fn UrlencodedParser_UrlDecode1() {
         bstr_free(s);
 
         let s = bstr_dup_str("/one/tw%u006f/three/%uXXXX");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -2457,7 +2484,8 @@ fn UrlencodedParser_UrlDecode1() {
         bstr_free(s);
 
         let s = bstr_dup_str("/one/tw%u006f/three/%u123");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -2472,7 +2500,8 @@ fn UrlencodedParser_UrlDecode1() {
         bstr_free(s);
 
         let s = bstr_dup_str("/one/tw%u006f/three/%3");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -2487,7 +2516,8 @@ fn UrlencodedParser_UrlDecode1() {
         bstr_free(s);
 
         let s = bstr_dup_str("/one/tw%u006f/three/%3");
-        (*test.cfg).set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, 1);
+        (*test.cfg)
+            .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,

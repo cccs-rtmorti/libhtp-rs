@@ -1315,7 +1315,6 @@ unsafe fn decode_u_encoding_path(
     if r == '/' as i32
         || (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .backslash_convert_slashes
-            != 0
             && r == '\\' as i32
     {
         (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR
@@ -1391,7 +1390,6 @@ pub unsafe fn htp_decode_path_inplace(
                 let mut handled: i32 = 0;
                 if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .u_encoding_decode
-                    != 0
                 {
                     // Check for the %u encoding
                     if *data.offset(rpos.wrapping_add(1) as isize) == 'u' as u8
@@ -1513,7 +1511,6 @@ pub unsafe fn htp_decode_path_inplace(
                             if (*cfg).decoder_cfgs
                                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                                 .nul_encoded_terminates
-                                != 0
                             {
                                 bstr::bstr_adjust_len(path, wpos);
                                 return 1;
@@ -1523,7 +1520,6 @@ pub unsafe fn htp_decode_path_inplace(
                             || (*cfg).decoder_cfgs
                                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                                 .backslash_convert_slashes
-                                != 0
                                 && c == '\\' as i32
                         {
                             (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR;
@@ -1540,7 +1536,6 @@ pub unsafe fn htp_decode_path_inplace(
                             if (*cfg).decoder_cfgs
                                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                                 .path_separators_decode
-                                != 0
                             {
                                 // Decode
                                 rpos = (rpos).wrapping_add(3)
@@ -1626,7 +1621,6 @@ pub unsafe fn htp_decode_path_inplace(
                 }
                 if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                     .nul_raw_terminates
-                    != 0
                 {
                     // Terminate path with a raw NUL byte
                     bstr::bstr_adjust_len(path, wpos);
@@ -1655,14 +1649,12 @@ pub unsafe fn htp_decode_path_inplace(
         if c == '\\' as i32
             && (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
                 .backslash_convert_slashes
-                != 0
         {
             c = '/' as i32
         }
         // Lowercase characters, if necessary
         if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .convert_lowercase
-            != 0
         {
             c = tolower(c)
         }
@@ -1670,7 +1662,6 @@ pub unsafe fn htp_decode_path_inplace(
         // to track if the previous character was a separator
         if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .path_separators_compress
-            != 0
         {
             if c == '/' as i32 {
                 if previous_was_separator == 0 {
@@ -1776,7 +1767,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
             if rpos.wrapping_add(2) < len {
                 let mut handled: i32 = 0;
                 // Decode %uHHHH encoding, but only if allowed in configuration.
-                if (*cfg).decoder_cfgs[ctx as usize].u_encoding_decode != 0 {
+                if (*cfg).decoder_cfgs[ctx as usize].u_encoding_decode {
                     // The next character must be a case-insensitive u.
                     if *data.offset(rpos.wrapping_add(1) as isize) == 'u' as u8
                         || *data.offset(rpos.wrapping_add(1) as isize) == 'U' as u8
@@ -1908,7 +1899,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
                         (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted as i32
                 }
                 *flags |= Flags::HTP_URLEN_ENCODED_NUL;
-                if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates != 0 {
+                if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates {
                     // Terminate the path at the raw NUL byte.
                     bstr::bstr_adjust_len(input, wpos);
                     return Status::OK;
@@ -1918,7 +1909,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
             wpos = wpos.wrapping_add(1)
         } else if c == '+' as i32 {
             // Decoding of the plus character is conditional on the configuration.
-            if (*cfg).decoder_cfgs[ctx as usize].plusspace_decode != 0 {
+            if (*cfg).decoder_cfgs[ctx as usize].plusspace_decode {
                 c = 0x20 as i32
             }
             *data.offset(wpos as isize) = c as u8;
@@ -1935,7 +1926,7 @@ pub unsafe fn htp_urldecode_inplace_ex(
                         (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted as i32
                 }
                 *flags |= Flags::HTP_URLEN_RAW_NUL;
-                if (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates != 0 {
+                if (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates {
                     // Terminate the path at the encoded NUL byte.
                     bstr::bstr_adjust_len(input, wpos);
                     return Status::OK;
@@ -2028,7 +2019,6 @@ pub unsafe fn htp_normalize_parsed_uri(
         // Handle UTF-8 in the path.
         if (*(*tx).cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .utf8_convert_bestfit
-            != 0
         {
             // Decode Unicode characters into a single-byte stream, using best-fit mapping.
             htp_utf8_decode_path_inplace((*tx).cfg, tx, (*normalized).path);
