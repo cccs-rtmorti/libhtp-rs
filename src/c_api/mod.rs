@@ -909,7 +909,7 @@ pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const bstr::bstr_t) -> *mut l
 
 // Get the log message
 // returns a pointer to a null-terminated string
-// The caller is responsible for freeing the memory
+// The caller is responsible for freeing the memory with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get(
     messages: *mut htp_list::htp_list_array_t,
@@ -948,4 +948,24 @@ pub unsafe extern "C" fn htp_log_get_code(
     }
 
     return (*log).code;
+}
+
+// Get the log filename
+// returns a pointer to a null-terminated string
+// The called is responsible for freeing the memory with htp_log_free
+#[no_mangle]
+pub unsafe extern "C" fn htp_log_get_file(
+    messages: *mut htp_list::htp_list_array_t,
+    idx: libc::size_t,
+) -> *mut libc::c_char {
+    let log: *mut htp_log_t = htp_list_get(messages, idx) as *mut htp_log_t;
+    if log.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    if let Ok(file_cstr) = CString::new((*log).file.clone()) {
+        file_cstr.into_raw()
+    } else {
+        std::ptr::null_mut()
+    }
 }
