@@ -116,6 +116,8 @@ pub struct htp_header_t {
     pub flags: Flags,
 }
 
+pub type htp_headers_t = htp_table::htp_table_t<*mut htp_header_t>;
+
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 #[repr(C)]
 #[derive(Clone)]
@@ -198,7 +200,7 @@ pub struct htp_tx_t {
     /// de-chunking and decompression.
     pub request_entity_len: i64,
     /// Parsed request headers.
-    pub request_headers: *mut htp_table::htp_table_t<*mut htp_header_t>,
+    pub request_headers: *mut htp_headers_t,
     /// Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
     /// determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
     /// and HTP_CODING_UNRECOGNIZED.
@@ -272,7 +274,7 @@ pub struct htp_tx_t {
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: i32,
     /// Parsed response headers. Contains instances of htp_header_t.
-    pub response_headers: *mut htp_table::htp_table_t<*mut htp_header_t>,
+    pub response_headers: *mut htp_headers_t,
 
     /// HTTP 1.1 RFC
     ///
