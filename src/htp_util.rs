@@ -30,6 +30,7 @@ pub const HTP_VERSION_STRING_FULL: &'static str =
 bitflags::bitflags! {
     #[repr(C)]
     pub struct ConnectionFlags: u8 {
+        const HTP_CONN_UNKNOWN        = 0x00;
         const HTP_CONN_PIPELINED      = 0x01;
         const HTP_CONN_HTTP_0_9_EXTRA = 0x02;
     }

@@ -2,8 +2,6 @@ use crate::{htp_transaction, htp_util, list::List, log::htp_logs_free, Status};
 
 extern "C" {
     #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
     #[no_mangle]
     fn memcpy(
@@ -14,6 +12,8 @@ extern "C" {
     #[no_mangle]
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
 }
+
+pub type htp_time_t = libc::timeval;
 
 #[derive(Clone)]
 pub struct htp_conn_t {
@@ -43,20 +43,36 @@ pub struct htp_conn_t {
     /// Outbound data counter.
     pub out_data_counter: i64,
 }
-pub type htp_time_t = libc::timeval;
+
+impl htp_conn_t {
+    pub fn new() -> Self {
+        Self {
+            client_addr: std::ptr::null_mut(),
+            client_port: 0,
+            server_addr: std::ptr::null_mut(),
+            server_port: 0,
+            transactions: List::with_capacity(16),
+            messages: List::with_capacity(8),
+            flags: htp_util::ConnectionFlags::HTP_CONN_UNKNOWN,
+            open_timestamp: htp_time_t {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            close_timestamp: htp_time_t {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            in_data_counter: 0,
+            out_data_counter: 0,
+        }
+    }
+}
 
 /// Creates a new connection structure.
 ///
 /// Returns A new connection structure on success, NULL on memory allocation failure.
-pub unsafe fn htp_conn_create() -> *mut htp_conn_t {
-    let mut conn: *mut htp_conn_t =
-        calloc(1, ::std::mem::size_of::<htp_conn_t>()) as *mut htp_conn_t;
-    if conn.is_null() {
-        return 0 as *mut htp_conn_t;
-    }
-    (*conn).transactions = List::with_capacity(16);
-    (*conn).messages = List::with_capacity(8);
-    conn
+pub fn htp_conn_create() -> *mut htp_conn_t {
+    Box::into_raw(Box::new(htp_conn_t::new()))
 }
 
 /// Closes the connection.
@@ -83,19 +99,21 @@ pub unsafe fn htp_conn_destroy(conn: *mut htp_conn_t) {
     if conn.is_null() {
         return;
     }
+
+    // retake ownership of the connection
+    let conn = Box::from_raw(conn);
+
     // Destroy individual transactions. Do note that iterating
     // using the iterator does not work here because some of the
     // list element may be NULL (and with the iterator it is impossible
     // to distinguish a NULL element from the end of the list).
-    for tx in &(*conn).transactions {
+    for tx in &conn.transactions {
         if !tx.is_null() {
             htp_transaction::htp_tx_destroy_incomplete(*tx as *mut htp_transaction::htp_tx_t);
         }
     }
-    drop(&(*conn).transactions);
 
-    htp_logs_free(&(*conn).messages);
-    drop(&(*conn).messages);
+    htp_logs_free(&conn.messages);
 
     if !(*conn).server_addr.is_null() {
         free((*conn).server_addr as *mut core::ffi::c_void);
@@ -103,7 +121,6 @@ pub unsafe fn htp_conn_destroy(conn: *mut htp_conn_t) {
     if !(*conn).client_addr.is_null() {
         free((*conn).client_addr as *mut core::ffi::c_void);
     }
-    free(conn as *mut core::ffi::c_void);
 }
 
 /// Opens a connection. This function will essentially only store the provided data

@@ -5,8 +5,6 @@ use crate::{
 
 extern "C" {
     #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
 }
 
@@ -24,6 +22,8 @@ pub enum htp_stream_state_t {
     HTP_STREAM_STOP,
     HTP_STREAM_DATA,
 }
+
+pub type htp_time_t = libc::timeval;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -148,7 +148,71 @@ pub struct htp_connp_t {
     pub put_file: *mut htp_util::htp_file_t,
 }
 
-pub type htp_time_t = libc::timeval;
+impl htp_connp_t {
+    fn new(cfg: *mut htp_config::htp_cfg_t) -> Self {
+        Self {
+            cfg,
+            conn: htp_connection::htp_conn_create(),
+            user_data: std::ptr::null(),
+            in_status: htp_stream_state_t::HTP_STREAM_NEW,
+            out_status: htp_stream_state_t::HTP_STREAM_NEW,
+            out_data_other_at_tx_end: 0,
+            in_timestamp: htp_time_t {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            in_current_data: std::ptr::null_mut(),
+            in_current_len: 0,
+            in_current_read_offset: 0,
+            in_current_consume_offset: 0,
+            in_current_receiver_offset: 0,
+            in_chunk_count: 0,
+            in_chunk_request_index: 0,
+            in_stream_offset: 0,
+            in_next_byte: 0,
+            in_buf: std::ptr::null_mut(),
+            in_buf_size: 0,
+            in_header: std::ptr::null_mut(),
+            in_tx: std::ptr::null_mut(),
+            in_content_length: 0,
+            in_body_data_left: 0,
+            in_chunked_length: 0,
+            in_state: Some(
+                htp_request::htp_connp_REQ_IDLE
+                    as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
+            ),
+            in_state_previous: None,
+            in_data_receiver_hook: std::ptr::null_mut(),
+            out_next_tx_index: 0,
+            out_timestamp: htp_time_t {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
+            out_current_data: std::ptr::null_mut(),
+            out_current_len: 0,
+            out_current_read_offset: 0,
+            out_current_consume_offset: 0,
+            out_current_receiver_offset: 0,
+            out_stream_offset: 0,
+            out_next_byte: 0,
+            out_buf: std::ptr::null_mut(),
+            out_buf_size: 0,
+            out_header: std::ptr::null_mut(),
+            out_tx: std::ptr::null_mut(),
+            out_content_length: 0,
+            out_body_data_left: 0,
+            out_chunked_length: 0,
+            out_state: Some(
+                htp_response::htp_connp_RES_IDLE
+                    as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
+            ),
+            out_state_previous: None,
+            out_data_receiver_hook: std::ptr::null_mut(),
+            out_decompressor: std::ptr::null_mut(),
+            put_file: std::ptr::null_mut(),
+        }
+    }
+}
 
 /// Closes the connection associated with the supplied parser.
 ///
@@ -195,72 +259,8 @@ pub unsafe fn htp_connp_close(connp: *mut htp_connp_t, timestamp: *const htp_tim
 /// structure to go along with every connection parser.
 ///
 /// Returns a new connection parser instance, or NULL on error.
-pub unsafe fn htp_connp_create(cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
-    let connp = Box::new(htp_connp_t {
-        cfg: cfg,
-        conn: htp_connection::htp_conn_create(),
-        user_data: std::ptr::null(),
-        in_status: htp_stream_state_t::HTP_STREAM_NEW,
-        out_status: htp_stream_state_t::HTP_STREAM_NEW,
-        out_data_other_at_tx_end: 0,
-        in_timestamp: htp_time_t {
-            tv_sec: 0,
-            tv_usec: 0,
-        },
-        in_current_data: std::ptr::null_mut(),
-        in_current_len: 0,
-        in_current_read_offset: 0,
-        in_current_consume_offset: 0,
-        in_current_receiver_offset: 0,
-        in_chunk_count: 0,
-        in_chunk_request_index: 0,
-        in_stream_offset: 0,
-        in_next_byte: 0,
-        in_buf: std::ptr::null_mut(),
-        in_buf_size: 0,
-        in_header: std::ptr::null_mut(),
-        in_tx: std::ptr::null_mut(),
-        in_content_length: 0,
-        in_body_data_left: 0,
-        in_chunked_length: 0,
-        in_state: Some(
-            htp_request::htp_connp_REQ_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
-        ),
-        in_state_previous: None,
-        in_data_receiver_hook: std::ptr::null_mut(),
-        out_next_tx_index: 0,
-        out_timestamp: htp_time_t {
-            tv_sec: 0,
-            tv_usec: 0,
-        },
-        out_current_data: std::ptr::null_mut(),
-        out_current_len: 0,
-        out_current_read_offset: 0,
-        out_current_consume_offset: 0,
-        out_current_receiver_offset: 0,
-        out_stream_offset: 0,
-        out_next_byte: 0,
-        out_buf: std::ptr::null_mut(),
-        out_buf_size: 0,
-        out_header: std::ptr::null_mut(),
-        out_tx: std::ptr::null_mut(),
-        out_content_length: 0,
-        out_body_data_left: 0,
-        out_chunked_length: 0,
-        out_state: Some(
-            htp_response::htp_connp_RES_IDLE as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
-        ),
-        out_state_previous: None,
-        out_data_receiver_hook: std::ptr::null_mut(),
-        out_decompressor: std::ptr::null_mut(),
-        put_file: std::ptr::null_mut(),
-    });
-
-    if connp.conn.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    Box::into_raw(connp)
+pub fn htp_connp_create(cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
+    Box::into_raw(Box::new(htp_connp_t::new(cfg)))
 }
 
 /// Destroys the connection parser and its data structures, leaving
