@@ -1,22 +1,29 @@
-$(shell cargo generate-lockfile)
-$(eval CRATE_VERSION=$(shell cargo pkgid | cut -d: -f 3))
-$(eval CRATE_VERSION_MAJOR=$(shell cargo pkgid | cut -d: -f 3 | cut -d. -f 1))
+$(eval CRATE_VERSION=$(shell (test -f Cargo.lock || cargo generate-lockfile) && cargo pkgid | cut -d: -f 3))
+$(eval CRATE_VERSION_MAJOR=$(shell echo ${CRATE_VERSION} | cut -d. -f 1))
 
-.PHONY: all
-all:
+.PHONY: build
+build:
 	cargo build --features cbindgen
+
+target/debug/libhtp.so: build
+
+htp/.libs/libhtp.so: target/debug/libhtp.so
 	mkdir -p htp/.libs
-	mkdir -p htp/lzma
-	cp src/c_api/forward_decls.h htp/
-	cp src/c_api/libhtp.la htp/
-	cp src/c_api/7zTypes.h htp/lzma/
-	cp src/c_api/LzmaDec.h htp/lzma/
 	cp ./target/debug/libhtp.so htp/.libs/libhtp.so.${CRATE_VERSION}
 	ln -sf libhtp.so.${CRATE_VERSION} htp/.libs/libhtp.so.${CRATE_VERSION_MAJOR}
 	ln -sf libhtp.so.${CRATE_VERSION} htp/.libs/libhtp.so
-	
+
+.PHONY: all
+all: htp/.libs/libhtp.so
+
+# prevents make check from failing in suricata
+.PHONY: check
+check:
+
 .PHONY: clean
 clean:
+	rm -f htp/.libs/libhtp.so* htp/htp.h htp/version.h
+	rm -f Cargo.lock
 	cargo clean
 
 .PHONY: rpm
