@@ -1,8 +1,7 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_util::Flags;
 use crate::{
-    bstr, bstr_builder, htp_config, htp_hooks, htp_list, htp_table, htp_transaction, htp_util,
-    Status,
+    bstr, bstr_builder, htp_config, htp_hooks, htp_table, htp_transaction, htp_util, list, Status,
 };
 
 use bitflags;
@@ -136,8 +135,7 @@ extern "C" {
     fn strlen(_: *const libc::c_char) -> libc::size_t;
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_mpartp_t {
     pub multipart: htp_multipart_t,
     pub cfg: *mut htp_config::htp_cfg_t,
@@ -276,8 +274,7 @@ pub enum htp_multipart_type_t {
 }
 
 /// Holds information related to a multipart body.
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_multipart_t {
     /// Multipart boundary.
     pub boundary: *mut i8,
@@ -286,7 +283,7 @@ pub struct htp_multipart_t {
     /// How many boundaries were there?
     pub boundary_count: i32,
     /// List of parts, in the order in which they appeared in the body.
-    pub parts: *mut htp_list::htp_list_array_t,
+    pub parts: list::List<*mut htp_multipart_part_t>,
     /// Parsing flags.
     pub flags: MultipartFlags,
 }
@@ -1081,10 +1078,7 @@ unsafe extern "C" fn htp_mpartp_handle_data(
             (*parser).current_part_mode = htp_part_mode_t::MODE_LINE
         }
         // Add part to the list.
-        htp_list::htp_list_array_push(
-            (*parser).multipart.parts,
-            (*parser).current_part as *mut core::ffi::c_void,
-        );
+        (*parser).multipart.parts.push((*parser).current_part);
     }
     // Send data to the part.
     htp_mpart_part_handle_data((*parser).current_part, data, len, is_line)
@@ -1179,11 +1173,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
         htp_mpartp_destroy(parser);
         return 0 as *mut htp_mpartp_t;
     }
-    (*parser).multipart.parts = htp_list::htp_list_array_create(64);
-    if (*parser).multipart.parts.is_null() {
-        htp_mpartp_destroy(parser);
-        return 0 as *mut htp_mpartp_t;
-    }
+    (*parser).multipart.parts = list::List::with_capacity(64);
     (*parser).multipart.flags = flags;
     (*parser).parser_state = htp_multipart_state_t::STATE_INIT;
     (*parser).extract_files = (*cfg).extract_request_files;
@@ -1225,18 +1215,10 @@ pub unsafe extern "C" fn htp_mpartp_destroy(parser: *mut htp_mpartp_t) {
     bstr::bstr_free((*parser).pending_header_line);
     bstr_builder::bstr_builder_destroy((*parser).part_data_pieces);
     // Free the parts.
-    if !(*parser).multipart.parts.is_null() {
-        let mut i: usize = 0;
-        let n: usize = htp_list::htp_list_array_size((*parser).multipart.parts);
-        while i < n {
-            let part: *mut htp_multipart_part_t =
-                htp_list::htp_list_array_get((*parser).multipart.parts, i)
-                    as *mut htp_multipart_part_t;
-            htp_mpart_part_destroy(part, (*parser).gave_up_data);
-            i = i.wrapping_add(1)
-        }
-        htp_list::htp_list_array_destroy((*parser).multipart.parts);
+    for part in &(*parser).multipart.parts {
+        htp_mpart_part_destroy(*part, (*parser).gave_up_data);
     }
+    drop(&(*parser).multipart.parts);
     free(parser as *mut core::ffi::c_void);
 }
 
@@ -1277,12 +1259,7 @@ unsafe extern "C" fn htp_martp_process_aside(
         // or in the first stored chunk.
         if bstr_builder::bstr_builder_size((*parser).boundary_pieces) > 0 {
             let mut first: i32 = 1;
-            let mut i: usize = 0;
-            let n: usize = htp_list::htp_list_array_size((*(*parser).boundary_pieces).pieces);
-            while i < n {
-                let b: *const bstr::bstr_t =
-                    htp_list::htp_list_array_get((*(*parser).boundary_pieces).pieces, i)
-                        as *const bstr::bstr_t;
+            for b in &(*(*parser).boundary_pieces).pieces {
                 if first != 0 {
                     first = 0;
                     // Split the first chunk.
@@ -1290,13 +1267,13 @@ unsafe extern "C" fn htp_martp_process_aside(
                         // In line mode, we are OK with line endings.
                         (*parser).handle_data.expect("non-null function pointer")(
                             parser,
-                            bstr_ptr(b),
+                            bstr_ptr(*b),
                             (*parser).boundary_candidate_pos,
                             1,
                         );
                     } else {
                         // But if there was a match, the line ending belongs to the boundary.
-                        let dx: *mut u8 = bstr_ptr(b);
+                        let dx: *mut u8 = bstr_ptr(*b);
                         let mut lx: usize = (*parser).boundary_candidate_pos;
                         // Remove LF or CRLF.
                         if lx > 0 && *dx.offset(lx.wrapping_sub(1) as isize) == '\n' as u8 {
@@ -1315,20 +1292,19 @@ unsafe extern "C" fn htp_martp_process_aside(
                     if matched == 0 {
                         (*parser).handle_data.expect("non-null function pointer")(
                             parser,
-                            bstr_ptr(b).offset((*parser).boundary_candidate_pos as isize),
-                            bstr_len(b).wrapping_sub((*parser).boundary_candidate_pos),
+                            bstr_ptr(*b).offset((*parser).boundary_candidate_pos as isize),
+                            bstr_len(*b).wrapping_sub((*parser).boundary_candidate_pos),
                             0,
                         );
                     }
                 } else if matched == 0 {
                     (*parser).handle_data.expect("non-null function pointer")(
                         parser,
-                        bstr_ptr(b),
-                        bstr_len(b),
+                        bstr_ptr(*b),
+                        bstr_len(*b),
                         0,
                     );
                 }
-                i = i.wrapping_add(1)
             }
             bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
         }
@@ -1349,19 +1325,13 @@ unsafe extern "C" fn htp_martp_process_aside(
         }
         // We then process any pieces that we might have stored, also as data.
         if bstr_builder::bstr_builder_size((*parser).boundary_pieces) > 0 {
-            let mut i_0: usize = 0;
-            let n_0: usize = htp_list::htp_list_array_size((*(*parser).boundary_pieces).pieces);
-            while i_0 < n_0 {
-                let b_0: *mut bstr::bstr_t =
-                    htp_list::htp_list_array_get((*(*parser).boundary_pieces).pieces, i_0)
-                        as *mut bstr::bstr_t;
+            for each in &(*(*parser).boundary_pieces).pieces {
                 (*parser).handle_data.expect("non-null function pointer")(
                     parser,
-                    bstr_ptr(b_0),
-                    bstr_len(b_0),
+                    bstr_ptr(*each),
+                    bstr_len(*each),
                     0,
                 );
-                i_0 = i_0.wrapping_add(1)
             }
             bstr_builder::bstr_builder_clear((*parser).boundary_pieces);
         }

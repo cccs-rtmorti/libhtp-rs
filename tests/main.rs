@@ -4,7 +4,6 @@ use htp::htp_config;
 use htp::htp_config::htp_decoder_ctx_t::*;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
-use htp::htp_list::*;
 use htp::htp_request::*;
 use htp::htp_response::*;
 use htp::htp_transaction::htp_auth_type_t::*;
@@ -282,10 +281,9 @@ fn Get() {
     unsafe {
         assert!(t.run("01-get.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
 
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
@@ -310,10 +308,9 @@ fn ApacheHeaderParsing() {
     unsafe {
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(9, (*(*tx).request_headers).size());
@@ -380,11 +377,10 @@ fn PostUrlencoded() {
     unsafe {
         assert!(t.run("03-post-urlencoded.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
         // Transaction 1
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(
@@ -407,8 +403,7 @@ fn PostUrlencoded() {
         assert_eq!(0, bstr_cmp_str((*h).value, "Apache"));
 
         // Transaction 2
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
 
         assert_eq!((*tx2).request_progress, HTP_REQUEST_COMPLETE);
@@ -430,10 +425,9 @@ fn PostUrlencodedChunked() {
     unsafe {
         assert!(t.run("04-post-urlencoded-chunked.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(
@@ -454,10 +448,9 @@ fn Expect() {
     unsafe {
         assert!(t.run("05-expect.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         // The interim header from the 100 response should not be among the final headers.
@@ -473,10 +466,9 @@ fn UriNormal() {
     unsafe {
         assert!(t.run("06-uri-normal.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
     }
 }
@@ -487,14 +479,13 @@ fn PipelinedConn() {
     unsafe {
         assert!(t.run("07-pipelined-connection.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
         assert!((*(*t.connp).conn)
             .flags
             .contains(ConnectionFlags::HTP_CONN_PIPELINED));
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
     }
 }
@@ -505,14 +496,13 @@ fn NotPipelinedConn() {
     unsafe {
         assert!(t.run("08-not-pipelined-connection.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
         assert!(!(*(*t.connp).conn)
             .flags
             .contains(ConnectionFlags::HTP_CONN_PIPELINED));
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).flags.contains(Flags::HTP_MULTI_PACKET_HEAD));
@@ -525,10 +515,9 @@ fn MultiPacketRequest() {
     unsafe {
         assert!(t.run("09-multi-packet-request-head.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_MULTI_PACKET_HEAD));
@@ -540,28 +529,24 @@ fn HeaderHostParsing() {
     let mut t = Test::new();
     unsafe {
         assert!(t.run("10-host-in-headers.t").is_ok());
-        assert_eq!(4, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(4, (*(*t.connp).conn).transactions.len());
 
-        let tx1: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
         assert!(!(*tx1).request_hostname.is_null());
         assert_eq!(0, bstr_cmp_str((*tx1).request_hostname, "www.example.com"));
 
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
         assert!(!(*tx2).request_hostname.is_null());
         assert_eq!(0, bstr_cmp_str((*tx2).request_hostname, "www.example.com."));
 
-        let tx3: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 2) as *mut htp_tx_t;
+        let tx3: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(2).unwrap() as *mut htp_tx_t;
         assert!(!tx3.is_null());
         assert!(!(*tx3).request_hostname.is_null());
         assert_eq!(0, bstr_cmp_str((*tx3).request_hostname, "www.example.com"));
 
-        let tx4: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 3) as *mut htp_tx_t;
+        let tx4: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(3).unwrap() as *mut htp_tx_t;
         assert!(!tx4.is_null());
         assert!(!(*tx4).request_hostname.is_null());
         assert_eq!(0, bstr_cmp_str((*tx4).request_hostname, "www.example.com"));
@@ -574,10 +559,9 @@ fn ResponseWithoutContentLength() {
     unsafe {
         assert!(t.run("11-response-stream-closure.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -590,10 +574,9 @@ fn FailedConnectRequest() {
     unsafe {
         assert!(t.run("12-connect-request.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -610,10 +593,9 @@ fn CompressedResponseContentType() {
     unsafe {
         assert!(t.run("13-compressed-response-gzip-ct.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -630,10 +612,9 @@ fn CompressedResponseChunked() {
     unsafe {
         assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -650,10 +631,9 @@ fn SuccessfulConnectRequest() {
     unsafe {
         assert!(t.run("15-connect-complete.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         // TODO: Update the test_run() function to provide better
@@ -674,16 +654,14 @@ fn ConnectRequestWithExtraData() {
     unsafe {
         assert!(t.run("16-connect-extra.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
-        let tx1: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
 
         assert!(0 != htp_tx_is_complete(tx1));
 
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
 
         assert!(0 != htp_tx_is_complete(tx2));
@@ -696,10 +674,9 @@ fn Multipart() {
     unsafe {
         assert!(t.run("17-multipart-1.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -727,10 +704,9 @@ fn CompressedResponseDeflate() {
     unsafe {
         assert!(t.run("18-compressed-response-deflate.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -747,10 +723,9 @@ fn UrlEncoded() {
     unsafe {
         assert!(t.run("19-urlencoded-test.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -790,24 +765,21 @@ fn AmbiguousHost() {
     unsafe {
         assert!(t.run("20-ambiguous-host.t").is_ok());
 
-        assert_eq!(5, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(5, (*(*t.connp).conn).transactions.len());
 
-        let tx1: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
         assert!(0 != htp_tx_is_complete(tx1));
         assert!(!(*tx1).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
 
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
         assert!(0 != htp_tx_is_complete(tx2));
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx2).request_hostname.is_null());
         assert_eq!(0, bstr_cmp_str((*tx2).request_hostname, "example.com"));
 
-        let tx3: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 2) as *mut htp_tx_t;
+        let tx3: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(2).unwrap() as *mut htp_tx_t;
         assert!(!tx3.is_null());
         assert!(0 != htp_tx_is_complete(tx3));
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -815,8 +787,7 @@ fn AmbiguousHost() {
         assert_eq!(0, bstr_cmp_str((*tx3).request_hostname, "www.example.com"));
         assert_eq!(8001, (*tx3).request_port_number);
 
-        let tx4: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 3) as *mut htp_tx_t;
+        let tx4: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(3).unwrap() as *mut htp_tx_t;
         assert!(!tx4.is_null());
         assert!(0 != htp_tx_is_complete(tx4));
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -824,8 +795,7 @@ fn AmbiguousHost() {
         assert_eq!(0, bstr_cmp_str((*tx4).request_hostname, "www.example.com"));
         assert_eq!(8002, (*tx4).request_port_number);
 
-        let tx5: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 4) as *mut htp_tx_t;
+        let tx5: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(4).unwrap() as *mut htp_tx_t;
         assert!(!tx5.is_null());
         assert!(0 != htp_tx_is_complete(tx5));
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -841,13 +811,12 @@ fn Http_0_9() {
     unsafe {
         assert!(t.run("21-http09.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
         assert!(!(*(*t.connp).conn)
             .flags
             .contains(ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA));
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
     }
 }
@@ -858,10 +827,9 @@ fn Http11HostMissing() {
     unsafe {
         assert!(t.run("22-http_1_1-host_missing").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_HOST_MISSING));
@@ -874,13 +842,12 @@ fn Http_0_9_Multiple() {
     unsafe {
         assert!(t.run("23-http09-multiple.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
         assert!((*(*t.connp).conn)
             .flags
             .contains(ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA));
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
     }
 }
@@ -891,10 +858,9 @@ fn Http_0_9_Explicit() {
     unsafe {
         assert!(t.run("24-http09-explicit.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, (*tx).is_protocol_0_9);
     }
@@ -967,8 +933,7 @@ fn RequestHeaderData() {
         ));
         assert!(t.run("26-request-headers-raw.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
@@ -1026,8 +991,7 @@ fn RequestTrailerData() {
         ));
         assert!(t.run("27-request-trailer-raw.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
@@ -1097,8 +1061,7 @@ fn ResponseHeaderData() {
         ));
         assert!(t.run("28-response-headers-raw.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
@@ -1172,8 +1135,7 @@ fn ResponseTrailerData() {
         ));
         assert!(t.run("29-response-trailer-raw.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
@@ -1188,10 +1150,9 @@ fn GetIPv6() {
     unsafe {
         assert!(t.run("30-get-ipv6.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
@@ -1228,10 +1189,9 @@ fn GetRequestLineNul() {
     unsafe {
         assert!(t.run("31-get-request-line-nul.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_uri.is_null());
@@ -1246,10 +1206,9 @@ fn InvalidHostname1() {
     unsafe {
         assert!(t.run("32-invalid-hostname.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
@@ -1264,10 +1223,9 @@ fn InvalidHostname2() {
     unsafe {
         assert!(t.run("33-invalid-hostname.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
@@ -1282,10 +1240,9 @@ fn InvalidHostname3() {
     unsafe {
         assert!(t.run("34-invalid-hostname.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
@@ -1310,8 +1267,7 @@ fn EarlyResponse() {
     unsafe {
         assert!(t.run("35-early-response.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -1324,8 +1280,7 @@ fn InvalidRequest1() {
     unsafe {
         assert!(t.run("36-invalid-request-1-invalid-c-l.t").is_err());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_HEADERS, (*tx).request_progress);
@@ -1344,8 +1299,7 @@ fn InvalidRequest2() {
         assert!(t.run("37-invalid-request-2-t-e-and-c-l.t").is_ok());
         // No error, flags only.
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1362,8 +1316,7 @@ fn InvalidRequest3() {
     unsafe {
         assert!(t.run("38-invalid-request-3-invalid-t-e.t").is_err());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_HEADERS, (*tx).request_progress);
@@ -1382,7 +1335,7 @@ fn AutoDestroyCrash() {
         (*t.cfg).set_tx_auto_destroy(1);
         assert!(t.run("39-auto-destroy-crash.t").is_ok());
 
-        assert_eq!(4, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(4, (*(*t.connp).conn).transactions.len());
     }
 }
 
@@ -1392,8 +1345,7 @@ fn AuthBasic() {
     unsafe {
         assert!(t.run("40-auth-basic.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1414,8 +1366,7 @@ fn AuthDigest() {
     unsafe {
         assert!(t.run("41-auth-digest.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1435,8 +1386,7 @@ fn Unknown_MethodOnly() {
     unsafe {
         assert!(t.run("42-unknown-method_only.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1456,8 +1406,7 @@ fn InvalidProtocol() {
     unsafe {
         assert!(t.run("43-invalid-protocol.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1472,8 +1421,7 @@ fn AuthBasicInvalid() {
     unsafe {
         assert!(t.run("44-auth-basic-invalid.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1494,8 +1442,7 @@ fn AuthDigestUnquotedUsername() {
     unsafe {
         assert!(t.run("45-auth-digest-unquoted-username.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1516,8 +1463,7 @@ fn AuthDigestInvalidUsername1() {
     unsafe {
         assert!(t.run("46-auth-digest-invalid-username.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1538,8 +1484,7 @@ fn AuthUnrecognized() {
     unsafe {
         assert!(t.run("47-auth-unrecognized.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1558,8 +1503,7 @@ fn InvalidResponseHeaders1() {
     unsafe {
         assert!(t.run("48-invalid-response-headers-1.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
@@ -1596,8 +1540,7 @@ fn InvalidResponseHeaders2() {
     unsafe {
         assert!(t.run("49-invalid-response-headers-2.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
@@ -1618,12 +1561,11 @@ fn Util() {
     unsafe {
         assert!(t.run("50-util.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         // A message that should not be logged.
-        let log_message_count = htp_list_array_size((*(*(*tx).connp).conn).messages);
+        let log_message_count = (*(*(*tx).connp).conn).messages.len();
         (*(*(*tx).connp).cfg).log_level = htp_log_level_t::HTP_LOG_NONE;
         htp_log!(
             (*tx).connp,
@@ -1631,11 +1573,7 @@ fn Util() {
             htp_log_code::UNKNOWN,
             "Log message"
         );
-
-        assert_eq!(
-            log_message_count,
-            htp_list_array_size((*(*(*tx).connp).conn).messages)
-        );
+        assert_eq!(log_message_count, (*(*(*tx).connp).conn).messages.len());
     }
 }
 
@@ -1645,10 +1583,9 @@ fn GetIPv6Invalid() {
     unsafe {
         assert!(t.run("51-get-ipv6-invalid.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
@@ -1673,10 +1610,9 @@ fn InvalidPath() {
     unsafe {
         assert!(t.run("52-invalid-path.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
@@ -1698,10 +1634,9 @@ fn PathUtf8_None() {
     unsafe {
         assert!(t.run("53-path-utf8-none.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).flags.contains(Flags::HTP_PATH_UTF8_VALID));
@@ -1716,10 +1651,9 @@ fn PathUtf8_Valid() {
     unsafe {
         assert!(t.run("54-path-utf8-valid.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_VALID));
@@ -1732,10 +1666,9 @@ fn PathUtf8_Overlong2() {
     unsafe {
         assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1748,10 +1681,9 @@ fn PathUtf8_Overlong3() {
     unsafe {
         assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1764,10 +1696,9 @@ fn PathUtf8_Overlong4() {
     unsafe {
         assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1780,10 +1711,9 @@ fn PathUtf8_Invalid() {
     unsafe {
         assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID));
@@ -1797,10 +1727,9 @@ fn PathUtf8_FullWidth() {
     unsafe {
         assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_HALF_FULL_RANGE));
@@ -1814,10 +1743,9 @@ fn PathUtf8_Decode_Valid() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("54-path-utf8-valid.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).parsed_uri.is_null());
@@ -1833,10 +1761,9 @@ fn PathUtf8_Decode_Overlong2() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1854,10 +1781,9 @@ fn PathUtf8_Decode_Overlong3() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1875,10 +1801,9 @@ fn PathUtf8_Decode_Overlong4() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1896,10 +1821,9 @@ fn PathUtf8_Decode_Invalid() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID));
@@ -1919,10 +1843,9 @@ fn PathUtf8_Decode_FullWidth() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_HALF_FULL_RANGE));
@@ -1939,10 +1862,9 @@ fn RequestCookies() {
     unsafe {
         assert!(t.run("60-request-cookies.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(3, (*(*tx).request_cookies).size());
@@ -1970,10 +1892,9 @@ fn EmptyLineBetweenRequests() {
     unsafe {
         assert!(t.run("61-empty-line-between-requests.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         /*part of previous request body assert_eq!(1, (*tx).request_ignored_lines);*/
@@ -1986,17 +1907,15 @@ fn PostNoBody() {
     unsafe {
         assert!(t.run("62-post-no-body.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
-        let tx1: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2028,10 +1947,9 @@ fn PostChunkedSplitChunk() {
     unsafe {
         assert!(t.run("66-post-chunked-split-chunk.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(
@@ -2050,10 +1968,9 @@ fn LongRequestLine1() {
     unsafe {
         assert!(t.run("67-long-request-line.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(
@@ -2070,8 +1987,7 @@ fn LongRequestLine2() {
         (*t.cfg).set_field_limits(0, 16);
         assert!(t.run("67-long-request-line.t").is_err());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_LINE, (*tx).request_progress);
@@ -2084,10 +2000,9 @@ fn InvalidRequestHeader() {
     unsafe {
         assert!(t.run("68-invalid-request-header.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         let h = (*(*tx).request_headers)
@@ -2106,10 +2021,9 @@ fn TestGenericPersonality() {
         (*t.cfg).set_server_personality(HTP_SERVER_IDS);
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
     }
 }
@@ -2121,8 +2035,7 @@ fn LongResponseHeader() {
         (*t.cfg).set_field_limits(0, 16);
         assert!(t.run("69-long-response-header.t").is_err());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         //error first assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2142,10 +2055,9 @@ fn ResponseSplitChunk() {
     unsafe {
         assert!(t.run("71-response-split-chunk.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2159,10 +2071,9 @@ fn ResponseBody() {
     unsafe {
         assert!(t.run("72-response-split-body.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2176,10 +2087,9 @@ fn ResponseContainsTeAndCl() {
     unsafe {
         assert!(t.run("73-response-te-and-cl.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2195,10 +2105,9 @@ fn ResponseMultipleCl() {
     unsafe {
         assert!(t.run("74-response-multiple-cl.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2224,10 +2133,9 @@ fn ResponseMultipleClMismatch() {
     unsafe {
         assert!(t.run("88-response-multiple-cl-mismatch.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2245,8 +2153,8 @@ fn ResponseMultipleClMismatch() {
 
         assert_eq!(0, bstr_cmp_str((*h).value, "12"));
 
-        assert_eq!(2, htp_list_array_size((*(*tx).conn).messages));
-        let log: *mut htp_log_t = htp_list_array_get((*(*tx).conn).messages, 1) as *mut htp_log_t;
+        assert_eq!(2, (*(*tx).conn).messages.len());
+        let log: *mut htp_log_t = *(*(*tx).conn).messages.get(1).unwrap() as *mut htp_log_t;
         assert!(!log.is_null());
         assert_eq!((*log).msg, "Ambiguous response C-L value");
         assert_eq!(htp_log_level_t::HTP_LOG_WARNING, (*log).level);
@@ -2259,10 +2167,9 @@ fn ResponseInvalidCl() {
     unsafe {
         assert!(t.run("75-response-invalid-cl.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2278,10 +2185,9 @@ fn ResponseNoBody() {
     unsafe {
         assert!(t.run("76-response-no-body.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
-        let tx1: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
@@ -2296,8 +2202,7 @@ fn ResponseNoBody() {
 
         assert_eq!(0, bstr_cmp_str((*h).value, "Apache"));
 
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2313,10 +2218,9 @@ fn ResponseFoldedHeaders() {
     unsafe {
         assert!(t.run("77-response-folded-headers.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
-        let tx1: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
@@ -2331,8 +2235,7 @@ fn ResponseFoldedHeaders() {
 
         assert_eq!(0, bstr_cmp_str((*h).value, "Apache Server"));
 
-        let tx2: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2346,10 +2249,9 @@ fn ResponseNoStatusHeaders() {
     unsafe {
         assert!(t.run("78-response-no-status-headers.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2363,7 +2265,7 @@ fn ConnectInvalidHostport() {
     unsafe {
         assert!(t.run("79-connect-invalid-hostport.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
     }
 }
 
@@ -2373,7 +2275,7 @@ fn HostnameInvalid1() {
     unsafe {
         assert!(t.run("80-hostname-invalid-1.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
     }
 }
 
@@ -2383,7 +2285,7 @@ fn HostnameInvalid2() {
     unsafe {
         assert!(t.run("81-hostname-invalid-2.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
     }
 }
 
@@ -2393,10 +2295,9 @@ fn Put() {
     unsafe {
         assert!(t.run("82-put.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_hostname.is_null());
@@ -2410,8 +2311,7 @@ fn AuthDigestInvalidUsername2() {
     unsafe {
         assert!(t.run("83-auth-digest-invalid-username-2.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2432,10 +2332,9 @@ fn ResponseNoStatusHeaders2() {
     unsafe {
         assert!(t.run("84-response-no-status-headers-2.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2450,9 +2349,9 @@ fn ResponseNoStatusHeaders2() {
 //unsafe {
 //    assert!(t.run("85-zero-byte-request-timeout.t").is_ok());
 //
-//    assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+//    assert_eq!(1, (*(*t.connp).conn).transactions.len());
 //
-//    let tx: *mut htp_tx_t = htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+//    let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
 //    assert!(!tx.is_null());
 //
 //    assert_eq!(HTP_REQUEST_NOT_STARTED, (*tx).request_progress);
@@ -2465,10 +2364,9 @@ fn PartialRequestTimeout() {
     unsafe {
         assert!(t.run("86-partial-request-timeout.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2484,10 +2382,9 @@ fn IncorrectHostAmbiguousWarning() {
             .run("87-issue-55-incorrect-host-ambiguous-warning.t")
             .is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(!(*tx).parsed_uri_raw.is_null());
@@ -2516,10 +2413,9 @@ fn GetWhitespace() {
     unsafe {
         assert!(t.run("89-get-whitespace.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(0, bstr_cmp_str((*tx).request_method, " GET"));
@@ -2548,10 +2444,9 @@ fn RequestUriTooLarge() {
     unsafe {
         assert!(t.run("90-request-uri-too-large.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2565,16 +2460,16 @@ fn RequestInvalid() {
     unsafe {
         assert!(t.run("91-request-unexpected-body.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
         let mut tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+            *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "POST"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        tx = htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        tx = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2588,8 +2483,7 @@ fn Http_0_9_MethodOnly() {
     unsafe {
         assert!(t.run("92-http_0_9-method_only.t").is_ok());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2609,10 +2503,9 @@ fn CompressedResponseDeflateAsGzip() {
     unsafe {
         assert!(t.run("93-compressed-response-deflateasgzip.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2629,10 +2522,9 @@ fn CompressedResponseMultiple() {
     unsafe {
         assert!(t.run("94-compressed-response-multiple.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2649,10 +2541,9 @@ fn CompressedResponseGzipAsDeflate() {
     unsafe {
         assert!(t.run("95-compressed-response-gzipasdeflate.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2669,10 +2560,9 @@ fn CompressedResponseLzma() {
     unsafe {
         assert!(t.run("96-compressed-response-lzma.t").is_ok());
 
-        assert_eq!(1, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2689,14 +2579,14 @@ fn RequestsCut() {
     unsafe {
         assert!(t.run("97-requests-cut.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
         let mut tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+            *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
-        tx = htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        tx = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2709,16 +2599,16 @@ fn ResponsesCut() {
     unsafe {
         assert!(t.run("98-responses-cut.t").is_ok());
 
-        assert_eq!(2, htp_list_array_size((*(*t.connp).conn).transactions));
+        assert_eq!(2, (*(*t.connp).conn).transactions.len());
         let mut tx: *mut htp_tx_t =
-            htp_list_array_get((*(*t.connp).conn).transactions, 0) as *mut htp_tx_t;
+            *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        tx = htp_list_array_get((*(*t.connp).conn).transactions, 1) as *mut htp_tx_t;
+        tx = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);

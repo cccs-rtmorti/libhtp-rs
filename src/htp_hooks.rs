@@ -1,4 +1,4 @@
-use crate::{htp_list, Status};
+use crate::{list::List, Status};
 
 extern "C" {
     #[no_mangle]
@@ -7,10 +7,9 @@ extern "C" {
     fn free(__ptr: *mut core::ffi::c_void);
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_hook_t {
-    pub callbacks: *mut htp_list::htp_list_array_t,
+    pub callbacks: List<*mut core::ffi::c_void>,
 }
 
 #[repr(C)]
@@ -29,11 +28,7 @@ pub unsafe fn htp_hook_create() -> *mut htp_hook_t {
     if hook.is_null() {
         return 0 as *mut htp_hook_t;
     }
-    (*hook).callbacks = htp_list::htp_list_array_create(4);
-    if (*hook).callbacks.is_null() {
-        free(hook as *mut core::ffi::c_void);
-        return 0 as *mut htp_hook_t;
-    }
+    (*hook).callbacks = List::with_capacity(4);
     hook
 }
 
@@ -43,16 +38,10 @@ pub unsafe fn htp_hook_destroy(hook: *mut htp_hook_t) {
     if hook.is_null() {
         return;
     }
-    let mut i: usize = 0;
-    let n: usize = htp_list::htp_list_array_size((*hook).callbacks);
-    while i < n {
-        free(
-            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t
-                as *mut core::ffi::c_void,
-        );
-        i = i.wrapping_add(1)
+    for each in &(*hook).callbacks {
+        free(*each);
     }
-    htp_list::htp_list_array_destroy((*hook).callbacks);
+    drop(&(*hook).callbacks);
     free(hook as *mut core::ffi::c_void);
 }
 
@@ -73,9 +62,7 @@ pub unsafe fn htp_hook_register(
     }
     (*callback).fn_0 = callback_fn;
     // Create a new hook if one does not exist
-    let mut hook_created: i32 = 0;
     if (*hook).is_null() {
-        hook_created = 1;
         *hook = htp_hook_create();
         if (*hook).is_null() {
             free(callback as *mut core::ffi::c_void);
@@ -83,15 +70,7 @@ pub unsafe fn htp_hook_register(
         }
     }
     // Add callback
-    if htp_list::htp_list_array_push((**hook).callbacks, callback as *mut core::ffi::c_void)
-        != Status::OK
-    {
-        if hook_created != 0 {
-            free(*hook as *mut core::ffi::c_void);
-        }
-        free(callback as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
+    (**hook).callbacks.push(callback as *mut core::ffi::c_void);
     Status::OK
 }
 
@@ -109,11 +88,8 @@ pub unsafe fn htp_hook_run_all(
         return Status::OK;
     }
     // Loop through the registered callbacks, giving each a chance to run.
-    let mut i: usize = 0;
-    let n: usize = htp_list::htp_list_array_size((*hook).callbacks);
-    while i < n {
-        let callback: *const htp_callback_t =
-            htp_list::htp_list_array_get((*hook).callbacks, i) as *mut htp_callback_t;
+    for each in &(*hook).callbacks {
+        let callback = (*each) as *mut htp_callback_t;
         let rc: Status = (*callback).fn_0.expect("non-null function pointer")(user_data);
         // A hook can return HTP_OK to say that it did some work,
         // or HTP_DECLINED to say that it did no work. Anything else
@@ -121,7 +97,6 @@ pub unsafe fn htp_hook_run_all(
         if rc != Status::OK && rc != Status::DECLINED {
             return rc;
         }
-        i = i.wrapping_add(1)
     }
     Status::OK
 }

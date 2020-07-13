@@ -1,5 +1,5 @@
 use crate::htp_multipart::MultipartFlags;
-use crate::{bstr, htp_list, htp_multipart, htp_transaction, htp_urlencoded, Status};
+use crate::{bstr, htp_multipart, htp_transaction, htp_urlencoded, Status};
 
 extern "C" {
     #[no_mangle]
@@ -145,17 +145,12 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
         htp_multipart::htp_mpartp_finalize((*tx).request_mpartp);
         let body: *mut htp_multipart::htp_multipart_t =
             htp_multipart::htp_mpartp_get_multipart((*tx).request_mpartp);
-        let mut i: usize = 0;
-        let n: usize = htp_list::htp_list_array_size((*body).parts);
-        while i < n {
-            let part: *mut htp_multipart::htp_multipart_part_t =
-                htp_list::htp_list_array_get((*body).parts, i)
-                    as *mut htp_multipart::htp_multipart_part_t;
+        for part in &(*body).parts {
             // Use text parameters.
-            if (*part).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
+            if (*(*part)).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
                 let param = htp_transaction::htp_param_t::new(
-                    bstr::bstr_t::from((*(*part).name).as_slice()),
-                    bstr::bstr_t::from((*(*part).value).as_slice()),
+                    bstr::bstr_t::from((*(*(*part)).name).as_slice()),
+                    bstr::bstr_t::from((*(*(*part)).value).as_slice()),
                     htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
                     htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART,
                 );
@@ -163,7 +158,6 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
                     return Status::ERROR;
                 }
             }
-            i = i.wrapping_add(1)
         }
         // Tell the parser that it no longer owns names
         // and values of MULTIPART_PART_TEXT parts.

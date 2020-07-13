@@ -1,5 +1,4 @@
-use crate::log::*;
-use crate::{htp_list, htp_transaction, htp_util, Status};
+use crate::{htp_transaction, htp_util, list::List, log::htp_logs_free, Status};
 
 extern "C" {
     #[no_mangle]
@@ -16,8 +15,7 @@ extern "C" {
     fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_conn_t {
     /// Client IP address.
     pub client_addr: *mut i8,
@@ -31,9 +29,9 @@ pub struct htp_conn_t {
     /// Transactions carried out on this connection. The list may contain
     /// NULL elements when some of the transactions are deleted (and then
     /// removed from a connection by calling htp_conn_remove_tx().
-    pub transactions: *mut htp_list::htp_list_array_t,
+    pub transactions: List<*mut core::ffi::c_void>,
     /// Log messages associated with this connection.
-    pub messages: *mut htp_list::htp_list_array_t,
+    pub messages: List<*mut core::ffi::c_void>,
     /// Parsing flags: HTP_CONN_PIPELINED.
     pub flags: htp_util::ConnectionFlags,
     /// When was this connection opened? Can be NULL.
@@ -56,18 +54,8 @@ pub unsafe fn htp_conn_create() -> *mut htp_conn_t {
     if conn.is_null() {
         return 0 as *mut htp_conn_t;
     }
-    (*conn).transactions = htp_list::htp_list_array_create(16);
-    if (*conn).transactions.is_null() {
-        free(conn as *mut core::ffi::c_void);
-        return 0 as *mut htp_conn_t;
-    }
-    (*conn).messages = htp_list::htp_list_array_create(8);
-    if (*conn).messages.is_null() {
-        htp_list::htp_list_array_destroy((*conn).transactions);
-        (*conn).transactions = 0 as *mut htp_list::htp_list_array_t;
-        free(conn as *mut core::ffi::c_void);
-        return 0 as *mut htp_conn_t;
-    }
+    (*conn).transactions = List::with_capacity(16);
+    (*conn).messages = List::with_capacity(8);
     conn
 }
 
@@ -91,33 +79,24 @@ pub unsafe fn htp_conn_close(conn: *mut htp_conn_t, timestamp: *const htp_time_t
 /// transactions intact. This is because transactions need its connection and
 /// connection structures hold little data anyway. The opposite is true, though
 /// it is possible to delete a transaction but leave its connection alive.
-pub unsafe fn htp_conn_destroy(mut conn: *mut htp_conn_t) {
+pub unsafe fn htp_conn_destroy(conn: *mut htp_conn_t) {
     if conn.is_null() {
         return;
     }
-    if !(*conn).transactions.is_null() {
-        // Destroy individual transactions. Do note that iterating
-        // using the iterator does not work here because some of the
-        // list element may be NULL (and with the iterator it is impossible
-        // to distinguish a NULL element from the end of the list).
-        let mut i: usize = 0;
-        let n: usize = htp_list::htp_list_array_size((*conn).transactions);
-        while i < n {
-            let tx: *mut htp_transaction::htp_tx_t =
-                htp_list::htp_list_array_get((*conn).transactions, i)
-                    as *mut htp_transaction::htp_tx_t;
-            if !tx.is_null() {
-                htp_transaction::htp_tx_destroy_incomplete(tx);
-            }
-            i = i.wrapping_add(1)
+    // Destroy individual transactions. Do note that iterating
+    // using the iterator does not work here because some of the
+    // list element may be NULL (and with the iterator it is impossible
+    // to distinguish a NULL element from the end of the list).
+    for tx in &(*conn).transactions {
+        if !tx.is_null() {
+            htp_transaction::htp_tx_destroy_incomplete(*tx as *mut htp_transaction::htp_tx_t);
         }
-        htp_list::htp_list_array_destroy((*conn).transactions);
-        (*conn).transactions = 0 as *mut htp_list::htp_list_array_t
     }
-    if !(*conn).messages.is_null() {
-        htp_logs_free((*conn).messages);
-        (*conn).messages = 0 as *mut htp_list::htp_list_array_t
-    }
+    drop(&(*conn).transactions);
+
+    htp_logs_free(&(*conn).messages);
+    drop(&(*conn).messages);
+
     if !(*conn).server_addr.is_null() {
         free((*conn).server_addr as *mut core::ffi::c_void);
     }
@@ -176,18 +155,12 @@ pub unsafe fn htp_conn_open(
 pub unsafe fn htp_conn_remove_tx(
     conn: *mut htp_conn_t,
     tx: *const htp_transaction::htp_tx_t,
-) -> Status {
+) -> Result<(), Status> {
     if tx.is_null() || conn.is_null() {
-        return Status::ERROR;
+        Err(Status::ERROR)
+    } else {
+        (*conn).transactions.remove((*tx).index)
     }
-    if (*conn).transactions.is_null() {
-        return Status::ERROR;
-    }
-    htp_list::htp_list_array_replace(
-        (*conn).transactions,
-        (*tx).index,
-        0 as *mut core::ffi::c_void,
-    )
 }
 
 /// Keeps track of inbound packets and data.

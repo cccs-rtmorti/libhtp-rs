@@ -10,12 +10,12 @@ use htp::bstr::*;
 use htp::htp_base64::*;
 use htp::htp_config;
 use htp::htp_connection_parser::*;
-use htp::htp_list::*;
 use htp::htp_request::*;
 use htp::htp_table::*;
 use htp::htp_transaction::*;
 use htp::htp_urlencoded::*;
 use htp::htp_util::*;
+use htp::list::List;
 use htp::Status;
 
 macro_rules! cstr {
@@ -2174,122 +2174,122 @@ fn UrlencodedParser_Partial6i() {
 #[test]
 fn List_Misc() {
     unsafe {
-        let l: *mut htp_list_array_t = htp_list_array_create(16);
+        let mut l = List::with_capacity(16);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
+        l.push("1".as_ptr() as *mut core::ffi::c_void);
+        l.push("2".as_ptr() as *mut core::ffi::c_void);
+        l.push("3".as_ptr() as *mut core::ffi::c_void);
 
-        assert_eq!(3, htp_list_array_size(l));
+        assert_eq!(3, l.len());
 
-        let mut p: *mut i8 = htp_list_array_pop(l) as *mut i8;
+        let p: *mut i8 = l.pop().unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
-        assert_eq!(2, htp_list_array_size(l));
+        assert_eq!(2, l.len());
 
-        p = htp_list_array_pop(l) as *mut i8;
+        let p = l.pop().unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_pop(l) as *mut i8;
+        let p = l.pop().unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_pop(l) as *mut i8;
-        assert!(p.is_null());
+        let p = l.pop();
+        assert!(p.is_none());
 
-        htp_list_array_destroy(l);
+        drop(&l);
     }
 }
 
 #[test]
 fn List_Misc2() {
     unsafe {
-        let l: *mut htp_list_array_t = htp_list_array_create(2);
+        let mut l = List::with_capacity(2);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
+        l.push("1".as_ptr() as *mut core::ffi::c_void);
+        l.push("2".as_ptr() as *mut core::ffi::c_void);
+        l.push("3".as_ptr() as *mut core::ffi::c_void);
 
-        let mut p: *mut i8 = htp_list_array_get(l, 2) as *mut i8;
+        let p: *mut i8 = *l.get(2).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
-        assert_eq!(3, htp_list_array_size(l));
+        assert_eq!(3, l.len());
 
-        htp_list_array_replace(l, 2, "4".as_ptr() as *mut core::ffi::c_void);
+        let _ = l.replace(2, "4".as_ptr() as *mut core::ffi::c_void);
 
-        p = htp_list_array_pop(l) as *mut i8;
+        let p = l.pop().unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("4".as_ptr() as *mut i8, p));
 
-        htp_list_array_destroy(l);
+        drop(&l);
     }
 }
 
 #[test]
 fn List_Expand1() {
     unsafe {
-        let l: *mut htp_list_array_t = htp_list_array_create(2);
+        let mut l = List::with_capacity(2);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
+        l.push("1".as_ptr() as *mut core::ffi::c_void);
+        l.push("2".as_ptr() as *mut core::ffi::c_void);
 
-        assert_eq!(2, htp_list_array_size(l));
+        assert_eq!(2, l.len());
 
-        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
+        l.push("3".as_ptr() as *mut core::ffi::c_void);
 
-        assert_eq!(3, htp_list_array_size(l));
+        assert_eq!(3, l.len());
 
-        let mut p: *mut i8 = htp_list_array_get(l, 0) as *mut i8;
+        let p: *mut i8 = *l.get(0).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 1) as *mut i8;
+        let p = *l.get(1).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 2) as *mut i8;
+        let p = *l.get(2).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
-        htp_list_array_destroy(l);
+        drop(&l);
     }
 }
 
 #[test]
 fn List_Expand2() {
     unsafe {
-        let l: *mut htp_list_array_t = htp_list_array_create(2);
+        let mut l = List::with_capacity(2);
 
-        htp_list_array_push(l, "1".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "2".as_ptr() as *mut core::ffi::c_void);
+        l.push("1".as_ptr() as *mut core::ffi::c_void);
+        l.push("2".as_ptr() as *mut core::ffi::c_void);
 
-        assert_eq!(2, htp_list_array_size(l));
+        assert_eq!(2, l.len());
 
-        htp_list_array_push(l, "3".as_ptr() as *mut core::ffi::c_void);
-        htp_list_array_push(l, "4".as_ptr() as *mut core::ffi::c_void);
+        l.push("3".as_ptr() as *mut core::ffi::c_void);
+        l.push("4".as_ptr() as *mut core::ffi::c_void);
 
-        assert_eq!(4, htp_list_array_size(l));
+        assert_eq!(4, l.len());
 
-        let mut p: *mut i8 = htp_list_array_get(l, 0) as *mut i8;
+        let p: *mut i8 = *l.get(0).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 1) as *mut i8;
+        let p = *l.get(1).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_get(l, 2) as *mut i8;
+        let p = *l.get(2).unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
 
-        p = htp_list_array_pop(l) as *mut i8;
+        let p = l.pop().unwrap() as *mut i8;
         assert!(!p.is_null());
         assert_eq!(0, libc::strcmp("4".as_ptr() as *mut i8, p));
 
-        htp_list_array_destroy(l);
+        drop(&l);
     }
 }
 

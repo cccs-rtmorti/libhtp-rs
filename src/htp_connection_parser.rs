@@ -1,6 +1,6 @@
 use crate::{
-    bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_list, htp_request,
-    htp_response, htp_transaction, htp_util, Status,
+    bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_request, htp_response,
+    htp_transaction, htp_util, Status,
 };
 
 extern "C" {
@@ -422,7 +422,7 @@ pub unsafe fn htp_connp_tx_create(mut connp: *mut htp_connp_t) -> *mut htp_trans
         return 0 as *mut htp_transaction::htp_tx_t;
     }
     // Detect pipelining.
-    if htp_list::htp_list_array_size((*(*connp).conn).transactions) > (*connp).out_next_tx_index {
+    if (*(*connp).conn).transactions.len() > (*connp).out_next_tx_index {
         (*(*connp).conn).flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
     }
     let tx: *mut htp_transaction::htp_tx_t = htp_transaction::htp_tx_create(connp);

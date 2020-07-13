@@ -2,12 +2,12 @@ use crate::bstr;
 use crate::htp_config;
 use crate::htp_connection;
 use crate::htp_connection_parser;
-use crate::htp_list;
 use crate::htp_request;
 use crate::htp_response;
 use crate::htp_table;
 use crate::htp_transaction;
 use crate::htp_util;
+use crate::list;
 use crate::log::*;
 use crate::Status;
 use std::ffi::CString;
@@ -561,18 +561,60 @@ pub unsafe extern "C" fn htp_get_version() -> *const libc::c_char {
 /// Find the element at the given index.
 /// Returns the desired element, or NULL if the list is too small, or
 ///         if the element at that position carries a NULL
+/// list: Expected to be an htp_list_array_t
 #[no_mangle]
 pub unsafe extern "C" fn htp_list_get(
-    l: *const htp_list::htp_list_array_t,
+    list: *mut core::ffi::c_void,
     idx: libc::size_t,
 ) -> *mut libc::c_void {
-    htp_list::htp_list_array_get(l, idx)
+    if list.is_null() {
+        return core::ptr::null_mut();
+    }
+    let list = list as *mut list::List<*mut core::ffi::c_void>;
+    match (*list).get(idx) {
+        Some(x) => *x,
+        None => core::ptr::null_mut(),
+    }
 }
 
 /// Returns the size of the list.
 #[no_mangle]
-pub unsafe extern "C" fn htp_list_size(l: *const htp_list::htp_list_array_t) -> libc::size_t {
-    htp_list::htp_list_array_size(l)
+pub unsafe extern "C" fn htp_list_size(list: *const core::ffi::c_void) -> libc::size_t {
+    if list.is_null() {
+        return 0;
+    }
+    let list = list as *const list::List<*mut core::ffi::c_void>;
+    (*list).len()
+}
+
+/// Return a pointer to messages on a htp_conn_t
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_get_messages(
+    conn: *const htp_connection::htp_conn_t,
+) -> *mut core::ffi::c_void {
+    &(*conn).messages as *const _ as *mut core::ffi::c_void
+}
+
+/// Return a pointer to transactions on a htp_conn_t
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_get_txs(
+    conn: *const htp_connection::htp_conn_t,
+) -> *mut core::ffi::c_void {
+    &(*conn).transactions as *const _ as *mut core::ffi::c_void
+}
+
+/// Returns the in_data_counter
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_in_data_counter(conn: *const htp_connection::htp_conn_t) -> i64 {
+    nullcheck!(conn);
+    (*conn).in_data_counter
+}
+
+/// Returns the out_data_counter
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const htp_connection::htp_conn_t) -> i64 {
+    nullcheck!(conn);
+    (*conn).out_data_counter
 }
 
 /// Retrieve the first element that matches the given NUL-terminated key.
@@ -916,19 +958,17 @@ pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const bstr::bstr_t) -> *mut l
 // The caller is responsible for freeing the memory with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get(
-    messages: *mut htp_list::htp_list_array_t,
+    messages: *mut core::ffi::c_void,
     idx: libc::size_t,
 ) -> *mut libc::c_char {
-    let log: *mut htp_log_t = htp_list_get(messages, idx) as *mut htp_log_t;
-    if log.is_null() {
-        return std::ptr::null_mut();
+    let messages = messages as *mut list::List<*mut core::ffi::c_void>;
+    if let Some(log) = (*messages).get(idx) {
+        let log = *log as *mut htp_log_t;
+        if let Ok(msg_cstr) = CString::new((*log).msg.clone()) {
+            return msg_cstr.into_raw();
+        }
     }
-
-    if let Ok(msg_cstr) = CString::new((*log).msg.clone()) {
-        msg_cstr.into_raw()
-    } else {
-        std::ptr::null_mut()
-    }
+    std::ptr::null_mut()
 }
 
 // Free the message
@@ -942,16 +982,17 @@ pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) -> () {
 // Get the message code
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get_code(
-    messages: *mut htp_list::htp_list_array_t,
+    messages: *mut core::ffi::c_void,
     idx: libc::size_t,
 ) -> htp_log_code {
-    let log: *mut htp_log_t = htp_list_get(messages, idx) as *mut htp_log_t;
-
-    if log.is_null() {
-        return htp_log_code::UNKNOWN;
+    let messages = messages as *mut list::List<*mut core::ffi::c_void>;
+    if let Some(log) = (*messages).get(idx) {
+        let log = *log as *mut htp_log_t;
+        if !log.is_null() {
+            return (*log).code;
+        }
     }
-
-    return (*log).code;
+    htp_log_code::UNKNOWN
 }
 
 // Get the log filename
@@ -959,16 +1000,17 @@ pub unsafe extern "C" fn htp_log_get_code(
 // The called is responsible for freeing the memory with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get_file(
-    messages: *mut htp_list::htp_list_array_t,
+    messages: *mut core::ffi::c_void,
     idx: libc::size_t,
 ) -> *mut libc::c_char {
-    let log: *mut htp_log_t = htp_list_get(messages, idx) as *mut htp_log_t;
-    if log.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    if let Ok(file_cstr) = CString::new((*log).file.clone()) {
-        file_cstr.into_raw()
+    let messages = messages as *mut list::List<*mut core::ffi::c_void>;
+    if let Some(log) = (*messages).get(idx) {
+        let log = *log as *mut htp_log_t;
+        if let Ok(file_cstr) = CString::new((*log).file.clone()) {
+            file_cstr.into_raw()
+        } else {
+            std::ptr::null_mut()
+        }
     } else {
         std::ptr::null_mut()
     }

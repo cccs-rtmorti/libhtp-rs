@@ -1,4 +1,4 @@
-use crate::{htp_connection_parser, htp_hooks, htp_list};
+use crate::{htp_connection_parser, htp_hooks, list::List};
 use std::ffi::CStr;
 
 /// cbindgen:prefix-with-name=true
@@ -152,14 +152,9 @@ impl htp_log_t {
 
     pub unsafe fn add_log(connp: *mut htp_connection_parser::htp_connp_t, log: Box<htp_log_t>) {
         if !connp.is_null() && !(*connp).conn.is_null() {
-            htp_list::htp_list_array_push(
-                (*(*connp).conn).messages,
-                Box::into_raw(log) as *mut ::libc::c_void,
-            );
-            htp_hooks::htp_hook_run_all(
-                (*(*connp).cfg).hook_log,
-                htp_list::htp_list_array_get_last((*(*connp).conn).messages) as *mut ::libc::c_void,
-            );
+            let message = Box::into_raw(log) as *mut core::ffi::c_void;
+            (*(*connp).conn).messages.push(message);
+            htp_hooks::htp_hook_run_all((*(*connp).cfg).hook_log, message);
         }
     }
 }
@@ -185,13 +180,10 @@ macro_rules! htp_log {
     };
 }
 
-pub unsafe fn htp_logs_free(messages: *mut htp_list::htp_list_array_t) {
-    let size = htp_list::htp_list_array_size(messages);
-    for i in 0..size {
-        let log: *mut htp_log_t = htp_list::htp_list_array_get(messages, i) as *mut htp_log_t;
+pub unsafe fn htp_logs_free(messages: &List<*mut core::ffi::c_void>) {
+    for log in messages {
         if !log.is_null() {
-            Box::from_raw(log);
+            Box::from_raw(*log as *mut htp_log_t);
         }
     }
-    return htp_list::htp_list_array_destroy(messages);
 }

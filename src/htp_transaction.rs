@@ -1,8 +1,8 @@
 use crate::htp_util::Flags;
 use crate::{
     bstr, htp_config, htp_connection, htp_connection_parser, htp_cookies, htp_decompressors,
-    htp_hooks, htp_list, htp_multipart, htp_parsers, htp_request, htp_response, htp_table,
-    htp_urlencoded, htp_util, Status,
+    htp_hooks, htp_multipart, htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded,
+    htp_util, Status,
 };
 use std::cmp::Ordering;
 
@@ -417,7 +417,7 @@ pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *
     }
     (*tx).connp = connp;
     (*tx).conn = (*connp).conn;
-    (*tx).index = htp_list::htp_list_array_size((*(*tx).conn).transactions);
+    (*tx).index = (*(*tx).conn).transactions.len();
     (*tx).cfg = (*connp).cfg;
     (*tx).is_config_shared = 1;
     // Request fields.
@@ -439,7 +439,9 @@ pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *
     (*tx).response_content_length = -1;
     (*tx).response_headers = htp_table::htp_table_alloc(32);
 
-    htp_list::htp_list_array_push((*(*tx).conn).transactions, tx as *mut core::ffi::c_void);
+    (*(*tx).conn)
+        .transactions
+        .push(tx as *mut core::ffi::c_void);
     tx
 }
 
@@ -460,7 +462,8 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
         return;
     }
     // Disconnect transaction from other structures.
-    htp_connection::htp_conn_remove_tx((*tx).conn, tx);
+    let _ = htp_connection::htp_conn_remove_tx((*tx).conn, tx);
+    //TODO: Propagate the error up rather than silencing it with `let _ =`.
     htp_connection_parser::htp_connp_tx_remove((*tx).connp, tx);
     // Request fields.
     bstr::bstr_free((*tx).request_line);

@@ -2,8 +2,8 @@ use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
-    bstr, htp_connection, htp_connection_parser, htp_decompressors, htp_hooks, htp_list,
-    htp_request, htp_transaction, htp_util, Status,
+    bstr, htp_connection, htp_connection_parser, htp_decompressors, htp_hooks, htp_request,
+    htp_transaction, htp_util, Status,
 };
 
 extern "C" {
@@ -1437,9 +1437,13 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
     // Find the next outgoing transaction
     // If there is none, we just create one so that responses without
     // request can still be processed.
-    (*connp).out_tx =
-        htp_list::htp_list_array_get((*(*connp).conn).transactions, (*connp).out_next_tx_index)
-            as *mut htp_transaction::htp_tx_t;
+    (*connp).out_tx = match (*(*connp).conn)
+        .transactions
+        .get((*connp).out_next_tx_index)
+    {
+        Some(x) => *x as *mut htp_transaction::htp_tx_t,
+        None => std::ptr::null_mut(),
+    };
     if (*connp).out_tx.is_null() {
         htp_log!(
             connp,

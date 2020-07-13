@@ -88,7 +88,6 @@ mod htp_content_handlers;
 mod htp_cookies;
 pub mod htp_decompressors;
 mod htp_hooks;
-pub mod htp_list;
 pub mod htp_multipart;
 mod htp_parsers;
 pub mod htp_request;
@@ -101,6 +100,7 @@ pub mod htp_transaction;
 pub mod htp_urlencoded;
 mod htp_utf8_decoder;
 pub mod htp_util;
+pub mod list;
 pub mod lzma {
     pub mod LzmaDec;
 } // mod lzma
