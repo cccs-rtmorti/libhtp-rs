@@ -166,7 +166,7 @@ impl htp_log_t {
 
 #[macro_export]
 macro_rules! htp_log {
-    ($connp:ident, $level:expr, $code:expr, $msg:expr) => {
+    ($connp:expr, $level:expr, $code:expr, $msg:expr) => {
         if !$connp.is_null() {
             use $crate::log::*;
             // Ignore messages below our log level.

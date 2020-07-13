@@ -1625,9 +1625,8 @@ fn Util() {
         // A message that should not be logged.
         let log_message_count = htp_list_array_size((*(*(*tx).connp).conn).messages);
         (*(*(*tx).connp).cfg).log_level = htp_log_level_t::HTP_LOG_NONE;
-        let connp = (*tx).connp;
         htp_log!(
-            connp,
+            (*tx).connp,
             htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::UNKNOWN,
             "Log message"

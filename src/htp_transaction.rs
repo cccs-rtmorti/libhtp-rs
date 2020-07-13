@@ -901,9 +901,8 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
     d.len = len;
     let rc: Status = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut d);
     if rc != Status::OK {
-        let connp = (*tx).connp;
         htp_log!(
-            connp,
+            (*tx).connp,
             htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
             format!("Request body data callback returned error ({:?})", rc)
@@ -1156,9 +1155,8 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
             if (*(*(*(*d).tx).connp).out_decompressor).time_spent
                 > (*(*(*(*d).tx).connp).cfg).compression_time_limit
             {
-                let connp = (*(*d).tx).connp;
                 htp_log!(
-                    connp,
+                    (*(*d).tx).connp,
                     htp_log_level_t::HTP_LOG_ERROR,
                     htp_log_code::COMPRESSION_BOMB,
                     format!(
@@ -1173,9 +1171,8 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     if (*(*d).tx).response_entity_len > (*(*(*(*d).tx).connp).cfg).compression_bomb_limit as i64
         && (*(*d).tx).response_entity_len > 2048 * (*(*d).tx).response_message_len
     {
-        let connp = (*(*d).tx).connp;
         htp_log!(
-            connp,
+            (*(*d).tx).connp,
             htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::COMPRESSION_BOMB,
             format!(
@@ -1466,9 +1463,8 @@ pub unsafe fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
                 as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     } else {
-        let connp = (*tx).connp;
         htp_log!(
-            connp,
+            (*tx).connp,
             htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
             format!(
@@ -1890,9 +1886,8 @@ pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
                     as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             )
     {
-        let connp = (*tx).connp;
         htp_log!(
-            connp,
+            (*tx).connp,
             htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::REQUEST_LINE_INCOMPLETE,
             "Request line incomplete"
