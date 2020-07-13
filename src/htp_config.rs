@@ -5,7 +5,6 @@ use crate::{
     htp_request_generic, htp_response_generic, htp_transaction, Status,
 };
 
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_cfg_t {
     /// The maximum size of the buffer that is used when the current
