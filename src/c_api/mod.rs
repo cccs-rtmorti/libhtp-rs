@@ -700,8 +700,12 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     input: *mut bstr::bstr_t,
     flags: *mut u64,
 ) -> Status {
+    if input.is_null() || flags.is_null() || cfg.is_null() {
+        return Status::ERROR;
+    }
     let mut f = htp_util::Flags::from_bits_truncate(*flags);
-    let res = htp_util::htp_urldecode_inplace(cfg, ctx, input, &mut f);
+    let res =
+        htp_util::htp_urldecode_inplace((*cfg).decoder_cfgs[ctx as usize], &mut *input, &mut f);
     *flags = f.bits();
     res
 }

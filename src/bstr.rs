@@ -8,7 +8,7 @@ extern "C" {
     fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct bstr_t {
     // Wrap a BString under the hood. We want to be able to
     // implement behaviours on top of this if needed, so we wrap

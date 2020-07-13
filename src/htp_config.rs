@@ -205,10 +205,7 @@ impl Default for htp_cfg_t {
             compression_bomb_limit: 1048576,
             compression_time_limit: 100000,
         };
-        cfg.set_bestfit_map(
-            htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
-            bestfit_1252.as_ptr() as *const core::ffi::c_void,
-        );
+        cfg.set_bestfit_map(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, &bestfit_1252);
         cfg.set_bestfit_replacement_byte(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, '?' as i32);
         cfg.set_url_encoding_invalid_handling(
             htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
@@ -266,7 +263,7 @@ pub struct htp_decoder_cfg_t {
     pub utf8_convert_bestfit: bool,
     // Best-fit mapping options.
     /// The best-fit map to use to decode %u-encoded characters.
-    pub bestfit_map: *mut u8,
+    pub bestfit_map: &'static [u8],
     /// The replacement byte used when there is no best-fit mapping.
     pub bestfit_replacement_byte: u8,
 }
@@ -292,7 +289,7 @@ impl Default for htp_decoder_cfg_t {
             nul_encoded_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             utf8_invalid_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             utf8_convert_bestfit: false,
-            bestfit_map: std::ptr::null_mut(),
+            bestfit_map: &bestfit_1252,
             bestfit_replacement_byte: 0,
         }
     }
@@ -1124,15 +1121,15 @@ impl htp_cfg_t {
     /// and the third byte being the single byte to map to. Make sure that your map contains
     /// the mappings to cover the full-width and half-width form characters (U+FF00-FFEF). The
     /// last triplet in the map must be all zeros (3 NUL bytes).
-    pub fn set_bestfit_map(&mut self, ctx: htp_decoder_ctx_t, map: *const core::ffi::c_void) {
+    pub fn set_bestfit_map(&mut self, ctx: htp_decoder_ctx_t, map: &'static [u8]) {
         if ctx as u32 >= 3 {
             return;
         }
-        self.decoder_cfgs[ctx as usize].bestfit_map = map as *mut u8;
+        self.decoder_cfgs[ctx as usize].bestfit_map = map;
         if ctx == htp_decoder_ctx_t::HTP_DECODER_DEFAULTS {
             let mut i: usize = 0;
             while i < 3 {
-                self.decoder_cfgs[i as usize].bestfit_map = map as *mut u8;
+                self.decoder_cfgs[i as usize].bestfit_map = map;
                 i = i.wrapping_add(1)
             }
         };

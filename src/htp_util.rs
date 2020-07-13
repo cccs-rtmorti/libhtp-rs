@@ -1,10 +1,21 @@
 use crate::bstr::{bstr_len, bstr_ptr};
+use crate::htp_config::htp_decoder_cfg_t;
 use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_hooks, htp_request, htp_transaction,
     htp_utf8_decoder, Status,
 };
 use bitflags;
+use nom::{
+    branch::alt,
+    bytes::complete::{take, take_while_m_n},
+    character::complete::char,
+    combinator::{map, not},
+    multi::fold_many0,
+    number::complete::be_u8,
+    sequence::tuple,
+    IResult,
+};
 
 pub const HTP_VERSION_STRING_FULL: &'static str =
     concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
@@ -71,8 +82,6 @@ bitflags::bitflags! {
 }
 
 extern "C" {
-    #[no_mangle]
-    fn tolower(_: libc::c_int) -> libc::c_int;
     #[no_mangle]
     fn snprintf(
         _: *mut libc::c_char,
@@ -1030,61 +1039,59 @@ pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri
 /// characters. This function will happily convert invalid input.
 ///
 /// Returns hex-decoded byte
-unsafe fn x2c(what: *mut u8) -> u8 {
-    let mut digit: u8 = 0;
-    digit = if *what.offset(0) >= 'A' as u8 {
-        ((*what.offset(0) & 0xdf) - 'A' as u8) + 10
+fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
+    let (input, (c1, c2)) = tuple((be_u8, be_u8))(input)?;
+    let mut decoded_byte: u8 = 0;
+    decoded_byte = if c1 >= 'A' as u8 {
+        ((c1 & 0xdf) - 'A' as u8) + 10
     } else {
-        *what.offset(0) - '0' as u8
+        c1 - '0' as u8
     };
-    digit = (digit as i32 * 16) as u8;
-    digit = digit
-        + if *what.offset(1) >= 'A' as u8 {
-            ((*what.offset(1) & 0xdf) - 'A' as u8) + 10
+    decoded_byte = (decoded_byte as i32 * 16) as u8;
+    decoded_byte = decoded_byte
+        + if c2 >= 'A' as u8 {
+            ((c2 & 0xdf) - 'A' as u8) + 10
         } else {
-            (*what.offset(1)) - '0' as u8
+            c2 - '0' as u8
         };
-    digit
+    Ok((input, decoded_byte))
 }
 
 /// Convert a Unicode codepoint into a single-byte, using best-fit
 /// mapping (as specified in the provided configuration structure).
 ///
 /// Returns converted single byte
-unsafe fn bestfit_codepoint(
-    cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
-    codepoint: u32,
-) -> u8 {
+fn bestfit_codepoint(cfg: htp_decoder_cfg_t, codepoint: u32) -> u8 {
     // Is it a single-byte codepoint?
     if codepoint < 0x100 {
         return codepoint as u8;
     }
     // Our current implementation converts only the 2-byte codepoints.
     if codepoint > 0xffff {
-        return (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte;
+        return cfg.bestfit_replacement_byte;
     }
-    let mut p: *mut u8 = (*cfg).decoder_cfgs[ctx as usize].bestfit_map;
-    loop
+    let p = cfg.bestfit_map;
     // TODO Optimize lookup.
-    {
-        let x: u32 = (((*p.offset(0) as i32) << 8 as i32) + *p.offset(1) as i32) as u32;
+    let mut index: usize = 0;
+    while index + 3 < p.len() {
+        let x: u32 = (((p[index] as i32) << 8 as i32) + p[index + 1] as i32) as u32;
         if x == 0 {
-            return (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte;
+            return cfg.bestfit_replacement_byte;
         }
         if x == codepoint {
-            return *p.offset(2);
+            return p[index + 2];
         }
         // Move to the next triplet
-        p = p.offset(3)
+        index = index.wrapping_add(3)
     }
+    cfg.bestfit_replacement_byte
 }
 
 /// Decode a UTF-8 encoded path. Overlong characters will be decoded, invalid
 /// characters will be left as-is. Best-fit mapping will be used to convert
 /// UTF-8 into a single-byte stream.
 pub unsafe fn htp_utf8_decode_path_inplace(
-    cfg: *mut htp_config::htp_cfg_t,
+    cfg: htp_decoder_cfg_t,
     mut tx: *mut htp_transaction::htp_tx_t,
     path: *mut bstr::bstr_t,
 ) {
@@ -1141,11 +1148,7 @@ pub unsafe fn htp_utf8_decode_path_inplace(
                         (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
                     }
                     // Use best-fit mapping to convert to a single byte.
-                    *data.offset(wpos as isize) = bestfit_codepoint(
-                        cfg,
-                        htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-                        codepoint,
-                    );
+                    *data.offset(wpos as isize) = bestfit_codepoint(cfg, codepoint);
                     wpos = wpos.wrapping_add(1)
                 }
                 // Advance over the consumed byte and reset the byte counter.
@@ -1156,19 +1159,11 @@ pub unsafe fn htp_utf8_decode_path_inplace(
                 // Invalid UTF-8 character.
                 (*tx).flags |= Flags::HTP_PATH_UTF8_INVALID;
                 // Is the server expected to respond with 400?
-                if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .utf8_invalid_unwanted
-                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                {
-                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                        .utf8_invalid_unwanted
-                        as i32
+                if cfg.utf8_invalid_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                    (*tx).response_status_expected_number = cfg.utf8_invalid_unwanted as i32
                 }
                 // Output the replacement byte, replacing one or more invalid bytes.
-                *data.offset(wpos as isize) = (*cfg).decoder_cfgs
-                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .bestfit_replacement_byte;
+                *data.offset(wpos as isize) = cfg.bestfit_replacement_byte;
                 wpos = wpos.wrapping_add(1);
                 // If the invalid byte was first in a sequence, consume it. Otherwise,
                 // assume it's the starting byte of the next character.
@@ -1268,677 +1263,746 @@ pub unsafe fn htp_utf8_validate_path(tx: *mut htp_transaction::htp_tx_t, path: *
 /// Decode a %u-encoded character, using best-fit mapping as necessary. Path version.
 ///
 /// Returns decoded byte
-unsafe fn decode_u_encoding_path(
-    cfg: *mut htp_config::htp_cfg_t,
-    mut tx: *mut htp_transaction::htp_tx_t,
-    data: *mut u8,
-) -> i32 {
-    let c1: u32 = x2c(data) as u32;
-    let c2: u32 = x2c(data.offset(2 as isize)) as u32;
-    let mut r: i32 = (*cfg).decoder_cfgs
-        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-        .bestfit_replacement_byte as i32;
+fn decode_u_encoding_path<'a>(
+    i: &'a [u8],
+    cfg: htp_decoder_cfg_t,
+) -> IResult<&'a [u8], (u8, Flags, i32)> {
+    let mut flags = Flags::empty();
+    let mut expected_status_code: i32 = 0;
+    let (i, c1) = x2c(&i)?;
+    let (i, c2) = x2c(&i)?;
+    let mut r = cfg.bestfit_replacement_byte;
     if c1 == 0 {
-        r = c2 as i32;
-        (*tx).flags |= Flags::HTP_PATH_OVERLONG_U
+        r = c2;
+        flags |= Flags::HTP_PATH_OVERLONG_U
     } else {
         // Check for fullwidth form evasion
         if c1 == 0xff {
-            (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
+            flags |= Flags::HTP_PATH_HALF_FULL_RANGE
         }
-        if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-            .u_encoding_unwanted
-            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-        {
-            (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                .u_encoding_unwanted as i32
+        if cfg.u_encoding_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+            expected_status_code = cfg.u_encoding_unwanted as i32
         }
         // Use best-fit mapping
-        let mut p: *mut u8 = (*cfg).decoder_cfgs
-            [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-            .bestfit_map;
+        let p = cfg.bestfit_map;
         // TODO Optimize lookup.
         // Have we reached the end of the map?
-        while !(*p.offset(0) as i32 == 0 && *p.offset(1) as i32 == 0) {
-            // Have we found the mapping we're looking for?
-            if *p.offset(0) as u32 == c1 && *p.offset(1) as u32 == c2 {
-                r = *p.offset(2 as isize) as i32;
+        let mut index: usize = 0;
+        while index + 3 < p.len() {
+            if p[index] == c1 && p[index + 1] == c2 {
+                r = p[index + 2];
                 break;
             } else {
                 // Move to the next triplet
-                p = p.offset(3 as isize)
+                index = index.wrapping_add(3)
             }
         }
     }
     // Check for encoded path separators
-    if r == '/' as i32
-        || (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-            .backslash_convert_slashes
-            && r == '\\' as i32
-    {
-        (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR
+    if r == '/' as u8 || cfg.backslash_convert_slashes && r == '\\' as u8 {
+        flags |= Flags::HTP_PATH_ENCODED_SEPARATOR
     }
-    r
+    Ok((i, (r, flags, expected_status_code)))
 }
 
 /// Decode a %u-encoded character, using best-fit mapping as necessary. Params version.
 ///
 /// Returns decoded byte
-unsafe fn decode_u_encoding_params(
-    cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
-    data: *mut u8,
-    flags: *mut Flags,
-) -> i32 {
-    let c1: u32 = x2c(data) as u32;
-    let c2: u32 = x2c(data.offset(2 as isize)) as u32;
+fn decode_u_encoding_params<'a>(
+    i: &'a [u8],
+    cfg: htp_decoder_cfg_t,
+) -> IResult<&'a [u8], (u8, Flags)> {
+    let (i, c1) = x2c(&i)?;
+    let (i, c2) = x2c(&i)?;
+    let mut r = cfg.bestfit_replacement_byte;
+    let mut flags = Flags::empty();
     // Check for overlong usage first.
     if c1 == 0 {
-        *flags |= Flags::HTP_URLEN_OVERLONG_U;
-        return c2 as i32;
+        flags |= Flags::HTP_URLEN_OVERLONG_U;
+        return Ok((i, (c2, flags)));
     }
     // Both bytes were used.
     // Detect half-width and full-width range.
     if c1 == 0xff && c2 <= 0xef {
-        *flags |= Flags::HTP_URLEN_HALF_FULL_RANGE
+        flags |= Flags::HTP_URLEN_HALF_FULL_RANGE
     }
     // Use best-fit mapping.
-    let mut p: *mut u8 = (*cfg).decoder_cfgs[ctx as usize].bestfit_map;
-    let mut r: i32 = (*cfg).decoder_cfgs[ctx as usize].bestfit_replacement_byte as i32;
+    let p = cfg.bestfit_map;
     // TODO Optimize lookup.
     // Have we reached the end of the map?
-    while !(*p.offset(0) == 0 && *p.offset(1) == 0) {
-        // Have we found the mapping we're looking for?
-        if *p.offset(0) as u32 == c1 && *p.offset(1) as u32 == c2 {
-            r = *p.offset(2 as isize) as i32;
+    let mut index: usize = 0;
+    while index + 3 < p.len() {
+        if p[index] == c1 && p[index + 1] == c2 {
+            r = p[index + 2];
             break;
         } else {
             // Move to the next triplet
-            p = p.offset(3 as isize)
+            index = index.wrapping_add(3)
         }
     }
-    r
+    Ok((i, (r, flags)))
+}
+
+/// Decodes path valid uencoded params according to the given cfg settings.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn path_decode_valid_uencoding<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |remaining_input| {
+        let (left, _) = alt((char('u'), char('U')))(remaining_input)?;
+        let mut output = remaining_input;
+        let mut byte = '%' as u8;
+        let mut flags = Flags::empty();
+        let mut expected_status_code: i32 = 0;
+        if cfg.u_encoding_decode {
+            let (left, hex) = take_while_m_n(4, 4, |c: u8| c.is_ascii_hexdigit())(left)?;
+            output = left;
+            if cfg.u_encoding_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                expected_status_code = cfg.u_encoding_unwanted as i32
+            }
+            // Decode a valid %u encoding.
+            let (_, (b, f, c)) = decode_u_encoding_path(hex, cfg)?;
+            byte = b;
+            flags |= f;
+            if c != 0 {
+                expected_status_code = c;
+            }
+            if byte == 0 {
+                flags |= Flags::HTP_PATH_ENCODED_NUL;
+                if cfg.nul_encoded_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                    expected_status_code = cfg.nul_encoded_unwanted as i32
+                }
+                if cfg.nul_encoded_terminates {
+                    // Terminate the path at the raw NUL byte.
+                    return Ok((b"", (byte, expected_status_code, flags, false)));
+                }
+            }
+        }
+        let (byte, code) = path_decode_control(byte, cfg);
+        if code != 0 {
+            expected_status_code = code;
+        }
+        Ok((output, (byte, expected_status_code, flags, true)))
+    }
+}
+
+/// Decodes path invalid uencoded params according to the given cfg settings.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn path_decode_invalid_uencoding<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |remaining_input| {
+        let mut output = remaining_input;
+        let mut byte = '%' as u8;
+        let mut flags = Flags::empty();
+        let mut expected_status_code: i32 = 0;
+        let (left, _) = alt((char('u'), char('U')))(remaining_input)?;
+        if cfg.u_encoding_decode {
+            let (left, hex) = take(4usize)(left)?;
+            // Invalid %u encoding
+            flags = Flags::HTP_PATH_INVALID_ENCODING;
+            if cfg.url_encoding_invalid_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+            {
+                expected_status_code = cfg.url_encoding_invalid_unwanted as i32
+            }
+            if cfg.url_encoding_invalid_handling
+                == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
+            {
+                // Do not place anything in output; consume the %.
+                return Ok((remaining_input, (byte, expected_status_code, flags, false)));
+            } else if cfg.url_encoding_invalid_handling
+                == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+            {
+                let (_, (b, f, c)) = decode_u_encoding_path(&hex, cfg)?;
+                if c != 0 {
+                    expected_status_code = c;
+                }
+                flags |= f;
+                byte = b;
+                output = left;
+            }
+        }
+        let (byte, code) = path_decode_control(byte, cfg);
+        if code != 0 {
+            expected_status_code = code;
+        }
+        Ok((output, (byte, expected_status_code, flags, true)))
+    }
+}
+
+/// Decodes path valid hex according to the given cfg settings.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn path_decode_valid_hex<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |remaining_input| {
+        let original_remaining = remaining_input;
+        // Valid encoding (2 xbytes)
+        not(alt((char('u'), char('U'))))(remaining_input)?;
+        let (mut left, hex) = take_while_m_n(2, 2, |c: u8| c.is_ascii_hexdigit())(remaining_input)?;
+        let mut flags = Flags::empty();
+        let mut expected_status_code: i32 = 0;
+        // Convert from hex.
+        let (_, mut byte) = x2c(&hex)?;
+        if byte == 0 {
+            flags |= Flags::HTP_PATH_ENCODED_NUL;
+            if cfg.nul_encoded_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                expected_status_code = cfg.nul_encoded_unwanted as i32
+            }
+            if cfg.nul_encoded_terminates {
+                // Terminate the path at the raw NUL byte.
+                return Ok((b"", (byte, expected_status_code, flags, false)));
+            }
+        }
+        if byte == '/' as u8 || (cfg.backslash_convert_slashes && byte == '\\' as u8) {
+            flags |= Flags::HTP_PATH_ENCODED_SEPARATOR;
+            if cfg.path_separators_encoded_unwanted
+                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+            {
+                expected_status_code = cfg.path_separators_encoded_unwanted as i32
+            }
+            if !cfg.path_separators_decode {
+                // Leave encoded
+                byte = '%' as u8;
+                left = original_remaining;
+            }
+        }
+        let (byte, expected_status_code) = path_decode_control(byte, cfg);
+        Ok((left, (byte, expected_status_code, flags, true)))
+    }
+}
+
+/// Decodes path invalid hex according to the given cfg settings.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn path_decode_invalid_hex<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |remaining_input| {
+        let mut remaining = remaining_input;
+        // Valid encoding (2 xbytes)
+        not(alt((char('u'), char('U'))))(remaining_input)?;
+        let (left, hex) = take(2usize)(remaining_input)?;
+        let mut byte = '%' as u8;
+        // Invalid encoding
+        let flags = Flags::HTP_PATH_INVALID_ENCODING;
+        let expected_status_code = if cfg.url_encoding_invalid_unwanted
+            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+        {
+            cfg.url_encoding_invalid_unwanted as i32
+        } else {
+            0
+        };
+        if cfg.url_encoding_invalid_handling
+            == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
+        {
+            // Do not place anything in output; consume the %.
+            return Ok((remaining_input, (byte, expected_status_code, flags, false)));
+        } else if cfg.url_encoding_invalid_handling
+            == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+        {
+            // Decode
+            let (_, b) = x2c(&hex)?;
+            remaining = left;
+            byte = b;
+        }
+        let (byte, expected_status_code) = path_decode_control(byte, cfg);
+        Ok((remaining, (byte, expected_status_code, flags, true)))
+    }
+}
+/// If the first byte of the input path string is a '%', it attempts to decode according to the
+/// configuration specified by cfg. Various flags (HTP_PATH_*) might be set. If something in the
+/// input would cause a particular server to respond with an error, the appropriate status
+/// code will be set.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn path_decode_percent<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |i| {
+        let (remaining_input, c) = char('%')(i)?;
+        let byte = c as u8;
+        alt((
+            path_decode_valid_uencoding(cfg),
+            path_decode_invalid_uencoding(cfg),
+            move |remaining_input| {
+                let (_, _) = alt((char('u'), char('U')))(remaining_input)?;
+                // Invalid %u encoding (not enough data)
+                let flags = Flags::HTP_PATH_INVALID_ENCODING;
+                let mut expected_status_code: i32 = 0;
+                if cfg.url_encoding_invalid_unwanted
+                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+                {
+                    expected_status_code = cfg.url_encoding_invalid_unwanted as i32
+                }
+                if cfg.url_encoding_invalid_handling
+                    == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
+                {
+                    // Do not place anything in output; consume the %.
+                    return Ok((remaining_input, (byte, expected_status_code, flags, false)));
+                }
+                Ok((remaining_input, (byte, expected_status_code, flags, true)))
+            },
+            path_decode_valid_hex(cfg),
+            path_decode_invalid_hex(cfg),
+            move |remaining_input| {
+                // Invalid URL encoding (not even 2 bytes of data)
+                Ok((
+                    remaining_input,
+                    (
+                        byte,
+                        if cfg.url_encoding_invalid_unwanted
+                            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+                        {
+                            cfg.url_encoding_invalid_unwanted as i32
+                        } else {
+                            0
+                        },
+                        Flags::HTP_PATH_INVALID_ENCODING,
+                        cfg.url_encoding_invalid_handling
+                            != htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
+                    ),
+                ))
+            },
+        ))(remaining_input)
+    }
+}
+
+/// Assumes the input is already decoded and checks if it is null byte or control character, handling each
+/// according to the decoder configurations settings.
+///
+/// Returns parsed byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn path_parse_other<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |i| {
+        let (remaining_input, byte) = be_u8(i)?;
+        let mut expected_status_code: i32 = 0;
+        // One non-encoded byte.
+        // Did we get a raw NUL byte?
+        if byte == 0 {
+            if cfg.nul_raw_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                expected_status_code = cfg.nul_raw_unwanted as i32
+            }
+            if cfg.nul_raw_terminates {
+                // Terminate the path at the encoded NUL byte.
+                return Ok((b"", (byte, expected_status_code, Flags::empty(), false)));
+            }
+        }
+        let (byte, expected_status_code) = path_decode_control(byte, cfg);
+        Ok((
+            remaining_input,
+            (byte, expected_status_code, Flags::empty(), true),
+        ))
+    }
+}
+/// Checks for control characters and converts them according to the cfg settings
+///
+/// Returns decoded byte and expected_status_code
+fn path_decode_control(mut byte: u8, cfg: htp_decoder_cfg_t) -> (u8, i32) {
+    // Note: What if an invalid encoding decodes into a path
+    //       separator? This is theoretical at the moment, because
+    //       the only platform we know doesn't convert separators is
+    //       Apache, who will also respond with 400 if invalid encoding
+    //       is encountered. Thus no check for a separator here.
+    // Place the character into output
+    // Check for control characters
+    let mut expected_status_code = 0;
+    if byte < 0x20 && cfg.control_chars_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+    {
+        expected_status_code = cfg.control_chars_unwanted as i32
+    }
+    // Convert backslashes to forward slashes, if necessary
+    if byte == '\\' as u8 && cfg.backslash_convert_slashes {
+        byte = '/' as u8
+    }
+    // Lowercase characters, if necessary
+    if cfg.convert_lowercase {
+        byte = byte.to_ascii_lowercase()
+    }
+    (byte, expected_status_code)
 }
 
 /// Decode a request path according to the settings in the
 /// provided configuration structure.
-pub unsafe fn htp_decode_path_inplace(
-    tx: *mut htp_transaction::htp_tx_t,
-    path: *mut bstr::bstr_t,
-) -> i32 {
-    if path.is_null() {
-        return -1;
-    }
-    let data: *mut u8 = bstr_ptr(path);
-    if data.is_null() {
-        return -1;
-    }
-    let len: usize = bstr_len(path);
-    let cfg: *mut htp_config::htp_cfg_t = (*tx).cfg;
-    let mut rpos: usize = 0;
-    let mut wpos: usize = 0;
-    let mut previous_was_separator: i32 = 0;
-    let encoding_handling = (*cfg).decoder_cfgs
-        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-        .url_encoding_invalid_handling;
-    while rpos < len && wpos < len {
-        let mut c: i32 = *data.offset(rpos as isize) as i32;
-        // Decode encoded characters
-        if c == '%' as i32 {
-            if rpos.wrapping_add(2) < len {
-                let mut handled: i32 = 0;
-                if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .u_encoding_decode
-                {
-                    // Check for the %u encoding
-                    if *data.offset(rpos.wrapping_add(1) as isize) == 'u' as u8
-                        || *data.offset(rpos.wrapping_add(1) as isize) == 'U' as u8
-                    {
-                        handled = 1;
-                        if (*cfg).decoder_cfgs
-                            [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                            .u_encoding_unwanted
-                            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                        {
-                            (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .u_encoding_unwanted
-                                as i32
-                        }
-                        if rpos.wrapping_add(5) < len {
-                            if (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
-                                && (*data.offset(rpos.wrapping_add(3) as isize)).is_ascii_hexdigit()
-                                && (*data.offset(rpos.wrapping_add(4) as isize)).is_ascii_hexdigit()
-                                && (*data.offset(rpos.wrapping_add(5) as isize)).is_ascii_hexdigit()
-                            {
-                                // Decode a valid %u encoding
-                                c = decode_u_encoding_path(
-                                    cfg,
-                                    tx,
-                                    &mut *data.offset(rpos.wrapping_add(2) as isize),
-                                );
-                                rpos = (rpos).wrapping_add(6);
-                                if c == 0 {
-                                    (*tx).flags |= Flags::HTP_PATH_ENCODED_NUL;
-                                    if (*cfg).decoder_cfgs
-                                        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
-                                            as usize]
-                                        .nul_encoded_unwanted
-                                        != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                                    {
-                                        (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                            [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
-                                                as usize]
-                                            .nul_encoded_unwanted
-                                            as i32
-                                    }
-                                }
-                            } else {
-                                // Invalid %u encoding
-                                (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
-                                if (*cfg).decoder_cfgs
-                                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                    .url_encoding_invalid_unwanted
-                                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                                {
-                                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH
-                                            as usize]
-                                        .url_encoding_invalid_unwanted
-                                        as i32
-                                }
-                                rpos = rpos.wrapping_add(1);
-                                if encoding_handling
-                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
-                                {
-                                    // Do not place anything in output; eat
-                                    // the percent character
-                                    continue;
-                                } else if encoding_handling
-                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
-                                {
-                                    c = decode_u_encoding_path(
-                                        cfg,
-                                        tx,
-                                        &mut *data.offset(rpos.wrapping_add(1) as isize),
-                                    );
-                                    rpos = (rpos).wrapping_add(5)
-                                }
-                            }
-                        } else {
-                            // Invalid %u encoding (not enough data)
-                            (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
-                            if (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .url_encoding_invalid_unwanted
-                                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                            {
-                                (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                    .url_encoding_invalid_unwanted
-                                    as i32
-                            }
-                            rpos = rpos.wrapping_add(1);
-                            if encoding_handling
-                                == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
-                            {
-                                // Do not place anything in output; eat
-                                // the percent character
-                                continue;
-                            }
-                        }
-                    }
-                }
-                // Handle standard URL encoding
-                if handled == 0 {
-                    if (*data.offset(rpos.wrapping_add(1) as isize)).is_ascii_hexdigit()
-                        && (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
-                    {
-                        c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize)) as i32;
-                        if c == 0 {
-                            (*tx).flags |= Flags::HTP_PATH_ENCODED_NUL;
-                            if (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .nul_encoded_unwanted
-                                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                            {
-                                (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                    .nul_encoded_unwanted
-                                    as i32
-                            }
-                            if (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .nul_encoded_terminates
-                            {
-                                bstr::bstr_adjust_len(path, wpos);
-                                return 1;
-                            }
-                        }
-                        if c == '/' as i32
-                            || (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .backslash_convert_slashes
-                                && c == '\\' as i32
-                        {
-                            (*tx).flags |= Flags::HTP_PATH_ENCODED_SEPARATOR;
-                            if (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .path_separators_encoded_unwanted
-                                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                            {
-                                (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                    .path_separators_encoded_unwanted
-                                    as i32
-                            }
-                            if (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .path_separators_decode
-                            {
-                                // Decode
-                                rpos = (rpos).wrapping_add(3)
-                            } else {
-                                // Leave encoded
-                                c = '%' as i32;
-                                rpos = rpos.wrapping_add(1)
-                            }
-                        } else {
-                            // Decode
-                            rpos = (rpos).wrapping_add(3)
+fn path_decode<'a>(
+    input: &'a [u8],
+    cfg: htp_decoder_cfg_t,
+) -> IResult<&'a [u8], (Vec<u8>, Flags, i32)> {
+    fold_many0(
+        alt((path_decode_percent(cfg), path_parse_other(cfg))),
+        (Vec::new(), Flags::empty(), 0),
+        |mut acc: (Vec<_>, Flags, i32), (byte, code, flag, insert)| {
+            // If we're compressing separators then we need
+            // to check if the previous character was a separator
+            if insert {
+                if byte == '/' as u8 && cfg.path_separators_compress {
+                    if !acc.0.is_empty() {
+                        if acc.0[acc.0.len() - 1] != '/' as u8 {
+                            acc.0.push(byte);
                         }
                     } else {
-                        // Invalid encoding
-                        (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
-                        if (*cfg).decoder_cfgs
-                            [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                            .url_encoding_invalid_unwanted
-                            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                        {
-                            (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                                .url_encoding_invalid_unwanted
-                                as i32
-                        }
-                        match (*cfg).decoder_cfgs
-                            [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                            .url_encoding_invalid_handling as u32
-                        {
-                            1 => {
-                                // Do not place anything in output; eat
-                                // the percent character
-                                rpos = rpos.wrapping_add(1);
-                                continue;
-                            }
-                            0 => {
-                                // Leave the percent character in output
-                                rpos = rpos.wrapping_add(1)
-                            }
-                            2 => {
-                                // Decode
-                                c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize)) as i32;
-                                rpos = (rpos).wrapping_add(3)
-                            }
-                            _ => {
-                                // Unknown setting
-                                return -1;
-                            }
-                        }
+                        acc.0.push(byte);
                     }
-                }
-            } else {
-                // Invalid URL encoding (not enough data)
-                (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING;
-                if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .url_encoding_invalid_unwanted
-                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                {
-                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                        .url_encoding_invalid_unwanted
-                        as i32
-                }
-                rpos = rpos.wrapping_add(1);
-                if encoding_handling == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT {
-                    // Do not place anything in output; eat
-                    // the percent character
-                    continue;
+                } else {
+                    acc.0.push(byte);
                 }
             }
-        } else {
-            // One non-encoded character
-            // Is it a NUL byte?
-            if c == 0 {
-                if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .nul_raw_unwanted
-                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                {
-                    (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                        [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                        .nul_raw_unwanted
-                        as i32
-                }
-                if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                    .nul_raw_terminates
-                {
-                    // Terminate path with a raw NUL byte
-                    bstr::bstr_adjust_len(path, wpos);
-                    return 1;
-                }
-            }
-            rpos = rpos.wrapping_add(1)
-        }
-        // Note: What if an invalid encoding decodes into a path
-        //       separator? This is theoretical at the moment, because
-        //       the only platform we know doesn't convert separators is
-        //       Apache, who will also respond with 400 if invalid encoding
-        //       is encountered. Thus no check for a separator here.
-        // Place the character into output
-        // Check for control characters
-        if c < 0x20 as i32
-            && (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                .control_chars_unwanted
-                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-        {
-            (*tx).response_status_expected_number = (*cfg).decoder_cfgs
-                [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                .control_chars_unwanted as i32
-        }
-        // Convert backslashes to forward slashes, if necessary
-        if c == '\\' as i32
-            && (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-                .backslash_convert_slashes
-        {
-            c = '/' as i32
-        }
-        // Lowercase characters, if necessary
-        if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-            .convert_lowercase
-        {
-            c = tolower(c)
-        }
-        // If we're compressing separators then we need
-        // to track if the previous character was a separator
-        if (*cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-            .path_separators_compress
-        {
-            if c == '/' as i32 {
-                if previous_was_separator == 0 {
-                    *data.offset(wpos as isize) = c as u8;
-                    wpos = wpos.wrapping_add(1);
-                    previous_was_separator = 1
-                }
-            } else {
-                *data.offset(wpos as isize) = c as u8;
-                wpos = wpos.wrapping_add(1);
-                previous_was_separator = 0
-            }
-        } else {
-            *data.offset(wpos as isize) = c as u8;
-            wpos = wpos.wrapping_add(1)
-        }
-    }
-    bstr::bstr_adjust_len(path, wpos);
-    1
+            acc.1 |= flag;
+            acc.2 = code;
+            acc
+        },
+    )(input)
 }
 
-pub unsafe fn htp_tx_urldecode_uri_inplace(
-    tx: *mut htp_transaction::htp_tx_t,
-    input: *mut bstr::bstr_t,
+/// Decode a request path inplace according to the settings in the
+/// provided configuration structure.
+pub fn htp_decode_path_inplace(
+    tx: &mut htp_transaction::htp_tx_t,
+    path: &mut bstr::bstr_t,
 ) -> Status {
-    let mut flags: Flags = Flags::empty();
-    let rc: Status = htp_urldecode_inplace_ex(
-        (*tx).cfg,
-        htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
-        input,
-        &mut flags,
-        &mut (*tx).response_status_expected_number,
-    );
-    if flags.contains(Flags::HTP_URLEN_INVALID_ENCODING) {
-        (*tx).flags |= Flags::HTP_PATH_INVALID_ENCODING
-    }
-    if flags.contains(Flags::HTP_URLEN_ENCODED_NUL) {
-        (*tx).flags |= Flags::HTP_PATH_ENCODED_NUL
-    }
-    if flags.contains(Flags::HTP_URLEN_RAW_NUL) {
-        (*tx).flags |= Flags::HTP_PATH_RAW_NUL;
+    let mut rc = Status::ERROR;
+    let decoder_cfg = unsafe {
+        (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+    };
+    if let Ok((_, (consumed, flags, expected_status_code))) =
+        path_decode(path.as_slice(), decoder_cfg)
+    {
+        (*path).clear();
+        path.add(consumed.as_slice());
+        tx.response_status_expected_number = expected_status_code;
+        tx.flags |= flags;
+        rc = Status::OK;
     }
     rc
 }
 
-pub unsafe fn htp_tx_urldecode_params_inplace(
-    tx: *mut htp_transaction::htp_tx_t,
-    input: *mut bstr::bstr_t,
+pub fn htp_tx_urldecode_uri_inplace(
+    tx: &mut htp_transaction::htp_tx_t,
+    input: &mut bstr::bstr_t,
 ) -> Status {
-    htp_urldecode_inplace_ex(
-        (*tx).cfg,
-        htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED,
-        input,
-        &mut (*tx).flags,
-        &mut (*tx).response_status_expected_number,
-    )
+    let mut rc = Status::ERROR;
+    let decoder_cfg = unsafe {
+        (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
+    };
+    if let Ok((_, (consumed, flags, _))) = htp_urldecode_ex(input.as_slice(), decoder_cfg) {
+        (*input).clear();
+        input.add(consumed.as_slice());
+        if flags.contains(Flags::HTP_URLEN_INVALID_ENCODING) {
+            tx.flags |= Flags::HTP_PATH_INVALID_ENCODING
+        }
+        if flags.contains(Flags::HTP_URLEN_ENCODED_NUL) {
+            tx.flags |= Flags::HTP_PATH_ENCODED_NUL
+        }
+        if flags.contains(Flags::HTP_URLEN_RAW_NUL) {
+            tx.flags |= Flags::HTP_PATH_RAW_NUL;
+        }
+        rc = Status::OK;
+    }
+    rc
+}
+
+pub fn htp_tx_urldecode_params_inplace(
+    tx: &mut htp_transaction::htp_tx_t,
+    input: &mut bstr::bstr_t,
+) -> Status {
+    let mut rc = Status::ERROR;
+    let decoder_cfg = unsafe {
+        (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize]
+    };
+    if let Ok((_, (consumed, flags, expected_status))) =
+        htp_urldecode_ex(input.as_slice(), decoder_cfg)
+    {
+        (*input).clear();
+        input.add(consumed.as_slice());
+        tx.flags |= flags;
+        tx.response_status_expected_number = expected_status;
+        rc = Status::OK;
+    }
+    rc
 }
 
 /// Performs in-place decoding of the input string, according to the configuration specified
 /// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_urldecode_inplace(
-    cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
-    input: *mut bstr::bstr_t,
-    flags: *mut Flags,
+pub fn htp_urldecode_inplace(
+    cfg: htp_decoder_cfg_t,
+    input: &mut bstr::bstr_t,
+    flags: &mut Flags,
 ) -> Status {
-    let mut expected_status_code: i32 = 0;
-    htp_urldecode_inplace_ex(cfg, ctx, input, flags, &mut expected_status_code)
+    let mut rc = Status::ERROR;
+    if let Ok((_, (consumed, flag, _))) = htp_urldecode_ex(input.as_slice(), cfg) {
+        (*input).clear();
+        input.add(consumed.as_slice());
+        *flags |= flag;
+        rc = Status::OK;
+    }
+    rc
 }
 
-/// Performs in-place decoding of the input string, according to the configuration specified
-/// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set. If something in the
+/// Decodes valid uencoded hex bytes according to the given cfg settings.
+/// e.g. "u0064" -> "d"
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_decode_valid_uencoding<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |input| {
+        let (left, _) = alt((char('u'), char('U')))(input)?;
+        if cfg.u_encoding_decode {
+            let (input, hex) = take_while_m_n(4, 4, |c: u8| c.is_ascii_hexdigit())(left)?;
+            let (_, (byte, flags)) = decode_u_encoding_params(hex, cfg)?;
+            return Ok((
+                input,
+                (
+                    byte,
+                    if cfg.u_encoding_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                        cfg.u_encoding_unwanted as i32
+                    } else {
+                        0
+                    },
+                    flags,
+                    true,
+                ),
+            ));
+        }
+        Ok((input, ('%' as u8, 0, Flags::empty(), true)))
+    }
+}
+
+/// Decodes invalid uencoded params according to the given cfg settings.
+/// e.g. "u00}9" -> "i"
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_decode_invalid_uencoding<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |mut input| {
+        let (left, _) = alt((char('u'), char('U')))(input)?;
+        let mut byte = '%' as u8;
+        let mut code: i32 = 0;
+        let mut flags = Flags::empty();
+        let mut insert = true;
+        if cfg.u_encoding_decode {
+            // Invalid %u encoding (could not find 4 xdigits).
+            let (left, invalid_hex) = take(4usize)(left)?;
+            flags |= Flags::HTP_URLEN_INVALID_ENCODING;
+            code = if cfg.url_encoding_invalid_unwanted
+                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+            {
+                cfg.url_encoding_invalid_unwanted as i32
+            } else if cfg.u_encoding_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                cfg.u_encoding_unwanted as i32
+            } else {
+                0
+            };
+            if cfg.url_encoding_invalid_handling
+                == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
+            {
+                // Do not place anything in output; consume the %.
+                insert = false;
+            } else if cfg.url_encoding_invalid_handling
+                == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+            {
+                let (_, (b, f)) = decode_u_encoding_params(invalid_hex, cfg)?;
+                flags |= f;
+                byte = b;
+                input = left;
+            }
+        }
+        Ok((input, (byte, code, flags, insert)))
+    }
+}
+
+/// Decodes valid hex byte.
+///  e.g. "2f" -> "/"
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_decode_valid_hex<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |input| {
+        // Valid encoding (2 xbytes)
+        not(alt((char('u'), char('U'))))(input)?;
+        let (input, hex) = take_while_m_n(2, 2, |c: u8| c.is_ascii_hexdigit())(input)?;
+        let (_, byte) = x2c(hex)?;
+        Ok((input, (byte, 0, Flags::empty(), true)))
+    }
+}
+
+/// Decodes invalid hex byte according to the given cfg settings.
+/// e.g. "}9" -> "i"
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_decode_invalid_hex<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |mut input| {
+        not(alt((char('u'), char('U'))))(input)?;
+        // Invalid encoding (2 bytes, but not hexadecimal digits).
+        let mut byte = '%' as u8;
+        let mut insert = true;
+        if cfg.url_encoding_invalid_handling
+            == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
+        {
+            // Do not place anything in output; consume the %.
+            insert = false;
+        } else if cfg.url_encoding_invalid_handling
+            == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
+        {
+            let (left, b) = x2c(input)?;
+            input = left;
+            byte = b;
+        }
+        Ok((
+            input,
+            (
+                byte,
+                if cfg.url_encoding_invalid_unwanted
+                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+                {
+                    cfg.url_encoding_invalid_unwanted as i32
+                } else {
+                    0
+                },
+                Flags::HTP_URLEN_INVALID_ENCODING,
+                insert,
+            ),
+        ))
+    }
+}
+
+/// If the first byte of the input string is a '%', it attempts to decode according to the
+/// configuration specified by cfg. Various flags (HTP_URLEN_*) might be set. If something in the
 /// input would cause a particular server to respond with an error, the appropriate status
 /// code will be set.
 ///
-/// Returns in expected_status_code: 0 by default, or status code as necessary
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_urldecode_inplace_ex(
-    cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
-    input: *mut bstr::bstr_t,
-    flags: *mut Flags,
-    expected_status_code: *mut i32,
-) -> Status {
-    if input.is_null() {
-        return Status::ERROR;
-    }
-    let data: *mut u8 = bstr_ptr(input);
-    if data.is_null() {
-        return Status::ERROR;
-    }
-    let len: usize = bstr_len(input);
-    let mut rpos: usize = 0;
-    let mut wpos: usize = 0;
-    let encoding_handling = (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_handling;
-    while rpos < len && wpos < len {
-        let mut c: i32 = *data.offset(rpos as isize) as i32;
-        // Decode encoded characters.
-        if c == '%' as i32 {
-            // Need at least 2 additional bytes for %HH.
-            if rpos.wrapping_add(2) < len {
-                let mut handled: i32 = 0;
-                // Decode %uHHHH encoding, but only if allowed in configuration.
-                if (*cfg).decoder_cfgs[ctx as usize].u_encoding_decode {
-                    // The next character must be a case-insensitive u.
-                    if *data.offset(rpos.wrapping_add(1) as isize) == 'u' as u8
-                        || *data.offset(rpos.wrapping_add(1) as isize) == 'U' as u8
-                    {
-                        handled = 1;
-                        if (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_decode_percent<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |i| {
+        let (input, _) = char('%')(i)?;
+        let (input, (byte, mut expected_status_code, mut flags, insert)) = alt((
+            url_decode_valid_uencoding(cfg),
+            url_decode_invalid_uencoding(cfg),
+            url_decode_valid_hex(),
+            url_decode_invalid_hex(cfg),
+            move |input| {
+                // Invalid %u encoding; not enough data. (not even 2 bytes)
+                // Do not place anything in output if HTP_URL_DECODE_REMOVE_PERCENT; consume the %.
+                Ok((
+                    input,
+                    (
+                        '%' as u8,
+                        if cfg.url_encoding_invalid_unwanted
                             != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                         {
-                            *expected_status_code =
-                                (*cfg).decoder_cfgs[ctx as usize].u_encoding_unwanted as i32
-                        }
-                        // Need at least 5 additional bytes for %uHHHH.
-                        if rpos.wrapping_add(5) < len {
-                            if (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
-                                && (*data.offset(rpos.wrapping_add(3) as isize)).is_ascii_hexdigit()
-                                && (*data.offset(rpos.wrapping_add(4) as isize)).is_ascii_hexdigit()
-                                && (*data.offset(rpos.wrapping_add(5) as isize)).is_ascii_hexdigit()
-                            {
-                                // Decode a valid %u encoding.
-                                c = decode_u_encoding_params(
-                                    cfg,
-                                    ctx,
-                                    &mut *data.offset(rpos.wrapping_add(2) as isize),
-                                    flags,
-                                );
-                                rpos = (rpos).wrapping_add(6)
-                            } else {
-                                // Invalid %u encoding (could not find 4 xdigits).
-                                *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
-                                if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                                {
-                                    *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
-                                        .url_encoding_invalid_unwanted
-                                        as i32
-                                }
-                                rpos = rpos.wrapping_add(1);
-                                if encoding_handling
-                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
-                                {
-                                    // Do not place anything in output; consume the %.
-                                    continue;
-                                } else if encoding_handling
-                                    == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
-                                {
-                                    c = decode_u_encoding_params(
-                                        cfg,
-                                        ctx,
-                                        &mut *data.offset(rpos.wrapping_add(1) as isize),
-                                        flags,
-                                    );
-                                    rpos = (rpos).wrapping_add(5)
-                                }
-                            }
+                            cfg.url_encoding_invalid_unwanted as i32
                         } else {
-                            // Invalid %u encoding; not enough data.
-                            *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
-                            if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                            {
-                                *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
-                                    .url_encoding_invalid_unwanted
-                                    as i32
-                            }
-                            rpos = rpos.wrapping_add(1);
-                            if encoding_handling
-                                == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
-                            {
-                                // Do not place anything in output; consume the %.
-                                continue;
-                            }
-                        }
-                    }
-                }
-                // Handle standard URL encoding.
-                if handled == 0 {
-                    // Need 2 hexadecimal digits.
-                    if (*data.offset(rpos.wrapping_add(1) as isize)).is_ascii_hexdigit()
-                        && (*data.offset(rpos.wrapping_add(2) as isize)).is_ascii_hexdigit()
-                    {
-                        // Decode %HH encoding.
-                        c = x2c(&mut *data.offset(rpos.wrapping_add(1) as isize)) as i32;
-                        rpos = (rpos).wrapping_add(3)
-                    } else {
-                        // Invalid encoding (enough bytes, but not hexadecimal digits).
-                        *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
-                        if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                        {
-                            *expected_status_code = (*cfg).decoder_cfgs[ctx as usize]
-                                .url_encoding_invalid_unwanted
-                                as i32
-                        }
-                        rpos = rpos.wrapping_add(1);
-                        if encoding_handling
-                            == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT
-                        {
-                            // Do not place anything in output; consume the %.
-                            continue;
-                        } else if encoding_handling
-                            == htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID
-                        {
-                            c = x2c(&mut *data.offset(rpos as isize)) as i32;
-                            rpos = (rpos).wrapping_add(2)
-                        }
-                    }
-                }
-            } else {
-                // Invalid encoding; not enough data (at least 2 bytes required).
-                *flags |= Flags::HTP_URLEN_INVALID_ENCODING;
-                if (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted
-                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                {
-                    *expected_status_code =
-                        (*cfg).decoder_cfgs[ctx as usize].url_encoding_invalid_unwanted as i32
-                }
-                rpos = rpos.wrapping_add(1);
-                if encoding_handling == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT {
-                    // Do not place anything in output; consume the %.
-                    continue;
-                }
+                            0
+                        },
+                        Flags::HTP_URLEN_INVALID_ENCODING,
+                        !(cfg.url_encoding_invalid_handling
+                            == htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT),
+                    ),
+                ))
+            },
+        ))(input)?;
+        //Did we get an encoded NUL byte?
+        if byte == 0 {
+            flags |= Flags::HTP_URLEN_ENCODED_NUL;
+            if cfg.nul_encoded_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                expected_status_code = cfg.nul_encoded_unwanted as i32
             }
-            // Did we get an encoded NUL byte?
-            if c == 0 {
-                if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted
-                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                {
-                    *expected_status_code =
-                        (*cfg).decoder_cfgs[ctx as usize].nul_encoded_unwanted as i32
-                }
-                *flags |= Flags::HTP_URLEN_ENCODED_NUL;
-                if (*cfg).decoder_cfgs[ctx as usize].nul_encoded_terminates {
-                    // Terminate the path at the raw NUL byte.
-                    bstr::bstr_adjust_len(input, wpos);
-                    return Status::OK;
-                }
+            if cfg.nul_encoded_terminates {
+                // Terminate the path at the encoded NUL byte.
+                return Ok((b"", (byte, expected_status_code, flags, false)));
             }
-            *data.offset(wpos as isize) = c as u8;
-            wpos = wpos.wrapping_add(1)
-        } else if c == '+' as i32 {
-            // Decoding of the plus character is conditional on the configuration.
-            if (*cfg).decoder_cfgs[ctx as usize].plusspace_decode {
-                c = 0x20 as i32
-            }
-            *data.offset(wpos as isize) = c as u8;
-            rpos = rpos.wrapping_add(1);
-            wpos = wpos.wrapping_add(1)
-        } else {
-            // One non-encoded byte.
-            // Did we get a raw NUL byte?
-            if c == 0 {
-                if (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted
-                    != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-                {
-                    *expected_status_code =
-                        (*cfg).decoder_cfgs[ctx as usize].nul_raw_unwanted as i32
-                }
-                *flags |= Flags::HTP_URLEN_RAW_NUL;
-                if (*cfg).decoder_cfgs[ctx as usize].nul_raw_terminates {
-                    // Terminate the path at the encoded NUL byte.
-                    bstr::bstr_adjust_len(input, wpos);
-                    return Status::OK;
-                }
-            }
-            *data.offset(wpos as isize) = c as u8;
-            rpos = rpos.wrapping_add(1);
-            wpos = wpos.wrapping_add(1)
         }
+        Ok((input, (byte, expected_status_code, flags, insert)))
     }
-    bstr::bstr_adjust_len(input, wpos);
-    Status::OK
+}
+
+/// Consumes the next nullbyte if it is a '+', decoding it according to the cfg
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_decode_plus<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |input| {
+        let (input, byte) = map(char('+'), |byte| {
+            // Decoding of the plus character is conditional on the configuration.
+            if cfg.plusspace_decode {
+                0x20
+            } else {
+                byte as u8
+            }
+        })(input)?;
+        Ok((input, (byte, 0, Flags::empty(), true)))
+    }
+}
+
+/// Consumes the next byte in the input string and treats it as an unencoded byte.
+/// Handles raw null bytes according to the input cfg settings.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
+fn url_parse_unencoded_byte<'a>(
+    cfg: htp_decoder_cfg_t,
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
+    move |input| {
+        let (input, byte) = be_u8(input)?;
+        // One non-encoded byte.
+        // Did we get a raw NUL byte?
+        if byte == 0 {
+            return Ok((
+                if cfg.nul_raw_terminates { b"" } else { input },
+                (
+                    byte,
+                    if cfg.nul_raw_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
+                        cfg.nul_raw_unwanted as i32
+                    } else {
+                        0
+                    },
+                    Flags::HTP_URLEN_RAW_NUL,
+                    !cfg.nul_raw_terminates,
+                ),
+            ));
+        }
+        Ok((input, (byte, 0, Flags::empty(), true)))
+    }
+}
+
+/// Performs decoding of the input string, according to the configuration specified
+/// by cfg. Various flags (HTP_URLEN_*) might be set. If something in the input would
+/// cause a particular server to respond with an error, the appropriate status
+/// code will be set.
+///
+/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be consumed or output.
+fn htp_urldecode_ex<'a>(
+    input: &'a [u8],
+    cfg: htp_decoder_cfg_t,
+) -> IResult<&'a [u8], (Vec<u8>, Flags, i32)> {
+    fold_many0(
+        alt((
+            url_decode_percent(cfg),
+            url_decode_plus(cfg),
+            url_parse_unencoded_byte(cfg),
+        )),
+        (Vec::new(), Flags::empty(), 0),
+        |mut acc: (Vec<_>, Flags, i32), (byte, code, flag, insert)| {
+            if insert {
+                acc.0.push(byte);
+            }
+            acc.1 |= flag;
+            if code != 0 {
+                acc.2 = code;
+            }
+            acc
+        },
+    )(input)
 }
 
 /// Normalize a previously-parsed request URI.
@@ -1963,7 +2027,7 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).username.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(tx, (*normalized).username);
+        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).username);
     }
     // Password.
     if !(*incomplete).password.is_null() {
@@ -1971,7 +2035,7 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).password.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(tx, (*normalized).password);
+        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).password);
     }
     // Hostname.
     if !(*incomplete).hostname.is_null() {
@@ -1981,7 +2045,7 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).hostname.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(tx, (*normalized).hostname);
+        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).hostname);
         htp_normalize_hostname_inplace((*normalized).hostname);
     }
     // Port.
@@ -2015,13 +2079,18 @@ pub unsafe fn htp_normalize_parsed_uri(
         }
         // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
         // compress separators and convert backslashes.
-        htp_decode_path_inplace(tx, (*normalized).path);
+        htp_decode_path_inplace(&mut *tx, &mut *(*normalized).path);
         // Handle UTF-8 in the path.
         if (*(*tx).cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
             .utf8_convert_bestfit
         {
             // Decode Unicode characters into a single-byte stream, using best-fit mapping.
-            htp_utf8_decode_path_inplace((*tx).cfg, tx, (*normalized).path);
+            htp_utf8_decode_path_inplace(
+                (*(*tx).cfg).decoder_cfgs
+                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize],
+                tx,
+                (*normalized).path,
+            );
         } else {
             // No decoding, but try to validate the path as a UTF-8 stream.
             htp_utf8_validate_path(tx, (*normalized).path);
@@ -2042,7 +2111,7 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).fragment.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(tx, (*normalized).fragment);
+        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).fragment);
     }
     1
 }

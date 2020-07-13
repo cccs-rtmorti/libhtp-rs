@@ -22,6 +22,7 @@ default = []
 bitflags = "1.2.1"
 bstr = "0.2"
 libc = "0.2"
+nom = "5.1.1"
 
 [dev-dependencies]
 criterion = "0.3"
