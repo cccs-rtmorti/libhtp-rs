@@ -87,7 +87,7 @@ pub unsafe extern "C" fn htp_parse_authorization_digest(
 
 /// Parses Basic Authorization request header.
 pub unsafe extern "C" fn htp_parse_authorization_basic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
     auth_header: *const htp_transaction::htp_header_t,
 ) -> Status {
     let data: *mut u8 = bstr_ptr((*auth_header).value);
@@ -135,7 +135,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
 
 /// Parses Authorization request header.
 pub unsafe extern "C" fn htp_parse_authorization(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     let auth_header_opt = (*(*(*connp).in_tx).request_headers).get_nocase_nozero("authorization");
     if auth_header_opt.is_none() {

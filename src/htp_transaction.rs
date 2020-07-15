@@ -344,6 +344,143 @@ pub struct htp_tx_t {
     pub res_header_repetitions: u16,
 }
 
+impl htp_tx_t {
+    unsafe fn new(connp: *mut htp_connection_parser::htp_connp_t) -> Result<Self, Status> {
+        let tx = Self {
+            connp,
+            conn: (*connp).conn,
+            cfg: (*connp).cfg,
+            is_config_shared: 1,
+            user_data: std::ptr::null_mut(),
+            request_ignored_lines: 0,
+            request_line: std::ptr::null_mut(),
+            request_method: std::ptr::null_mut(),
+            request_method_number: 0,
+            request_uri: std::ptr::null_mut(),
+            request_protocol: std::ptr::null_mut(),
+            request_protocol_number: Protocol::UNKNOWN,
+            is_protocol_0_9: 0,
+            parsed_uri: std::ptr::null_mut(),
+            parsed_uri_raw: htp_util::htp_uri_alloc(),
+            request_message_len: 0,
+            request_entity_len: 0,
+            request_headers: htp_table::htp_table_alloc(32),
+            request_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
+            request_content_encoding:
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+            request_content_type: std::ptr::null_mut(),
+            request_content_length: -1,
+            hook_request_body_data: std::ptr::null_mut(),
+            hook_response_body_data: std::ptr::null_mut(),
+            request_urlenp_query: std::ptr::null_mut(),
+            request_urlenp_body: std::ptr::null_mut(),
+            request_mpartp: std::ptr::null_mut(),
+            request_params: htp_table::htp_table_alloc(32),
+            request_cookies: std::ptr::null_mut(),
+            request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
+            request_auth_username: std::ptr::null_mut(),
+            request_auth_password: std::ptr::null_mut(),
+            request_hostname: std::ptr::null_mut(),
+            request_port_number: 0,
+            response_ignored_lines: 0,
+            response_line: std::ptr::null_mut(),
+            response_protocol: std::ptr::null_mut(),
+            response_protocol_number: Protocol::UNKNOWN,
+            response_status: std::ptr::null_mut(),
+            response_status_number: 0,
+            response_status_expected_number: 0,
+            response_message: std::ptr::null_mut(),
+            seen_100continue: 0,
+            response_headers: htp_table::htp_table_alloc(32),
+            response_message_len: 0,
+            response_entity_len: 0,
+            response_content_length: -1,
+            response_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
+            response_content_encoding:
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+            response_content_encoding_processing:
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+            response_content_type: std::ptr::null_mut(),
+            flags: Flags::empty(),
+            request_progress: htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED,
+            response_progress: htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED,
+            index: (*(*connp).conn).transactions.len(),
+            req_header_repetitions: 0,
+            res_header_repetitions: 0,
+        };
+        if tx.parsed_uri_raw.is_null() {
+            Err(Status::ERROR)
+        } else {
+            Ok(tx)
+        }
+    }
+}
+
+impl Drop for htp_tx_t {
+    /// Destroys all the fields inside an htp_tx_t.
+    fn drop(&mut self) {
+        unsafe {
+            // Disconnect transaction from other structures.
+            let _ = htp_connection::htp_conn_remove_tx(self.conn, self);
+            //TODO: Propagate the error up rather than silencing it with `let _ =`.
+            htp_connection_parser::htp_connp_tx_remove(self.connp, self);
+            // Request fields.
+            bstr::bstr_free(self.request_line);
+            bstr::bstr_free(self.request_method);
+            bstr::bstr_free(self.request_uri);
+            bstr::bstr_free(self.request_protocol);
+            bstr::bstr_free(self.request_content_type);
+            bstr::bstr_free(self.request_hostname);
+            htp_util::htp_uri_free(self.parsed_uri_raw);
+            htp_util::htp_uri_free(self.parsed_uri);
+            bstr::bstr_free(self.request_auth_username);
+            bstr::bstr_free(self.request_auth_password);
+            // Request_headers.
+            for (_key, h) in (*self.request_headers).elements.iter_mut() {
+                bstr::bstr_free((*(*h)).name);
+                bstr::bstr_free((*(*h)).value);
+                free(*h as *mut libc::c_void);
+            }
+            htp_table::htp_table_free(self.request_headers);
+
+            // Request parsers.
+            htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_query);
+            htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_body);
+            htp_multipart::htp_mpartp_destroy(self.request_mpartp);
+            // Request parameters.
+            htp_table::htp_table_free(self.request_params);
+
+            // Request cookies.
+            if !self.request_cookies.is_null() {
+                for (_name, value) in (*self.request_cookies).elements.iter_mut() {
+                    bstr::bstr_free(*value);
+                }
+                htp_table::htp_table_free(self.request_cookies);
+            }
+
+            htp_hooks::htp_hook_destroy(self.hook_request_body_data);
+            // Response fields.
+            bstr::bstr_free(self.response_line);
+            bstr::bstr_free(self.response_protocol);
+            bstr::bstr_free(self.response_status);
+            bstr::bstr_free(self.response_message);
+            bstr::bstr_free(self.response_content_type);
+            // Destroy response headers.
+            for (_key, h_0) in (*self.response_headers).elements.iter_mut() {
+                bstr::bstr_free((*(*h_0)).name);
+                bstr::bstr_free((*(*h_0)).value);
+                free(*h_0 as *mut libc::c_void);
+            }
+            htp_table::htp_table_free(self.response_headers);
+
+            // If we're using a private configuration structure, destroy it.
+            if self.is_config_shared == 0 {
+                (*self.cfg).destroy();
+            }
+        }
+    }
+}
+
 /// Possible states of a progressing transaction. Internally, progress will change
 /// to the next state when the processing activities associated with that state
 /// begin. For example, when we start to process request line bytes, the request
@@ -409,40 +546,18 @@ pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_vo
 /// Returns The newly created transaction, or NULL on memory allocation failure.
 pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *mut htp_tx_t {
     if connp.is_null() {
-        return 0 as *mut htp_tx_t;
+        return std::ptr::null_mut();
     }
-    let mut tx: *mut htp_tx_t = calloc(1, ::std::mem::size_of::<htp_tx_t>()) as *mut htp_tx_t;
-    if tx.is_null() {
-        return 0 as *mut htp_tx_t;
+    if let Ok(tx) = htp_tx_t::new(connp) {
+        let tx = Box::new(tx);
+        let tx = Box::into_raw(tx);
+        (*(*tx).conn)
+            .transactions
+            .push(tx as *mut core::ffi::c_void);
+        tx
+    } else {
+        std::ptr::null_mut()
     }
-    (*tx).connp = connp;
-    (*tx).conn = (*connp).conn;
-    (*tx).index = (*(*tx).conn).transactions.len();
-    (*tx).cfg = (*connp).cfg;
-    (*tx).is_config_shared = 1;
-    // Request fields.
-    (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED;
-    (*tx).request_protocol_number = Protocol::UNKNOWN;
-    (*tx).request_content_length = -1;
-    (*tx).parsed_uri_raw = htp_util::htp_uri_alloc();
-    if (*tx).parsed_uri_raw.is_null() {
-        htp_tx_destroy_incomplete(tx);
-        return 0 as *mut htp_tx_t;
-    }
-    (*tx).request_headers = htp_table::htp_table_alloc(32);
-    (*tx).request_params = htp_table::htp_table_alloc(32);
-    // Response fields.
-    (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED;
-    (*tx).response_status = 0 as *mut bstr::bstr_t;
-    (*tx).response_status_number = 0;
-    (*tx).response_protocol_number = Protocol::UNKNOWN;
-    (*tx).response_content_length = -1;
-    (*tx).response_headers = htp_table::htp_table_alloc(32);
-
-    (*(*tx).conn)
-        .transactions
-        .push(tx as *mut core::ffi::c_void);
-    tx
 }
 
 /// Destroys the supplied transaction.
@@ -461,64 +576,8 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
     if tx.is_null() {
         return;
     }
-    // Disconnect transaction from other structures.
-    let _ = htp_connection::htp_conn_remove_tx((*tx).conn, tx);
-    //TODO: Propagate the error up rather than silencing it with `let _ =`.
-    htp_connection_parser::htp_connp_tx_remove((*tx).connp, tx);
-    // Request fields.
-    bstr::bstr_free((*tx).request_line);
-    bstr::bstr_free((*tx).request_method);
-    bstr::bstr_free((*tx).request_uri);
-    bstr::bstr_free((*tx).request_protocol);
-    bstr::bstr_free((*tx).request_content_type);
-    bstr::bstr_free((*tx).request_hostname);
-    htp_util::htp_uri_free((*tx).parsed_uri_raw);
-    htp_util::htp_uri_free((*tx).parsed_uri);
-    bstr::bstr_free((*tx).request_auth_username);
-    bstr::bstr_free((*tx).request_auth_password);
-    // Request_headers.
-    for (_key, h) in (*(*tx).request_headers).elements.iter_mut() {
-        bstr::bstr_free((*(*h)).name);
-        bstr::bstr_free((*(*h)).value);
-        free(*h as *mut libc::c_void);
-    }
-    htp_table::htp_table_free((*tx).request_headers);
-
-    // Request parsers.
-    htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_query);
-    htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_body);
-    htp_multipart::htp_mpartp_destroy((*tx).request_mpartp);
-    // Request parameters.
-    htp_table::htp_table_free((*tx).request_params);
-
-    // Request cookies.
-    if !(*tx).request_cookies.is_null() {
-        for (_name, value) in (*(*tx).request_cookies).elements.iter_mut() {
-            bstr::bstr_free(*value);
-        }
-        htp_table::htp_table_free((*tx).request_cookies);
-    }
-
-    htp_hooks::htp_hook_destroy((*tx).hook_request_body_data);
-    // Response fields.
-    bstr::bstr_free((*tx).response_line);
-    bstr::bstr_free((*tx).response_protocol);
-    bstr::bstr_free((*tx).response_status);
-    bstr::bstr_free((*tx).response_message);
-    bstr::bstr_free((*tx).response_content_type);
-    // Destroy response headers.
-    for (_key, h_0) in (*(*tx).response_headers).elements.iter_mut() {
-        bstr::bstr_free((*(*h_0)).name);
-        bstr::bstr_free((*(*h_0)).value);
-        free(*h_0 as *mut libc::c_void);
-    }
-    htp_table::htp_table_free((*tx).response_headers);
-
-    // If we're using a private configuration structure, destroy it.
-    if (*tx).is_config_shared == 0 {
-        (*(*tx).cfg).destroy();
-    }
-    free(tx as *mut core::ffi::c_void);
+    // retake ownership of the tx so it gets dropped
+    let _ = Box::from_raw(tx);
 }
 
 /// Returns the user data associated with this transaction.
@@ -530,7 +589,7 @@ pub unsafe fn htp_tx_get_user_data(tx: *const htp_tx_t) -> *mut core::ffi::c_voi
 }
 
 /// Associates user data with this transaction.
-pub unsafe fn htp_tx_set_user_data(mut tx: *mut htp_tx_t, user_data: *mut core::ffi::c_void) {
+pub unsafe fn htp_tx_set_user_data(tx: *mut htp_tx_t, user_data: *mut core::ffi::c_void) {
     if tx.is_null() {
         return;
     }
@@ -873,7 +932,7 @@ pub unsafe fn htp_tx_req_process_body_data<S: AsRef<[u8]>>(tx: *mut htp_tx_t, da
 }
 
 pub unsafe fn htp_tx_req_process_body_data_ex(
-    mut tx: *mut htp_tx_t,
+    tx: *mut htp_tx_t,
     data: *const core::ffi::c_void,
     len: usize,
 ) -> Status {
@@ -917,7 +976,7 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_line<S: AsRef<[u8]>>(mut tx: *mut htp_tx_t, line: S) -> Status {
+pub unsafe fn htp_tx_req_set_line<S: AsRef<[u8]>>(tx: *mut htp_tx_t, line: S) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -944,10 +1003,7 @@ pub unsafe fn htp_tx_req_set_line<S: AsRef<[u8]>>(mut tx: *mut htp_tx_t, line: S
 /// tx: Transaction pointer. Must not be NULL.
 /// parsed_uri: URI pointer. Must not be NULL.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_parsed_uri(
-    mut tx: *mut htp_tx_t,
-    parsed_uri: *mut htp_util::htp_uri_t,
-) {
+pub unsafe fn htp_tx_req_set_parsed_uri(tx: *mut htp_tx_t, parsed_uri: *mut htp_util::htp_uri_t) {
     if tx.is_null() || parsed_uri.is_null() {
         return;
     }
@@ -968,7 +1024,7 @@ pub unsafe fn htp_tx_req_set_parsed_uri(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_res_set_status_line<S: AsRef<[u8]>>(mut tx: *mut htp_tx_t, line: S) -> Status {
+pub unsafe fn htp_tx_res_set_status_line<S: AsRef<[u8]>>(tx: *mut htp_tx_t, line: S) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -992,7 +1048,7 @@ pub unsafe fn htp_tx_res_set_status_line<S: AsRef<[u8]>>(mut tx: *mut htp_tx_t, 
 ///
 /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
+pub unsafe fn htp_tx_state_response_line(tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1214,7 +1270,7 @@ pub unsafe fn htp_tx_res_process_body_data<S: AsRef<[u8]>>(tx: *mut htp_tx_t, da
 }
 
 pub unsafe fn htp_tx_res_process_body_data_ex(
-    mut tx: *mut htp_tx_t,
+    tx: *mut htp_tx_t,
     data: *const core::ffi::c_void,
     len: usize,
 ) -> Status {

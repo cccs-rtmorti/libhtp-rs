@@ -13,7 +13,7 @@ extern "C" {
 pub unsafe extern "C" fn htp_parse_response_line_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    let mut tx: *mut htp_transaction::htp_tx_t = (*connp).out_tx;
+    let tx: *mut htp_transaction::htp_tx_t = (*connp).out_tx;
     let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
     let len: usize = bstr::bstr_len((*tx).response_line);
     let mut pos: usize = 0;
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
 /// Generic response header line(s) processor, which assembles folded lines
 /// into a single buffer before invoking the parsing function.
 pub unsafe extern "C" fn htp_process_response_header_generic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
 ) -> Status {

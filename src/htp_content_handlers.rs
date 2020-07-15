@@ -53,7 +53,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
 ///         is not appropriate for this parser, and HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
-    mut tx: *mut htp_transaction::htp_tx_t,
+    tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     // Check the request content type to see if it matches our MIME type.
     if (*tx).request_content_type.is_null()
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
 ///         string, and HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
-    mut tx: *mut htp_transaction::htp_tx_t,
+    tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     // Proceed only if there's something for us to parse.
     if (*(*tx).parsed_uri).query.is_null() || bstr::bstr_len((*(*tx).parsed_uri).query) == 0 {

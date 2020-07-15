@@ -17,7 +17,7 @@ extern "C" {
 ///
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_process_request_header_generic(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
 ) -> Status {
@@ -270,7 +270,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     connp: *mut htp_connection_parser::htp_connp_t,
     nul_terminates: i32,
 ) -> Status {
-    let mut tx: *mut htp_transaction::htp_tx_t = (*connp).in_tx;
+    let tx: *mut htp_transaction::htp_tx_t = (*connp).in_tx;
     let data: *mut u8 = bstr::bstr_ptr((*tx).request_line);
     let mut len: usize = bstr::bstr_len((*tx).request_line);
     let mut pos: usize = 0;

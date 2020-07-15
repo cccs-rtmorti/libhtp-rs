@@ -42,7 +42,7 @@ pub unsafe fn htp_parse_single_cookie_v0(
 /// Parses the Cookie request header in v0 format.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
-pub unsafe fn htp_parse_cookies_v0(mut connp: *mut htp_connection_parser::htp_connp_t) -> Status {
+pub unsafe fn htp_parse_cookies_v0(connp: *mut htp_connection_parser::htp_connp_t) -> Status {
     let cookie_header_opt = (*(*(*connp).in_tx).request_headers).get_nocase_nozero("cookie");
     if cookie_header_opt.is_none() {
         return Status::OK;

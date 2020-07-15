@@ -893,7 +893,7 @@ pub unsafe extern "C" fn htp_connp_REQ_PROTOCOL(
 /// Returns HTP_OK on succesful parse, HTP_ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_REQ_LINE_complete(
-    mut connp: *mut htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
     let mut data: *mut u8 = 0 as *mut u8;
     let mut len: usize = 0;

@@ -938,7 +938,7 @@ fn bestfit_codepoint(cfg: htp_decoder_cfg_t, codepoint: u32) -> u8 {
 /// UTF-8 into a single-byte stream.
 pub unsafe fn htp_utf8_decode_path_inplace(
     cfg: htp_decoder_cfg_t,
-    mut tx: *mut htp_transaction::htp_tx_t,
+    tx: *mut htp_transaction::htp_tx_t,
     path: *mut bstr::bstr_t,
 ) {
     if path.is_null() {
