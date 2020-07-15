@@ -148,6 +148,13 @@ impl From<Vec<u8>> for bstr_t {
     }
 }
 
+/// Compare a bstr_t to a &str byte for byte
+impl PartialEq<&str> for bstr_t {
+    fn eq(&self, rhs: &&str) -> bool {
+        self.as_bytes() == rhs.as_bytes()
+    }
+}
+
 /// A trait that lets us find the byte index of slices in a generic way.
 ///
 /// This layer of abstraction is motivated by the need to find needle in
