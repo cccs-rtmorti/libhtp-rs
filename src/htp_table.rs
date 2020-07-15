@@ -1,5 +1,6 @@
 use crate::bstr;
 use std::cmp::Ordering;
+use std::iter::Iterator;
 use std::ops::Index;
 
 #[derive(Clone, Debug)]
@@ -11,6 +12,33 @@ impl<T> Index<usize> for htp_table_t<T> {
     type Output = (bstr::bstr_t, T);
     fn index(&self, idx: usize) -> &(bstr::bstr_t, T) {
         &self.elements[idx]
+    }
+}
+
+impl<'a, T> IntoIterator for &'a htp_table_t<T> {
+    type Item = &'a (bstr::bstr_t, T);
+    type IntoIter = std::slice::Iter<'a, (bstr::bstr_t, T)>;
+
+    fn into_iter(self) -> std::slice::Iter<'a, (bstr::bstr_t, T)> {
+        self.elements.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut htp_table_t<T> {
+    type Item = &'a mut (bstr::bstr_t, T);
+    type IntoIter = std::slice::IterMut<'a, (bstr::bstr_t, T)>;
+
+    fn into_iter(self) -> std::slice::IterMut<'a, (bstr::bstr_t, T)> {
+        self.elements.iter_mut()
+    }
+}
+
+impl<T> IntoIterator for htp_table_t<T> {
+    type Item = (bstr::bstr_t, T);
+    type IntoIter = std::vec::IntoIter<(bstr::bstr_t, T)>;
+
+    fn into_iter(self) -> std::vec::IntoIter<(bstr::bstr_t, T)> {
+        self.elements.into_iter()
     }
 }
 
@@ -176,4 +204,27 @@ fn IndexAccess() {
     let res = &t[1];
     assert_eq!(Ordering::Equal, res.0.cmp("KeY2"));
     assert_eq!("Value2", res.1);
+}
+
+#[test]
+fn Iterators() {
+    let mut table = htp_table_t::with_capacity(2);
+    table.add("1".into(), "abc".to_string());
+    table.add("2".into(), "def".to_string());
+
+    let mut iter_ref: std::slice::Iter<(bstr::bstr_t, String)> = (&table).into_iter();
+    let (key1, _): &(bstr::bstr_t, String) = iter_ref.next().unwrap();
+    assert_eq!(key1, &"1");
+    assert_eq!(table.get_nocase("1").unwrap().1, "abc");
+
+    let mut iter_mut_ref: std::slice::IterMut<(bstr::bstr_t, String)> = (&mut table).into_iter();
+    let (key1, ref mut val1): &mut (bstr::bstr_t, String) = iter_mut_ref.next().unwrap();
+    *val1 = "xyz".to_string();
+    assert_eq!(key1, &"1");
+    assert_eq!(table.get_nocase("1").unwrap().1, "xyz");
+
+    let mut iter_owned: std::vec::IntoIter<(bstr::bstr_t, String)> = table.into_iter();
+    let (key1, val1) = iter_owned.next().unwrap();
+    assert_eq!(key1, "1");
+    assert_eq!(val1, "xyz");
 }
