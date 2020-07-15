@@ -126,11 +126,24 @@ impl DerefMut for bstr_t {
     }
 }
 
-/// Construct a new bstr_t from anything that satisfies AsRef<[u8]>
-impl<T: AsRef<[u8]>> From<T> for bstr_t {
-    fn from(src: T) -> Self {
+impl From<&[u8]> for bstr_t {
+    fn from(src: &[u8]) -> Self {
         bstr_t {
-            s: BString::from(src.as_ref()),
+            s: BString::from(src),
+        }
+    }
+}
+
+impl From<&str> for bstr_t {
+    fn from(src: &str) -> Self {
+        src.as_bytes().into()
+    }
+}
+
+impl From<Vec<u8>> for bstr_t {
+    fn from(src: Vec<u8>) -> Self {
+        bstr_t {
+            s: BString::from(src),
         }
     }
 }
