@@ -1517,7 +1517,7 @@ pub fn htp_decode_path_inplace(
     if let Ok((_, (consumed, flags, expected_status_code))) =
         path_decode(path.as_slice(), decoder_cfg)
     {
-        (*path).clear();
+        path.clear();
         path.add(consumed.as_slice());
         tx.response_status_expected_number = expected_status_code;
         tx.flags |= flags;
@@ -1942,7 +1942,7 @@ pub unsafe fn htp_normalize_parsed_uri(
             htp_utf8_validate_path(tx, (*normalized).path);
         }
         // RFC normalization.
-        htp_normalize_uri_path_inplace((*normalized).path);
+        htp_normalize_uri_path_inplace(&mut *(*normalized).path);
     }
     // Query string.
     if !(*incomplete).query.is_null() {
@@ -1980,115 +1980,26 @@ pub unsafe fn htp_normalize_hostname_inplace(hostname: *mut bstr::bstr_t) -> *mu
 
 /// Normalize URL path. This function implements the remove dot segments algorithm
 /// specified in RFC 3986, section 5.2.4.
-pub unsafe fn htp_normalize_uri_path_inplace(s: *mut bstr::bstr_t) {
-    if s.is_null() {
-        return;
-    }
-    let data: *mut u8 = bstr_ptr(s);
-    if data.is_null() {
-        return;
-    }
-    let len: usize = bstr_len(s);
-    let mut rpos: usize = 0;
-    let mut wpos: usize = 0;
-    let mut c: i32 = -1;
-    while rpos < len && wpos < len {
-        if c == -1 {
-            c = *data.offset(rpos as isize) as i32;
-            rpos = rpos.wrapping_add(1)
-        }
-        // A. If the input buffer begins with a prefix of "../" or "./",
-        //    then remove that prefix from the input buffer; otherwise,
-        if c == '.' as i32 {
-            if rpos.wrapping_add(1) < len
-                && *data.offset(rpos as isize) == '.' as u8
-                && *data.offset(rpos.wrapping_add(1) as isize) == '/' as u8
-            {
-                c = -1;
-                rpos = (rpos).wrapping_add(2);
-                continue;
-            } else if rpos < len && *data.offset(rpos as isize) == '/' as u8 {
-                c = -1;
-                rpos = (rpos).wrapping_add(1);
-                continue;
+fn normalize_uri_path(input: &[u8]) -> Vec<u8> {
+    let mut out = Vec::<&[u8]>::with_capacity(10);
+    input
+        .split(|c| *c == '/' as u8)
+        .for_each(|segment| match segment {
+            b"." => {}
+            b".." => {
+                out.pop();
             }
-        }
-        if c == '/' as i32 {
-            // B. if the input buffer begins with a prefix of "/./" or "/.",
-            //    where "." is a complete path segment, then replace that
-            //    prefix with "/" in the input buffer; otherwise,
-            if rpos.wrapping_add(1) < len
-                && *data.offset(rpos as isize) == '.' as u8
-                && *data.offset(rpos.wrapping_add(1) as isize) == '/' as u8
-            {
-                c = '/' as i32;
-                rpos = (rpos).wrapping_add(2);
-                continue;
-            } else if rpos.wrapping_add(1) == len && *data.offset(rpos as isize) == '.' as u8 {
-                c = '/' as i32;
-                rpos = (rpos).wrapping_add(1);
-                continue;
-            } else if rpos.wrapping_add(2) < len
-                && *data.offset(rpos as isize) == '.' as u8
-                && *data.offset(rpos.wrapping_add(1) as isize) == '.' as u8
-                && *data.offset(rpos.wrapping_add(2) as isize) == '/' as u8
-            {
-                c = '/' as i32;
-                rpos = (rpos).wrapping_add(3);
-                // C. if the input buffer begins with a prefix of "/../" or "/..",
-                //    where ".." is a complete path segment, then replace that
-                //    prefix with "/" in the input buffer and remove the last
-                //    segment and its preceding "/" (if any) from the output
-                //    buffer; otherwise,
-                // Remove the last segment
-                while wpos > 0 && *data.offset(wpos.wrapping_sub(1) as isize) != '/' as u8 {
-                    wpos = wpos.wrapping_sub(1)
-                }
-                if wpos > 0 {
-                    wpos = wpos.wrapping_sub(1)
-                }
-                continue;
-            } else if rpos.wrapping_add(2) == len
-                && *data.offset(rpos as isize) == '.' as u8
-                && *data.offset(rpos.wrapping_add(1) as isize) == '.' as u8
-            {
-                c = '/' as i32;
-                rpos = (rpos).wrapping_add(2);
-                // Remove the last segment
-                while wpos > 0 && *data.offset(wpos.wrapping_sub(1) as isize) != '/' as u8 {
-                    wpos = wpos.wrapping_sub(1)
-                }
-                if wpos > 0 {
-                    wpos = wpos.wrapping_sub(1)
-                }
-                continue;
-            }
-        }
-        // D.  if the input buffer consists only of "." or "..", then remove
-        // that from the input buffer; otherwise,
-        if c == '.' as i32 && rpos == len {
-            rpos = rpos.wrapping_add(1)
-        } else if c == '.' as i32
-            && rpos.wrapping_add(1) == len
-            && *data.offset(rpos as isize) == '.' as u8
-        {
-            rpos = (rpos).wrapping_add(2)
-        } else {
-            // E.  move the first path segment in the input buffer to the end of
-            // the output buffer, including the initial "/" character (if
-            // any) and any subsequent characters up to, but not including,
-            // the next "/" character or the end of the input buffer.
-            *data.offset(wpos as isize) = c as u8;
-            wpos = wpos.wrapping_add(1);
-            while rpos < len && *data.offset(rpos as isize) != '/' as u8 && wpos < len {
-                *data.offset(wpos as isize) = *data.offset(rpos as isize);
-                rpos = rpos.wrapping_add(1);
-                wpos = wpos.wrapping_add(1)
-            }
-            c = -1
-        }
-    }
-    bstr::bstr_adjust_len(s, wpos);
+            x => out.push(x),
+        });
+    out.join(b"/" as &[u8])
+}
+
+/// Normalize URL path in place. This function implements the remove dot segments algorithm
+/// specified in RFC 3986, section 5.2.4.
+pub fn htp_normalize_uri_path_inplace(s: &mut bstr::bstr_t) {
+    let consumed = normalize_uri_path(s.as_slice());
+    s.clear();
+    s.add(consumed.as_slice());
 }
 
 /// Determine if the information provided on the response line

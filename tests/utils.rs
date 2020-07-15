@@ -2394,52 +2394,41 @@ fn Util_ExtractQuotedString() {
 
 #[test]
 fn Util_NormalizeUriPath() {
-    unsafe {
-        let s: *mut bstr_t = bstr_dup_str("/a/b/c/./../../g");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, "/a/g"));
-        bstr_free(s);
+    let mut s = bstr_t::from("/a/b/c/./../../g");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp("/a/g"));
 
-        let s = bstr_dup_str("mid/content=5/../6");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, "mid/6"));
-        bstr_free(s);
+    let mut s = bstr_t::from("mid/content=5/../6");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp("mid/6"));
 
-        let s = bstr_dup_str("./one");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, "one"));
-        bstr_free(s);
+    let mut s = bstr_t::from("./one");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp("one"));
 
-        let s = bstr_dup_str("../one");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, "one"));
-        bstr_free(s);
+    let mut s = bstr_t::from("../one");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp("one"));
 
-        let s = bstr_dup_str(".");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, ""));
-        bstr_free(s);
+    let mut s = bstr_t::from(".");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp(""));
 
-        let s = bstr_dup_str("..");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, ""));
-        bstr_free(s);
+    let mut s = bstr_t::from("..");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp(""));
 
-        let s = bstr_dup_str("one/.");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, "one"));
-        bstr_free(s);
+    let mut s = bstr_t::from("one/.");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp("one"));
 
-        let s = bstr_dup_str("one/..");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, ""));
-        bstr_free(s);
+    let mut s = bstr_t::from("one/..");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp(""));
 
-        let s = bstr_dup_str("one/../");
-        htp_normalize_uri_path_inplace(s);
-        assert_eq!(0, bstr_cmp_str(s, ""));
-        bstr_free(s);
-    }
+    let mut s = bstr_t::from("one/../");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp(""));
 }
 
 #[test]
