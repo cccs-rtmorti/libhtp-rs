@@ -349,7 +349,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if pos == len {
         // No, this looks like a HTTP/0.9 request.
         (*tx).is_protocol_0_9 = 1;
-        (*tx).request_protocol_number = Protocol::V0_9 as i32;
+        (*tx).request_protocol_number = Protocol::V0_9;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32 {
             htp_log!(
                 connp,
@@ -404,7 +404,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if pos == len {
         // No, this looks like a HTTP/0.9 request.
         (*tx).is_protocol_0_9 = 1;
-        (*tx).request_protocol_number = Protocol::V0_9 as i32;
+        (*tx).request_protocol_number = Protocol::V0_9;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32 {
             htp_log!(
                 connp,
@@ -423,9 +423,9 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if (*tx).request_protocol.is_null() {
         return Status::ERROR;
     }
-    (*tx).request_protocol_number = htp_parsers::htp_parse_protocol((*tx).request_protocol) as i32;
+    (*tx).request_protocol_number = htp_parsers::htp_parse_protocol((*tx).request_protocol);
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32
-        && (*tx).request_protocol_number == Protocol::INVALID as i32
+        && (*tx).request_protocol_number == Protocol::INVALID
     {
         htp_log!(
             connp,

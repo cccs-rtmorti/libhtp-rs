@@ -358,7 +358,7 @@ fn GetTest() {
         // Response line data
         htp_tx_res_set_status_line(tx, "HTTP/1.1 200 OK");
         assert_eq!(0, bstr_cmp_str((*tx).response_protocol, "HTTP/1.1"));
-        assert_eq!(Protocol::V1_1 as i32, (*tx).response_protocol_number);
+        assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(0, bstr_cmp_str((*tx).response_message, "OK"));
 
@@ -713,7 +713,7 @@ fn RequestLineParsing2() {
 
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert_eq!(1, (*tx).is_protocol_0_9);
-        assert_eq!(Protocol::V0_9 as i32, (*tx).request_protocol_number);
+        assert_eq!(Protocol::V0_9, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
     }
@@ -742,7 +742,7 @@ fn ParsedUriSupplied() {
 
         assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(Protocol::V1_0 as i32, (*tx).request_protocol_number);
+        assert_eq!(Protocol::V1_0, (*tx).request_protocol_number);
         assert!(!(*tx).request_uri.is_null());
         assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
 

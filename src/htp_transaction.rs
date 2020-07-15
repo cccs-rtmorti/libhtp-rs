@@ -153,7 +153,7 @@ pub struct htp_tx_t {
     pub request_protocol: *mut bstr::bstr_t,
     /// Protocol version as a number. Multiply the high version number by 100, then add the low
     /// version number. You should prefer to work the pre-defined Protocol constants.
-    pub request_protocol_number: i32,
+    pub request_protocol_number: Protocol,
     /// Is this request using HTTP/0.9? We need a separate field for this purpose because
     /// the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
     /// example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
@@ -259,7 +259,7 @@ pub struct htp_tx_t {
     pub response_protocol: *mut bstr::bstr_t,
     /// Response protocol as number. Available only if we were able to parse the protocol version,
     /// INVALID otherwise. UNKNOWN until parsing is attempted.
-    pub response_protocol_number: i32,
+    pub response_protocol_number: Protocol,
     /// Response status code, as text. Starts as NULL and can remain NULL on
     /// an invalid response that does not specify status code.
     pub response_status: *mut bstr::bstr_t,
@@ -391,7 +391,7 @@ pub enum htp_auth_type_t {
 /// Protocol version constants
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum Protocol {
     INVALID = -2,
     UNKNOWN = -1,
@@ -422,7 +422,7 @@ pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *
     (*tx).is_config_shared = 1;
     // Request fields.
     (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED;
-    (*tx).request_protocol_number = Protocol::UNKNOWN as i32;
+    (*tx).request_protocol_number = Protocol::UNKNOWN;
     (*tx).request_content_length = -1;
     (*tx).parsed_uri_raw = htp_util::htp_uri_alloc();
     if (*tx).parsed_uri_raw.is_null() {
@@ -435,7 +435,7 @@ pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *
     (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED;
     (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = 0;
-    (*tx).response_protocol_number = Protocol::UNKNOWN as i32;
+    (*tx).response_protocol_number = Protocol::UNKNOWN;
     (*tx).response_content_length = -1;
     (*tx).response_headers = htp_table::htp_table_alloc(32);
 
@@ -679,7 +679,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
             // TODO IIS 7.0, for example, would ignore the T-E header when it
             //      it is used with a protocol below HTTP 1.1. This should be a
             //      personality trait.
-            if (*tx).request_protocol_number < Protocol::V1_1 as i32 {
+            if (*tx).request_protocol_number < Protocol::V1_1 {
                 (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
                 (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING;
             }
@@ -794,7 +794,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     } else {
         // No host information in the headers.
         // HTTP/1.1 requires host information in the headers.
-        if (*tx).request_protocol_number >= Protocol::V1_1 as i32 {
+        if (*tx).request_protocol_number >= Protocol::V1_1 {
             (*tx).flags |= Flags::HTP_HOST_MISSING
         }
     }
@@ -998,7 +998,7 @@ pub unsafe fn htp_tx_state_response_line(mut tx: *mut htp_tx_t) -> Status {
     }
     // Is the response line valid?
     let connp = (*tx).connp;
-    if (*tx).response_protocol_number == Protocol::INVALID as i32 {
+    if (*tx).response_protocol_number == Protocol::INVALID {
         htp_log!(
             connp,
             htp_log_level_t::HTP_LOG_WARNING,

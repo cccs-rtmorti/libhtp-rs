@@ -711,7 +711,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             }
             // spec says chunked is HTTP/1.1 only, but some browsers accept it
             // with 1.0 as well
-            if (*(*connp).out_tx).response_protocol_number < Protocol::V1_1 as i32 {
+            if (*(*connp).out_tx).response_protocol_number < Protocol::V1_1 {
                 htp_log!(
                     connp,
                     htp_log_level_t::HTP_LOG_WARNING,
@@ -1124,7 +1124,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 if colon_pos < len
                     && bstr::bstr_chr((*connp).out_header, ':' as i32) >= 0
-                    && (*(*connp).out_tx).response_protocol_number == Protocol::V1_1 as i32
+                    && (*(*connp).out_tx).response_protocol_number == Protocol::V1_1
                 {
                     // Warn only once per transaction.
                     if !(*(*connp).out_tx)

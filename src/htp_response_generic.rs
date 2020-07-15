@@ -18,7 +18,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     let len: usize = bstr::bstr_len((*tx).response_line);
     let mut pos: usize = 0;
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
-    (*tx).response_protocol_number = Protocol::INVALID as i32;
+    (*tx).response_protocol_number = Protocol::INVALID;
     (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = -1;
     (*tx).response_message = 0 as *mut bstr::bstr_t;
@@ -41,8 +41,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     if (*tx).response_protocol.is_null() {
         return Status::ERROR;
     }
-    (*tx).response_protocol_number =
-        htp_parsers::htp_parse_protocol((*tx).response_protocol) as i32;
+    (*tx).response_protocol_number = htp_parsers::htp_parse_protocol((*tx).response_protocol);
     // Ignore whitespace after the response protocol.
     while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)

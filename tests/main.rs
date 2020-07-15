@@ -1410,7 +1410,7 @@ fn InvalidProtocol() {
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
-        assert_eq!(-2, (*tx).request_protocol_number); // HTP_PROTOCOL_INVALID,
+        assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
     }
 }
 
