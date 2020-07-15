@@ -449,6 +449,19 @@ impl UriTest {
                         },
                     },
                     uri_test {
+                        uri: CString::new("http://host.com").unwrap().into_raw(),
+                        expected: uri_expected {
+                            scheme: CString::new("http").unwrap().into_raw(),
+                            username: std::ptr::null(),
+                            password: std::ptr::null(),
+                            hostname: CString::new("host.com").unwrap().into_raw(),
+                            port: std::ptr::null(),
+                            path: std::ptr::null(),
+                            query: std::ptr::null(),
+                            fragment: std::ptr::null(),
+                        },
+                    },
+                    uri_test {
                         uri: CString::new("http://").unwrap().into_raw(),
                         expected: uri_expected {
                             scheme: CString::new("http").unwrap().into_raw(),
@@ -508,7 +521,7 @@ impl UriTest {
                             password: std::ptr::null(),
                             hostname: CString::new("host.com").unwrap().into_raw(),
                             port: std::ptr::null(),
-                            path: CString::new("").unwrap().into_raw(),
+                            path: std::ptr::null(),
                             query: std::ptr::null(),
                             fragment: std::ptr::null(),
                         },
@@ -569,346 +582,390 @@ fn HtpParseUri() {
 
 #[test]
 fn ParseHostPort_1() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert_eq!(bstr_cmp(i, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(0, flag);
-
-        bstr_free(host);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_2() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str(" www.example.com ");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from(" www.example.com ");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(0, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_3() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str(" www.example.com:8001 ");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from(" www.example.com:8001 ");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(8001, port);
-        assert_eq!(0, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert_eq!(8001, port.unwrap().1.unwrap());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_4() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str(" www.example.com :  8001 ");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from(" www.example.com :  8001 ");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(8001, port);
-        assert_eq!(0, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert_eq!(8001, port.unwrap().1.unwrap());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_5() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com.");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com.");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com.");
+    let e = bstr_t::from("www.example.com.");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(0, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_6() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com.:8001");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com.");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com.:8001");
+    let e = bstr_t::from("www.example.com.");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(8001, port);
-        assert_eq!(0, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert_eq!(8001, port.unwrap().1.unwrap());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_7() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com:");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com:");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(1, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(!valid);
 }
 
 #[test]
 fn ParseHostPort_8() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com:ff");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com:ff");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(1, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.unwrap().1.is_none());
+    assert!(!valid);
 }
 
 #[test]
 fn ParseHostPort_9() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com:0");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com:0");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(1, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.unwrap().1.is_none());
+    assert!(!valid);
 }
 
 #[test]
 fn ParseHostPort_10() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com:65536");
-        let e: *mut bstr_t = bstr_dup_str("www.example.com");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut flag = 0;
+    let mut i = bstr_t::from("www.example.com:65536");
+    let e = bstr_t::from("www.example.com");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut flag)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(1, flag);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.unwrap().1.is_none());
+    assert!(!valid);
 }
 
 #[test]
 fn ParseHostPort_11() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("[::1]:8080");
-        let e: *mut bstr_t = bstr_dup_str("[::1]");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut invalid = 0;
+    let mut i = bstr_t::from("[::1]:8080");
+    let e = bstr_t::from("[::1]");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut invalid)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(8080, port);
-        assert_eq!(0, invalid);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert_eq!(8080, port.unwrap().1.unwrap());
+    assert!(valid);
 }
 
 #[test]
 fn ParseHostPort_12() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("[::1]:");
-        let e: *mut bstr_t = bstr_dup_str("[::1]");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut invalid = 0;
+    let mut i = bstr_t::from("[::1]:");
+    let e = bstr_t::from("[::1]");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut invalid)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(1, invalid);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(!valid);
 }
 
 #[test]
 fn ParseHostPort_13() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("[::1]x");
-        let e: *mut bstr_t = bstr_dup_str("[::1]");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut invalid = 0;
+    let mut i = bstr_t::from("[::1]x");
+    let e = bstr_t::from("[::1]");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut invalid)
-        );
-
-        assert!(!host.is_null());
-        assert_eq!(bstr_cmp(e, host), 0);
-        assert_eq!(-1, port);
-        assert_eq!(1, invalid);
-
-        bstr_free(host);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(!valid);
 }
 
 #[test]
 fn ParseHostPort_14() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("[::1");
-        let mut host: *mut bstr_t = std::ptr::null_mut();
-        let mut port = 0;
-        let mut invalid = 0;
+    let mut i = bstr_t::from("[::1");
+    let e = bstr_t::from("[::1");
+    let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-        assert_eq!(
-            Status::OK,
-            htp_parse_hostport(i, &mut host, std::ptr::null_mut(), &mut port, &mut invalid)
-        );
+    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(port.is_none());
+    assert!(!valid);
+}
 
-        assert!(host.is_null());
-        assert_eq!(-1, port);
-        assert_eq!(1, invalid);
+#[test]
+fn ParseScheme_1() {
+    let i: &[u8] = b"http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let e: &[u8] = b"http";
+    let (left, scheme) = scheme()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(scheme, e);
+}
 
-        bstr_free(host);
-        bstr_free(i);
-    }
+#[test]
+fn ParseInvalidScheme() {
+    let i: &[u8] = b"/http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
+    assert!(!scheme()(i).is_ok());
+}
+
+#[test]
+fn ParseCredentials_1() {
+    let i: &[u8] = b"//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let u: &[u8] = b"user";
+    let p: &[u8] = b"pass";
+    let (left, (user, pass)) = credentials()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(user, u);
+    assert_eq!(pass.unwrap(), p);
+}
+
+#[test]
+fn ParseCredentials_2() {
+    let i: &[u8] = b"//user@www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let u: &[u8] = b"user";
+    let (left, (user, pass)) = credentials()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(user, u);
+    assert!(pass.is_none());
+}
+
+#[test]
+fn ParseInvalidCredentials() {
+    //Must have already parsed the scheme!
+    let i: &[u8] = b"http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
+    assert!(!credentials()(i).is_ok());
+}
+
+#[test]
+fn ParseHostname_1() {
+    let i: &[u8] = b"www.example.com:1234/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b":1234/path1/path2?a=b&c=d#frag";
+    let e: &[u8] = b"www.example.com";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_2() {
+    let i: &[u8] = b"www.example.com/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"/path1/path2?a=b&c=d#frag";
+    let e: &[u8] = b"www.example.com";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_3() {
+    let i: &[u8] = b"www.example.com?a=b&c=d#frag";
+    let o: &[u8] = b"?a=b&c=d#frag";
+    let e: &[u8] = b"www.example.com";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_4() {
+    let i: &[u8] = b"www.example.com#frag";
+    let o: &[u8] = b"#frag";
+    let e: &[u8] = b"www.example.com";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_5() {
+    let i: &[u8] = b"[::1]:8080";
+    let o: &[u8] = b":8080";
+    let e: &[u8] = b"[::1]";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_6() {
+    let i: &[u8] = b"[::1";
+    let o: &[u8] = b"";
+    let e: &[u8] = b"[::1";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_7() {
+    let i: &[u8] = b"[::1/path1[0]";
+    let o: &[u8] = b"/path1[0]";
+    let e: &[u8] = b"[::1";
+    let (left, hostname) = hostname()(i).unwrap();
+
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseHostname_8() {
+    let i: &[u8] = b"[::1]xxxx";
+    let o: &[u8] = b"xxxx";
+    let e: &[u8] = b"[::1]";
+    let (left, hostname) = hostname()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(hostname, e);
+}
+
+#[test]
+fn ParseInvalidHostname() {
+    //If it starts with '/' we treat it as a path
+    let i: &[u8] = b"/www.example.com/path1/path2?a=b&c=d#frag";
+    assert!(!hostname()(i).is_ok());
+}
+
+#[test]
+fn ParsePort_1() {
+    let i: &[u8] = b":1234/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"/path1/path2?a=b&c=d#frag";
+    let e: &[u8] = b"1234";
+    let (left, path) = port()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParsePort_2() {
+    let i: &[u8] = b":1234?a=b&c=d#frag";
+    let o: &[u8] = b"?a=b&c=d#frag";
+    let e: &[u8] = b"1234";
+    let (left, path) = port()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParsePort_3() {
+    let i: &[u8] = b":1234#frag";
+    let o: &[u8] = b"#frag";
+    let e: &[u8] = b"1234";
+    let (left, path) = port()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParsePath_1() {
+    let i: &[u8] = b"/path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"?a=b&c=d#frag";
+    let e: &[u8] = b"/path1/path2";
+    let (left, path) = path()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParsePath_2() {
+    let i: &[u8] = b"/path1/path2#frag";
+    let o: &[u8] = b"#frag";
+    let e: &[u8] = b"/path1/path2";
+    let (left, path) = path()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParsePath_3() {
+    let i: &[u8] = b"path1/path2?a=b&c=d#frag";
+    let o: &[u8] = b"?a=b&c=d#frag";
+    let e: &[u8] = b"path1/path2";
+    let (left, path) = path()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParsePath_4() {
+    let i: &[u8] = b"//";
+    let o: &[u8] = b"";
+    let e: &[u8] = b"//";
+    let (left, path) = path()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(path, e);
+}
+
+#[test]
+fn ParseQuery_1() {
+    let i: &[u8] = b"?a=b&c=d#frag";
+    let o: &[u8] = b"#frag";
+    let e: &[u8] = b"a=b&c=d";
+    let (left, query) = query()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(query, e);
+}
+
+#[test]
+fn ParseQuery_2() {
+    let i: &[u8] = b"?a=b&c=d";
+    let o: &[u8] = b"";
+    let e: &[u8] = b"a=b&c=d";
+    let (left, query) = query()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(query, e);
+}
+
+#[test]
+fn ParseFragment() {
+    let i: &[u8] = b"#frag";
+    let o: &[u8] = b"";
+    let e: &[u8] = b"frag";
+    let (left, fragment) = fragment()(i).unwrap();
+    assert_eq!(left, o);
+    assert_eq!(fragment, e);
 }
 
 #[test]
@@ -1021,77 +1078,70 @@ fn ParseContentType_6() {
 
 #[test]
 fn ValidateHostname_1() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com");
-        assert_eq!(1, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(htp_validate_hostname(b"www.example.com"));
 }
 
 #[test]
 fn ValidateHostname_2() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str(".www.example.com");
-        assert_eq!(0, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(!htp_validate_hostname(b".www.example.com"));
 }
 
 #[test]
 fn ValidateHostname_3() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www..example.com");
-        assert_eq!(0, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(!htp_validate_hostname(b"www..example.com"));
 }
 
 #[test]
 fn ValidateHostname_4() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.example.com..");
-        assert_eq!(0, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(!htp_validate_hostname(b"www.example.com.."));
 }
 
 #[test]
 fn ValidateHostname_5() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www example com");
-        assert_eq!(0, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(!htp_validate_hostname(b"www example com"));
 }
 
 #[test]
 fn ValidateHostname_6() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("");
-        assert_eq!(0, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(!htp_validate_hostname(b""));
 }
 
 #[test]
 fn ValidateHostname_7() {
-    unsafe {
-        // Label over 63 characters.
-        let i: *mut bstr_t = bstr_dup_str(
-            "www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com",
-        );
-        assert_eq!(0, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    // Label over 63 characters.
+    assert!(!htp_validate_hostname(
+        b"www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com"
+    ));
 }
 
 #[test]
 fn ValidateHostname_8() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("www.ExAmplE-1984.com");
-        assert_eq!(1, htp_validate_hostname(i));
-        bstr_free(i);
-    }
+    assert!(htp_validate_hostname(b"www.ExAmplE-1984.com"));
+}
+
+#[test]
+fn ValidateHostname_9() {
+    assert!(htp_validate_hostname(b"[:::]"));
+}
+
+#[test]
+fn ValidateHostname_10() {
+    assert!(!htp_validate_hostname(b"[:::"));
+}
+
+#[test]
+fn ValidateHostname_11() {
+    assert!(!htp_validate_hostname(b"[:::/path[0]"));
+}
+
+#[test]
+fn ValidateHostname_12() {
+    assert!(!htp_validate_hostname(b"[:::#garbage]"));
+}
+
+#[test]
+fn ValidateHostname_13() {
+    assert!(!htp_validate_hostname(b"[:::?]"));
 }
 
 struct DecodingTest {

@@ -754,56 +754,48 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     }
     (*tx).request_port_number = (*(*tx).parsed_uri).port_number;
     // Examine the Host header.
-    let h_opt = (*(*tx).request_headers).get_nocase_nozero("host");
-    if h_opt.is_none() {
-        // No host information in the headers.
-        // HTTP/1.1 requires host information in the headers.
-        if (*tx).request_protocol_number >= Protocol::V1_1 as i32 {
-            (*tx).flags |= Flags::HTP_HOST_MISSING
-        }
-    } else {
-        let h = h_opt.unwrap().1;
+    if let Some((_, h)) = (*(*tx).request_headers).get_nocase_nozero("host") {
         // Host information available in the headers.
-        let mut hostname: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-        let mut port: i32 = 0;
-        rc = htp_util::htp_parse_header_hostport(
-            (*h).value,
-            &mut hostname,
-            0 as *mut *mut bstr::bstr_t,
-            &mut port,
-            &mut (*tx).flags,
-        );
-        if rc != Status::OK {
-            return rc;
-        }
-        if !hostname.is_null() {
+        if let Ok((_, (hostname, port_nmb, valid))) =
+            htp_util::htp_parse_hostport(&mut (*(*(*h)).value))
+        {
+            if !valid {
+                (*tx).flags |= Flags::HTP_HOSTH_INVALID
+            }
             // The host information in the headers is valid.
             // Is there host information in the URI?
             if (*tx).request_hostname.is_null() {
                 // There is no host information in the URI. Place the
                 // hostname from the headers into the parsed_uri structure.
-                (*tx).request_hostname = hostname;
-                (*tx).request_port_number = port
+                (*tx).request_hostname = bstr::bstr_dup_str(hostname);
+                bstr::bstr_to_lowercase((*tx).request_hostname);
+                if let Some((_, Some(port))) = port_nmb {
+                    (*tx).request_port_number = port as i32;
+                }
             } else {
                 // The host information appears in the URI and in the headers. The
                 // HTTP RFC states that we should ignore the header copy.
                 // Check for different hostnames.
-                if bstr::bstr_cmp_nocase(hostname, (*tx).request_hostname) != 0 {
+                if (*(*tx).request_hostname).cmp_nocase(hostname) != Ordering::Equal {
                     (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
                 }
-                // Check for different ports.
-                if (*tx).request_port_number != -1
-                    && port != -1
-                    && (*tx).request_port_number != port
-                {
-                    (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
+                if let Some((_, Some(port))) = port_nmb {
+                    // Check for different ports.
+                    if (*tx).request_port_number != -1 && (*tx).request_port_number != port as i32 {
+                        (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
+                    }
                 }
-                bstr::bstr_free(hostname);
             }
         } else if !(*tx).request_hostname.is_null() {
             // Invalid host information in the headers.
             // Raise the flag, even though the host information in the headers is invalid.
             (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
+        }
+    } else {
+        // No host information in the headers.
+        // HTTP/1.1 requires host information in the headers.
+        if (*tx).request_protocol_number >= Protocol::V1_1 as i32 {
+            (*tx).flags |= Flags::HTP_HOST_MISSING
         }
     }
     // Determine Content-Type.
@@ -1494,8 +1486,14 @@ pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
     // Determine how to process the request URI.
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT as u32 {
         // When CONNECT is used, the request URI contains an authority string.
-        if htp_util::htp_parse_uri_hostport((*tx).connp, (*tx).request_uri, (*tx).parsed_uri_raw)
-            != Status::OK
+        if (*tx).request_uri.is_null() || (*tx).parsed_uri_raw.is_null() {
+            return Status::ERROR;
+        }
+        if htp_util::htp_parse_uri_hostport(
+            &mut *(*tx).request_uri,
+            &mut *(*tx).parsed_uri_raw,
+            &mut (*(*(*tx).connp).in_tx).flags,
+        ) != Status::OK
         {
             return Status::ERROR;
         }
@@ -1516,7 +1514,7 @@ pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
     }
     // Check parsed_uri hostname.
     if !(*(*tx).parsed_uri).hostname.is_null()
-        && htp_util::htp_validate_hostname((*(*tx).parsed_uri).hostname) == 0
+        && !htp_util::htp_validate_hostname((*(*(*tx).parsed_uri).hostname).as_slice())
     {
         (*tx).flags |= Flags::HTP_HOSTU_INVALID
     }

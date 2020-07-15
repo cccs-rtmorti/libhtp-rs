@@ -8,10 +8,10 @@ use crate::{
 use bitflags;
 use nom::{
     branch::alt,
-    bytes::complete::{take, take_while_m_n},
+    bytes::complete::{is_not, tag, tag_no_case, take, take_until, take_while_m_n},
     character::complete::char,
-    combinator::{map, not},
-    multi::fold_many0,
+    combinator::{map, not, opt, peek},
+    multi::{fold_many0, many0},
     number::complete::be_u8,
     sequence::tuple,
     IResult,
@@ -163,6 +163,17 @@ pub struct htp_uri_t {
     /// Fragment identifier. This field will rarely be available in a server-side
     /// setting, but it's not impossible to see it.
     pub fragment: *mut bstr::bstr_t,
+}
+
+pub struct uri_t<'a> {
+    pub scheme: Option<&'a [u8]>,
+    pub username: Option<&'a [u8]>,
+    pub password: Option<&'a [u8]>,
+    pub hostname: Option<&'a [u8]>,
+    pub port: Option<&'a [u8]>,
+    pub path: Option<&'a [u8]>,
+    pub query: Option<&'a [u8]>,
+    pub fragment: Option<&'a [u8]>,
 }
 
 /// Represents a chunk of file data.
@@ -572,201 +583,254 @@ pub fn htp_connp_is_line_ignorable(
     htp_connp_is_line_terminator(server_personality, data, false)
 }
 
-unsafe fn htp_parse_port(data: *mut u8, len: usize, port: *mut i32, invalid: *mut i32) -> Status {
-    if len == 0 {
-        *port = -1;
-        *invalid = 1;
-        return Status::OK;
+/// Attempts to convert the provided port slice to a u16
+///
+/// Returns port number if a valid one is found. None if fails to convert or the result is 0
+fn convert_port(port: &[u8]) -> Option<u16> {
+    if port.len() == 0 {
+        return None;
     }
-    let port_parsed: i64 = htp_parse_positive_integer_whitespace(data, len, 10);
-    if port_parsed < 0 {
-        // Failed to parse the port number.
-        *port = -1;
-        *invalid = 1
-    } else if port_parsed > 0 && port_parsed < 65536 {
-        // Valid port number.
-        *port = port_parsed as i32
-    } else {
-        // Port number out of range.
-        *port = -1;
-        *invalid = 1
+    if let Ok(res) = std::str::from_utf8(port) {
+        if let Ok(port_number) = u16::from_str_radix(res, 10) {
+            if port_number == 0 {
+                return None;
+            }
+            return Some(port_number);
+        }
     }
-    Status::OK
+    None
 }
 
-/// Parses an authority string, which consists of a hostname with an optional port number; username
-/// and password are not allowed and will not be handled.
+/// Parses an authority string, which consists of a hostname with an optional port number
 ///
-/// Returns in hostname: A bstring containing the hostname, or NULL if the hostname is invalid. If
-///                      this value is not NULL, the caller assumes responsibility for memory
-///                      management.
-/// Returns in port: Port as text, or NULL if not provided.
-/// Returns in port_number: Port number, or -1 if the port is not present or invalid.
-/// Returns in invalid: Set to 1 if any part of the authority is invalid.
-///
-/// Returns HTP_OK on success, HTP_ERROR on memory allocation failure.
-pub unsafe fn htp_parse_hostport(
-    hostport: *mut bstr::bstr_t,
-    hostname: *mut *mut bstr::bstr_t,
-    port: *mut *mut bstr::bstr_t,
-    port_number: *mut i32,
-    invalid: *mut i32,
-) -> Status {
-    if hostport.is_null() || hostname.is_null() || port_number.is_null() || invalid.is_null() {
-        return Status::ERROR;
-    }
-    *hostname = 0 as *mut bstr::bstr_t;
-    if !port.is_null() {
-        *port = 0 as *mut bstr::bstr_t
-    }
-    *port_number = -1;
-    *invalid = 0;
-    let mut data: *mut u8 = bstr_ptr(hostport);
-    let mut len: usize = bstr_len(hostport);
-    bstr::bstr_util_mem_trim(&mut data, &mut len);
-    if len == 0 {
-        *invalid = 1;
-        return Status::OK;
-    }
-    // Check for an IPv6 address.
-    if *data.offset(0) == '[' as u8 {
-        // IPv6 host.
-        // Find the end of the IPv6 address.
-        let mut pos: usize = 0;
-        while pos < len && *data.offset(pos as isize) != ']' as u8 {
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            *invalid = 1;
-            return Status::OK;
-        }
-        *hostname = bstr::bstr_dup_mem(data as *const core::ffi::c_void, pos.wrapping_add(1));
-        if (*hostname).is_null() {
-            return Status::ERROR;
-        }
-        // Over the ']'.
-        pos = pos.wrapping_add(1);
-        if pos == len {
-            return Status::OK;
-        }
-        // Handle port.
-        if *data.offset(pos as isize) == ':' as u8 {
-            if !port.is_null() {
-                *port = bstr::bstr_dup_mem(
-                    data.offset(pos as isize).offset(1) as *const core::ffi::c_void,
-                    len.wrapping_sub(pos).wrapping_sub(1),
-                );
-                if (*port).is_null() {
-                    bstr::bstr_free(*hostname);
-                    return Status::ERROR;
-                }
-            }
-            return htp_parse_port(
-                data.offset(pos as isize).offset(1),
-                len.wrapping_sub(pos).wrapping_sub(1),
-                port_number,
-                invalid,
-            );
+/// Returns a remaining unparsed data, parsed hostname, parsed port, converted port number,
+/// and a flag indicating whether the parsed data is valid
+pub fn htp_parse_hostport<'a>(
+    hostport: &'a mut bstr::bstr_t,
+) -> IResult<&'a [u8], (&'a [u8], Option<(&'a [u8], Option<u16>)>, bool)> {
+    let (input, host) = hostname()((hostport).as_slice())?;
+    let mut valid = htp_validate_hostname(host);
+    if let Ok((_, p)) = port()(input) {
+        if let Some(port) = convert_port(p) {
+            return Ok((input, (host, Some((p, Some(port))), valid)));
         } else {
-            *invalid = 1;
-            return Status::OK;
+            return Ok((input, (host, Some((p, None)), false)));
         }
-    } else {
-        // Not IPv6 host.
-        // Is there a colon?
-        let colon: *mut u8 = memchr(data as *const core::ffi::c_void, ':' as i32, len) as *mut u8;
-        if colon.is_null() {
-            // Hostname alone, no port.
-            *hostname = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-            if (*hostname).is_null() {
-                return Status::ERROR;
-            }
-            bstr::bstr_to_lowercase(*hostname);
-        } else {
-            // Hostname and port.
-            // Ignore whitespace at the end of hostname.
-            let mut hostend: *mut u8 = colon;
-            while hostend > data && (*hostend.offset(-1)).is_ascii_whitespace() {
-                hostend = hostend.offset(-1)
-            }
-            *hostname = bstr::bstr_dup_mem(
-                data as *const core::ffi::c_void,
-                hostend.wrapping_offset_from(data) as usize,
-            );
-            if (*hostname).is_null() {
-                return Status::ERROR;
-            }
-            if !port.is_null() {
-                *port = bstr::bstr_dup_mem(
-                    colon.offset(1) as *const core::ffi::c_void,
-                    len.wrapping_sub(colon.offset(1).wrapping_offset_from(data) as usize),
-                );
-                if (*port).is_null() {
-                    bstr::bstr_free(*hostname);
-                    return Status::ERROR;
-                }
-            }
-            return htp_parse_port(
-                colon.offset(1),
-                len.wrapping_sub(colon.offset(1).wrapping_offset_from(data) as usize),
-                port_number,
-                invalid,
-            );
-        }
+    } else if input.len() > 0 {
+        //Trailing data after the hostname that is invalid e.g. [::1]xxxxx
+        valid = false;
     }
-    Status::OK
+    Ok((input, (host, None, valid)))
 }
 
 /// Parses hostport provided in the URI.
 ///
 /// Returns HTP_OK on success or HTP_ERROR error.
 pub unsafe fn htp_parse_uri_hostport(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    hostport: *mut bstr::bstr_t,
-    uri: *mut htp_uri_t,
+    hostport: &mut bstr::bstr_t,
+    uri: &mut htp_uri_t,
+    flags: &mut Flags,
 ) -> Status {
-    let mut invalid: i32 = 0;
-    let rc: Status = htp_parse_hostport(
-        hostport,
-        &mut (*uri).hostname,
-        &mut (*uri).port,
-        &mut (*uri).port_number,
-        &mut invalid,
-    );
-    if rc != Status::OK {
-        return rc;
-    }
-    if invalid != 0 {
-        (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
-    }
-    if !(*uri).hostname.is_null() && htp_validate_hostname((*uri).hostname) == 0 {
-        (*(*connp).in_tx).flags |= Flags::HTP_HOSTU_INVALID
+    if let Ok((_, (host, port_nmb, mut valid))) = htp_parse_hostport(hostport) {
+        (*uri).hostname = bstr::bstr_dup_str(host);
+        if (*uri).hostname.is_null() {
+            return Status::ERROR;
+        }
+        bstr::bstr_to_lowercase((*uri).hostname);
+        if let Some((port, port_nmb)) = port_nmb {
+            (*uri).port = bstr::bstr_dup_str(port);
+            if (*uri).port.is_null() {
+                bstr::bstr_free((*uri).hostname);
+                return Status::ERROR;
+            }
+            if let Some(port_number) = port_nmb {
+                (*uri).port_number = port_number as i32;
+            } else {
+                valid = false;
+            }
+        }
+        if !valid {
+            *flags |= Flags::HTP_HOSTU_INVALID
+        }
     }
     Status::OK
 }
 
-/// Parses hostport provided in the Host header.
+/// Attempts to extract the scheme from a given input URI.
+/// e.g. input: http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag
+/// e.g. output: (//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag, http)
 ///
-/// Returns HTP_OK on success or HTP_ERROR error.
-pub unsafe fn htp_parse_header_hostport(
-    hostport: *mut bstr::bstr_t,
-    hostname: *mut *mut bstr::bstr_t,
-    port: *mut *mut bstr::bstr_t,
-    port_number: *mut i32,
-    flags: *mut Flags,
-) -> Status {
-    let mut invalid: i32 = 0;
-    let rc: Status = htp_parse_hostport(hostport, hostname, port, port_number, &mut invalid);
-    if rc != Status::OK {
-        return rc;
+/// Returns a tuple of the unconsumed data and the matched scheme
+pub fn scheme<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        // Scheme test: if it doesn't start with a forward slash character (which it must
+        // for the contents to be a path or an authority), then it must be the scheme part
+        map(
+            tuple((peek(not(tag("/"))), take_until(":"), tag(":"))),
+            |(_, scheme, _)| scheme,
+        )(input)
     }
-    if invalid != 0 {
-        *flags |= Flags::HTP_HOSTH_INVALID
+}
+
+/// Attempts to extract the credentials from a given input URI, assuming the scheme has already been extracted.
+/// e.g. input: //user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag
+/// e.g. output: (www.example.com:1234/path1/path2?a=b&c=d#frag, (user, pass))
+///
+/// Returns a tuple of the remaining unconsumed data and a tuple of the matched username and password
+pub fn credentials<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], Option<&'a [u8]>)> {
+    move |input| {
+        // Authority test: two forward slash characters and it's an authority.
+        // One, three or more slash characters, and it's a path.
+        // Note: we only attempt to parse authority if we've seen a scheme.
+        let (input, (_, _, credentials, _)) =
+            tuple((tag("//"), peek(not(tag("/"))), take_until("@"), tag("@")))(input)?;
+        let (password, username) = opt(tuple((take_until(":"), tag(":"))))(credentials)?;
+        if let Some((username, _)) = username {
+            Ok((input, (username, Some(password))))
+        } else {
+            Ok((input, (credentials, None)))
+        }
     }
-    if !(*hostname).is_null() && htp_validate_hostname(*hostname) == 0 {
-        *flags |= Flags::HTP_HOSTH_INVALID
+}
+
+/// Attempts to extract an IPv6 hostname from a given input URI,
+/// assuming any scheme, credentials, hostname, port, and path have been already parsed out.
+/// e.g. input: [:::]/path1?a=b&c=d#frag
+/// e.g. output: ([:::], /path?a=b&c=d#frag)
+///
+/// Returns a tuple of the remaining unconsumed data and the matched ipv6 hostname
+pub fn ipv6<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| -> IResult<&'a [u8], &'a [u8]> {
+        let (rest, (_, _, _)) = tuple((tag("["), is_not("/?#]"), opt(tag("]"))))(input)?;
+        Ok((rest, &input[..input.len() - rest.len()]))
     }
-    Status::OK
+}
+
+/// Attempts to extract the hostname from a given input URI
+/// e.g. input: http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag
+/// e.g. output: (:1234/path1/path2?a=b&c=d#frag, www.example.com)
+///
+/// Returns a tuple of the remaining unconsumed data and the matched hostname
+pub fn hostname<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        let (input, mut hostname) = map(
+            tuple((
+                opt(tag("//")), //If it starts with "//", skip (might have parsed a scheme and no creds)
+                peek(not(tag("/"))), //If it starts with '/', this is a path, not a hostname
+                many0(tag(" ")),
+                alt((ipv6(), is_not("/?#:"))),
+            )),
+            |(_, _, _, hostname)| hostname,
+        )(input)?;
+        //There may be spaces in the middle of a hostname, so much trim only at the end
+        while hostname.ends_with(&[' ' as u8]) {
+            hostname = &hostname[..hostname.len() - 1];
+        }
+        Ok((input, hostname))
+    }
+}
+
+/// Attempts to extract the port from a given input URI,
+/// assuming any scheme, credentials, or hostname have been already parsed out.
+/// e.g. input: :1234/path1/path2?a=b&c=d#frag
+/// e.g. output: (/path1/path2?a=b&c=d#frag, 1234)
+///
+/// Returns a tuple of the remaining unconsumed data and the matched port
+pub fn port<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        // Must start with ":" for there to be a port to parse
+        let (input, (_, _, port, _)) =
+            tuple((tag(":"), many0(tag(" ")), is_not("/?#"), many0(tag(" "))))(input)?;
+        let (_, port) = is_not(" ")(port)?; //we assume there never will be a space in the middle of a port
+        Ok((input, port))
+    }
+}
+
+/// Attempts to extract the path from a given input URI,
+/// assuming any scheme, credentials, hostname, and port have been already parsed out.
+/// e.g. input: /path1/path2?a=b&c=d#frag
+/// e.g. output: (?a=b&c=d#frag, /path1/path2)
+///
+/// Returns a tuple of the remaining unconsumed data and the matched path
+pub fn path<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| is_not("#?")(input)
+}
+
+/// Attempts to extract the query from a given input URI,
+/// assuming any scheme, credentials, hostname, port, and path have been already parsed out.
+/// e.g. input: ?a=b&c=d#frag
+/// e.g. output: (#frag, ?a=b&c=d)
+///
+/// Returns a tuple of the remaining unconsumed data and the matched query
+pub fn query<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        // Skip the starting '?'
+        map(tuple((tag("?"), is_not("#"))), |(_, query)| query)(input)
+    }
+}
+
+/// Attempts to extract the fragment from a given input URI,
+/// assuming any other components have been parsed out
+/// e.g. input: ?a=b&c=d#frag
+/// e.g. output: ("", #frag)
+///
+/// Returns a tuple of the remaining unconsumed data and the matched fragment
+pub fn fragment<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        // Skip the starting '#'
+        let (input, _) = tag("#")(input)?;
+        Ok((b"", input))
+    }
+}
+
+/// Parses request URI, making no attempt to validate the contents.
+///
+/// It attempts, but is not guaranteed to successfully parse out a scheme, username, password, hostname, port, query, and fragment.
+/// If it fails to parse a path, it will return an error.
+/// Note: only attempts to extract a username, password, and hostname and subsequently port if it successfully parsed a scheme.
+/// e.g. input: "http:://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
+/// e.g. output: (Some("http", Some("user", "pass"), Some("www.example.com", Some("1234"))), "/path1/path2", Some("a=b&c=d"), Some("frag"))
+///
+/// Returns parsed scheme, username, password, hostname, port, path, query and fragment as a tuple containing optional values.
+pub fn parse_uri<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], uri_t> {
+    move |input| {
+        map(
+            tuple((
+                opt(tuple((
+                    scheme(),
+                    opt(credentials()),
+                    opt(tuple((hostname(), opt(port())))),
+                ))),
+                opt(path()),
+                opt(query()),
+                opt(fragment()),
+            )),
+            |(scheme_authority, path, query, fragment)| {
+                let mut uri = uri_t {
+                    scheme: None,
+                    username: None,
+                    password: None,
+                    hostname: None,
+                    port: None,
+                    path,
+                    query,
+                    fragment,
+                };
+                if let Some((scheme, authority, hostname_port)) = scheme_authority {
+                    uri.scheme = Some(scheme);
+                    if let Some((username, password)) = authority {
+                        uri.username = Some(username);
+                        uri.password = password;
+                    }
+                    if let Some((hostname, port)) = hostname_port {
+                        uri.hostname = Some(hostname);
+                        uri.port = port;
+                    }
+                }
+                uri
+            },
+        )(input)
+    }
 }
 
 /// Parses request URI, making no attempt to validate the contents.
@@ -781,254 +845,35 @@ pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri
             return Status::ERROR;
         }
     }
-    if input.is_null() {
-        // The input might be NULL on requests that don't actually
+    if input.is_null() || bstr::bstr_len(input) == 0 {
+        // The input might be NULL or empty on requests that don't actually
         // contain the URI. We allow that.
         return Status::OK;
     }
-    let data: *mut u8 = bstr_ptr(input);
-    let len: usize = bstr_len(input);
-    let mut start: usize = 0;
-    let mut pos: usize = 0;
-    if len == 0 {
-        // Empty string.
-        return Status::OK;
-    }
-    pos = 0;
-    // Scheme test: if it doesn't start with a forward slash character (which it must
-    // for the contents to be a path or an authority, then it must be the scheme part
-    if *data.offset(0) != '/' as u8 {
-        // Parse scheme
-        // Find the colon, which marks the end of the scheme part
-        start = pos;
-        while pos < len && *data.offset(pos as isize) != ':' as u8 {
-            pos = pos.wrapping_add(1)
+    if let Ok((_, parsed_uri)) = parse_uri()((*input).as_slice()) {
+        if let Some(scheme) = parsed_uri.scheme {
+            (*(*uri)).scheme = bstr::bstr_dup_str(scheme);
         }
-        if pos >= len {
-            // We haven't found a colon, which means that the URI
-            // is invalid. Apache will ignore this problem and assume
-            // the URI contains an invalid path so, for the time being,
-            // we are going to do the same.
-            pos = 0
-        } else {
-            // Make a copy of the scheme
-            (**uri).scheme = bstr::bstr_dup_mem(
-                data.offset(start as isize) as *const core::ffi::c_void,
-                pos.wrapping_sub(start),
-            );
-            if (**uri).scheme.is_null() {
-                return Status::ERROR;
-            }
-            // Go over the colon
-            pos = pos.wrapping_add(1)
+        if let Some(username) = parsed_uri.username {
+            (*(*uri)).username = bstr::bstr_dup_str(username);
         }
-    }
-    // Authority test: two forward slash characters and it's an authority.
-    // One, three or more slash characters, and it's a path. We, however,
-    // only attempt to parse authority if we've seen a scheme.
-    if !(**uri).scheme.is_null()
-        && pos.wrapping_add(2) < len
-        && *data.offset(pos as isize) == '/' as u8
-        && *data.offset(pos.wrapping_add(1) as isize) == '/' as u8
-        && *data.offset(pos.wrapping_add(2) as isize) != '/' as u8
-    {
-        // Parse authority
-        // Go over the two slash characters
-        pos = pos.wrapping_add(2);
-        start = pos;
-        // Authority ends with a question mark, forward slash or hash
-        while pos < len
-            && *data.offset(pos as isize) != '?' as u8
-            && *data.offset(pos as isize) != '/' as u8
-            && *data.offset(pos as isize) != '#' as u8
-        {
-            pos = pos.wrapping_add(1)
+        if let Some(password) = parsed_uri.password {
+            (*(*uri)).password = bstr::bstr_dup_str(password);
         }
-        let mut hostname_start: *mut u8 = 0 as *mut u8;
-        let mut hostname_len: usize = 0;
-        // Are the credentials included in the authority?
-        let mut m: *mut u8 = memchr(
-            data.offset(start as isize) as *const core::ffi::c_void,
-            '@' as i32,
-            pos.wrapping_sub(start),
-        ) as *mut u8;
-        if !m.is_null() {
-            // Credentials present
-            let credentials_start: *mut u8 = data.offset(start as isize);
-            let credentials_len: usize =
-                (m.wrapping_offset_from(data) as usize).wrapping_sub(start);
-            // Figure out just the hostname part
-            hostname_start = data
-                .offset(start as isize)
-                .offset(credentials_len as isize)
-                .offset(1);
-            hostname_len = pos
-                .wrapping_sub(start)
-                .wrapping_sub(credentials_len)
-                .wrapping_sub(1);
-            // Extract the username and the password
-            m = memchr(
-                credentials_start as *const core::ffi::c_void,
-                ':' as i32,
-                credentials_len,
-            ) as *mut u8;
-            if !m.is_null() {
-                // Username and password
-                (**uri).username = bstr::bstr_dup_mem(
-                    credentials_start as *const core::ffi::c_void,
-                    m.wrapping_offset_from(credentials_start) as usize,
-                );
-                if (**uri).username.is_null() {
-                    return Status::ERROR;
-                }
-                (**uri).password = bstr::bstr_dup_mem(
-                    m.offset(1) as *const core::ffi::c_void,
-                    credentials_len
-                        .wrapping_sub(m.wrapping_offset_from(credentials_start) as usize)
-                        .wrapping_sub(1),
-                );
-                if (**uri).password.is_null() {
-                    return Status::ERROR;
-                }
-            } else {
-                // Username alone
-                (**uri).username = bstr::bstr_dup_mem(
-                    credentials_start as *const core::ffi::c_void,
-                    credentials_len,
-                );
-                if (**uri).username.is_null() {
-                    return Status::ERROR;
-                }
-            }
-        } else {
-            // No credentials
-            hostname_start = data.offset(start as isize);
-            hostname_len = pos.wrapping_sub(start)
+        if let Some(hostname) = parsed_uri.hostname {
+            (*(*uri)).hostname = bstr::bstr_dup_str(hostname);
         }
-        // Parsing authority without credentials.
-        if hostname_len > 0 && *hostname_start.offset(0) == '[' as u8 {
-            // IPv6 address.
-            m = memchr(
-                hostname_start as *const core::ffi::c_void,
-                ']' as i32,
-                hostname_len,
-            ) as *mut u8;
-            if m.is_null() {
-                // Invalid IPv6 address; use the entire string as hostname.
-                (**uri).hostname =
-                    bstr::bstr_dup_mem(hostname_start as *const core::ffi::c_void, hostname_len);
-                if (**uri).hostname.is_null() {
-                    return Status::ERROR;
-                }
-            } else {
-                (**uri).hostname = bstr::bstr_dup_mem(
-                    hostname_start as *const core::ffi::c_void,
-                    (m.wrapping_offset_from(hostname_start) + 1) as usize,
-                );
-                if (**uri).hostname.is_null() {
-                    return Status::ERROR;
-                }
-                // Is there a port?
-                hostname_len = hostname_len
-                    .wrapping_sub((m.wrapping_offset_from(hostname_start) + 1) as usize);
-                hostname_start = m.offset(1);
-                // Port string
-                m = memchr(
-                    hostname_start as *const core::ffi::c_void,
-                    ':' as i32,
-                    hostname_len,
-                ) as *mut u8;
-                if !m.is_null() {
-                    let port_len: usize = hostname_len
-                        .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
-                        .wrapping_sub(1);
-                    (**uri).port =
-                        bstr::bstr_dup_mem(m.offset(1) as *const core::ffi::c_void, port_len);
-                    if (**uri).port.is_null() {
-                        return Status::ERROR;
-                    }
-                }
-            }
-        } else {
-            // Not IPv6 address.
-            m = memchr(
-                hostname_start as *const core::ffi::c_void,
-                ':' as i32,
-                hostname_len,
-            ) as *mut u8;
-            if !m.is_null() {
-                let port_len_0: usize = hostname_len
-                    .wrapping_sub(m.wrapping_offset_from(hostname_start) as usize)
-                    .wrapping_sub(1);
-                hostname_len = hostname_len.wrapping_sub(port_len_0).wrapping_sub(1);
-                // Port string
-                (**uri).port =
-                    bstr::bstr_dup_mem(m.offset(1) as *const core::ffi::c_void, port_len_0);
-                if (**uri).port.is_null() {
-                    return Status::ERROR;
-                }
-            }
-            // Hostname
-            (**uri).hostname =
-                bstr::bstr_dup_mem(hostname_start as *const core::ffi::c_void, hostname_len);
-            if (**uri).hostname.is_null() {
-                return Status::ERROR;
-            }
+        if let Some(port) = parsed_uri.port {
+            (*(*uri)).port = bstr::bstr_dup_str(port);
         }
-    }
-    // Path
-    start = pos;
-    // The path part will end with a question mark or a hash character, which
-    // mark the beginning of the query part or the fragment part, respectively.
-    while pos < len
-        && *data.offset(pos as isize) != '?' as u8
-        && *data.offset(pos as isize) != '#' as u8
-    {
-        pos = pos.wrapping_add(1)
-    }
-    // Path
-    (**uri).path = bstr::bstr_dup_mem(
-        data.offset(start as isize) as *const core::ffi::c_void,
-        pos.wrapping_sub(start),
-    );
-    if (**uri).path.is_null() {
-        return Status::ERROR;
-    }
-    if pos == len {
-        return Status::OK;
-    }
-    // Query
-    if *data.offset(pos as isize) == '?' as u8 {
-        // Step over the question mark
-        start = pos.wrapping_add(1);
-        // The query part will end with the end of the input
-        // or the beginning of the fragment part
-        while pos < len && *data.offset(pos as isize) != '#' as u8 {
-            pos = pos.wrapping_add(1)
+        if let Some(path) = parsed_uri.path {
+            (*(*uri)).path = bstr::bstr_dup_str(path);
         }
-        // Query string
-        (**uri).query = bstr::bstr_dup_mem(
-            data.offset(start as isize) as *const core::ffi::c_void,
-            pos.wrapping_sub(start),
-        );
-        if (**uri).query.is_null() {
-            return Status::ERROR;
+        if let Some(query) = parsed_uri.query {
+            (*(*uri)).query = bstr::bstr_dup_str(query);
         }
-        if pos == len {
-            return Status::OK;
-        }
-    }
-    // Fragment
-    if *data.offset(pos as isize) == '#' as u8 {
-        // Step over the hash character
-        start = pos.wrapping_add(1);
-        // Fragment; ends with the end of the input
-        (**uri).fragment = bstr::bstr_dup_mem(
-            data.offset(start as isize) as *const core::ffi::c_void,
-            len.wrapping_sub(start),
-        );
-        if (**uri).fragment.is_null() {
-            return Status::ERROR;
+        if let Some(fragment) = parsed_uri.fragment {
+            (*(*uri)).fragment = bstr::bstr_dup_str(fragment);
         }
     }
     Status::OK
@@ -1350,7 +1195,7 @@ fn path_decode_valid_uencoding<'a>(
     cfg: htp_decoder_cfg_t,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, i32, Flags, bool)> {
     move |remaining_input| {
-        let (left, _) = alt((char('u'), char('U')))(remaining_input)?;
+        let (left, _) = tag_no_case("u")(remaining_input)?;
         let mut output = remaining_input;
         let mut byte = '%' as u8;
         let mut flags = Flags::empty();
@@ -1398,7 +1243,7 @@ fn path_decode_invalid_uencoding<'a>(
         let mut byte = '%' as u8;
         let mut flags = Flags::empty();
         let mut expected_status_code: i32 = 0;
-        let (left, _) = alt((char('u'), char('U')))(remaining_input)?;
+        let (left, _) = tag_no_case("u")(remaining_input)?;
         if cfg.u_encoding_decode {
             let (left, hex) = take(4usize)(left)?;
             // Invalid %u encoding
@@ -1441,7 +1286,7 @@ fn path_decode_valid_hex<'a>(
     move |remaining_input| {
         let original_remaining = remaining_input;
         // Valid encoding (2 xbytes)
-        not(alt((char('u'), char('U'))))(remaining_input)?;
+        not(tag_no_case("u"))(remaining_input)?;
         let (mut left, hex) = take_while_m_n(2, 2, |c: u8| c.is_ascii_hexdigit())(remaining_input)?;
         let mut flags = Flags::empty();
         let mut expected_status_code: i32 = 0;
@@ -1484,7 +1329,7 @@ fn path_decode_invalid_hex<'a>(
     move |remaining_input| {
         let mut remaining = remaining_input;
         // Valid encoding (2 xbytes)
-        not(alt((char('u'), char('U'))))(remaining_input)?;
+        not(tag_no_case("u"))(remaining_input)?;
         let (left, hex) = take(2usize)(remaining_input)?;
         let mut byte = '%' as u8;
         // Invalid encoding
@@ -1529,7 +1374,7 @@ fn path_decode_percent<'a>(
             path_decode_valid_uencoding(cfg),
             path_decode_invalid_uencoding(cfg),
             move |remaining_input| {
-                let (_, _) = alt((char('u'), char('U')))(remaining_input)?;
+                let (_, _) = tag_no_case("u")(remaining_input)?;
                 // Invalid %u encoding (not enough data)
                 let flags = Flags::HTP_PATH_INVALID_ENCODING;
                 let mut expected_status_code: i32 = 0;
@@ -2477,48 +2322,42 @@ pub unsafe fn htp_parse_ct_header(
 
 /// Implements relaxed (not strictly RFC) hostname validation.
 ///
-/// Returns 1 if the supplied hostname is valid; 0 if it is not.
-pub unsafe fn htp_validate_hostname(hostname: *mut bstr::bstr_t) -> i32 {
-    let data: *mut u8 = bstr_ptr(hostname);
-    let len: usize = bstr_len(hostname);
-    let mut startpos: usize = 0;
-    let mut pos: usize = 0;
-    if len == 0 || len > 255 {
-        return 0;
+/// Returns true if the supplied hostname is valid; false if it is not.
+pub fn htp_validate_hostname<'a>(input: &'a [u8]) -> bool {
+    if input.len() == 0 || input.len() > 255 {
+        return false;
     }
-    while pos < len {
-        // Validate label characters.
-        startpos = pos;
-        while pos < len && *data.offset(pos as isize) != '.' as u8 {
-            let c: u8 = *data.offset(pos as isize);
-            // Exactly one dot expected.
-            // According to the RFC, the underscore is not allowed in a label, but
-            // we allow it here because we think it's often seen in practice.
-            if !(c >= 'a' as u8 && c <= 'z' as u8
-                || c >= 'A' as u8 && c <= 'Z' as u8
-                || c >= '0' as u8 && c <= '9' as u8
-                || c == '-' as u8
-                || c == '_' as u8)
-            {
-                return 0;
+    if char::<_, (&[u8], nom::error::ErrorKind)>('[')(input).is_ok() {
+        if let Ok((input, _)) = is_not::<_, _, (&[u8], nom::error::ErrorKind)>("#?/]")(input) {
+            if char::<_, (&[u8], nom::error::ErrorKind)>(']')(input).is_ok() {
+                return true;
+            } else {
+                return false;
             }
-            pos = pos.wrapping_add(1)
-        }
-        if pos.wrapping_sub(startpos) == 0 || pos.wrapping_sub(startpos) > 63 {
-            return 0;
-        }
-        if pos >= len {
-            return 1;
-        }
-        startpos = pos;
-        while pos < len && *data.offset(pos as isize) == '.' as u8 {
-            pos = pos.wrapping_add(1)
-        }
-        if pos.wrapping_sub(startpos) != 1 {
-            return 0;
+        } else {
+            return false;
         }
     }
-    1
+    if tag::<_, _, (&[u8], nom::error::ErrorKind)>(".")(input).is_ok()
+        || take_until::<_, _, (&[u8], nom::error::ErrorKind)>("..")(input).is_ok()
+    {
+        return false;
+    }
+    for section in input.split(|&c| c == '.' as u8) {
+        if section.len() > 63 {
+            return false;
+        }
+        if !take_while_m_n::<_, _, (&[u8], nom::error::ErrorKind)>(
+            section.len(),
+            section.len(),
+            |c| c == '-' as u8 || (c as char).is_alphanumeric(),
+        )(section)
+        .is_ok()
+        {
+            return false;
+        }
+    }
+    true
 }
 
 /// Frees all data contained in the uri, and then the uri itself.

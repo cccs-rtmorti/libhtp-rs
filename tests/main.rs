@@ -1210,7 +1210,6 @@ fn InvalidHostname1() {
 
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-
         assert!((*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_HOSTU_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_HOST_INVALID));
