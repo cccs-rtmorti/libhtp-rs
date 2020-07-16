@@ -305,66 +305,68 @@ fn ApacheHeaderParsing() {
     unsafe {
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).transactions.len());
+        let tx = *(*(*t.connp).conn)
+            .transactions
+            .get(0)
+            .expect("expected tx to exist") as *mut htp_tx_t;
 
-        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
-        assert!(!tx.is_null());
+        let actual: Vec<(&[u8], &[u8])> = (*tx)
+            .request_headers
+            .as_ref()
+            .expect("expected request headers to exist")
+            .into_iter()
+            .map(|(_, val)| {
+                (
+                    (*(*val))
+                        .name
+                        .as_ref()
+                        .expect("expected header name to exist")
+                        .as_slice(),
+                    (*(*val))
+                        .value
+                        .as_ref()
+                        .expect("expected header value to exist")
+                        .as_slice(),
+                )
+            })
+            .collect();
 
-        assert_eq!(9, (*(*tx).request_headers).size());
+        let expected: Vec<(&[u8], &[u8])> = [
+            (" Invalid-Folding", "1"),
+            ("Valid-Folding", "2 2"),
+            ("Normal-Header", "3"),
+            ("Invalid Header Name", "4"),
+            ("Same-Name-Headers", "5, 6"),
+            ("Empty-Value-Header", ""),
+            ("", "8, "),
+            ("Header-With-LWS-After", "9"),
+            ("Header-With-NUL", "BEFORE"),
+        ]
+        .iter()
+        .map(|(key, val)| (key.as_bytes(), val.as_bytes()))
+        .collect();
 
-        let mut res = &(*(*tx).request_headers)[0];
-        let mut h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, " Invalid-Folding"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "1"));
-
-        res = &(*(*tx).request_headers)[1];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Valid-Folding"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "2 2"));
-
-        res = &(*(*tx).request_headers)[2];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Normal-Header"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "3"));
-
-        res = &(*(*tx).request_headers)[3];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Invalid Header Name"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "4"));
-
-        res = &(*(*tx).request_headers)[4];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Same-Name-Headers"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "5, 6"));
-
-        res = &(*(*tx).request_headers)[5];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Empty-Value-Header"));
-        assert_eq!(0, bstr_cmp_str((*h).value, ""));
-
-        res = &(*(*tx).request_headers)[6];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, ""));
-        assert_eq!(0, bstr_cmp_str((*h).value, "8, "));
-
-        res = &(*(*tx).request_headers)[7];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Header-With-LWS-After"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "9"));
-
-        res = &(*(*tx).request_headers)[8];
-        h = res.1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).name, "Header-With-NUL"));
-        assert_eq!(0, bstr_cmp_str((*h).value, "BEFORE"));
+        assert_eq!(
+            actual,
+            expected,
+            "{:?} != {:?}",
+            actual
+                .clone()
+                .into_iter()
+                .map(|(key, val)| (
+                    String::from_utf8_lossy(key).to_string(),
+                    String::from_utf8_lossy(val).to_string()
+                ))
+                .collect::<Vec<(String, String)>>(),
+            expected
+                .clone()
+                .into_iter()
+                .map(|(key, val)| (
+                    String::from_utf8_lossy(key).to_string(),
+                    String::from_utf8_lossy(val).to_string()
+                ))
+                .collect::<Vec<(String, String)>>(),
+        );
     }
 }
 
