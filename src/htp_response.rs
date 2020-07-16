@@ -5,6 +5,7 @@ use crate::{
     bstr, htp_connection, htp_connection_parser, htp_decompressors, htp_hooks, htp_request,
     htp_transaction, htp_util, Status,
 };
+use std::cmp::Ordering;
 
 extern "C" {
     #[no_mangle]
@@ -572,8 +573,12 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*connp).out_data_other_at_tx_end = 1
         }
     }
-    let cl_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("content-length");
-    let te_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("transfer-encoding");
+    let cl_opt = (*(*connp).out_tx)
+        .response_headers
+        .get_nocase_nozero("content-length");
+    let te_opt = (*(*connp).out_tx)
+        .response_headers
+        .get_nocase_nozero("transfer-encoding");
     // Check for "101 Switching Protocol" response.
     // If it's seen, it means that traffic after empty line following headers
     // is no longer HTTP. We can treat it similarly to CONNECT.
@@ -611,12 +616,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             return Status::ERROR;
         }
         // Ignore any response headers seen so far.
-        for (_key, h) in (*(*(*connp).out_tx).response_headers).elements.iter_mut() {
-            bstr::bstr_free((*(*h)).name);
-            bstr::bstr_free((*(*h)).value);
-            free(*h as *mut libc::c_void);
-        }
-        (*(*(*connp).out_tx).response_headers).elements.clear();
+        (*(*connp).out_tx).response_headers.elements.clear();
         // Expecting to see another response line next.
         (*connp).out_state = Some(
             htp_connp_RES_LINE
@@ -671,15 +671,17 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         )
     {
         // We have a response body
-        let ct_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("content-type");
+        let ct_opt = (*(*connp).out_tx)
+            .response_headers
+            .get_nocase_nozero("content-type");
         if let Some((_, ct)) = ct_opt {
-            (*(*connp).out_tx).response_content_type = bstr::bstr_dup_lower((*(*ct)).value);
+            (*(*connp).out_tx).response_content_type = bstr::bstr_dup_lower(&ct.value);
             if (*(*connp).out_tx).response_content_type.is_null() {
                 return Status::ERROR;
             }
             // Ignore parameters
-            let data: *mut u8 = bstr_ptr((*(*connp).out_tx).response_content_type);
-            let len: usize = bstr_len((*(*ct)).value);
+            let data: *mut u8 = (*(*(*connp).out_tx).response_content_type).as_mut_ptr();
+            let len: usize = ct.value.len();
             let mut newlen: usize = 0;
             while newlen < len {
                 // TODO Some platforms may do things differently here.
@@ -696,18 +698,18 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         // 2. If a Transfer-Encoding header field (section 14.40) is present and
         //   indicates that the "chunked" transfer coding has been applied, then
         //   the length is defined by the chunked encoding (section 3.6).
-        if te_opt.is_some()
-            && bstr::bstr_index_of_nocasenorzero((*(*te_opt.unwrap()).1).value, "chunked") != -1
+        if let Some(te) =
+            te_opt.and_then(|(_, te)| te.value.index_of_nocase_nozero("chunked").and(Some(te)))
         {
-            let te = te_opt.unwrap().1;
-            if bstr::bstr_cmp_str_nocase((*te).value, "chunked") != 0 {
+            if te.value.cmp_nocase("chunked") != Ordering::Equal {
                 htp_log!(
                     connp,
                     htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::RESPONSE_ABNORMAL_TRANSFER_ENCODING,
                     "Transfer-encoding has abnormal chunked value"
-                ); // 3. If a Content-Length header field (section 14.14) is present, its
+                );
             }
+            // 3. If a Content-Length header field (section 14.14) is present, its
             // spec says chunked is HTTP/1.1 only, but some browsers accept it
             // with 1.0 as well
             if (*(*connp).out_tx).response_protocol_number < Protocol::V1_1 {
@@ -738,12 +740,12 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*(*connp).out_tx).response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
             // Check for multiple C-L headers
-            if (*(*cl)).flags.contains(Flags::HTP_FIELD_REPEATED) {
+            if cl.flags.contains(Flags::HTP_FIELD_REPEATED) {
                 (*(*connp).out_tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             // Get body length
             (*(*connp).out_tx).response_content_length =
-                htp_util::htp_parse_content_length((*(*cl)).value, connp);
+                htp_util::htp_parse_content_length(&cl.value, connp);
             if (*(*connp).out_tx).response_content_length < 0 {
                 htp_log!(
                     connp,
@@ -785,7 +787,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             //   responses.
             if let Some((_, ct)) = ct_opt {
                 // TODO Handle multipart/byteranges
-                if bstr::bstr_index_of_nocase((*(*ct)).value, "multipart/byteranges") != -1 {
+                if ct.value.index_of_nocase("multipart/byteranges").is_some() {
                     htp_log!(
                         connp,
                         htp_log_level_t::HTP_LOG_ERROR,

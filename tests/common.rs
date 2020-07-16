@@ -15,7 +15,7 @@ macro_rules! cstr {
 #[macro_export]
 macro_rules! assert_header_eq {
     ($tx:expr, $attr:ident, $key:expr, $val:expr) => {{
-        let header = (*(*$tx).$attr)
+        let header = &(*$tx).$attr
             .get_nocase_nozero($key)
             .expect(format!(
                 "expected header '{}' to exist at {}:{}:{}",
@@ -24,15 +24,7 @@ macro_rules! assert_header_eq {
                 line!(),
                 column!()
             ).as_ref())
-            .1
-            .as_ref()
-            .expect(format!(
-                "expected header '{}' to exist at {}:{}:{}",
-                $key,
-                file!(),
-                line!(),
-                column!()
-            ).as_ref());
+            .1;
         assert_eq!(*header.value, $val);
     }};
     ($tx:expr, $attr:ident, $key:expr, $val:expr,) => {{
@@ -102,7 +94,7 @@ macro_rules! assert_response_header_eq {
 #[macro_export]
 macro_rules! assert_response_header_flag_contains {
     ($tx:expr, $key:expr, $val:expr) => {{
-        let header = (*(*$tx).response_headers)
+        let header = &(*$tx).response_headers
             .get_nocase_nozero($key)
             .expect(format!(
                 "expected header '{}' to exist at {}:{}:{}",
@@ -111,16 +103,8 @@ macro_rules! assert_response_header_flag_contains {
                 line!(),
                 column!()
             ).as_ref())
-            .1
-            .as_ref()
-            .expect(format!(
-                "expected header '{}' to exist at {}:{}:{}",
-                $key,
-                file!(),
-                line!(),
-                column!()
-            ).as_ref());
-        assert!((*header).flags.contains($val));
+            .1;
+        assert!(header.flags.contains($val));
         }};
     ($tx:expr, $key:expr, $val:expr,) => {{
         assert_response_header_flag_contains!($tx, response_headers, $key, $val);

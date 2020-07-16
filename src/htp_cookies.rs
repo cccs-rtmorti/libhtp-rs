@@ -43,13 +43,14 @@ pub unsafe fn htp_parse_single_cookie_v0(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
 pub unsafe fn htp_parse_cookies_v0(connp: *mut htp_connection_parser::htp_connp_t) -> Status {
-    if let Some((_, cookie_header)) =
-        (*(*(*connp).in_tx).request_headers).get_nocase_nozero("cookie")
+    if let Some((_, cookie_header)) = (*(*connp).in_tx)
+        .request_headers
+        .get_nocase_nozero_mut("cookie")
     {
         // Create a new table to store cookies.
         (*(*connp).in_tx).request_cookies = htp_table::htp_table_alloc(4);
-        let data: *mut u8 = bstr::bstr_ptr((*(*cookie_header)).value);
-        let len: usize = bstr::bstr_len((*(*cookie_header)).value);
+        let data: *mut u8 = cookie_header.value.as_mut_ptr();
+        let len: usize = cookie_header.value.len();
         let mut pos: usize = 0;
         while pos < len {
             // Ignore whitespace at the beginning.

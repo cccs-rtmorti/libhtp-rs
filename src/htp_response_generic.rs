@@ -1,6 +1,7 @@
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util, Status};
+use std::cmp::Ordering;
 
 extern "C" {
     #[no_mangle]
@@ -87,15 +88,15 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
 /// Generic response header parser.
 pub unsafe extern "C" fn htp_parse_response_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
-    mut h: *mut htp_transaction::htp_header_t,
     data: *mut u8,
     mut len: usize,
-) -> Status {
+) -> Result<htp_transaction::htp_header_t, Status> {
     let mut name_start: usize = 0;
     let mut name_end: usize = 0;
     let mut value_start: usize = 0;
     let mut value_end: usize = 0;
     let mut prev: usize = 0;
+    let mut flags = Flags::empty();
     let s = std::slice::from_raw_parts(data as *const u8, len);
     let s = htp_util::htp_chomp(&s);
     len = s.len();
@@ -107,8 +108,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     }
     if colon_pos == len {
         // Header line with a missing colon.
-        (*h).flags |= Flags::HTP_FIELD_UNPARSEABLE;
-        (*h).flags |= Flags::HTP_FIELD_INVALID;
+        flags |= Flags::HTP_FIELD_UNPARSEABLE;
+        flags |= Flags::HTP_FIELD_INVALID;
         if !(*(*connp).out_tx)
             .flags
             .contains(Flags::HTP_FIELD_UNPARSEABLE)
@@ -134,7 +135,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
         // Header line with a colon.
         if colon_pos == 0 {
             // Empty header name.
-            (*h).flags |= Flags::HTP_FIELD_INVALID;
+            flags |= Flags::HTP_FIELD_INVALID;
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
@@ -152,7 +153,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
         while prev > name_start && *data.offset(prev.wrapping_sub(1) as isize) <= 0x20 {
             prev = prev.wrapping_sub(1);
             name_end = name_end.wrapping_sub(1);
-            (*h).flags |= Flags::HTP_FIELD_INVALID;
+            flags |= Flags::HTP_FIELD_INVALID;
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
@@ -177,7 +178,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     let mut i: usize = name_start;
     while i < name_end {
         if !htp_util::htp_is_token(*data.offset(i as isize)) {
-            (*h).flags |= Flags::HTP_FIELD_INVALID;
+            flags |= Flags::HTP_FIELD_INVALID;
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
                 htp_log!(
@@ -207,20 +208,19 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
         }
     }
     // Now extract the name and the value.
-    (*h).name = bstr::bstr_dup_mem(
-        data.offset(name_start as isize) as *const core::ffi::c_void,
+    let name = std::slice::from_raw_parts(
+        data.offset(name_start as isize),
         name_end.wrapping_sub(name_start),
     );
-    (*h).value = bstr::bstr_dup_mem(
-        data.offset(value_start as isize) as *const core::ffi::c_void,
+    let value = std::slice::from_raw_parts(
+        data.offset(value_start as isize),
         value_end.wrapping_sub(value_start),
     );
-    if (*h).name.is_null() || (*h).value.is_null() {
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        return Status::ERROR;
-    }
-    Status::OK
+    Ok(htp_transaction::htp_header_t::new_with_flags(
+        name.into(),
+        value.into(),
+        flags,
+    ))
 }
 
 /// Generic response header line(s) processor, which assembles folded lines
@@ -230,23 +230,18 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
     data: *mut u8,
     len: usize,
 ) -> Status {
-    // Create a new header structure.
-    let h: *mut htp_transaction::htp_header_t =
-        calloc(1, ::std::mem::size_of::<htp_transaction::htp_header_t>())
-            as *mut htp_transaction::htp_header_t;
-    if h.is_null() {
+    let header = if let Ok(header) = htp_parse_response_header_generic(connp, data, len) {
+        header
+    } else {
         return Status::ERROR;
-    }
-    if htp_parse_response_header_generic(connp, h, data, len) != Status::OK {
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
+    };
     // Do we already have a header with the same name?
-    if let Some((_, mut h_existing)) =
-        (*(*(*connp).out_tx).response_headers).get_nocase((*(*h).name).as_slice())
+    if let Some((_, h_existing)) = (*(*connp).out_tx)
+        .response_headers
+        .get_nocase_mut(header.name.as_slice())
     {
         // Keep track of repeated same-name headers.
-        if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
+        if !h_existing.flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
             htp_log!(
                 connp,
@@ -258,28 +253,20 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             (*(*connp).out_tx).res_header_repetitions =
                 (*(*connp).out_tx).res_header_repetitions.wrapping_add(1)
         } else {
-            bstr::bstr_free((*h).name);
-            bstr::bstr_free((*h).value);
-            free(h as *mut core::ffi::c_void);
             return Status::OK;
         }
-        (*h_existing).flags |= Flags::HTP_FIELD_REPEATED;
+        h_existing.flags |= Flags::HTP_FIELD_REPEATED;
         // For simplicity reasons, we count the repetitions of all headers
         // Having multiple C-L headers is against the RFC but many
         // browsers ignore the subsequent headers if the values are the same.
-        if bstr::bstr_cmp_str_nocase((*h).name, "Content-Length") == 0 {
+        if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
             // Don't use string comparison here because we want to
             // ignore small formatting differences.
             let mut existing_cl: i64 = 0;
             let mut new_cl: i64 = 0;
-            existing_cl = htp_util::htp_parse_content_length(
-                (*h_existing).value,
-                0 as *mut htp_connection_parser::htp_connp_t,
-            );
-            new_cl = htp_util::htp_parse_content_length(
-                (*h).value,
-                0 as *mut htp_connection_parser::htp_connp_t,
-            );
+            existing_cl =
+                htp_util::htp_parse_content_length(&h_existing.value, std::ptr::null_mut());
+            new_cl = htp_util::htp_parse_content_length(&header.value, std::ptr::null_mut());
             if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
                 // Ambiguous response C-L value.
                 htp_log!(
@@ -291,28 +278,13 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             }
         } else {
             // Add to the existing header.
-            let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
-                (*h_existing).value,
-                bstr::bstr_len((*h_existing).value)
-                    .wrapping_add(2)
-                    .wrapping_add(bstr::bstr_len((*h).value)),
-            );
-            if new_value.is_null() {
-                bstr::bstr_free((*h).name);
-                bstr::bstr_free((*h).value);
-                free(h as *mut core::ffi::c_void);
-                return Status::ERROR;
-            }
-            (*h_existing).value = new_value;
-            (*(*h_existing).value).add_noex(", ");
-            bstr::bstr_add_noex((*h_existing).value, (*h).value);
+            h_existing.value.extend_from_slice(b", ");
+            h_existing.value.extend_from_slice(header.value.as_slice());
         }
-        // The new header structure is no longer needed.
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut core::ffi::c_void);
     } else {
-        (*(*(*connp).out_tx).response_headers).add((*(*h).name).clone(), h);
+        (*(*connp).out_tx)
+            .response_headers
+            .add(header.name.clone(), header);
     }
     Status::OK
 }

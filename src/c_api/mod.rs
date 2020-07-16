@@ -5,7 +5,6 @@ use crate::htp_connection_parser;
 use crate::htp_decompressors;
 use crate::htp_request;
 use crate::htp_response;
-use crate::htp_table;
 use crate::htp_transaction;
 use crate::htp_util;
 use crate::list;
@@ -619,70 +618,6 @@ pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const htp_connection::
     (*conn).out_data_counter
 }
 
-/// Retrieve the first element that matches the given NUL-terminated key.
-/// returns Matched element, or NULL if no elements match the key.
-///
-/// table: Assumed to be a pointer to a htp_table_t<htp_header_t>
-#[no_mangle]
-pub unsafe extern "C" fn htp_table_get_c(
-    table: *const core::ffi::c_void,
-    ckey: *const libc::c_char,
-) -> *mut libc::c_void {
-    let table = table as *const htp_table::htp_table_t<*mut htp_transaction::htp_header_t>;
-
-    if table.is_null() || ckey.is_null() {
-        return 0 as *mut libc::c_void;
-    }
-
-    if let Some((_, value)) = (*table).get_nocase_nozero(std::ffi::CStr::from_ptr(ckey).to_bytes())
-    {
-        return *value as *mut libc::c_void;
-    }
-    0 as *mut libc::c_void
-}
-
-/// Retrieve key and element at the given index.
-///
-/// key: Pointer in which the key will be returned. Can be NULL.
-///      The caller does not have to free the key memory, however,
-///      the key's lifeteime will expire with the table.
-///      Therefore, the key must not be kept longer than the table
-///      or it will be invalidated.
-///
-/// table: Assumed to be a pointer to a htp_table_t<htp_header_t>
-///
-/// returns element or NULL if not found.
-#[no_mangle]
-pub unsafe extern "C" fn htp_table_get_index(
-    table: *const core::ffi::c_void,
-    idx: libc::size_t,
-    key: *mut *mut bstr::bstr_t,
-) -> *mut libc::c_void {
-    let table = table as *const htp_table::htp_table_t<*mut htp_transaction::htp_header_t>;
-
-    if table.is_null() || idx >= (*table).size() {
-        return 0 as *mut libc::c_void;
-    }
-    let result = &(*table)[idx];
-    if !key.is_null() {
-        *key = &result.0 as *const bstr::bstr_t as *mut bstr::bstr_t;
-    }
-    result.1 as *mut libc::c_void
-}
-
-/// Return the size of the table.
-///
-/// table: Assumed to be a pointer to a htp_table_t<htp_header_t>
-#[no_mangle]
-pub unsafe extern "C" fn htp_table_size(table: *const core::ffi::c_void) -> libc::size_t {
-    let table = table as *const htp_table::htp_table_t<*mut htp_transaction::htp_header_t>;
-
-    if table.is_null() {
-        return 0;
-    }
-    (*table).size()
-}
-
 /// Creates a new transaction.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_create(
@@ -883,9 +818,65 @@ pub unsafe extern "C" fn htp_tx_request_headers(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const htp_transaction::htp_headers_t {
     if let Some(tx) = tx.as_ref() {
-        tx.request_headers
+        &tx.request_headers
     } else {
-        std::ptr::null_mut()
+        std::ptr::null()
+    }
+}
+
+/// Get a transaction's request headers size.
+///
+/// tx: Transaction pointer.
+///
+/// Returns the size or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_request_headers_size(
+    tx: *const htp_transaction::htp_tx_t,
+) -> isize {
+    if let Some(tx) = tx.as_ref() {
+        isize::try_from(tx.request_headers.size()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get the first request header value matching the key from a transaction.
+///
+/// tx: Transaction pointer.
+/// ckey: Header name to match.
+///
+/// Returns the header or NULL when not found or on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_request_header(
+    tx: *const htp_transaction::htp_tx_t,
+    ckey: *const libc::c_char,
+) -> *const htp_transaction::htp_header_t {
+    if let Some(tx) = tx.as_ref() {
+        htp_headers_get(&tx.request_headers, ckey)
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the request header at the given index.
+///
+/// tx: Transaction pointer.
+/// index: request header table index.
+///
+/// Returns the header or NULL on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_request_header_index(
+    tx: *const htp_transaction::htp_tx_t,
+    index: usize,
+) -> *const htp_transaction::htp_header_t {
+    if let Some(tx) = tx.as_ref() {
+        if let Some((_, value)) = tx.request_headers.get(index) {
+            value
+        } else {
+            std::ptr::null()
+        }
+    } else {
+        std::ptr::null()
     }
 }
 
@@ -1148,7 +1139,63 @@ pub unsafe extern "C" fn htp_tx_response_headers(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const htp_transaction::htp_headers_t {
     if let Some(tx) = tx.as_ref() {
-        tx.response_headers
+        &tx.response_headers
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get a transaction's response headers size.
+///
+/// tx: Transaction pointer.
+///
+/// Returns the size or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_response_headers_size(
+    tx: *const htp_transaction::htp_tx_t,
+) -> isize {
+    if let Some(tx) = tx.as_ref() {
+        isize::try_from(tx.response_headers.size()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get the first response header value matching the key from a transaction.
+///
+/// tx: Transaction pointer.
+/// ckey: Header name to match.
+///
+/// Returns the header or NULL when not found or on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_response_header(
+    tx: *const htp_transaction::htp_tx_t,
+    ckey: *const libc::c_char,
+) -> *const htp_transaction::htp_header_t {
+    if let Some(tx) = tx.as_ref() {
+        htp_headers_get(&tx.response_headers, ckey)
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the response header at the given index.
+///
+/// tx: Transaction pointer.
+/// index: response header table index.
+///
+/// Returns the header or NULL on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_response_header_index(
+    tx: *const htp_transaction::htp_tx_t,
+    index: usize,
+) -> *const htp_transaction::htp_header_t {
+    if let Some(tx) = tx.as_ref() {
+        if let Some((_, value)) = tx.response_headers.get(index) {
+            value
+        } else {
+            std::ptr::null()
+        }
     } else {
         std::ptr::null()
     }
@@ -1335,6 +1382,162 @@ pub unsafe extern "C" fn htp_tx_state_response_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     htp_transaction::htp_tx_state_response_complete(tx)
+}
+
+/// Get the first header value matching the key.
+///
+/// headers: Header table.
+/// ckey: Header name to match.
+///
+/// Returns the header or NULL when not found or on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_headers_get(
+    headers: *const htp_transaction::htp_headers_t,
+    ckey: *const libc::c_char,
+) -> *const htp_transaction::htp_header_t {
+    if let (Some(headers), Some(ckey)) = (headers.as_ref(), ckey.as_ref()) {
+        if let Some((_, value)) =
+            headers.get_nocase_nozero(std::ffi::CStr::from_ptr(ckey).to_bytes())
+        {
+            value
+        } else {
+            std::ptr::null()
+        }
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the header at a given index.
+///
+/// headers: Header table.
+/// index: Index into the table.
+///
+/// Returns the header or NULL when not found or on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_headers_get_index(
+    headers: *const htp_transaction::htp_headers_t,
+    index: usize,
+) -> *const htp_transaction::htp_header_t {
+    if let Some(headers) = headers.as_ref() {
+        if let Some((_, value)) = headers.get(index) {
+            value
+        } else {
+            std::ptr::null()
+        }
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the size of the headers table.
+///
+/// headers: Headers table.
+///
+/// Returns the size or -1 on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_headers_size(headers: *const htp_transaction::htp_headers_t) -> isize {
+    if let Some(headers) = headers.as_ref() {
+        isize::try_from(headers.size()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get the name of a header.
+///
+/// tx: Header pointer.
+///
+/// Returns the name or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_name(
+    header: *const htp_transaction::htp_header_t,
+) -> *const bstr::bstr_t {
+    if let Some(header) = header.as_ref() {
+        &header.name
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the name of a header as a ptr.
+///
+/// tx: Header pointer.
+///
+/// Returns the pointer or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_name_ptr(
+    header: *const htp_transaction::htp_header_t,
+) -> *const u8 {
+    if let Some(header) = header.as_ref() {
+        bstr::bstr_ptr(&header.name)
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the length of a header name.
+///
+/// tx: Header pointer.
+///
+/// Returns the length or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_name_len(
+    header: *const htp_transaction::htp_header_t,
+) -> isize {
+    if let Some(header) = header.as_ref() {
+        isize::try_from(header.name.len()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get the value of a header.
+///
+/// tx: Header pointer.
+///
+/// Returns the value or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_value(
+    header: *const htp_transaction::htp_header_t,
+) -> *const bstr::bstr_t {
+    if let Some(header) = header.as_ref() {
+        &header.value
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the value of a header as a ptr.
+///
+/// tx: Header pointer.
+///
+/// Returns the pointer or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_value_ptr(
+    header: *const htp_transaction::htp_header_t,
+) -> *const u8 {
+    if let Some(header) = header.as_ref() {
+        bstr::bstr_ptr(&header.value)
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the length of a header value.
+///
+/// tx: Header pointer.
+///
+/// Returns the length or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_value_len(
+    header: *const htp_transaction::htp_header_t,
+) -> isize {
+    if let Some(header) = header.as_ref() {
+        isize::try_from(header.value.len()).unwrap_or(-1)
+    } else {
+        -1
+    }
 }
 
 /// Performs in-place decoding of the input string, according to the configuration specified

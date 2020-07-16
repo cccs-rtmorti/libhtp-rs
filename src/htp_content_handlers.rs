@@ -182,15 +182,15 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
         return Status::DECLINED;
     }
     // Look for a boundary.
-    let ct_opt = (*(*tx).request_headers).get_nocase_nozero("content-type");
-    if ct_opt.is_none() {
+    let ct = if let Some((_, ct)) = (*tx).request_headers.get_nocase_nozero_mut("content-type") {
+        ct
+    } else {
         return Status::ERROR;
-    }
-    let ct = ct_opt.unwrap().1;
+    };
     let mut boundary: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut flags: MultipartFlags = MultipartFlags::empty();
     let rc: Status =
-        htp_multipart::htp_mpartp_find_boundary((*ct).value, &mut boundary, &mut flags);
+        htp_multipart::htp_mpartp_find_boundary(&mut ct.value, &mut boundary, &mut flags);
     if rc != Status::OK {
         // No boundary (HTP_DECLINED) or error (HTP_ERROR).
         return rc;

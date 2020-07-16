@@ -3,8 +3,8 @@ use crate::htp_util::Flags;
 use crate::{
     bstr, bstr_builder, htp_config, htp_hooks, htp_table, htp_transaction, htp_util, list, Status,
 };
-
 use bitflags;
+use std::cmp::Ordering;
 
 bitflags::bitflags! {
     #[repr(C)]
@@ -225,7 +225,7 @@ pub struct htp_multipart_part_t {
     /// Part content type, from the Content-Type header. Can be NULL.
     pub content_type: *mut bstr::bstr_t,
     /// Part headers (htp_header_t instances), using header name as the key.
-    pub headers: htp_table::htp_table_t<*mut htp_transaction::htp_header_t>,
+    pub headers: htp_transaction::htp_headers_t,
     /// File data, available only for MULTIPART_PART_FILE parts.
     pub file: *mut htp_util::htp_file_t,
 }
@@ -362,21 +362,24 @@ unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(b: *mut bstr::bstr
 ///         it could not be processed, and HTP_ERROR on fatal error.
 pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_t) -> Status {
     // Find the C-D header.
-    let h_opt = (*part).headers.get_nocase_nozero("content-disposition");
-    if h_opt.is_none() {
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
-        return Status::DECLINED;
-    }
-    let h = h_opt.unwrap().1;
+    let header = {
+        if let Some((_, header)) = (*part).headers.get_nocase_nozero_mut("content-disposition") {
+            header
+        } else {
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
+            return Status::DECLINED;
+        }
+    };
+
     // Require "form-data" at the beginning of the header.
-    if bstr::bstr_index_of((*h).value, "form-data") != 0 {
+    if !header.value.starts_with("form-data") {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
         return Status::DECLINED;
     }
     // The parsing starts here.
-    let data: *mut u8 = bstr_ptr((*h).value);
+    let data: *mut u8 = header.value.as_mut_ptr();
     // Start after "form-data"
-    let len: usize = bstr_len((*h).value);
+    let len: usize = header.value.len();
     let mut pos: usize = 9;
     // Main parameter parsing loop (once per parameter).
     while pos < len {
@@ -543,14 +546,14 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
 ///
 /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
 unsafe extern "C" fn htp_mpart_part_parse_c_t(part: *mut htp_multipart_part_t) -> Status {
-    if let Some((_, h)) = (*part).headers.get_nocase_nozero("content-type") {
+    if let Some((_, header)) = (*part).headers.get_nocase_nozero("content-type") {
         if (*part).content_type.is_null() {
             (*part).content_type = bstr::bstr_alloc(0);
             if (*part).content_type.is_null() {
                 return Status::ERROR;
             }
         }
-        htp_util::htp_parse_ct_header(&*(*(*h)).value, &mut *(*part).content_type)
+        htp_util::htp_parse_ct_header(&header.value, &mut *(*part).content_type)
     } else {
         Status::DECLINED
     }
@@ -644,63 +647,32 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         i = i.wrapping_add(1)
     }
     // Now extract the name and the value.
-    let mut h: *mut htp_transaction::htp_header_t =
-        calloc(1, ::std::mem::size_of::<htp_transaction::htp_header_t>())
-            as *mut htp_transaction::htp_header_t;
-    if h.is_null() {
-        return Status::ERROR;
-    }
-    (*h).name = bstr::bstr_dup_mem(
-        data.offset(name_start as isize) as *const core::ffi::c_void,
+    let name = std::slice::from_raw_parts(
+        data.offset(name_start as isize),
         name_end.wrapping_sub(name_start),
     );
-    if (*h).name.is_null() {
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    (*h).value = bstr::bstr_dup_mem(
-        data.offset(value_start as isize) as *const core::ffi::c_void,
+    let value = std::slice::from_raw_parts(
+        data.offset(value_start as isize),
         value_end.wrapping_sub(value_start),
     );
-    if (*h).value.is_null() {
-        bstr::bstr_free((*h).name);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    if bstr::bstr_cmp_str_nocase((*h).name, "content-disposition") != 0
-        && bstr::bstr_cmp_str_nocase((*h).name, "content-type") != 0
+    let header = htp_transaction::htp_header_t::new(name.into(), value.into());
+
+    if header.name.cmp_nocase("content-disposition") != Ordering::Equal
+        && header.name.cmp_nocase("content-type") != Ordering::Equal
     {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
     }
     // Check if the header already exists.
-    if let Some((_, mut h_existing)) = (*part).headers.get_nocase((*(*h).name).as_slice()) {
-        // Add to the existing header.
-        let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
-            (*h_existing).value,
-            bstr_len((*h_existing).value)
-                .wrapping_add(2)
-                .wrapping_add(bstr_len((*h).value)),
-        );
-        if new_value.is_null() {
-            bstr::bstr_free((*h).name);
-            bstr::bstr_free((*h).value);
-            free(h as *mut core::ffi::c_void);
-            return Status::ERROR;
-        }
-        (*h_existing).value = new_value;
-        (*(*h_existing).value).add_noex(", ");
-        bstr::bstr_add_noex((*h_existing).value, (*h).value);
-        // The header is no longer needed.
-        bstr::bstr_free((*h).name);
-        bstr::bstr_free((*h).value);
-        free(h as *mut core::ffi::c_void);
+    if let Some((_, h_existing)) = (*part).headers.get_nocase_mut(header.name.as_slice()) {
+        h_existing.value.extend_from_slice(b", ");
+        h_existing.value.extend_from_slice(header.value.as_slice());
         // Keep track of same-name headers.
         // FIXME: Normalize the flags? define the symbol in both Flags and MultipartFlags and set the value in both from their own namespace
-        (*h_existing).flags |=
+        h_existing.flags |=
             Flags::from_bits_unchecked(MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits());
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
     } else {
-        (*part).headers.add((*(*h).name).clone(), h);
+        (*part).headers.add(header.name.clone(), header);
     }
     Status::OK
 }
@@ -745,11 +717,6 @@ pub unsafe extern "C" fn htp_mpart_part_destroy(
         bstr::bstr_free((*part).value);
     }
     bstr::bstr_free((*part).content_type);
-    for (_key, h) in (*part).headers.elements.iter_mut() {
-        bstr::bstr_free((*(*h)).name);
-        bstr::bstr_free((*(*h)).value);
-        free(*h as *mut libc::c_void);
-    }
     (*part).headers.elements.clear();
     free(part as *mut core::ffi::c_void);
 }

@@ -107,18 +107,27 @@ pub enum htp_transfer_coding_t {
 }
 
 /// Represents a single request or response header.
-#[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_header_t {
     /// Header name.
-    pub name: *mut bstr::bstr_t,
+    pub name: bstr::bstr_t,
     /// Header value.
-    pub value: *mut bstr::bstr_t,
+    pub value: bstr::bstr_t,
     /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
     pub flags: Flags,
 }
 
-pub type htp_headers_t = htp_table::htp_table_t<*mut htp_header_t>;
+pub type htp_headers_t = htp_table::htp_table_t<htp_header_t>;
+
+impl htp_header_t {
+    pub fn new(name: bstr::bstr_t, value: bstr::bstr_t) -> Self {
+        Self::new_with_flags(name, value, Flags::empty())
+    }
+
+    pub fn new_with_flags(name: bstr::bstr_t, value: bstr::bstr_t, flags: Flags) -> Self {
+        Self { name, value, flags }
+    }
+}
 
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct htp_tx_t {
@@ -200,7 +209,7 @@ pub struct htp_tx_t {
     /// de-chunking and decompression.
     pub request_entity_len: i64,
     /// Parsed request headers.
-    pub request_headers: *mut htp_headers_t,
+    pub request_headers: htp_headers_t,
     /// Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
     /// determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
     /// and HTP_CODING_UNRECOGNIZED.
@@ -274,7 +283,7 @@ pub struct htp_tx_t {
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: i32,
     /// Parsed response headers. Contains instances of htp_header_t.
-    pub response_headers: *mut htp_headers_t,
+    pub response_headers: htp_headers_t,
 
     /// HTTP 1.1 RFC
     ///
@@ -364,7 +373,7 @@ impl htp_tx_t {
             parsed_uri_raw: htp_util::htp_uri_alloc(),
             request_message_len: 0,
             request_entity_len: 0,
-            request_headers: htp_table::htp_table_alloc(32),
+            request_headers: htp_table::htp_table_t::with_capacity(32),
             request_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
             request_content_encoding:
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
@@ -391,7 +400,7 @@ impl htp_tx_t {
             response_status_expected_number: 0,
             response_message: std::ptr::null_mut(),
             seen_100continue: 0,
-            response_headers: htp_table::htp_table_alloc(32),
+            response_headers: htp_table::htp_table_t::with_capacity(32),
             response_message_len: 0,
             response_entity_len: 0,
             response_content_length: -1,
@@ -435,13 +444,6 @@ impl Drop for htp_tx_t {
             htp_util::htp_uri_free(self.parsed_uri);
             bstr::bstr_free(self.request_auth_username);
             bstr::bstr_free(self.request_auth_password);
-            // Request_headers.
-            for (_key, h) in (*self.request_headers).elements.iter_mut() {
-                bstr::bstr_free((*(*h)).name);
-                bstr::bstr_free((*(*h)).value);
-                free(*h as *mut libc::c_void);
-            }
-            htp_table::htp_table_free(self.request_headers);
 
             // Request parsers.
             htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_query);
@@ -465,13 +467,6 @@ impl Drop for htp_tx_t {
             bstr::bstr_free(self.response_status);
             bstr::bstr_free(self.response_message);
             bstr::bstr_free(self.response_content_type);
-            // Destroy response headers.
-            for (_key, h_0) in (*self.response_headers).elements.iter_mut() {
-                bstr::bstr_free((*(*h_0)).name);
-                bstr::bstr_free((*(*h_0)).value);
-                free(*h_0 as *mut libc::c_void);
-            }
-            htp_table::htp_table_free(self.response_headers);
 
             // If we're using a private configuration structure, destroy it.
             if self.is_config_shared == 0 {
@@ -694,23 +689,10 @@ pub unsafe fn htp_tx_req_set_header<S: AsRef<[u8]>>(
     if tx.is_null() {
         return Status::ERROR;
     }
-    let mut h: *mut htp_header_t =
-        calloc(1, ::std::mem::size_of::<htp_header_t>()) as *mut htp_header_t;
-    if h.is_null() {
-        return Status::ERROR;
-    }
-    (*h).name = bstr::bstr_dup_str(name);
-    if (*h).name.is_null() {
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    (*h).value = bstr::bstr_dup_str(value);
-    if (*h).value.is_null() {
-        bstr::bstr_free((*h).name);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    (*(*tx).request_headers).add((*(*h).name).clone(), h);
+    (*tx).request_headers.add(
+        name.as_ref().into(),
+        htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+    );
     Status::OK
 }
 
@@ -720,16 +702,16 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     }
     // Determine if we have a request body, and how it is packaged.
     let mut rc: Status = Status::OK;
-    let cl_opt = (*(*tx).request_headers).get_nocase_nozero("content-length");
+    let cl_opt = (*tx).request_headers.get_nocase_nozero("content-length");
     // Check for the Transfer-Encoding header, which would indicate a chunked request body.
-    if let Some((_, te)) = (*(*tx).request_headers).get_nocase_nozero("transfer-encoding") {
+    if let Some((_, te)) = (*tx).request_headers.get_nocase_nozero("transfer-encoding") {
         // Make sure it contains "chunked" only.
         // TODO The HTTP/1.1 RFC also allows the T-E header to contain "identity", which
         //      presumably should have the same effect as T-E header absence. However, Apache
         //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
         //      And it behaves strangely, too, sending a 501 and proceeding to process the request
         //      (e.g., PHP is run), but without the body. It then closes the connection.
-        if bstr::bstr_cmp_str_nocase((*(*te)).value, "chunked") != 0 {
+        if te.value.cmp_nocase("chunked") != Ordering::Equal {
             // Invalid T-E header value.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
@@ -762,19 +744,18 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         }
     } else if let Some((_, cl)) = cl_opt {
         // Check for a folded C-L header.
-        if (*(*cl)).flags.contains(Flags::HTP_FIELD_FOLDED) {
+        if cl.flags.contains(Flags::HTP_FIELD_FOLDED) {
             (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
         }
         // Check for multiple C-L headers.
-        if (*(*cl)).flags.contains(Flags::HTP_FIELD_REPEATED) {
+        if cl.flags.contains(Flags::HTP_FIELD_REPEATED) {
             (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             // TODO Personality trait to determine which C-L header to parse.
             //      At the moment we're parsing the combination of all instances,
             //      which is bound to fail (because it will contain commas).
         }
         // Get the body length.
-        (*tx).request_content_length =
-            htp_util::htp_parse_content_length((*(*cl)).value, (*tx).connp);
+        (*tx).request_content_length = htp_util::htp_parse_content_length(&cl.value, (*tx).connp);
         if (*tx).request_content_length < 0 {
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_C_L;
@@ -816,10 +797,10 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     }
     (*tx).request_port_number = (*(*tx).parsed_uri).port_number;
     // Examine the Host header.
-    if let Some((_, h)) = (*(*tx).request_headers).get_nocase_nozero("host") {
+    if let Some((_, header)) = (*tx).request_headers.get_nocase_nozero_mut("host") {
         // Host information available in the headers.
         if let Ok((_, (hostname, port_nmb, valid))) =
-            htp_util::htp_parse_hostport(&mut (*(*(*h)).value))
+            htp_util::htp_parse_hostport(&mut header.value)
         {
             if !valid {
                 (*tx).flags |= Flags::HTP_HOSTH_INVALID
@@ -861,7 +842,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         }
     }
     // Determine Content-Type.
-    if let Some((_, ct)) = (*(*tx).request_headers).get_nocase_nozero("content-type") {
+    if let Some((_, ct)) = (*tx).request_headers.get_nocase_nozero("content-type") {
         if (*tx).request_content_type.is_null() {
             (*tx).request_content_type = bstr::bstr_alloc(0);
             if (*tx).request_content_type.is_null() {
@@ -869,7 +850,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
             }
         }
 
-        rc = htp_util::htp_parse_ct_header(&*(*(*ct)).value, &mut *(*tx).request_content_type);
+        rc = htp_util::htp_parse_ct_header(&ct.value, &mut *(*tx).request_content_type);
         if rc != Status::OK {
             return rc;
         }
@@ -1110,33 +1091,20 @@ pub unsafe fn htp_tx_state_response_line(tx: *mut htp_tx_t) -> Status {
 /// alloc: Desired allocation strategy.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-#[allow(dead_code)]
 pub unsafe fn htp_tx_res_set_header<S: AsRef<[u8]>>(
     tx: *mut htp_tx_t,
     name: S,
     value: S,
 ) -> Status {
-    if tx.is_null() {
-        return Status::ERROR;
+    if let Some(tx) = tx.as_mut() {
+        tx.response_headers.add(
+            name.as_ref().into(),
+            htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+        );
+        Status::OK
+    } else {
+        Status::ERROR
     }
-    let mut h: *mut htp_header_t =
-        calloc(1, ::std::mem::size_of::<htp_header_t>()) as *mut htp_header_t;
-    if h.is_null() {
-        return Status::ERROR;
-    }
-    (*h).name = bstr::bstr_dup_str(name);
-    if (*h).name.is_null() {
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    (*h).value = bstr::bstr_dup_str(value);
-    if (*h).value.is_null() {
-        bstr::bstr_free((*h).name);
-        free(h as *mut core::ffi::c_void);
-        return Status::ERROR;
-    }
-    (*(*tx).response_headers).add((*(*h).name).clone(), h);
-    Status::OK
 }
 
 pub unsafe fn htp_connp_destroy_decompressors(mut connp: *mut htp_connection_parser::htp_connp_t) {
@@ -1720,23 +1688,23 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     let mut ce_multi_comp: i32 = 0;
     (*tx).response_content_encoding =
         htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-    let ce_opt = (*(*tx).response_headers).get_nocase_nozero("content-encoding");
+    let ce_opt = (*tx).response_headers.get_nocase_nozero("content-encoding");
     if let Some((_, ce)) = ce_opt {
         // fast paths: regular gzip and friends
-        if bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "gzip") == 0
-            || bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "x-gzip") == 0
+        if ce.value.cmp_nocase_nozero("gzip") == Ordering::Equal
+            || ce.value.cmp_nocase_nozero("x-gzip") == Ordering::Equal
         {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        } else if bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "deflate") == 0
-            || bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "x-deflate") == 0
+        } else if ce.value.cmp_nocase_nozero("deflate") == Ordering::Equal
+            || ce.value.cmp_nocase_nozero("x-deflate") == Ordering::Equal
         {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-        } else if bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "lzma") == 0 {
+        } else if ce.value.cmp_nocase_nozero("lzma") == Ordering::Equal {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-        } else if !(bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "inflate") == 0) {
+        } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
             // exceptional cases: enter slow path
             ce_multi_comp = 1
         }
@@ -1802,7 +1770,7 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
             let mut layers: i32 = 0;
             let mut comp: *mut htp_decompressors::htp_decompressor_t =
                 0 as *mut htp_decompressors::htp_decompressor_t;
-            let tokens = (*(*(*ce)).value).split_str_collect(", ");
+            let tokens = ce.value.split_str_collect(", ");
             let connp = (*tx).connp;
             for tok in tokens {
                 let token = bstr::bstr_t::from(tok);

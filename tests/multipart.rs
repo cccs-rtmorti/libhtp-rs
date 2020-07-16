@@ -2142,12 +2142,8 @@ fn InvalidContentDispositionSyntax() {
             (*part).headers = htp_table_t::with_capacity(4);
             (*part).parser = t.mpartp;
 
-            let mut h: *mut htp_header_t =
-                calloc(1, ::std::mem::size_of::<htp_header_t>()) as *mut htp_header_t;
-            (*h).name = bstr_dup_str("Content-Disposition");
-            (*h).value = bstr_dup_str(input);
-
-            (*part).headers.add((*(*h).name).clone(), h);
+            let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
+            (*part).headers.add(header.name.clone(), header);
             let rc: Status = htp_mpart_part_parse_c_d(part);
 
             assert_eq!(Status::DECLINED, rc);
@@ -2243,15 +2239,12 @@ fn HeaderValueTrim() {
     unsafe {
         assert!(!t.body.is_null());
 
-        let field1 = (*t.body).parts.get(0);
-        assert!(field1.is_some());
-        let field1 = field1.unwrap();
-        let h_opt = (*(*field1))
+        let field1 = (*t.body).parts.get(0).unwrap().as_ref().unwrap();
+        let header = &field1
             .headers
-            .get_nocase_nozero("content-disposition");
-        assert!(h_opt.is_some());
-        let h = h_opt.unwrap().1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).value, "form-data; name=\"field1\" "));
+            .get_nocase_nozero("content-disposition")
+            .unwrap()
+            .1;
+        assert_eq!(header.value, "form-data; name=\"field1\" ");
     }
 }

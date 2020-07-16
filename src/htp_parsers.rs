@@ -106,7 +106,7 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     connp: *mut htp_connection_parser::htp_connp_t,
     auth_header: *const htp_transaction::htp_header_t,
 ) -> Status {
-    let data = &*(*auth_header).value;
+    let data = &(*auth_header).value;
 
     if data.len() <= 5 {
         return Status::DECLINED;
@@ -144,18 +144,21 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
 pub unsafe extern "C" fn htp_parse_authorization(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    let auth_header_opt = (*(*(*connp).in_tx).request_headers).get_nocase_nozero("authorization");
-    if auth_header_opt.is_none() {
+    let auth_header = if let Some((_, auth_header)) = (*(*connp).in_tx)
+        .request_headers
+        .get_nocase_nozero("authorization")
+    {
+        auth_header
+    } else {
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
         return Status::OK;
-    }
-    let auth_header = auth_header_opt.unwrap().1;
+    };
     // TODO Need a flag to raise when failing to parse authentication headers.
-    if (*(*auth_header).value).starts_with_nocase("basic") {
+    if auth_header.value.starts_with_nocase("basic") {
         // Basic authentication
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
         return htp_parse_authorization_basic(connp, auth_header);
-    } else if (*(*auth_header).value).starts_with_nocase("digest") {
+    } else if auth_header.value.starts_with_nocase("digest") {
         // Digest authentication
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
         if let Ok((_, auth_username)) =

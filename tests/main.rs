@@ -328,25 +328,9 @@ fn ApacheHeaderParsing() {
             .get(0)
             .expect("expected tx to exist") as *mut htp_tx_t;
 
-        let actual: Vec<(&[u8], &[u8])> = (*tx)
-            .request_headers
-            .as_ref()
-            .expect("expected request headers to exist")
+        let actual: Vec<(&[u8], &[u8])> = (&(*tx).request_headers)
             .into_iter()
-            .map(|(_, val)| {
-                (
-                    (*(*val))
-                        .name
-                        .as_ref()
-                        .expect("expected header name to exist")
-                        .as_slice(),
-                    (*(*val))
-                        .value
-                        .as_ref()
-                        .expect("expected header value to exist")
-                        .as_slice(),
-                )
-            })
+            .map(|(_, val)| (val.name.as_slice(), val.value.as_slice()))
             .collect();
 
         let expected: Vec<(&[u8], &[u8])> = [
@@ -461,9 +445,7 @@ fn Expect() {
         assert!(!tx.is_null());
 
         // The interim header from the 100 response should not be among the final headers.
-        assert!((*(*tx).request_headers)
-            .get_nocase_nozero("Header1")
-            .is_none());
+        assert!((*tx).request_headers.get_nocase_nozero("Header1").is_none());
     }
 }
 
@@ -1514,7 +1496,7 @@ fn InvalidResponseHeaders1() {
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        assert_eq!(8, (*(*tx).response_headers).size());
+        assert_eq!(8, (*tx).response_headers.size());
 
         assert_response_header_eq!(tx, "", "No Colon");
         assert_response_header_flag_contains!(tx, "", Flags::HTP_FIELD_INVALID);
@@ -1539,7 +1521,7 @@ fn InvalidResponseHeaders2() {
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        assert_eq!(6, (*(*tx).response_headers).size());
+        assert_eq!(6, (*tx).response_headers.size());
 
         assert_response_header_eq!(tx, "", "Empty Name");
         assert_response_header_flag_contains!(tx, "", Flags::HTP_FIELD_INVALID);
