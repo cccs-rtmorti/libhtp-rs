@@ -4,11 +4,8 @@ use htp::bstr_builder::*;
 use libc;
 use std::ffi::CString;
 
-macro_rules! cstr {
-    ( $x:expr ) => {{
-        CString::new($x).unwrap().as_ptr()
-    }};
-}
+// import common testing utilities
+mod common;
 
 #[test]
 fn Bstr_Alloc() {

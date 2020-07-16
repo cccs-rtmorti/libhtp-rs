@@ -18,11 +18,8 @@ use htp::htp_util::*;
 use htp::list::List;
 use htp::Status;
 
-macro_rules! cstr {
-    ( $x:expr ) => {{
-        CString::new($x).unwrap().as_ptr()
-    }};
-}
+// import common testing utilities
+mod common;
 
 // UTF8 tests
 #[test]

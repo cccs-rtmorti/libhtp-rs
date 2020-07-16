@@ -13,11 +13,8 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::fs;
 
-macro_rules! cstr {
-    ( $x:expr ) => {{
-        CString::new($x).unwrap().as_ptr()
-    }};
-}
+// import common testing utilities
+mod common;
 
 struct Test {
     connp: *mut htp_connp_t,

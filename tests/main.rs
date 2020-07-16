@@ -22,11 +22,8 @@ use std::ops::Drop;
 use std::path::PathBuf;
 use std::slice;
 
-macro_rules! cstr {
-    ( $x:expr ) => {{
-        CString::new($x).unwrap().as_ptr()
-    }};
-}
+// import common testing utilities
+mod common;
 
 #[derive(Debug)]
 enum Chunk {

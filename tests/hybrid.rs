@@ -13,11 +13,8 @@ use std::cmp::Ordering;
 use std::ffi::CString;
 use std::ops::Drop;
 
-macro_rules! cstr {
-    ( $x:expr ) => {{
-        CString::new($x).unwrap().as_ptr()
-    }};
-}
+// import common testing utilities
+mod common;
 
 struct HybridParsing_Get_User_Data {
     // Request callback indicators.
