@@ -377,8 +377,9 @@ fn PostUrlencoded() {
         assert_eq!(2, (*(*t.connp).conn).transactions.len());
 
         // Transaction 1
-        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
-        assert!(!tx.is_null());
+        let tx = (*(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t)
+            .as_ref()
+            .expect("expected at least one transaction");
 
         assert_eq!(
             Ordering::Equal,
@@ -391,28 +392,17 @@ fn PostUrlencoded() {
         assert_eq!((*tx).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx).response_progress, HTP_RESPONSE_COMPLETE);
 
-        let h = (*(*tx).response_headers)
-            .get_nocase_nozero("Server")
-            .unwrap()
-            .1;
-        assert!(!h.is_null());
-        assert!(!(*h).value.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).value, "Apache"));
+        assert_response_header_eq!(tx, "Server", "Apache");
 
         // Transaction 2
-        let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
-        assert!(!tx2.is_null());
+        let tx2 = (*(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t)
+            .as_ref()
+            .expect("expected at least two transactions");
 
         assert_eq!((*tx2).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx2).response_progress, HTP_RESPONSE_COMPLETE);
 
-        let h2 = (*(*tx2).response_headers)
-            .get_nocase_nozero("Server")
-            .unwrap()
-            .1;
-        assert!(!h2.is_null());
-        assert!(!(*h2).value.is_null());
-        assert_eq!(0, bstr_cmp_str((*h2).value, "Apache"));
+        assert_response_header_eq!(tx2, "Server", "Apache");
     }
 }
 
@@ -1506,27 +1496,15 @@ fn InvalidResponseHeaders1() {
 
         assert_eq!(8, (*(*tx).response_headers).size());
 
-        let h_empty = (*(*tx).response_headers).get_nocase_nozero("").unwrap().1;
-        assert!(!h_empty.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_empty).value, "No Colon"));
-        assert!((*h_empty).flags.contains(Flags::HTP_FIELD_INVALID));
-        assert!((*h_empty).flags.contains(Flags::HTP_FIELD_UNPARSEABLE));
+        assert_response_header_eq!(tx, "", "No Colon");
+        assert_response_header_flag_contains!(tx, "", Flags::HTP_FIELD_INVALID);
+        assert_response_header_flag_contains!(tx, "", Flags::HTP_FIELD_UNPARSEABLE);
 
-        let h_lws = (*(*tx).response_headers)
-            .get_nocase_nozero("Lws")
-            .unwrap()
-            .1;
-        assert!(!h_lws.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_lws).value, "After Header Name"));
-        assert!((*h_lws).flags.contains(Flags::HTP_FIELD_INVALID));
+        assert_response_header_eq!(tx, "Lws", "After Header Name");
+        assert_response_header_flag_contains!(tx, "Lws", Flags::HTP_FIELD_INVALID);
 
-        let h_nottoken = (*(*tx).response_headers)
-            .get_nocase_nozero("Header@Name")
-            .unwrap()
-            .1;
-        assert!(!h_nottoken.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_nottoken).value, "Not Token"));
-        assert!((*h_nottoken).flags.contains(Flags::HTP_FIELD_INVALID));
+        assert_response_header_eq!(tx, "Header@Name", "Not Token");
+        assert_response_header_flag_contains!(tx, "Header@Name", Flags::HTP_FIELD_INVALID);
     }
 }
 
@@ -1543,10 +1521,8 @@ fn InvalidResponseHeaders2() {
 
         assert_eq!(6, (*(*tx).response_headers).size());
 
-        let h_empty = (*(*tx).response_headers).get_nocase_nozero("").unwrap().1;
-        assert!(!h_empty.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_empty).value, "Empty Name"));
-        assert!((*h_empty).flags.contains(Flags::HTP_FIELD_INVALID));
+        assert_response_header_eq!(tx, "", "Empty Name");
+        assert_response_header_flag_contains!(tx, "", Flags::HTP_FIELD_INVALID);
     }
 }
 
@@ -1998,15 +1974,11 @@ fn InvalidRequestHeader() {
 
         assert_eq!(1, (*(*t.connp).conn).transactions.len());
 
-        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
-        assert!(!tx.is_null());
+        let tx = (*(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t)
+            .as_ref()
+            .expect("expected at least one transaction");
 
-        let h = (*(*tx).request_headers)
-            .get_nocase_nozero("Header-With-NUL")
-            .unwrap()
-            .1;
-        assert!(!h.is_null());
-        assert_eq!(0, bstr_cmp_str((*h).value, "BEFORE"));
+        assert_request_header_eq!(tx, "Header-With-NUL", "BEFORE");
     }
 }
 
@@ -2111,15 +2083,8 @@ fn ResponseMultipleCl() {
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
-        let h = (*(*tx).response_headers)
-            .get_nocase_nozero("Content-Length")
-            .unwrap()
-            .1;
-        assert!(!h.is_null());
-        assert!(!(*h).value.is_null());
-        assert!((*h).flags.contains(Flags::HTP_FIELD_REPEATED));
-
-        assert_eq!(0, bstr_cmp_str((*h).value, "12"));
+        assert_response_header_eq!(tx, "Content-Length", "12");
+        assert_response_header_flag_contains!(tx, "Content-Length", Flags::HTP_FIELD_REPEATED);
     }
 }
 
@@ -2139,15 +2104,8 @@ fn ResponseMultipleClMismatch() {
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
-        let h = (*(*tx).response_headers)
-            .get_nocase_nozero("Content-Length")
-            .unwrap()
-            .1;
-        assert!(!h.is_null());
-        assert!(!(*h).value.is_null());
-        assert!((*h).flags.contains(Flags::HTP_FIELD_REPEATED));
-
-        assert_eq!(0, bstr_cmp_str((*h).value, "12"));
+        assert_response_header_eq!(tx, "Content-Length", "12");
+        assert_response_header_flag_contains!(tx, "Content-Length", Flags::HTP_FIELD_REPEATED);
 
         assert_eq!(2, (*(*tx).conn).messages.len());
         let log: *mut htp_log_t = *(*(*tx).conn).messages.get(1).unwrap() as *mut htp_log_t;
@@ -2189,14 +2147,7 @@ fn ResponseNoBody() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let h = (*(*tx1).response_headers)
-            .get_nocase_nozero("Server")
-            .unwrap()
-            .1;
-        assert!(!h.is_null());
-        assert!(!(*h).value.is_null());
-
-        assert_eq!(0, bstr_cmp_str((*h).value, "Apache"));
+        assert_response_header_eq!(tx1, "Server", "Apache");
 
         let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
@@ -2222,14 +2173,7 @@ fn ResponseFoldedHeaders() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let h = (*(*tx1).response_headers)
-            .get_nocase_nozero("Server")
-            .unwrap()
-            .1;
-        assert!(!h.is_null());
-        assert!(!(*h).value.is_null());
-
-        assert_eq!(0, bstr_cmp_str((*h).value, "Apache Server"));
+        assert_response_header_eq!(tx1, "Server", "Apache Server");
 
         let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());

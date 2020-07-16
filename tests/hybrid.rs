@@ -323,26 +323,9 @@ fn GetTest() {
         // Check headers
         assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
 
-        let h_host = (*(*tx).request_headers)
-            .get_nocase_nozero("host")
-            .unwrap()
-            .1;
-        assert!(!h_host.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_host).value, "www.example.com"));
-
-        let h_connection = (*(*tx).request_headers)
-            .get_nocase_nozero("connection")
-            .unwrap()
-            .1;
-        assert!(!h_connection.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_connection).value, "keep-alive"));
-
-        let h_ua = (*(*tx).request_headers)
-            .get_nocase_nozero("user-agent")
-            .unwrap()
-            .1;
-        assert!(!h_ua.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_ua).value, "Mozilla/5.0"));
+        assert_request_header_eq!(tx, "host", "www.example.com");
+        assert_request_header_eq!(tx, "connection", "keep-alive");
+        assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
         // Request complete
         htp_tx_state_request_complete(tx);
@@ -372,19 +355,8 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
 
         // Check response headers
-        let mut h_content_type = (*(*tx).response_headers)
-            .get_nocase_nozero("content-type")
-            .unwrap()
-            .1;
-        assert!(!h_content_type.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_content_type).value, "text/html"));
-
-        let mut h_server = (*(*tx).response_headers)
-            .get_nocase_nozero("server")
-            .unwrap()
-            .1;
-        assert!(!h_server.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_server).value, "Apache"));
+        assert_response_header_eq!(tx, "content-type", "text/html");
+        assert_response_header_eq!(tx, "server", "Apache");
 
         // Response body data
         htp_tx_res_process_body_data(tx, "<h1>Hello");
@@ -396,19 +368,8 @@ fn GetTest() {
         htp_tx_res_set_header(tx, "Server", "Apache");
 
         // Check trailing response headers
-        h_content_type = (*(*tx).response_headers)
-            .get_nocase_nozero("content-type")
-            .unwrap()
-            .1;
-        assert!(!h_content_type.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_content_type).value, "text/html"));
-
-        h_server = (*(*tx).response_headers)
-            .get_nocase_nozero("server")
-            .unwrap()
-            .1;
-        assert!(!h_server.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_server).value, "Apache"));
+        assert_response_header_eq!(tx, "content-type", "text/html");
+        assert_response_header_eq!(tx, "server", "Apache");
 
         htp_tx_state_response_complete(tx);
         assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
@@ -450,26 +411,9 @@ fn PostUrlecodedTest() {
         htp_tx_req_set_header(tx, "Connection", "keep-alive");
         htp_tx_req_set_header(tx, "User-Agent", "Mozilla/5.0");
 
-        let h_host = (*(*tx).request_headers)
-            .get_nocase_nozero("host")
-            .unwrap()
-            .1;
-        assert!(!h_host.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_host).value, "www.example.com"));
-
-        let h_connection = (*(*tx).request_headers)
-            .get_nocase_nozero("connection")
-            .unwrap()
-            .1;
-        assert!(!h_connection.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_connection).value, "keep-alive"));
-
-        let h_ua = (*(*tx).request_headers)
-            .get_nocase_nozero("user-agent")
-            .unwrap()
-            .1;
-        assert!(!h_ua.is_null());
-        assert_eq!(0, bstr_cmp_str((*h_ua).value, "Mozilla/5.0"));
+        assert_request_header_eq!(tx, "host", "www.example.com");
+        assert_request_header_eq!(tx, "connection", "keep-alive");
+        assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
         // Request complete
         htp_tx_state_request_complete(tx);
