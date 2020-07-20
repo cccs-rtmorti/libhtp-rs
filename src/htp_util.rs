@@ -1892,7 +1892,7 @@ pub unsafe fn htp_normalize_parsed_uri(
             return -1;
         }
         htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).hostname);
-        htp_normalize_hostname_inplace((*normalized).hostname);
+        htp_normalize_hostname_inplace(&mut *(*normalized).hostname);
     }
     // Port.
     if !(*incomplete).port.is_null() {
@@ -1962,20 +1962,14 @@ pub unsafe fn htp_normalize_parsed_uri(
     1
 }
 
-/// Normalize request hostname. Convert all characters to lowercase and
+/// Normalize request hostname inplace. Convert all characters to lowercase and
 /// remove trailing dots from the end, if present.
-///
-/// Returns Normalized hostname.
-pub unsafe fn htp_normalize_hostname_inplace(hostname: *mut bstr::bstr_t) -> *mut bstr::bstr_t {
-    if hostname.is_null() {
-        return 0 as *mut bstr::bstr_t;
-    }
-    bstr::bstr_to_lowercase(hostname);
+fn htp_normalize_hostname_inplace(hostname: &mut bstr::bstr_t) {
+    hostname.make_ascii_lowercase();
     // Remove dots from the end of the string.
-    while bstr::bstr_char_at_end(hostname, 0) == '.' as i32 {
-        bstr::bstr_chop(hostname);
+    while hostname.last() == Some(&('.' as u8)) {
+        hostname.pop();
     }
-    hostname
 }
 
 /// Normalize URL path. This function implements the remove dot segments algorithm
