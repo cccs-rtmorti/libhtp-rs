@@ -1,6 +1,10 @@
 $(eval CRATE_VERSION=$(shell (test -f Cargo.lock || cargo generate-lockfile) && cargo pkgid | cut -d: -f 3))
 $(eval CRATE_VERSION_MAJOR=$(shell echo ${CRATE_VERSION} | cut -d. -f 1))
 
+.DEFAULT_GOAL := all
+.PHONY: all
+all: htp/.libs/libhtp.so
+
 .PHONY: build
 build:
 	cargo build --features cbindgen
@@ -13,9 +17,6 @@ htp/.libs/libhtp.so: target/debug/libhtp.so
 	ln -sf libhtp.so.${CRATE_VERSION} htp/.libs/libhtp.so.${CRATE_VERSION_MAJOR}
 	ln -sf libhtp.so.${CRATE_VERSION} htp/.libs/libhtp.so
 
-.PHONY: all
-all: htp/.libs/libhtp.so
-
 # prevents make check from failing in suricata
 .PHONY: check
 check:
@@ -24,7 +25,7 @@ check:
 clean:
 	rm -f htp/.libs/libhtp.so* htp/htp.h htp/version.h
 	rm -f Cargo.lock
-	cargo clean
+	cargo clean -p htp
 
 .PHONY: rpm
 rpm: tar
