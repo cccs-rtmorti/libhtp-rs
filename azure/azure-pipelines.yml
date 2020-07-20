@@ -1,7 +1,6 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+# Default pipeline to build, check and test libhtp2
+#
+# This will also run integration tests with cyberdeck and suricata.
 
 trigger:
   batch: true
@@ -12,56 +11,158 @@ trigger:
 pr:
 - master
 
+resources:
+  repositories:
+  - repository: suricata
+    type: bitbucket
+    endpoint: rtmorti
+    name: cse-nbs/suricata
+    ref: 'refs/heads/libhtp-rs'
+  - repository: cyberdeck
+    type: bitbucket
+    endpoint: rtmorti
+    name: cse-nbs/cyberdeck
+    ref: refs/heads/libhtp-rs-fixes
+
 jobs:
-- job: install
-  displayName: Install Rust
+- job: test_libhtp2
+  displayName: Test Libhtp2
   pool: libhtp-builders
-# Can't figure out strategies right now so just build nightly. See below
-#  strategy:
-#    matrix:
-#      stable:
-#        rustup_toolchain: stable
-#      nightly:
-#        rustup_toolchain: nightly
   steps:
+    #
+    # Libhtp2 Steps
+    # ==============
+    - checkout: self
+      path: libhtp2
+
+    #
+    # Install the dependencies required to build libhtp2
+    # 
+    # TODO: add this when clippy works
+    #   rustup component add clippy
     - script: |
-        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
         echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-#        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-      displayName: Install Rust
-
-- job: rustfmt
-  displayName: Format Check
-  dependsOn: install
-  pool: libhtp-builders
-  steps:
-    - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-    - script: rustup component add rustfmt
-      displayName: Install Rustfmt
+        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable
+        rustup install nightly
+        rustup component add rustfmt
+      displayName: setup
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+    
+    #
+    # Check code formatting differences
     - script: cargo fmt -- --check
-      displayName: Run Rustfmt
+      displayName: rustfmt
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+    
+    #
+    # Check linting warnings
+    #
+    # TODO: uncomment when we are ready for clippy
+    # - script: cargo clippy --all-targets -- -D warnings
+    # displayName: Run Clippy
+    
+    #
+    # Build the rust targets
+    - script: make
+      displayName: build
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+    
+    #
+    # Run the unit tests
+    - script: cargo test
+      displayName: test
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+    
+    #
+    # Run the benchmarks
+    - script: cargo bench
+      displayName: bench
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
 
-# Uncomment when clippy works
-#- job: clippy
-#  displayName: Clippy Check
-#  dependsOn: install
-#  pool: libhtp-builders
-#  steps:
-#    - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-#    - script: rustup component add clippy
-#      displayName: Install Clippy
-#    - script: cargo clippy --all-targets -- -D warnings
-#      displayName: Running Clippy
+    #
+    # Build rpm
+    - script: make rpm
+      displayName: rpm
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+    
+    #
+    # Install libhtp2
+    #
+    # TODO: Link to cyberdeck without installing RPM to avoid polluting the global environment
+    - script: |
+        sudo yum remove -y libhtp
+        sudo yum install -y target/centos/RPMS/x86_64/libhtp*.rpm
+      displayName: install
+      workingDirectory: $(Agent.BuildDirectory)/libhtp2
 
-- job: tests
-  displayName: Run Tests
-  dependsOn: install
-  pool: libhtp-builders
-  steps:
-  - script: echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-  - script: cargo build
-    displayName: Build
-  - script: cargo test
-    displayName: Tests
-  - script: cargo bench
-    displayName: Benchmarks
+    #
+    # Suricata Steps
+    # ==============
+    
+    #
+    # Checkout Suricata
+    - checkout: suricata
+      path: suricata
+
+    #
+    # Configure suricata
+    #
+    # The symlink should prevent us from having to rebuild libhtp2.
+    - script: |
+        ln -s $(Agent.BuildDirectory)/libhtp2 libhtp
+        ./autogen.sh
+        $(Agent.BuildDirectory)/suricata/configure --enable-unittests
+      displayName: "suricata: configure"
+      workingDirectory: $(Agent.BuildDirectory)/suricata
+    
+    #
+    # Build suricata
+    - script: |
+        make -j $(nproc)
+      displayName: "suricata: build"
+      workingDirectory: $(Agent.BuildDirectory)/suricata
+    
+    #
+    # Test suricata
+    - script: |
+        mkdir -p /var/log/suricata
+        rm -f /var/log/suricata/boo.txt
+        ./src/suricata -u
+      displayName: "suricata: test"
+      workingDirectory: $(Agent.BuildDirectory)/suricata
+
+    #
+    # Cyberdeck Steps
+    # ==============
+
+    #
+    # Checkout cyberdeck
+    - checkout: cyberdeck
+      path: cyberdeck
+
+    #
+    # Configure cyberdeck
+    #
+    # This will configure cyberdeck outside of its source tree.
+    #
+    # TODO: link to libhtp2
+    - script: |
+        mkdir cyberdeck_build
+        cd cyberdeck_build
+        source /opt/gcc-9/enable
+        cmake3 -DTARGET_NATIVE_ARCH=Off -DCMAKE_BUILD_TYPE=Release -DENABLE_MANPAGES=Off -DENABLE_STREAMMAP=Off -DENABLE_SNF=Off $(Agent.BuildDirectory)/cyberdeck
+      displayName: "cyberdeck: configure" 
+      workingDirectory: $(Agent.BuildDirectory)
+    
+    #
+    # Build cyberdeck
+    - script: |
+        make -j $(nproc)
+      displayName: "cyberdeck: build" 
+      workingDirectory: $(Agent.BuildDirectory)/cyberdeck_build
+
+    #
+    # Test cyberdeck
+    - script: ice/HTTP/test/http_unit_tests
+      displayName: "cyberdeck: test http"
+      workingDirectory: $(Agent.BuildDirectory)/cyberdeck_build
