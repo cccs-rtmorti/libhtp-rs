@@ -967,110 +967,72 @@ fn ParseFragment() {
 
 #[test]
 fn ParseContentType_1() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("multipart/form-data");
-        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
-        let mut ct: *mut bstr_t = std::ptr::null_mut();
+    let i = bstr_t::from("multipart/form-data");
+    let e = "multipart/form-data";
+    let mut ct = bstr_t::new();
 
-        assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
-
-        assert!(!ct.is_null());
-        assert_eq!(bstr_cmp(e, ct), 0);
-
-        bstr_free(ct);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
 }
 
 #[test]
 fn ParseContentType_2() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("multipart/form-data;boundary=X");
-        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
-        let mut ct: *mut bstr_t = std::ptr::null_mut();
+    let i = bstr_t::from("multipart/form-data;boundary=X");
+    let e = "multipart/form-data";
+    let mut ct = bstr_t::new();
 
-        assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
-
-        assert!(!ct.is_null());
-        assert_eq!(bstr_cmp(e, ct), 0);
-
-        bstr_free(ct);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
 }
 
 #[test]
 fn ParseContentType_3() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("multipart/form-data boundary=X");
-        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
-        let mut ct: *mut bstr_t = std::ptr::null_mut();
+    let i = bstr_t::from("multipart/form-data boundary=X");
+    let e = "multipart/form-data";
+    let mut ct = bstr_t::new();
 
-        assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
-
-        assert!(!ct.is_null());
-        assert_eq!(bstr_cmp(e, ct), 0);
-
-        bstr_free(ct);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
 }
 
 #[test]
 fn ParseContentType_4() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("multipart/form-data,boundary=X");
-        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
-        let mut ct: *mut bstr_t = std::ptr::null_mut();
+    let i = bstr_t::from("multipart/form-data,boundary=X");
+    let e = "multipart/form-data";
+    let mut ct = bstr_t::new();
 
-        assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
-
-        assert!(!ct.is_null());
-        assert_eq!(bstr_cmp(e, ct), 0);
-
-        bstr_free(ct);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
 }
 
 #[test]
 fn ParseContentType_5() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("multipart/FoRm-data");
-        let e: *mut bstr_t = bstr_dup_str("multipart/form-data");
-        let mut ct: *mut bstr_t = std::ptr::null_mut();
+    let i = bstr_t::from("multipart/FoRm-data");
+    let e = "multipart/form-data";
+    let mut ct = bstr_t::new();
 
-        assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
-
-        assert!(!ct.is_null());
-        assert_eq!(bstr_cmp(e, ct), 0);
-
-        bstr_free(ct);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
 }
 
 #[test]
 fn ParseContentType_6() {
-    unsafe {
-        let i: *mut bstr_t = bstr_dup_str("multipart/form-data\t boundary=X");
-        let e: *mut bstr_t = bstr_dup_str("multipart/form-data\t");
-        let mut ct: *mut bstr_t = std::ptr::null_mut();
+    let i = bstr_t::from("multipart/form-data\t boundary=X");
+    let e = "multipart/form-data\t";
+    let mut ct = bstr_t::new();
 
-        assert_eq!(Status::OK, htp_parse_ct_header(i, &mut ct));
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
+}
 
-        assert!(!ct.is_null());
-        assert_eq!(bstr_cmp(e, ct), 0);
+#[test]
+fn ParseContentType_7() {
+    let i = bstr_t::from("   \tmultipart/form-data boundary=X");
+    let e = "multipart/form-data";
+    let mut ct = bstr_t::new();
 
-        bstr_free(ct);
-        bstr_free(e);
-        bstr_free(i);
-    }
+    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    assert_eq!(ct.cmp(e), Ordering::Equal);
 }
 
 #[test]

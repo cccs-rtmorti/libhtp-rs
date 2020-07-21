@@ -8,7 +8,7 @@ use crate::{
 use bitflags;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, tag_no_case, take, take_until, take_while_m_n},
+    bytes::complete::{is_not, tag, tag_no_case, take, take_until, take_while, take_while_m_n},
     character::complete::char,
     combinator::{map, not, opt, peek},
     multi::{fold_many0, many0},
@@ -2198,34 +2198,32 @@ pub unsafe fn htp_extract_quoted_string_as_bstr(
     Status::OK
 }
 
-pub unsafe fn htp_parse_ct_header(
-    header: *const bstr::bstr_t,
-    ct: *mut *mut bstr::bstr_t,
-) -> Status {
-    if header.is_null() || ct.is_null() {
-        return Status::ERROR;
+/// Parses the content type header, trimming any leading whitespace.
+/// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
+///
+/// Returns a tuple of the remaining unparsed header data and the content type
+fn content_type_header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        map(
+            tuple((take_while(|c: u8| c.is_ascii_whitespace()), is_not(";, "))),
+            |(_, content_type)| content_type,
+        )(input)
     }
-    let data: *mut u8 = bstr_ptr(header);
-    let len: usize = bstr_len(header);
-    // The assumption here is that the header value we receive
-    // here has been left-trimmed, which means the starting position
-    // is on the media type. On some platforms that may not be the
-    // case, and we may need to do the left-trim ourselves.
-    // Find the end of the MIME type, using the same approach PHP 5.4.3 uses.
-    let mut pos: usize = 0;
-    while pos < len
-        && *data.offset(pos as isize) != ';' as u8
-        && *data.offset(pos as isize) != ',' as u8
-        && *data.offset(pos as isize) != ' ' as u8
-    {
-        pos = pos.wrapping_add(1)
+}
+
+/// Parses the content type header from the given header value, lowercases it, and stores it in the provided ct bstr.
+/// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
+///
+/// Returns Status::OK if successful; Status::ERROR if not
+pub fn htp_parse_ct_header<'a>(header: &'a bstr::bstr_t, ct: &mut bstr::bstr_t) -> Status {
+    let mut rc = Status::ERROR;
+    if let Ok((_, content_type)) = content_type_header()(header.as_slice()) {
+        ct.clear();
+        ct.add(content_type);
+        ct.make_ascii_lowercase();
+        rc = Status::OK;
     }
-    *ct = bstr::bstr_dup_ex(header, 0, pos);
-    if (*ct).is_null() {
-        return Status::ERROR;
-    }
-    bstr::bstr_to_lowercase(*ct);
-    Status::OK
+    rc
 }
 
 /// Implements relaxed (not strictly RFC) hostname validation.

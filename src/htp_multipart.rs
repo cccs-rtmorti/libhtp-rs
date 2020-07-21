@@ -543,12 +543,17 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
 ///
 /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
 unsafe extern "C" fn htp_mpart_part_parse_c_t(part: *mut htp_multipart_part_t) -> Status {
-    let h_opt = (*part).headers.get_nocase_nozero("content-type");
-    if h_opt.is_none() {
-        return Status::DECLINED;
+    if let Some((_, h)) = (*part).headers.get_nocase_nozero("content-type") {
+        if (*part).content_type.is_null() {
+            (*part).content_type = bstr::bstr_alloc(0);
+            if (*part).content_type.is_null() {
+                return Status::ERROR;
+            }
+        }
+        htp_util::htp_parse_ct_header(&*(*(*h)).value, &mut *(*part).content_type)
+    } else {
+        Status::DECLINED
     }
-    let h = h_opt.unwrap().1;
-    htp_util::htp_parse_ct_header((*h).value, &mut (*part).content_type)
 }
 
 /// Processes part headers.

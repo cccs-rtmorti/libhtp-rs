@@ -858,10 +858,15 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         }
     }
     // Determine Content-Type.
-    let ct_opt = (*(*tx).request_headers).get_nocase_nozero("content-type");
-    if ct_opt.is_some() {
-        let ct = ct_opt.unwrap().1;
-        rc = htp_util::htp_parse_ct_header((*ct).value, &mut (*tx).request_content_type);
+    if let Some((_, ct)) = (*(*tx).request_headers).get_nocase_nozero("content-type") {
+        if (*tx).request_content_type.is_null() {
+            (*tx).request_content_type = bstr::bstr_alloc(0);
+            if (*tx).request_content_type.is_null() {
+                return Status::ERROR;
+            }
+        }
+
+        rc = htp_util::htp_parse_ct_header(&*(*(*ct)).value, &mut *(*tx).request_content_type);
         if rc != Status::OK {
             return rc;
         }
