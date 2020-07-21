@@ -1981,7 +1981,9 @@ fn normalize_uri_path(input: &[u8]) -> Vec<u8> {
         .for_each(|segment| match segment {
             b"." => {}
             b".." => {
-                out.pop();
+                if !(out.len() == 1 && out[0] == b"") {
+                    out.pop();
+                }
             }
             x => out.push(x),
         });

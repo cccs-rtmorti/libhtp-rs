@@ -2426,6 +2426,10 @@ fn Util_NormalizeUriPath() {
     let mut s = bstr_t::from("one/../");
     htp_normalize_uri_path_inplace(&mut s);
     assert_eq!(Ordering::Equal, s.cmp(""));
+
+    let mut s = bstr_t::from("/../../../images.gif");
+    htp_normalize_uri_path_inplace(&mut s);
+    assert_eq!(Ordering::Equal, s.cmp("/images.gif"));
 }
 
 #[test]

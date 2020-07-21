@@ -300,6 +300,24 @@ fn Get() {
 }
 
 #[test]
+fn GetEncodedRelPath() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("99-get.t").is_ok());
+
+        assert_eq!(1, (*(*t.connp).conn).transactions.len());
+
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
+
+        assert!(!tx.is_null());
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_hostname, "www.example.com"));
+        assert!(!(*tx).parsed_uri.is_null());
+        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/images.gif"));
+    }
+}
+
+#[test]
 fn ApacheHeaderParsing() {
     let mut t = Test::new();
     unsafe {
