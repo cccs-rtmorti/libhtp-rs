@@ -139,16 +139,8 @@ fn Space() {
 
 #[test]
 fn Method() {
-    unsafe {
-        let method: *mut bstr_t = bstr_dup_str("GET");
-
-        assert_eq!(
-            htp_method_t::HTP_M_GET as i32,
-            htp_convert_method_to_number(method)
-        );
-
-        bstr_free(method);
-    }
+    let method = bstr_t::from("GET");
+    assert_eq!(htp_method_t::HTP_M_GET, htp_convert_bstr_to_method(&method));
 }
 
 #[test]

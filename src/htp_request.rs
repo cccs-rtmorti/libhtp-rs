@@ -357,16 +357,16 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_PROBE_DATA(
     while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)
     }
-    let mut methodi: i32 = htp_method_t::HTP_M_UNKNOWN as i32;
+    let mut method_type = htp_method_t::HTP_M_UNKNOWN;
     let method: *mut bstr::bstr_t = bstr::bstr_dup_mem(
         data.offset(mstart as isize) as *const core::ffi::c_void,
         pos.wrapping_sub(mstart),
     );
     if !method.is_null() {
-        methodi = htp_util::htp_convert_method_to_number(method);
+        method_type = htp_util::htp_convert_bstr_to_method(&*method);
         bstr::bstr_free(method);
     }
-    if methodi != htp_method_t::HTP_M_UNKNOWN as i32 {
+    if method_type != htp_method_t::HTP_M_UNKNOWN {
         return htp_transaction::htp_tx_state_request_complete((*connp).in_tx);
     } else {
         (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
@@ -1045,16 +1045,16 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
         htp_connp_req_clear_buffer(connp);
         return rc;
     } else {
-        let mut methodi: i32 = htp_method_t::HTP_M_UNKNOWN as i32;
+        let mut method_type = htp_method_t::HTP_M_UNKNOWN;
         let method: *mut bstr::bstr_t = bstr::bstr_dup_mem(
             data.offset(mstart as isize) as *const core::ffi::c_void,
             pos.wrapping_sub(mstart),
         );
         if !method.is_null() {
-            methodi = htp_util::htp_convert_method_to_number(method);
+            method_type = htp_util::htp_convert_bstr_to_method(&*method);
             bstr::bstr_free(method);
         }
-        if methodi == htp_method_t::HTP_M_UNKNOWN as i32 {
+        if method_type == htp_method_t::HTP_M_UNKNOWN {
             // else continue
             // Interpret remaining bytes as body data
             htp_log!(

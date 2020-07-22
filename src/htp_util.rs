@@ -16,6 +16,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use std::cmp::Ordering;
 
 pub const HTP_VERSION_STRING_FULL: &'static str =
     concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
@@ -285,97 +286,94 @@ pub fn htp_is_space(c: u8) -> bool {
 
 /// Converts request method, given as a string, into a number.
 ///
-/// Returns Method number of M_UNKNOWN
-pub unsafe fn htp_convert_method_to_number(method: *mut bstr::bstr_t) -> i32 {
-    if method.is_null() {
-        return htp_request::htp_method_t::HTP_M_UNKNOWN as i32;
-    }
+/// Returns Method or M_UNKNOWN
+pub fn htp_convert_bstr_to_method(method: &bstr::bstr_t) -> htp_request::htp_method_t {
     // TODO Optimize using parallel matching, or something similar.
-    if bstr::bstr_cmp_str(method, "GET") == 0 {
-        return htp_request::htp_method_t::HTP_M_GET as i32;
+    if method.cmp("GET") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_GET;
     }
-    if bstr::bstr_cmp_str(method, "PUT") == 0 {
-        return htp_request::htp_method_t::HTP_M_PUT as i32;
+    if method.cmp("PUT") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_PUT;
     }
-    if bstr::bstr_cmp_str(method, "POST") == 0 {
-        return htp_request::htp_method_t::HTP_M_POST as i32;
+    if method.cmp("POST") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_POST;
     }
-    if bstr::bstr_cmp_str(method, "DELETE") == 0 {
-        return htp_request::htp_method_t::HTP_M_DELETE as i32;
+    if method.cmp("DELETE") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_DELETE;
     }
-    if bstr::bstr_cmp_str(method, "CONNECT") == 0 {
-        return htp_request::htp_method_t::HTP_M_CONNECT as i32;
+    if method.cmp("CONNECT") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_CONNECT;
     }
-    if bstr::bstr_cmp_str(method, "OPTIONS") == 0 {
-        return htp_request::htp_method_t::HTP_M_OPTIONS as i32;
+    if method.cmp("OPTIONS") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_OPTIONS;
     }
-    if bstr::bstr_cmp_str(method, "TRACE") == 0 {
-        return htp_request::htp_method_t::HTP_M_TRACE as i32;
+    if method.cmp("TRACE") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_TRACE;
     }
-    if bstr::bstr_cmp_str(method, "PATCH") == 0 {
-        return htp_request::htp_method_t::HTP_M_PATCH as i32;
+    if method.cmp("PATCH") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_PATCH;
     }
-    if bstr::bstr_cmp_str(method, "PROPFIND") == 0 {
-        return htp_request::htp_method_t::HTP_M_PROPFIND as i32;
+    if method.cmp("PROPFIND") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_PROPFIND;
     }
-    if bstr::bstr_cmp_str(method, "PROPPATCH") == 0 {
-        return htp_request::htp_method_t::HTP_M_PROPPATCH as i32;
+    if method.cmp("PROPPATCH") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_PROPPATCH;
     }
-    if bstr::bstr_cmp_str(method, "MKCOL") == 0 {
-        return htp_request::htp_method_t::HTP_M_MKCOL as i32;
+    if method.cmp("MKCOL") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_MKCOL;
     }
-    if bstr::bstr_cmp_str(method, "COPY") == 0 {
-        return htp_request::htp_method_t::HTP_M_COPY as i32;
+    if method.cmp("COPY") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_COPY;
     }
-    if bstr::bstr_cmp_str(method, "MOVE") == 0 {
-        return htp_request::htp_method_t::HTP_M_MOVE as i32;
+    if method.cmp("MOVE") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_MOVE;
     }
-    if bstr::bstr_cmp_str(method, "LOCK") == 0 {
-        return htp_request::htp_method_t::HTP_M_LOCK as i32;
+    if method.cmp("LOCK") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_LOCK;
     }
-    if bstr::bstr_cmp_str(method, "UNLOCK") == 0 {
-        return htp_request::htp_method_t::HTP_M_UNLOCK as i32;
+    if method.cmp("UNLOCK") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_UNLOCK;
     }
-    if bstr::bstr_cmp_str(method, "VERSION-CONTROL") == 0 {
-        return htp_request::htp_method_t::HTP_M_VERSION_CONTROL as i32;
+    if method.cmp("VERSION-CONTROL") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_VERSION_CONTROL;
     }
-    if bstr::bstr_cmp_str(method, "CHECKOUT") == 0 {
-        return htp_request::htp_method_t::HTP_M_CHECKOUT as i32;
+    if method.cmp("CHECKOUT") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_CHECKOUT;
     }
-    if bstr::bstr_cmp_str(method, "UNCHECKOUT") == 0 {
-        return htp_request::htp_method_t::HTP_M_UNCHECKOUT as i32;
+    if method.cmp("UNCHECKOUT") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_UNCHECKOUT;
     }
-    if bstr::bstr_cmp_str(method, "CHECKIN") == 0 {
-        return htp_request::htp_method_t::HTP_M_CHECKIN as i32;
+    if method.cmp("CHECKIN") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_CHECKIN;
     }
-    if bstr::bstr_cmp_str(method, "UPDATE") == 0 {
-        return htp_request::htp_method_t::HTP_M_UPDATE as i32;
+    if method.cmp("UPDATE") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_UPDATE;
     }
-    if bstr::bstr_cmp_str(method, "LABEL") == 0 {
-        return htp_request::htp_method_t::HTP_M_LABEL as i32;
+    if method.cmp("LABEL") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_LABEL;
     }
-    if bstr::bstr_cmp_str(method, "REPORT") == 0 {
-        return htp_request::htp_method_t::HTP_M_REPORT as i32;
+    if method.cmp("REPORT") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_REPORT;
     }
-    if bstr::bstr_cmp_str(method, "MKWORKSPACE") == 0 {
-        return htp_request::htp_method_t::HTP_M_MKWORKSPACE as i32;
+    if method.cmp("MKWORKSPACE") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_MKWORKSPACE;
     }
-    if bstr::bstr_cmp_str(method, "MKACTIVITY") == 0 {
-        return htp_request::htp_method_t::HTP_M_MKACTIVITY as i32;
+    if method.cmp("MKACTIVITY") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_MKACTIVITY;
     }
-    if bstr::bstr_cmp_str(method, "BASELINE-CONTROL") == 0 {
-        return htp_request::htp_method_t::HTP_M_BASELINE_CONTROL as i32;
+    if method.cmp("BASELINE-CONTROL") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_BASELINE_CONTROL;
     }
-    if bstr::bstr_cmp_str(method, "MERGE") == 0 {
-        return htp_request::htp_method_t::HTP_M_MERGE as i32;
+    if method.cmp("MERGE") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_MERGE;
     }
-    if bstr::bstr_cmp_str(method, "INVALID") == 0 {
-        return htp_request::htp_method_t::HTP_M_INVALID as i32;
+    if method.cmp("INVALID") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_INVALID;
     }
-    if bstr::bstr_cmp_str(method, "HEAD") == 0 {
-        return htp_request::htp_method_t::HTP_M_HEAD as i32;
+    if method.cmp("HEAD") == Ordering::Equal {
+        return htp_request::htp_method_t::HTP_M_HEAD;
     }
-    htp_request::htp_method_t::HTP_M_UNKNOWN as i32
+    htp_request::htp_method_t::HTP_M_UNKNOWN
 }
 
 /// Is the given line empty?
