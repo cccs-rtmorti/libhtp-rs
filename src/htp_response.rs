@@ -672,15 +672,14 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     {
         // We have a response body
         let ct_opt = (*(*(*connp).out_tx).response_headers).get_nocase_nozero("content-type");
-        if ct_opt.is_some() {
-            let ct = ct_opt.unwrap().1;
-            (*(*connp).out_tx).response_content_type = bstr::bstr_dup_lower((*ct).value);
+        if let Some((_, ct)) = ct_opt {
+            (*(*connp).out_tx).response_content_type = bstr::bstr_dup_lower((*(*ct)).value);
             if (*(*connp).out_tx).response_content_type.is_null() {
                 return Status::ERROR;
             }
             // Ignore parameters
             let data: *mut u8 = bstr_ptr((*(*connp).out_tx).response_content_type);
-            let len: usize = bstr_len((*ct).value);
+            let len: usize = bstr_len((*(*ct)).value);
             let mut newlen: usize = 0;
             while newlen < len {
                 // TODO Some platforms may do things differently here.
@@ -733,19 +732,18 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             );
             (*(*connp).out_tx).response_progress =
                 htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY
-        } else if cl_opt.is_some() {
-            let cl = cl_opt.unwrap().1;
+        } else if let Some((_, cl)) = cl_opt {
             //   value in bytes represents the length of the message-body.
             // We know the exact length
             (*(*connp).out_tx).response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
             // Check for multiple C-L headers
-            if (*cl).flags.contains(Flags::HTP_FIELD_REPEATED) {
+            if (*(*cl)).flags.contains(Flags::HTP_FIELD_REPEATED) {
                 (*(*connp).out_tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             // Get body length
             (*(*connp).out_tx).response_content_length =
-                htp_util::htp_parse_content_length((*cl).value, connp);
+                htp_util::htp_parse_content_length((*(*cl)).value, connp);
             if (*(*connp).out_tx).response_content_length < 0 {
                 htp_log!(
                     connp,
@@ -785,10 +783,9 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             //   the presence in a request of a Range header with multiple byte-range
             //   specifiers implies that the client can parse multipart/byteranges
             //   responses.
-            if ct_opt.is_some() {
-                let ct = ct_opt.unwrap().1;
+            if let Some((_, ct)) = ct_opt {
                 // TODO Handle multipart/byteranges
-                if bstr::bstr_index_of_nocase((*ct).value, "multipart/byteranges") != -1 {
+                if bstr::bstr_index_of_nocase((*(*ct)).value, "multipart/byteranges") != -1 {
                     htp_log!(
                         connp,
                         htp_log_level_t::HTP_LOG_ERROR,

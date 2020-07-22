@@ -673,9 +673,7 @@ pub unsafe extern "C" fn htp_mpartp_parse_header(
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
     }
     // Check if the header already exists.
-    let h_existing_opt = (*part).headers.get_nocase((*(*h).name).as_slice());
-    if h_existing_opt.is_some() {
-        let mut h_existing = h_existing_opt.unwrap().1;
+    if let Some((_, mut h_existing)) = (*part).headers.get_nocase((*(*h).name).as_slice()) {
         // Add to the existing header.
         let new_value: *mut bstr::bstr_t = bstr::bstr_expand(
             (*h_existing).value,

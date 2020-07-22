@@ -632,10 +632,9 @@ pub unsafe extern "C" fn htp_table_get_c(
         return 0 as *mut libc::c_void;
     }
 
-    let cs = std::ffi::CStr::from_ptr(ckey);
-    let result = (*table).get_nocase_nozero(cs.to_bytes());
-    if result.is_some() {
-        return result.unwrap().1 as *mut libc::c_void;
+    if let Some((_, value)) = (*table).get_nocase_nozero(std::ffi::CStr::from_ptr(ckey).to_bytes())
+    {
+        return *value as *mut libc::c_void;
     }
     0 as *mut libc::c_void
 }

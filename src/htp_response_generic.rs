@@ -239,9 +239,9 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         return Status::ERROR;
     }
     // Do we already have a header with the same name?
-    let h_existing_opt = (*(*(*connp).out_tx).response_headers).get_nocase((*(*h).name).as_slice());
-    if h_existing_opt.is_some() {
-        let mut h_existing = h_existing_opt.unwrap().1;
+    if let Some((_, mut h_existing)) =
+        (*(*(*connp).out_tx).response_headers).get_nocase((*(*h).name).as_slice())
+    {
         // Keep track of repeated same-name headers.
         if !(*h_existing).flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.

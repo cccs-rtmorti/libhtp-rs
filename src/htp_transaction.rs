@@ -716,17 +716,15 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     // Determine if we have a request body, and how it is packaged.
     let mut rc: Status = Status::OK;
     let cl_opt = (*(*tx).request_headers).get_nocase_nozero("content-length");
-    let te_opt = (*(*tx).request_headers).get_nocase_nozero("transfer-encoding");
     // Check for the Transfer-Encoding header, which would indicate a chunked request body.
-    if te_opt.is_some() {
-        let te = te_opt.unwrap().1;
+    if let Some((_, te)) = (*(*tx).request_headers).get_nocase_nozero("transfer-encoding") {
         // Make sure it contains "chunked" only.
         // TODO The HTTP/1.1 RFC also allows the T-E header to contain "identity", which
         //      presumably should have the same effect as T-E header absence. However, Apache
         //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
         //      And it behaves strangely, too, sending a 501 and proceeding to process the request
         //      (e.g., PHP is run), but without the body. It then closes the connection.
-        if bstr::bstr_cmp_str_nocase((*te).value, "chunked") != 0 {
+        if bstr::bstr_cmp_str_nocase((*(*te)).value, "chunked") != 0 {
             // Invalid T-E header value.
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
@@ -757,21 +755,21 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
                 (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
         }
-    } else if cl_opt.is_some() {
-        let cl = cl_opt.unwrap().1;
+    } else if let Some((_, cl)) = cl_opt {
         // Check for a folded C-L header.
-        if (*cl).flags.contains(Flags::HTP_FIELD_FOLDED) {
+        if (*(*cl)).flags.contains(Flags::HTP_FIELD_FOLDED) {
             (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
         }
         // Check for multiple C-L headers.
-        if (*cl).flags.contains(Flags::HTP_FIELD_REPEATED) {
+        if (*(*cl)).flags.contains(Flags::HTP_FIELD_REPEATED) {
             (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             // TODO Personality trait to determine which C-L header to parse.
             //      At the moment we're parsing the combination of all instances,
             //      which is bound to fail (because it will contain commas).
         }
         // Get the body length.
-        (*tx).request_content_length = htp_util::htp_parse_content_length((*cl).value, (*tx).connp);
+        (*tx).request_content_length =
+            htp_util::htp_parse_content_length((*(*cl)).value, (*tx).connp);
         if (*tx).request_content_length < 0 {
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_C_L;
@@ -1718,23 +1716,22 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
     (*tx).response_content_encoding =
         htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
     let ce_opt = (*(*tx).response_headers).get_nocase_nozero("content-encoding");
-    if ce_opt.is_some() {
-        let ce = ce_opt.unwrap().1;
+    if let Some((_, ce)) = ce_opt {
         // fast paths: regular gzip and friends
-        if bstr::bstr_cmp_str_nocasenorzero((*ce).value, "gzip") == 0
-            || bstr::bstr_cmp_str_nocasenorzero((*ce).value, "x-gzip") == 0
+        if bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "gzip") == 0
+            || bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "x-gzip") == 0
         {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        } else if bstr::bstr_cmp_str_nocasenorzero((*ce).value, "deflate") == 0
-            || bstr::bstr_cmp_str_nocasenorzero((*ce).value, "x-deflate") == 0
+        } else if bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "deflate") == 0
+            || bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "x-deflate") == 0
         {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-        } else if bstr::bstr_cmp_str_nocasenorzero((*ce).value, "lzma") == 0 {
+        } else if bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "lzma") == 0 {
             (*tx).response_content_encoding =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-        } else if !(bstr::bstr_cmp_str_nocasenorzero((*ce).value, "inflate") == 0) {
+        } else if !(bstr::bstr_cmp_str_nocasenorzero((*(*ce)).value, "inflate") == 0) {
             // exceptional cases: enter slow path
             ce_multi_comp = 1
         }
@@ -1796,12 +1793,11 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                     as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
             )
         // multiple ce value case
-        } else {
-            let ce = ce_opt.unwrap().1;
+        } else if let Some((_, ce)) = ce_opt {
             let mut layers: i32 = 0;
             let mut comp: *mut htp_decompressors::htp_decompressor_t =
                 0 as *mut htp_decompressors::htp_decompressor_t;
-            let tokens = (*(*ce).value).split_str_collect(", ");
+            let tokens = (*(*(*ce)).value).split_str_collect(", ");
             let connp = (*tx).connp;
             for tok in tokens {
                 let token = bstr::bstr_t::from(tok);

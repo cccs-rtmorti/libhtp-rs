@@ -142,19 +142,16 @@ fn GetNoCase() {
     t.add(k, "Value2");
 
     let mut result = t.get_nocase("KEY1");
-    assert!(result.is_some());
     let mut res = result.unwrap();
     assert_eq!(Ordering::Equal, res.0.cmp("Key1"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase("keY1");
-    assert!(result.is_some());
     res = result.unwrap();
     assert_eq!(Ordering::Equal, res.0.cmp("Key1"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase("key2");
-    assert!(result.is_some());
     res = result.unwrap();
     assert_eq!(Ordering::Equal, res.0.cmp("KeY2"));
     assert_eq!("Value2", res.1);
@@ -172,19 +169,16 @@ fn GetNocaseNozero() {
     t.add(k, "Value2");
 
     let mut result = t.get_nocase_nozero("key1");
-    assert!(result.is_some());
     let mut res = result.unwrap();
     assert_eq!(Ordering::Equal, res.0.cmp("K\x00\x00\x00\x00ey\x001"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase_nozero("KeY1");
-    assert!(result.is_some());
     res = result.unwrap();
     assert_eq!(Ordering::Equal, res.0.cmp("K\x00\x00\x00\x00ey\x001"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase_nozero("KEY2");
-    assert!(result.is_some());
     res = result.unwrap();
     assert_eq!(Ordering::Equal, res.0.cmp("K\x00e\x00\x00Y2"));
     assert_eq!("Value2", res.1);

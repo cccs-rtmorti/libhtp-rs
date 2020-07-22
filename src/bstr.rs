@@ -182,14 +182,12 @@ trait SubIterator: Iterator<Item = u8> {
 /// implementations for each of the two types we actually have.
 fn index_of<T: SubIterator, S: AsRef<[u8]>>(haystack: &mut T, needle: &S) -> Option<usize> {
     let first = needle.as_ref().first()?;
-    let mut s = haystack.next();
-    while s.is_some() {
-        if s.unwrap() == *first {
+    while let Some(s) = haystack.next() {
+        if s == *first {
             let mut test = haystack.subiter();
             let mut equal = false;
             for cmp_byte in needle.as_ref().as_bytes() {
-                let b = test.next();
-                equal = b.is_some() && b.unwrap() == *cmp_byte;
+                equal = Some(*cmp_byte) == test.next();
                 if !equal {
                     break;
                 }
@@ -198,7 +196,6 @@ fn index_of<T: SubIterator, S: AsRef<[u8]>>(haystack: &mut T, needle: &S) -> Opt
                 return Some(haystack.index());
             }
         }
-        s = haystack.next();
     }
     None
 }
