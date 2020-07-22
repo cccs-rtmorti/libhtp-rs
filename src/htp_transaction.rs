@@ -102,6 +102,8 @@ pub enum htp_transfer_coding_t {
     HTP_CODING_CHUNKED,
     /// We could not recognize the encoding.
     HTP_CODING_INVALID,
+    /// Error retrieving the transfer coding.
+    HTP_CODING_ERROR,
 }
 
 /// Represents a single request or response header.
@@ -119,8 +121,6 @@ pub struct htp_header_t {
 pub type htp_headers_t = htp_table::htp_table_t<*mut htp_header_t>;
 
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
-#[repr(C)]
-#[derive(Clone)]
 pub struct htp_tx_t {
     /// The connection parser associated with this transaction.
     pub connp: *mut htp_connection_parser::htp_connp_t,
@@ -494,6 +494,7 @@ pub enum htp_tx_res_progress_t {
     HTP_RESPONSE_BODY,
     HTP_RESPONSE_TRAILER,
     HTP_RESPONSE_COMPLETE,
+    HTP_RESPONSE_ERROR,
 }
 
 #[repr(C)]
@@ -505,6 +506,7 @@ pub enum htp_tx_req_progress_t {
     HTP_REQUEST_BODY,
     HTP_REQUEST_TRAILER,
     HTP_REQUEST_COMPLETE,
+    HTP_REQUEST_ERROR,
 }
 
 /// Enumerates the possible values for authentication type.
@@ -523,6 +525,8 @@ pub enum htp_auth_type_t {
     HTP_AUTH_DIGEST,
     /// Unrecognized authentication method.
     HTP_AUTH_UNRECOGNIZED = 9,
+    /// Error retrieving the auth type.
+    HTP_AUTH_ERROR,
 }
 
 /// Protocol version constants
@@ -530,6 +534,7 @@ pub enum htp_auth_type_t {
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum Protocol {
+    ERROR = -3,
     INVALID = -2,
     UNKNOWN = -1,
     V0_9 = 9,
@@ -581,7 +586,7 @@ pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
 }
 
 /// Returns the user data associated with this transaction.
-pub unsafe fn htp_tx_get_user_data(tx: *const htp_tx_t) -> *mut core::ffi::c_void {
+pub unsafe fn htp_tx_user_data(tx: *const htp_tx_t) -> *mut core::ffi::c_void {
     if tx.is_null() {
         return 0 as *mut core::ffi::c_void;
     }

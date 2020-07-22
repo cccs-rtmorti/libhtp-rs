@@ -43,6 +43,8 @@ pub enum htp_content_encoding_t {
     HTP_COMPRESSION_DEFLATE,
     /// LZMA compression.
     HTP_COMPRESSION_LZMA,
+    /// Error retrieving the content encoding.
+    HTP_COMPRESSION_ERROR,
 }
 
 #[repr(C)]

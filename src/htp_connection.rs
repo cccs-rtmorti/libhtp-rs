@@ -15,7 +15,6 @@ extern "C" {
 
 pub type htp_time_t = libc::timeval;
 
-#[derive(Clone)]
 pub struct htp_conn_t {
     /// Client IP address.
     pub client_addr: *mut i8,

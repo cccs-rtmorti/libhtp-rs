@@ -175,7 +175,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     mut tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
-    // The field tx->request_content_type does not contain the entire C-T
+    // The field request_content_type does not contain the entire C-T
     // value and so we cannot use it to look for a boundary, but we can
     // use it for a quick check to determine if the C-T header exists.
     if (*tx).request_content_type.is_null() {

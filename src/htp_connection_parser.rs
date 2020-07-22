@@ -25,8 +25,6 @@ pub enum htp_stream_state_t {
 
 pub type htp_time_t = libc::timeval;
 
-#[repr(C)]
-#[derive(Copy, Clone)]
 pub struct htp_connp_t {
     // General fields
     /// Current parser configuration structure.

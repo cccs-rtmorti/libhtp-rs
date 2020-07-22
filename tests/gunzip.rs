@@ -13,7 +13,7 @@ use std::path::PathBuf;
 #[no_mangle]
 extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
     unsafe {
-        let output_ptr: *mut *mut bstr_t = htp_tx_get_user_data((*d).tx) as *mut *mut bstr_t;
+        let output_ptr: *mut *mut bstr_t = htp_tx_user_data((*d).tx) as *mut *mut bstr_t;
         *output_ptr = bstr_dup_mem((*d).data as *const core::ffi::c_void, (*d).len);
     }
     Status::OK

@@ -54,6 +54,7 @@ pub enum htp_method_t {
     HTP_M_BASELINE_CONTROL,
     HTP_M_MERGE,
     HTP_M_INVALID,
+    HTP_M_ERROR,
 }
 
 pub type htp_time_t = libc::timeval;

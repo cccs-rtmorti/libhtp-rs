@@ -943,7 +943,7 @@ fn RequestHeaderData() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -1001,7 +1001,7 @@ fn RequestTrailerData() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(2, *counter);
     }
@@ -1071,7 +1071,7 @@ fn ResponseHeaderData() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -1145,7 +1145,7 @@ fn ResponseTrailerData() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_get_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }

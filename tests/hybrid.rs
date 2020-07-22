@@ -55,43 +55,43 @@ impl HybridParsing_Get_User_Data {
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_START_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_LINE_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_HEADERS_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_START_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_LINE_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
     Status::OK
 }
@@ -99,7 +99,7 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
     d: *mut htp_tx_data_t,
 ) -> Status {
-    let user_data = htp_tx_get_user_data((*d).tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data((*d).tx) as *mut HybridParsing_Get_User_Data;
 
     // Don't do anything if in errored state.
     if (*user_data).response_body_correctly_received == -1 {
@@ -159,13 +159,13 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
     Status::OK
 }
 
 unsafe extern "C" fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_get_user_data(tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
     (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
     Status::OK
 }
