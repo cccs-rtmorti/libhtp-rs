@@ -3,12 +3,8 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![allow(unused_assignments)]
-#![feature(c_variadic)]
 #![feature(extern_types)]
-#![feature(label_break_value)]
 #![feature(ptr_wrapping_offset_from)]
-#![feature(register_tool)]
-#![register_tool(c2rust)]
 
 #[repr(C)]
 #[derive(PartialEq, Debug)]
@@ -80,7 +76,6 @@ pub mod log;
 pub mod bstr;
 pub mod bstr_builder;
 pub mod c_api;
-pub mod htp_base64;
 pub mod htp_config;
 mod htp_connection;
 pub mod htp_connection_parser;

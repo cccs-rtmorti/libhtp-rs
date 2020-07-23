@@ -85,31 +85,9 @@ bitflags::bitflags! {
 
 extern "C" {
     #[no_mangle]
-    fn snprintf(
-        _: *mut libc::c_char,
-        _: libc::size_t,
-        _: *const libc::c_char,
-        _: ...
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn vsnprintf(
-        _: *mut libc::c_char,
-        _: libc::size_t,
-        _: *const libc::c_char,
-        _: ::std::ffi::VaList,
-    ) -> libc::c_int;
-    #[no_mangle]
     fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
-    #[no_mangle]
-    fn memchr(
-        _: *const core::ffi::c_void,
-        _: libc::c_int,
-        _: libc::size_t,
-    ) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
 }
 
 #[repr(C)]

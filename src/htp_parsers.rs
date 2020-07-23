@@ -1,6 +1,6 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
-use crate::{bstr, htp_base64, htp_connection_parser, htp_transaction, htp_util, Status};
+use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
 
 /// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
 /// function will only understand a properly formatted protocol information. It does
@@ -90,46 +90,37 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     connp: *mut htp_connection_parser::htp_connp_t,
     auth_header: *const htp_transaction::htp_header_t,
 ) -> Status {
-    let data: *mut u8 = bstr_ptr((*auth_header).value);
-    let len: usize = bstr_len((*auth_header).value);
-    let mut pos: usize = 5;
-    // Ignore whitespace
-    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
-        pos = pos.wrapping_add(1)
-    }
-    if pos == len {
+    let data = &*(*auth_header).value;
+
+    if data.len() <= 5 {
         return Status::DECLINED;
-    }
+    };
+
+    // Skip 'Basic<lws>'
+    let value_start = if let Some(pos) = data[5..].iter().position(|&c| !c.is_ascii_whitespace()) {
+        pos + 5
+    } else {
+        return Status::DECLINED;
+    };
+
     // Decode base64-encoded data
-    let decoded: *mut bstr::bstr_t = htp_base64::htp_base64_decode_mem(
-        data.offset(pos as isize) as *const core::ffi::c_void,
-        len.wrapping_sub(pos),
-    );
-    if decoded.is_null() {
-        return Status::ERROR;
-    }
-    // Now extract the username and password
-    let i: i32 = bstr::bstr_index_of(decoded, ":");
-    if i == -1 {
-        bstr::bstr_free(decoded);
+    let decoded = if let Ok(decoded) = base64::decode(&data[value_start..]) {
+        decoded
+    } else {
         return Status::DECLINED;
-    }
-    (*(*connp).in_tx).request_auth_username = bstr::bstr_dup_ex(decoded, 0, i as usize);
-    if (*(*connp).in_tx).request_auth_username.is_null() {
-        bstr::bstr_free(decoded);
-        return Status::ERROR;
-    }
-    (*(*connp).in_tx).request_auth_password = bstr::bstr_dup_ex(
-        decoded,
-        (i + 1) as usize,
-        bstr_len(decoded).wrapping_sub(i as usize).wrapping_sub(1),
-    );
-    if (*(*connp).in_tx).request_auth_password.is_null() {
-        bstr::bstr_free(decoded);
-        bstr::bstr_free((*(*connp).in_tx).request_auth_username);
-        return Status::ERROR;
-    }
-    bstr::bstr_free(decoded);
+    };
+
+    // Extract username and password
+    let i = if let Some(i) = decoded.iter().position(|&c| c == ':' as u8) {
+        i
+    } else {
+        return Status::DECLINED;
+    };
+
+    let (username, password) = decoded.split_at(i);
+    (*(*connp).in_tx).request_auth_username = bstr::bstr_dup_str(username);
+    (*(*connp).in_tx).request_auth_password = bstr::bstr_dup_str(&password[1..]);
+
     Status::OK
 }
 

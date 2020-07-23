@@ -7,7 +7,6 @@ use std::ffi::{CStr, CString};
 use std::io::Write;
 
 use htp::bstr::*;
-use htp::htp_base64::*;
 use htp::htp_config;
 use htp::htp_connection_parser::*;
 use htp::htp_request::*;
@@ -21,32 +20,6 @@ use htp::Status;
 // import common testing utilities
 mod common;
 
-// UTF8 tests
-#[test]
-fn Single() {
-    unsafe {
-        assert_eq!(62, htp_base64_decode_single('+' as i8));
-        assert_eq!(63, htp_base64_decode_single('/' as i8));
-        assert_eq!(-1, htp_base64_decode_single(',' as i8));
-        assert_eq!(-1, htp_base64_decode_single(0));
-        assert_eq!(-1, htp_base64_decode_single('~' as i8));
-        assert_eq!(26, htp_base64_decode_single('a' as i8));
-        assert_eq!(0, htp_base64_decode_single('A' as i8));
-    }
-}
-
-#[test]
-fn Decode() {
-    unsafe {
-        let input = CString::new("dGhpcyBpcyBhIHRlc3QuLg==").unwrap();
-        let out: *mut bstr_t = htp_base64_decode_mem(
-            input.as_ptr() as *const core::ffi::c_void,
-            libc::strlen(input.as_ptr()),
-        );
-        assert_eq!(0, bstr_cmp_str(out, "this is a test.."));
-        bstr_free(out);
-    }
-}
 // Util tests
 #[test]
 fn Separator() {

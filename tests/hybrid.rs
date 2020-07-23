@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 use htp::bstr::*;
-use htp::htp_base64::*;
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
@@ -436,11 +435,11 @@ fn PostUrlecodedTest() {
     }
 }
 
-const HYBRID_PARSING_COMPRESSED_RESPONSE: &[u8; 253] =
+const HYBRID_PARSING_COMPRESSED_RESPONSE: &[u8] =
     b"H4sIAAAAAAAAAG2PwQ6CMBBE73xFU++tXk2pASliAiEhPegRYUOJYEktEP5eqB6dy2ZnJ5O3LJFZ\
       yj2WiCBah7zKVPBMT1AjCf2gTWnabmH0e/AY/QXDPLqj8HLO07zw8S52wkiKm1zXvRPeeg//2lbX\
       kwpQrauxh5dFqnyj3uVYgJJCxD5W1g5HSud5Jo3WTQek0mR8UgNlDYZOLcz0ZMuH3y+YKzDAaMDJ\
-      SrihOVL32QceVXUy4QAAAA==\x00";
+      SrihOVL32QceVXUy4QAAAA==";
 
 extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
     unsafe {
@@ -460,14 +459,9 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
 
         htp_tx_state_response_headers(tx);
 
-        let body: *mut bstr_t = htp_base64_decode_mem(
-            HYBRID_PARSING_COMPRESSED_RESPONSE.as_ptr() as *const core::ffi::c_void,
-            libc::strlen(HYBRID_PARSING_COMPRESSED_RESPONSE.as_ptr() as *const i8),
-        );
-        assert!(!body.is_null());
+        let body = bstr_t::from(base64::decode(HYBRID_PARSING_COMPRESSED_RESPONSE).unwrap());
 
-        htp_tx_res_process_body_data(tx, (*body).as_slice());
-        bstr_free(body);
+        htp_tx_res_process_body_data(tx, body.as_slice());
 
         htp_tx_state_response_complete(tx);
     }

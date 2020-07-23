@@ -19,6 +19,7 @@ crate-type = ["staticlib", "rlib", "cdylib"]
 default = []
 
 [dependencies]
+base64 = "0.12.3"
 bitflags = "1.2.1"
 bstr = "0.2"
 libc = "0.2"
