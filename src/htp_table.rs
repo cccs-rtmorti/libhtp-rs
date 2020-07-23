@@ -2,6 +2,7 @@ use crate::bstr;
 use std::cmp::Ordering;
 use std::iter::Iterator;
 use std::ops::Index;
+use std::slice::SliceIndex;
 
 #[derive(Clone, Debug)]
 pub struct htp_table_t<T> {
@@ -53,6 +54,20 @@ impl<T> htp_table_t<T> {
     /// Add a new tuple (key, item) to the table
     pub fn add(&mut self, key: bstr::bstr_t, item: T) {
         self.elements.push((key, item));
+    }
+
+    pub fn get<I>(&self, index: I) -> Option<&I::Output>
+    where
+        I: SliceIndex<[(bstr::bstr_t, T)]>,
+    {
+        self.elements.get(index)
+    }
+
+    pub fn get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
+    where
+        I: SliceIndex<[(bstr::bstr_t, T)]>,
+    {
+        self.elements.get_mut(index)
     }
 
     /// Search the table for the first tuple with a key matching the given slice, ingnoring ascii case in self
@@ -198,6 +213,11 @@ fn IndexAccess() {
     let res = &t[1];
     assert_eq!(Ordering::Equal, res.0.cmp("KeY2"));
     assert_eq!("Value2", res.1);
+    assert_eq!("Value2", t.get(1).unwrap().1);
+
+    let mut res_mut = t.get_mut(1).unwrap();
+    res_mut.1 = "Value3";
+    assert_eq!("Value3", t.get(1).unwrap().1);
 }
 
 #[test]
