@@ -142,7 +142,7 @@ pub struct htp_tx_t {
     /// Request method.
     pub request_method: *mut bstr::bstr_t,
     /// Request method, as number. Available only if we were able to recognize the request method.
-    pub request_method_number: u32,
+    pub request_method_number: htp_request::htp_method_t,
     /// Request URI, raw, as given to us on the request line. This field can take different forms,
     /// for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
     /// string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
@@ -355,7 +355,7 @@ impl htp_tx_t {
             request_ignored_lines: 0,
             request_line: std::ptr::null_mut(),
             request_method: std::ptr::null_mut(),
-            request_method_number: 0,
+            request_method_number: htp_request::htp_method_t::HTP_M_UNKNOWN,
             request_uri: std::ptr::null_mut(),
             request_protocol: std::ptr::null_mut(),
             request_protocol_number: Protocol::UNKNOWN,
@@ -789,7 +789,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         (*tx).flags |= Flags::HTP_REQUEST_INVALID
     }
     // Check for PUT requests, which we need to treat as file uploads.
-    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_PUT as u32
+    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_PUT
         && htp_tx_req_has_body(tx) != 0
     {
         // Prepare to treat PUT request body as a file.
@@ -1543,7 +1543,7 @@ pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
         return Status::ERROR;
     }
     // Determine how to process the request URI.
-    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT as u32 {
+    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
         // When CONNECT is used, the request URI contains an authority string.
         if (*tx).request_uri.is_null() || (*tx).parsed_uri_raw.is_null() {
             return Status::ERROR;

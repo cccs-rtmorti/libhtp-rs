@@ -544,7 +544,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     // If the request uses the CONNECT method, then not only are we
     // to assume there's no body, but we need to ignore all
     // subsequent data in the stream.
-    if (*(*connp).out_tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT as u32 {
+    if (*(*connp).out_tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
         if (*(*connp).out_tx).response_status_number >= 200
             && (*(*connp).out_tx).response_status_number <= 299
         {
@@ -632,7 +632,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     //  request) is always terminated by the first empty line after the
     //  header fields, regardless of the entity-header fields present in the
     //  message.
-    if (*(*connp).out_tx).request_method_number == htp_request::htp_method_t::HTP_M_HEAD as u32 {
+    if (*(*connp).out_tx).request_method_number == htp_request::htp_method_t::HTP_M_HEAD {
         // There's no response body whatsoever
         (*(*connp).out_tx).response_transfer_coding =
             htp_transaction::htp_transfer_coding_t::HTP_CODING_NO_BODY;

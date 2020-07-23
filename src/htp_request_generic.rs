@@ -323,8 +323,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if (*tx).request_method.is_null() {
         return Status::ERROR;
     }
-    (*tx).request_method_number =
-        htp_util::htp_convert_bstr_to_method(&*(*tx).request_method) as u32;
+    (*tx).request_method_number = htp_util::htp_convert_bstr_to_method(&*(*tx).request_method);
     bad_delim = 0;
     // Ignore whitespace after request method. The RFC allows
     // for only one SP, but then suggests any number of SP and HT
@@ -350,7 +349,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         // No, this looks like a HTTP/0.9 request.
         (*tx).is_protocol_0_9 = 1;
         (*tx).request_protocol_number = Protocol::V0_9;
-        if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32 {
+        if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
             htp_log!(
                 connp,
                 htp_log_level_t::HTP_LOG_WARNING,
@@ -405,7 +404,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         // No, this looks like a HTTP/0.9 request.
         (*tx).is_protocol_0_9 = 1;
         (*tx).request_protocol_number = Protocol::V0_9;
-        if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32 {
+        if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
             htp_log!(
                 connp,
                 htp_log_level_t::HTP_LOG_WARNING,
@@ -424,7 +423,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         return Status::ERROR;
     }
     (*tx).request_protocol_number = htp_parsers::htp_parse_protocol((*tx).request_protocol);
-    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN as u32
+    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN
         && (*tx).request_protocol_number == Protocol::INVALID
     {
         htp_log!(

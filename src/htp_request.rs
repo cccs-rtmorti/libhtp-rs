@@ -286,7 +286,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_CHECK(
     // not be a request body, but first we need to wait to see the
     // response in order to determine if the tunneling request
     // was a success.
-    if (*(*connp).in_tx).request_method_number == htp_method_t::HTP_M_CONNECT as u32 {
+    if (*(*connp).in_tx).request_method_number == htp_method_t::HTP_M_CONNECT {
         (*connp).in_state = Some(
             htp_connp_REQ_CONNECT_WAIT_RESPONSE
                 as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
