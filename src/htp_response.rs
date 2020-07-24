@@ -1048,7 +1048,9 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 return Status::OK;
             }
-            htp_util::htp_chomp(data, &mut len);
+            let s = std::slice::from_raw_parts(data as *const u8, len);
+            let s = htp_util::htp_chomp(&s);
+            len = s.len();
             // Check for header folding.
             if !data.is_null()
                 && !htp_util::htp_connp_is_line_folded(std::slice::from_raw_parts(data, len))
@@ -1265,7 +1267,10 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                 (*(*connp).out_tx).response_message = 0 as *mut bstr::bstr_t
             }
             // Process response line.
-            let chomp_result: i32 = htp_util::htp_chomp(data, &mut len);
+            let s = std::slice::from_raw_parts(data as *const u8, len);
+            let s = htp_util::htp_chomp(&s);
+            let chomp_result = len - s.len();
+            len = s.len();
             // If the response line is invalid, determine if it _looks_ like
             // a response line. If it does not look like a line, process the
             // data as a response body because that is what browsers do.
@@ -1276,7 +1281,7 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                 let rc: Status = htp_transaction::htp_tx_res_process_body_data_ex(
                     (*connp).out_tx,
                     data as *const core::ffi::c_void,
-                    len.wrapping_add(chomp_result as usize),
+                    len.wrapping_add(chomp_result),
                 );
                 if rc != Status::OK {
                     return rc;

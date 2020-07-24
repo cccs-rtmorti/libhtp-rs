@@ -122,7 +122,9 @@ pub unsafe extern "C" fn htp_parse_request_header_generic(
     let mut name_end: usize = 0;
     let mut value_start: usize = 0;
     let mut value_end: usize = 0;
-    htp_util::htp_chomp(data, &mut len);
+    let s = std::slice::from_raw_parts(data as *const u8, len);
+    let s = htp_util::htp_chomp(&s);
+    len = s.len();
     name_start = 0;
     // Look for the colon.
     let mut colon_pos: usize = 0;

@@ -529,7 +529,9 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_LENGTH(
             }
             (*(*connp).in_tx).request_message_len =
                 ((*(*connp).in_tx).request_message_len as u64).wrapping_add(len as u64) as i64;
-            htp_util::htp_chomp(data, &mut len);
+            let s = std::slice::from_raw_parts(data as *const u8, len);
+            let s = htp_util::htp_chomp(&s);
+            len = s.len();
             (*connp).in_chunked_length = htp_util::htp_parse_chunked_length(data, len);
             htp_connp_req_clear_buffer(connp);
             // Handle chunk length.
@@ -747,7 +749,9 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 // We've seen all the request headers.
                 return htp_transaction::htp_tx_state_request_headers((*connp).in_tx);
             }
-            htp_util::htp_chomp(data, &mut len);
+            let s = std::slice::from_raw_parts(data as *const u8, len);
+            let s = htp_util::htp_chomp(&s);
+            len = s.len();
             // Check for header folding.
             if !data.is_null()
                 && !htp_util::htp_connp_is_line_folded(std::slice::from_raw_parts(data, len))
@@ -914,7 +918,9 @@ pub unsafe extern "C" fn htp_connp_REQ_LINE_complete(
         return Status::OK;
     }
     // Process request line.
-    htp_util::htp_chomp(data, &mut len);
+    let s = std::slice::from_raw_parts(data as *const u8, len);
+    let s = htp_util::htp_chomp(&s);
+    len = s.len();
     (*(*connp).in_tx).request_line = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
     if (*(*connp).in_tx).request_line.is_null() {
         return Status::ERROR;

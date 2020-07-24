@@ -50,53 +50,13 @@ fn unsize<T>(x: &[T]) -> &[T] {
 
 #[test]
 fn Chomp() {
-    unsafe {
-        let data: [u8; 100] = [0; 100];
-        let mut len: usize;
-        let mut result: i32;
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("test\r\n"));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(2, result);
-        assert_eq!(4, len);
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("test\r\n\n"));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(2, result);
-        assert_eq!(4, len);
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("test\r\n\r\n"));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(2, result);
-        assert_eq!(4, len);
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("te\nst"));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(0, result);
-        assert_eq!(5, len);
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("foo\n"));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(1, result);
-        assert_eq!(3, len);
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!("arfarf"));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(0, result);
-        assert_eq!(6, len);
-
-        libc::strcpy(data.as_ptr() as *mut i8, cstr!(""));
-        len = libc::strlen(data.as_ptr() as *mut i8);
-        result = htp_chomp(data.as_ptr() as *mut u8, &mut len);
-        assert_eq!(0, result);
-        assert_eq!(0, len);
-    }
+    assert_eq!(htp_chomp(b"test\r\n"), b"test");
+    assert_eq!(htp_chomp(b"test\r\n\n"), b"test");
+    assert_eq!(htp_chomp(b"test\r\n\r\n"), b"test");
+    assert_eq!(htp_chomp(b"te\nst"), b"te\nst");
+    assert_eq!(htp_chomp(b"foo\n"), b"foo");
+    assert_eq!(htp_chomp(b"arfarf"), b"arfarf");
+    assert_eq!(htp_chomp(b""), b"");
 }
 
 #[test]

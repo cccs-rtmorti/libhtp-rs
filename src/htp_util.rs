@@ -224,32 +224,17 @@ pub fn htp_is_token(c: u8) -> bool {
 /// Remove all line terminators (LF, CR or CRLF) from
 /// the end of the line provided as input.
 ///
-/// Returns 0 if nothing was removed, 1 if one or more LF characters were removed, or
-///         2 if one or more CR and/or LF characters were removed.
-pub unsafe fn htp_chomp(data: *mut u8, len: *mut usize) -> i32 {
-    let mut r: i32 = 0;
-    // Loop until there's no more stuff in the buffer
-    while *len > 0 {
-        // Try one LF first
-        if *data.offset((*len).wrapping_sub(1) as isize) == '\n' as u8 {
-            *len = (*len).wrapping_sub(1);
-            r = 1;
-            if *len == 0 {
-                return r;
-            }
-            // A CR is allowed before LF
-            if *data.offset((*len).wrapping_sub(1) as isize) == '\r' as u8 {
-                *len = (*len).wrapping_sub(1);
-                r = 2
-            }
-        } else if *data.offset((*len).wrapping_sub(1) as isize) == '\r' as u8 {
-            *len = (*len).wrapping_sub(1);
-            r = 1
+/// Returns a slice with all line terminators removed
+pub fn htp_chomp<'a>(mut data: &'a [u8]) -> &'a [u8] {
+    loop {
+        let last_char = data.last();
+        if last_char == Some(&('\n' as u8)) || last_char == Some(&('\r' as u8)) {
+            data = &data[..data.len() - 1];
         } else {
-            return r;
+            break;
         }
     }
-    r
+    data
 }
 
 /// Is character a white space character?
