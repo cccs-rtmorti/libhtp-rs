@@ -2285,38 +2285,6 @@ fn Table_Misc() {
 }
 
 #[test]
-fn Util_ExtractQuotedString() {
-    unsafe {
-        let mut s: *mut bstr_t = bstr_alloc(0);
-        let mut end_offset = 0;
-
-        let rc: Status = htp_extract_quoted_string_as_bstr(
-            cstr!("\"test\"") as *mut u8,
-            6,
-            &mut s,
-            &mut end_offset,
-        );
-        assert_eq!(Status::OK, rc);
-        assert!(!s.is_null());
-        assert_eq!(0, bstr_cmp_str(s, "test"));
-        assert_eq!(5, end_offset);
-        bstr_free(s);
-
-        let rc = htp_extract_quoted_string_as_bstr(
-            cstr!("\"te\\\"st\"") as *mut u8,
-            8,
-            &mut s,
-            &mut end_offset,
-        );
-        assert_eq!(Status::OK, rc);
-        assert!(!s.is_null());
-        assert_eq!(0, bstr_cmp_str(s, "te\"st"));
-        assert_eq!(7, end_offset);
-        bstr_free(s);
-    }
-}
-
-#[test]
 fn Util_NormalizeUriPath() {
     let mut s = bstr_t::from("/a/b/c/./../../g");
     htp_normalize_uri_path_inplace(&mut s);

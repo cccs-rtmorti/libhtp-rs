@@ -2,6 +2,12 @@ use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
 
+use nom::{
+    bytes::complete::{tag, take_until, take_while},
+    sequence::tuple,
+    IResult,
+};
+
 /// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
 /// function will only understand a properly formatted protocol information. It does
 /// not try to be flexible.
@@ -55,34 +61,30 @@ pub unsafe extern "C" fn htp_parse_status(status: *const bstr::bstr_t) -> i32 {
 }
 
 /// Parses Digest Authorization request header.
-pub unsafe extern "C" fn htp_parse_authorization_digest(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    auth_header: *const htp_transaction::htp_header_t,
-) -> Status {
+fn htp_parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'a [u8], Vec<u8>> {
     // Extract the username
-    let i: i32 = bstr::bstr_index_of((*auth_header).value, "username=");
-    if i == -1 {
-        return Status::DECLINED;
+    let (mut remaining_input, _) = tuple((
+        take_until("username="),
+        tag("username="),
+        take_while(|c: u8| c.is_ascii_whitespace()), // allow leading whitespace
+        tag("\""), // First character after LWS must be a double quote
+    ))(auth_header_value)?;
+    let mut result = Vec::new();
+    // Unescape any escaped double quotes and find the closing quote
+    loop {
+        let (remaining, (auth_header, _)) = tuple((take_until("\""), tag("\"")))(remaining_input)?;
+        remaining_input = remaining;
+        result.extend_from_slice(auth_header);
+        if result.last() == Some(&('\\' as u8)) {
+            // Remove the escape and push back the double quote
+            result.pop();
+            result.push('\"' as u8);
+        } else {
+            // We found the closing double quote!
+            break;
+        }
     }
-    let data: *mut u8 = bstr_ptr((*auth_header).value);
-    let len: usize = bstr_len((*auth_header).value);
-    let mut pos: usize = (i + 9) as usize;
-    // Ignore whitespace
-    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
-        pos = pos.wrapping_add(1)
-    }
-    if pos == len {
-        return Status::DECLINED;
-    }
-    if *data.offset(pos as isize) != '\"' as u8 {
-        return Status::DECLINED;
-    }
-    htp_util::htp_extract_quoted_string_as_bstr(
-        data.offset(pos as isize),
-        len.wrapping_sub(pos),
-        &mut (*(*connp).in_tx).request_auth_username,
-        0 as *mut usize,
-    )
+    Ok((remaining_input, result))
 }
 
 /// Parses Basic Authorization request header.
@@ -142,11 +144,61 @@ pub unsafe extern "C" fn htp_parse_authorization(
     } else if (*(*auth_header).value).starts_with_nocase("digest") {
         // Digest authentication
         (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
-        return htp_parse_authorization_digest(connp, auth_header);
+        if let Ok((_, auth_username)) =
+            htp_parse_authorization_digest((*(*auth_header).value).as_slice())
+        {
+            if (*(*connp).in_tx).request_auth_username.is_null() {
+                (*(*connp).in_tx).request_auth_username = bstr::bstr_dup_str(auth_username);
+                if (*(*connp).in_tx).request_auth_username.is_null() {
+                    return Status::ERROR;
+                }
+            } else {
+                (*(*(*connp).in_tx).request_auth_username).clear();
+                (*(*(*connp).in_tx).request_auth_username).add(auth_username);
+                return Status::OK;
+            }
+        }
+        return Status::DECLINED;
     } else {
         // Unrecognized authentication method
         (*(*connp).in_tx).request_auth_type =
             htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
     }
     Status::OK
+}
+
+#[test]
+fn AuthDigest() {
+    assert_eq!(
+        b"ivan\"r\"".to_vec(),
+        htp_parse_authorization_digest(b"   username=   \"ivan\\\"r\\\"\"")
+            .unwrap()
+            .1
+    );
+    assert_eq!(
+        b"ivan\"r\"".to_vec(),
+        htp_parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"")
+            .unwrap()
+            .1
+    );
+    assert_eq!(
+        b"ivan\"r\"".to_vec(),
+        htp_parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"   ")
+            .unwrap()
+            .1
+    );
+    assert_eq!(
+        b"ivanr".to_vec(),
+        htp_parse_authorization_digest(b"username=\"ivanr\"   ")
+            .unwrap()
+            .1
+    );
+    assert_eq!(
+        b"ivanr".to_vec(),
+        htp_parse_authorization_digest(b"username=   \"ivanr\"   ")
+            .unwrap()
+            .1
+    );
+    assert!(htp_parse_authorization_digest(b"username=ivanr\"   ").is_err()); //Missing opening quote
+    assert!(htp_parse_authorization_digest(b"username=\"ivanr   ").is_err()); //Missing closing quote
 }

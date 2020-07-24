@@ -2576,3 +2576,24 @@ fn ResponsesCut() {
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
     }
 }
+
+#[test]
+fn AuthDigest_EscapedQuote() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("100-auth-digest-escaped-quote.t").is_ok());
+
+        let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
+        assert!(!tx.is_null());
+
+        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+
+        assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
+
+        assert!(!(*tx).request_auth_username.is_null());
+        dbg!(&*(*tx).request_auth_username);
+        assert_eq!(0, bstr_cmp_str((*tx).request_auth_username, "ivan\"r\""));
+
+        assert!((*tx).request_auth_password.is_null());
+    }
+}
