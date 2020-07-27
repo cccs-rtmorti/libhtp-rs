@@ -1647,52 +1647,41 @@ pub unsafe extern "C" fn htp_mpartp_parse(
     }
     Status::OK
 }
-
-unsafe extern "C" fn htp_mpartp_validate_boundary(
-    boundary: *mut bstr::bstr_t,
-    flags: *mut MultipartFlags,
-) {
-    //   RFC 1341:
-    //
-    //    The only mandatory parameter for the multipart  Content-Type
-    //    is  the  boundary  parameter,  which  consists  of  1  to 70
-    //    characters from a set of characters known to be very  robust
-    //    through  email  gateways,  and  NOT ending with white space.
-    //    (If a boundary appears to end with white  space,  the  white
-    //    space  must be presumed to have been added by a gateway, and
-    //    should  be  deleted.)   It  is  formally  specified  by  the
-    //    following BNF:
-    //
-    //    boundary := 0*69<bchars> bcharsnospace
-    //
-    //    bchars := bcharsnospace / " "
-    //
-    //    bcharsnospace :=    DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_"
-    //                          / "," / "-" / "." / "/" / ":" / "=" / "?"
-    //
-    //    Chrome: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD
-    //    Firefox: Content-Type: multipart/form-data; boundary=---------------------------21071316483088
-    //       MSIE: Content-Type: multipart/form-data; boundary=---------------------------7dd13e11c0452
-    //      Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
-    //     Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
-    let data: *const u8 = bstr_ptr(boundary);
-    let len: usize = bstr_len(boundary);
+/// Validates a multipart boundary according to RFC 1341:
+///
+///    The only mandatory parameter for the multipart  Content-Type
+///    is  the  boundary  parameter,  which  consists  of  1  to 70
+///    characters from a set of characters known to be very  robust
+///    through  email  gateways,  and  NOT ending with white space.
+///    (If a boundary appears to end with white  space,  the  white
+///    space  must be presumed to have been added by a gateway, and
+///    should  be  deleted.)   It  is  formally  specified  by  the
+///    following BNF:
+///
+///    boundary := 0*69<bchars> bcharsnospace
+///
+///    bchars := bcharsnospace / " "
+///
+///    bcharsnospace :=    DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_"
+///                          / "," / "-" / "." / "/" / ":" / "=" / "?"
+///
+///    Chrome: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD
+///    Firefox: Content-Type: multipart/form-data; boundary=---------------------------21071316483088
+///    MSIE: Content-Type: multipart/form-data; boundary=---------------------------7dd13e11c0452
+///    Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
+///    Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
+fn htp_mpartp_validate_boundary(boundary: &[u8], flags: &mut MultipartFlags) {
     // The RFC allows up to 70 characters. In real life,
     // boundaries tend to be shorter.
-    if len == 0 || len > 70 {
+    if boundary.len() == 0 || boundary.len() > 70 {
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
     // Check boundary characters. This check is stricter than the
     // RFC, which seems to allow many separator characters.
-    let mut pos: usize = 0;
-    while pos < len {
-        if !(*data.offset(pos as isize) >= '0' as u8 && *data.offset(pos as isize) <= '9' as u8
-            || *data.offset(pos as isize) >= 'a' as u8 && *data.offset(pos as isize) <= 'z' as u8
-            || *data.offset(pos as isize) >= 'A' as u8 && *data.offset(pos as isize) <= 'Z' as u8
-            || *data.offset(pos as isize) == '-' as u8)
-        {
-            match *data.offset(pos as isize) as i32 {
-                39 | 40 | 41 | 43 | 95 | 44 | 46 | 47 | 58 | 61 | 63 => {
+    for byte in boundary {
+        if !byte.is_ascii_alphanumeric() && *byte != '-' as u8 {
+            match *byte as char {
+                '\'' | '(' | ')' | '+' | '_' | ',' | '.' | '/' | ':' | '=' | '?' => {
                     // These characters are allowed by the RFC, but not common.
                     *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
                 }
@@ -1702,7 +1691,6 @@ unsafe extern "C" fn htp_mpartp_validate_boundary(
                 }
             }
         }
-        pos = pos.wrapping_add(1)
     }
 }
 
@@ -1886,7 +1874,7 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
     }
     // Validate boundary characters.
-    htp_mpartp_validate_boundary(*boundary, flags);
+    htp_mpartp_validate_boundary(&(**boundary).as_slice(), &mut *flags);
     // Correlate with the MIME type. This might be a tad too
     // sensitive because it may catch non-browser access with sloppy
     // implementations, but let's go with it for now.
