@@ -1753,19 +1753,14 @@ fn DecodingTest_DecodePathInplace24_CompressSeparators() {
 
 #[test]
 fn DecodingTest_InvalidUtf8() {
+    let mut i = bstr_t::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec());
     unsafe {
         let test = DecodingTest::new();
-        let i: *mut bstr_t = bstr_dup_str(b"\xf1.");
-        let e: *mut bstr_t = bstr_dup_str("?.");
-        htp_utf8_decode_path_inplace(
-            (*test.cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize],
-            test.tx,
-            i,
-        );
-        assert_eq!(bstr_cmp(i, e), 0);
-        bstr_free(e);
-        bstr_free(i);
+        (*test.cfg)
+            .set_utf8_convert_bestfit(htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
+        utf8_decode_and_validate_path_inplace(&mut *test.tx, &mut i);
     }
+    assert_eq!(i.cmp("?.?}abcd"), Ordering::Equal);
 }
 
 struct UrlEncodedParserTest {

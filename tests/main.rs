@@ -1823,7 +1823,6 @@ fn PathUtf8_Decode_Invalid() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-
         assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/Ristic?.txt"));
     }
 }

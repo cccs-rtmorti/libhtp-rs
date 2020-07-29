@@ -2,8 +2,8 @@ use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_config::htp_decoder_cfg_t;
 use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_hooks, htp_request, htp_transaction,
-    htp_utf8_decoder, Status,
+    bstr, htp_config, htp_connection_parser, htp_hooks, htp_request, htp_transaction, utf8_decoder,
+    Status,
 };
 use bitflags;
 use nom::{
@@ -868,207 +868,31 @@ fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
     Ok((input, decoded_byte))
 }
 
-/// Convert a Unicode codepoint into a single-byte, using best-fit
-/// mapping (as specified in the provided configuration structure).
-///
-/// Returns converted single byte
-fn bestfit_codepoint(cfg: htp_decoder_cfg_t, codepoint: u32) -> u8 {
-    // Is it a single-byte codepoint?
-    if codepoint < 0x100 {
-        return codepoint as u8;
-    }
-    // Our current implementation converts only the 2-byte codepoints.
-    if codepoint > 0xffff {
-        return cfg.bestfit_replacement_byte;
-    }
-    let p = cfg.bestfit_map;
-    // TODO Optimize lookup.
-    let mut index: usize = 0;
-    while index + 3 < p.len() {
-        let x: u32 = (((p[index] as i32) << 8 as i32) + p[index + 1] as i32) as u32;
-        if x == 0 {
-            return cfg.bestfit_replacement_byte;
-        }
-        if x == codepoint {
-            return p[index + 2];
-        }
-        // Move to the next triplet
-        index = index.wrapping_add(3)
-    }
-    cfg.bestfit_replacement_byte
-}
-
-/// Decode a UTF-8 encoded path. Overlong characters will be decoded, invalid
-/// characters will be left as-is. Best-fit mapping will be used to convert
-/// UTF-8 into a single-byte stream.
-pub unsafe fn htp_utf8_decode_path_inplace(
-    cfg: htp_decoder_cfg_t,
-    tx: *mut htp_transaction::htp_tx_t,
-    path: *mut bstr::bstr_t,
+/// Decode a UTF-8 encoded path. Replaces a possibly-invalid utf8 byte stream with
+/// an ascii stream. Overlong characters will be decoded and invalid characters will
+/// be replaced with the replacement byte specified in the cfg. Best-fit mapping will
+/// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
+/// be stored in the input path if the cfg indicates it
+pub fn utf8_decode_and_validate_path_inplace(
+    tx: &mut htp_transaction::htp_tx_t,
+    path: &mut bstr::bstr_t,
 ) {
-    if path.is_null() {
-        return;
-    }
-    let data: *mut u8 = bstr_ptr(path);
-    if data.is_null() {
-        return;
-    }
-    let len: usize = bstr_len(path);
-    let mut rpos: usize = 0;
-    let mut wpos: usize = 0;
-    let mut codepoint: u32 = 0;
-    let mut state: u32 = 0;
-    let mut counter: u32 = 0;
-    let mut seen_valid: u8 = 0;
-    while rpos < len && wpos < len {
-        counter = counter.wrapping_add(1);
-        match htp_utf8_decoder::htp_utf8_decode_allow_overlong(
-            &mut state,
-            &mut codepoint,
-            *data.offset(rpos as isize) as u32,
-        ) {
-            0 => {
-                if counter == 1 {
-                    // ASCII character, which we just copy.
-                    *data.offset(wpos as isize) = codepoint as u8;
-                    wpos = wpos.wrapping_add(1)
-                } else {
-                    // A valid UTF-8 character, which we need to convert.
-                    seen_valid = 1;
-                    // Check for overlong characters and set the flag accordingly.
-                    match counter {
-                        2 => {
-                            if codepoint < 0x80 {
-                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
-                            }
-                        }
-                        3 => {
-                            if codepoint < 0x800 {
-                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
-                            }
-                        }
-                        4 => {
-                            if codepoint < 0x10000 {
-                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
-                            }
-                        }
-                        _ => {}
-                    }
-                    // Special flag for half-width/full-width evasion.
-                    if codepoint >= 0xff00 && codepoint <= 0xffef {
-                        (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
-                    }
-                    // Use best-fit mapping to convert to a single byte.
-                    *data.offset(wpos as isize) = bestfit_codepoint(cfg, codepoint);
-                    wpos = wpos.wrapping_add(1)
-                }
-                // Advance over the consumed byte and reset the byte counter.
-                rpos = rpos.wrapping_add(1);
-                counter = 0
-            }
-            1 => {
-                // Invalid UTF-8 character.
-                (*tx).flags |= Flags::HTP_PATH_UTF8_INVALID;
-                // Is the server expected to respond with 400?
-                if cfg.utf8_invalid_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE {
-                    (*tx).response_status_expected_number = cfg.utf8_invalid_unwanted as i32
-                }
-                // Output the replacement byte, replacing one or more invalid bytes.
-                *data.offset(wpos as isize) = cfg.bestfit_replacement_byte;
-                wpos = wpos.wrapping_add(1);
-                // If the invalid byte was first in a sequence, consume it. Otherwise,
-                // assume it's the starting byte of the next character.
-                if counter == 1 {
-                    rpos = rpos.wrapping_add(1)
-                }
-                // Reset the decoder state and continue decoding.
-                state = 0;
-                codepoint = 0;
-                counter = 0
-            }
-            _ => {
-                // Keep going; the character is not yet formed.
-                rpos = rpos.wrapping_add(1)
-            }
-        }
-    }
-    // Did the input stream seem like a valid UTF-8 string?
-    if seen_valid != 0 && !(*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID) {
-        (*tx).flags |= Flags::HTP_PATH_UTF8_VALID
-    }
-    // Adjust the length of the string, because
-    // we're doing in-place decoding.
-    bstr::bstr_adjust_len(path, wpos);
-}
-
-/// Validate a path that is quite possibly UTF-8 encoded.
-pub unsafe fn htp_utf8_validate_path(tx: *mut htp_transaction::htp_tx_t, path: *mut bstr::bstr_t) {
-    let data: *mut u8 = bstr_ptr(path);
-    let len: usize = bstr_len(path);
-    let mut rpos: usize = 0;
-    let mut codepoint: u32 = 0;
-    let mut state: u32 = 0;
-    let mut counter: u32 = 0;
-    let mut seen_valid: u8 = 0;
-    while rpos < len {
-        counter = counter.wrapping_add(1);
-        match htp_utf8_decoder::htp_utf8_decode_allow_overlong(
-            &mut state,
-            &mut codepoint,
-            *data.offset(rpos as isize) as u32,
-        ) {
-            0 => {
-                // We have a valid character.
-                if counter > 1 {
-                    // A valid UTF-8 character, consisting of 2 or more bytes.
-                    seen_valid = 1;
-                    // Check for overlong characters and set the flag accordingly.
-                    match counter {
-                        2 => {
-                            if codepoint < 0x80 {
-                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
-                            }
-                        }
-                        3 => {
-                            if codepoint < 0x800 {
-                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
-                            }
-                        }
-                        4 => {
-                            if codepoint < 0x10000 {
-                                (*tx).flags |= Flags::HTP_PATH_UTF8_OVERLONG
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                // Special flag for half-width/full-width evasion.
-                if codepoint > 0xfeff && codepoint < 0x10000 {
-                    (*tx).flags |= Flags::HTP_PATH_HALF_FULL_RANGE
-                }
-                // Advance over the consumed byte and reset the byte counter.
-                rpos = rpos.wrapping_add(1);
-                counter = 0
-            }
-            1 => {
-                // Invalid UTF-8 character.
-                (*tx).flags |= Flags::HTP_PATH_UTF8_INVALID;
-                // Override the decoder state because we want to continue decoding.
-                state = 0;
-                // Advance over the consumed byte and reset the byte counter.
-                rpos = rpos.wrapping_add(1);
-                counter = 0
-            }
-            _ => {
-                // Keep going; the character is not yet formed.
-                rpos = rpos.wrapping_add(1)
-            }
-        }
-    }
-    // Did the input stream seem like a valid UTF-8 string?
-    if seen_valid != 0 && !(*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID) {
-        (*tx).flags |= Flags::HTP_PATH_UTF8_VALID
+    let cfg = unsafe {
+        (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
     };
+    let mut decoder = utf8_decoder::Utf8Decoder::new(cfg);
+    decoder.decode_and_validate(path.as_slice());
+    if cfg.utf8_convert_bestfit {
+        path.clear();
+        path.add(decoder.decoded_bytes.as_slice());
+    }
+    tx.flags |= decoder.flags;
+
+    if tx.flags.contains(Flags::HTP_PATH_UTF8_INVALID)
+        && cfg.utf8_invalid_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+    {
+        tx.response_status_expected_number = cfg.utf8_invalid_unwanted as i32;
+    }
 }
 
 /// Decode a %u-encoded character, using best-fit mapping as necessary. Path version.
@@ -1891,21 +1715,8 @@ pub unsafe fn htp_normalize_parsed_uri(
         // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
         // compress separators and convert backslashes.
         htp_decode_path_inplace(&mut *tx, &mut *(*normalized).path);
-        // Handle UTF-8 in the path.
-        if (*(*tx).cfg).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
-            .utf8_convert_bestfit
-        {
-            // Decode Unicode characters into a single-byte stream, using best-fit mapping.
-            htp_utf8_decode_path_inplace(
-                (*(*tx).cfg).decoder_cfgs
-                    [htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize],
-                tx,
-                (*normalized).path,
-            );
-        } else {
-            // No decoding, but try to validate the path as a UTF-8 stream.
-            htp_utf8_validate_path(tx, (*normalized).path);
-        }
+        // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
+        utf8_decode_and_validate_path_inplace(&mut *tx, &mut *(*normalized).path);
         // RFC normalization.
         htp_normalize_uri_path_inplace(&mut *(*normalized).path);
     }

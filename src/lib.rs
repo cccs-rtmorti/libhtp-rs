@@ -93,9 +93,9 @@ mod htp_response_generic;
 pub mod htp_table;
 pub mod htp_transaction;
 pub mod htp_urlencoded;
-mod htp_utf8_decoder;
 pub mod htp_util;
 pub mod list;
+mod utf8_decoder;
 pub mod lzma {
     pub mod LzmaDec;
 } // mod lzma
