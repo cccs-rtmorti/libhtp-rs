@@ -3,7 +3,7 @@ use crate::htp_transaction::Protocol;
 use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
 use nom::{
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take_while},
+    bytes::complete::{tag, tag_no_case, take_until, take_while},
     sequence::tuple,
     IResult,
 };
@@ -26,12 +26,6 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
         (version, leading.len() > 0 || trailing.len() > 0),
     ))
 }
-
-use nom::{
-    bytes::complete::{tag, take_until, take_while},
-    sequence::tuple,
-    IResult,
-};
 
 /// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
 /// function tries to be flexible, allowing whitespace before and after the forward slash,
