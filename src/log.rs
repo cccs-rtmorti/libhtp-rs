@@ -75,6 +75,7 @@ pub enum htp_log_code {
     REQUEST_INVALID_LWS_AFTER_NAME,
     LZMA_DECOMPRESSION_DISABLED,
     CONNECTION_ALREADY_OPEN,
+    PROTOCOL_CONTAINS_EXTRA_DATA,
 }
 
 /// Enumerates all log levels.

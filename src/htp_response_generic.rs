@@ -41,7 +41,8 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     if (*tx).response_protocol.is_null() {
         return Status::ERROR;
     }
-    (*tx).response_protocol_number = htp_parsers::htp_parse_protocol((*tx).response_protocol);
+    (*tx).response_protocol_number =
+        htp_parsers::htp_parse_protocol(&*(*tx).response_protocol, &mut *connp);
     // Ignore whitespace after the response protocol.
     while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
         pos = pos.wrapping_add(1)

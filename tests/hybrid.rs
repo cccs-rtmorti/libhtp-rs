@@ -655,6 +655,51 @@ fn RequestLineParsing2() {
 }
 
 #[test]
+fn RequestLineParsing3() {
+    unsafe {
+        let t = HybridParsingTest::new();
+        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        assert!(!tx.is_null());
+
+        // Feed data to the parser.
+
+        htp_tx_state_request_start(tx);
+        htp_tx_req_set_line(tx, "GET / HTTP  / 01.1");
+        htp_tx_state_request_line(tx);
+
+        // Check the results now.
+
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert_eq!(Protocol::V1_1, (*tx).request_protocol_number);
+        assert!(!(*tx).request_protocol.is_null());
+        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP  / 01.1"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+    }
+}
+
+#[test]
+fn RequestLineParsing4() {
+    unsafe {
+        let t = HybridParsingTest::new();
+        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        assert!(!tx.is_null());
+
+        // Feed data to the parser.
+
+        htp_tx_state_request_start(tx);
+        htp_tx_req_set_line(tx, "GET / HTTP  / 01.10");
+        htp_tx_state_request_line(tx);
+
+        // Check the results now.
+
+        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
+        assert!(!(*tx).request_protocol.is_null());
+        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP  / 01.10"));
+        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+    }
+}
+#[test]
 fn ParsedUriSupplied() {
     unsafe {
         let t = HybridParsingTest::new();

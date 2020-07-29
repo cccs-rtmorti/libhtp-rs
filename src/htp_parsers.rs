@@ -1,6 +1,31 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
+use nom::{
+    branch::alt,
+    bytes::complete::{tag, tag_no_case, take_while},
+    sequence::tuple,
+    IResult,
+};
+
+/// Extracts the version protocol from the input slice.
+///
+/// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains trailing and/or leading whitespace and/or leading zeros))
+pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], bool)> {
+    let (remaining, (_, _, leading, _, trailing, version, _)) = tuple((
+        htp_util::take_ascii_whitespace(),
+        tag_no_case("HTTP"),
+        htp_util::take_ascii_whitespace(),
+        tag("/"),
+        take_while(|c: u8| c.is_ascii_whitespace() || c == '0' as u8),
+        alt((tag(".9"), tag("1.0"), tag("1.1"))),
+        htp_util::take_ascii_whitespace(),
+    ))(input)?;
+    Ok((
+        remaining,
+        (version, leading.len() > 0 || trailing.len() > 0),
+    ))
+}
 
 use nom::{
     bytes::complete::{tag, take_until, take_while},
@@ -9,43 +34,38 @@ use nom::{
 };
 
 /// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
-/// function will only understand a properly formatted protocol information. It does
-/// not try to be flexible.
+/// function tries to be flexible, allowing whitespace before and after the forward slash,
+/// as well as allowing leading zeros in the version number. If such leading/trailing
+/// characters are discovered, however, a warning will be logged.
 ///
-/// Returns Protocol version or PROTOCOL_UNKNOWN.
-pub unsafe extern "C" fn htp_parse_protocol(protocol: *const bstr::bstr_t) -> Protocol {
-    if protocol.is_null() {
-        return Protocol::INVALID;
-    }
-    // TODO This function uses a very strict approach to parsing, whereas
-    //      browsers will typically be more flexible, allowing whitespace
-    //      before and after the forward slash, as well as allowing leading
-    //      zeroes in the numbers. We should be able to parse such malformed
-    //      content correctly (but emit a warning).
-    if bstr_len(protocol) == 8 {
-        let ptr: *mut u8 = bstr_ptr(protocol);
-        if *ptr.offset(0) == 'H' as u8
-            && *ptr.offset(1) == 'T' as u8
-            && *ptr.offset(2) == 'T' as u8
-            && *ptr.offset(3) == 'P' as u8
-            && *ptr.offset(4) == '/' as u8
-            && *ptr.offset(6) == '.' as u8
-        {
-            // Check the version numbers
-            if *ptr.offset(5) == '0' as u8 {
-                if *ptr.offset(7) == '9' as u8 {
-                    return Protocol::V0_9;
-                }
-            } else if *ptr.offset(5) == '1' as u8 {
-                if *ptr.offset(7) == '0' as u8 {
-                    return Protocol::V1_0;
-                } else if *ptr.offset(7) == '1' as u8 {
-                    return Protocol::V1_1;
-                }
-            }
+/// Returns Protocol version or invalid.
+pub fn htp_parse_protocol<'a>(
+    input: &'a [u8],
+    connp: &mut htp_connection_parser::htp_connp_t,
+) -> Protocol {
+    if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
+        if remaining.len() > 0 {
+            return Protocol::INVALID;
         }
+        if contains_trailing {
+            unsafe {
+                htp_log!(
+                    connp as *mut htp_connection_parser::htp_connp_t,
+                    htp_log_level_t::HTP_LOG_WARNING,
+                    htp_log_code::PROTOCOL_CONTAINS_EXTRA_DATA,
+                    "Protocol version contains leading and/or trailing whitespace and/or leading zeros"
+                )
+            };
+        }
+        match version {
+            b".9" => Protocol::V0_9,
+            b"1.0" => Protocol::V1_0,
+            b"1.1" => Protocol::V1_1,
+            _ => Protocol::INVALID,
+        }
+    } else {
+        Protocol::INVALID
     }
-    Protocol::INVALID
 }
 
 /// Determines the numerical value of a response status given as a string.

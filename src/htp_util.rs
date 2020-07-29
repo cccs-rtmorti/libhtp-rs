@@ -221,6 +221,10 @@ pub fn htp_is_token(c: u8) -> bool {
     true
 }
 
+pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| take_while(|c: u8| c.is_ascii_whitespace())(input)
+}
+
 /// Remove all line terminators (LF, CR or CRLF) from
 /// the end of the line provided as input.
 ///
@@ -2089,7 +2093,7 @@ pub unsafe fn htp_res_run_hook_body_data(
 fn content_type_header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         map(
-            tuple((take_while(|c: u8| c.is_ascii_whitespace()), is_not(";, "))),
+            tuple((take_ascii_whitespace(), is_not(";, "))),
             |(_, content_type)| content_type,
         )(input)
     }

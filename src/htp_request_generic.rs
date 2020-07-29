@@ -424,7 +424,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if (*tx).request_protocol.is_null() {
         return Status::ERROR;
     }
-    (*tx).request_protocol_number = htp_parsers::htp_parse_protocol((*tx).request_protocol);
+    (*tx).request_protocol_number =
+        htp_parsers::htp_parse_protocol(&*(*tx).request_protocol, &mut *connp);
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN
         && (*tx).request_protocol_number == Protocol::INVALID
     {
