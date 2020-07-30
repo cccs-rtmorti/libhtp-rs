@@ -1810,7 +1810,7 @@ pub unsafe fn htp_req_run_hook_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
     // Do not invoke callbacks with an empty data chunk
-    if !(*d).data.is_null() && (*d).len == 0 {
+    if !(*d).data().is_null() && (*d).len() == 0 {
         return Status::OK;
     }
     // Do not invoke callbacks without a transaction.
@@ -1839,10 +1839,11 @@ pub unsafe fn htp_req_run_hook_body_data(
             data: 0 as *const u8,
             len: 0,
         };
-        file_data.data = (*d).data;
-        file_data.len = (*d).len;
+        file_data.data = (*d).data();
+        file_data.len = (*d).len();
         file_data.file = (*connp).put_file;
-        (*file_data.file).len = ((*file_data.file).len as u64).wrapping_add((*d).len as u64) as i64;
+        (*file_data.file).len =
+            ((*file_data.file).len as u64).wrapping_add((*d).len() as u64) as i64;
         rc = htp_hooks::htp_hook_run_all(
             (*(*connp).cfg).hook_request_file_data,
             &mut file_data as *mut htp_file_data_t as *mut core::ffi::c_void,
@@ -1865,7 +1866,7 @@ pub unsafe fn htp_res_run_hook_body_data(
         return Status::ERROR;
     };
     // Do not invoke callbacks with an empty data chunk.
-    if !(*d).data.is_null() && (*d).len == 0 {
+    if !(*d).data().is_null() && (*d).len() == 0 {
         return Status::OK;
     }
     // Run transaction hooks first

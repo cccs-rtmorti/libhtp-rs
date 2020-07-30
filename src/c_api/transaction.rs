@@ -6,7 +6,7 @@ use crate::htp_request;
 use crate::htp_transaction;
 use crate::htp_util;
 use crate::Status;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 /// Creates a new transaction.
 #[no_mangle]
@@ -780,4 +780,68 @@ pub unsafe extern "C" fn htp_tx_state_response_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     htp_transaction::htp_tx_state_response_complete(tx)
+}
+
+/// Get the data's transaction.
+///
+/// Returns the transaction or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_data_tx(
+    data: *mut htp_transaction::htp_tx_data_t,
+) -> *mut htp_transaction::htp_tx_t {
+    if let Some(data) = data.as_ref() {
+        data.tx()
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+/// Get the data pointer.
+///
+/// Returns the data or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_data_data(
+    data: *const htp_transaction::htp_tx_data_t,
+) -> *const u8 {
+    if let Some(data) = data.as_ref() {
+        data.data()
+    } else {
+        std::ptr::null()
+    }
+}
+
+/// Get the length of the data.
+///
+/// Returns the length or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_data_len(data: *const htp_transaction::htp_tx_data_t) -> isize {
+    if let Some(data) = data.as_ref() {
+        data.len().try_into().unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get whether this is the last chunk of data.
+///
+/// Returns true if this is the last chunk of data or false otherwise.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_data_is_last(data: *const htp_transaction::htp_tx_data_t) -> bool {
+    if let Some(data) = data.as_ref() {
+        data.is_last()
+    } else {
+        false
+    }
+}
+
+/// Get whether this data is empty.
+///
+/// Returns true if data is NULL or zero-length.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_data_is_empty(data: *const htp_transaction::htp_tx_data_t) -> bool {
+    if let Some(data) = data.as_ref() {
+        data.is_empty()
+    } else {
+        true
+    }
 }

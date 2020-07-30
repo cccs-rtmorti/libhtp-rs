@@ -72,21 +72,54 @@ impl htp_param_t {
     }
 }
 
+#[derive(Debug, Clone)]
 /// This structure is used to pass transaction data (for example
 /// request and response body buffers) to callbacks.
-#[repr(C)]
-#[derive(Copy, Clone)]
 pub struct htp_tx_data_t {
     /// Transaction pointer.
-    pub tx: *mut htp_tx_t,
+    tx: *mut htp_tx_t,
     /// Pointer to the data buffer.
-    pub data: *const u8,
+    data: *const u8,
     /// Buffer length.
-    pub len: usize,
+    len: usize,
     /// Indicator if this chunk of data is the last in the series. Currently
     /// used only by REQUEST_HEADER_DATA, REQUEST_TRAILER_DATA, RESPONSE_HEADER_DATA,
     /// and RESPONSE_TRAILER_DATA callbacks.
-    pub is_last: i32,
+    is_last: bool,
+}
+
+impl htp_tx_data_t {
+    pub unsafe fn new(tx: *mut htp_tx_t, data: *const u8, len: usize, is_last: bool) -> Self {
+        Self {
+            tx,
+            data,
+            len,
+            is_last,
+        }
+    }
+
+    pub fn tx(&self) -> *mut htp_tx_t {
+        self.tx
+    }
+
+    pub fn data(&self) -> *const u8 {
+        self.data
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_last(&self) -> bool {
+        self.is_last
+    }
+
+    /// Get whether this data is empty.
+    ///
+    /// Returns true if data is NULL or zero-length.
+    pub fn is_empty(&self) -> bool {
+        self.data().is_null() || self.len() == 0
+    }
 }
 
 /// Enumerates the possible request and response body codings.
@@ -919,16 +952,8 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
     // Keep track of the body length.
     (*tx).request_entity_len = ((*tx).request_entity_len as u64).wrapping_add(len as u64) as i64;
     // Send data to the callbacks.
-    let mut d: htp_tx_data_t = htp_tx_data_t {
-        tx: 0 as *mut htp_tx_t,
-        data: 0 as *const u8,
-        len: 0,
-        is_last: 0,
-    };
-    d.tx = tx;
-    d.data = data as *mut u8;
-    d.len = len;
-    let rc: Status = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut d);
+    let mut data = htp_tx_data_t::new(tx, data as *mut u8, len, false);
+    let rc: Status = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut data);
     if rc != Status::OK {
         htp_error!(
             (*tx).connp,
@@ -1126,24 +1151,29 @@ unsafe fn htp_timer_track(
 }
 
 unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
-    mut d: *mut htp_tx_data_t,
+    d: *mut htp_tx_data_t,
 ) -> Status {
-    if d.is_null() {
+    let d = if let Some(d) = d.as_mut() {
+        d
+    } else {
         return Status::ERROR;
-    }
+    };
+    let tx = if let Some(tx) = d.tx.as_mut() {
+        tx
+    } else {
+        return Status::ERROR;
+    };
     // Keep track of actual response body length.
-    (*(*d).tx).response_entity_len =
-        ((*(*d).tx).response_entity_len as u64).wrapping_add((*d).len as u64) as i64;
+    tx.response_entity_len = (tx.response_entity_len as u64).wrapping_add(d.len() as u64) as i64;
     // Invoke all callbacks.
-    let rc: Status = htp_util::htp_res_run_hook_body_data((*(*d).tx).connp, d);
+    let rc: Status = htp_util::htp_res_run_hook_body_data(tx.connp, d);
     if rc != Status::OK {
         return Status::ERROR;
     }
-    (*(*(*(*d).tx).connp).out_decompressor).nb_callbacks = (*(*(*(*d).tx).connp).out_decompressor)
-        .nb_callbacks
-        .wrapping_add(1);
+    (*(*tx.connp).out_decompressor).nb_callbacks =
+        (*(*tx.connp).out_decompressor).nb_callbacks.wrapping_add(1);
 
-    if (*(*(*(*d).tx).connp).out_decompressor)
+    if (*(*tx.connp).out_decompressor)
         .nb_callbacks
         .wrapping_rem(256)
         == 0
@@ -1155,38 +1185,37 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
         libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
         // sanity check for race condition if system time changed
         if htp_timer_track(
-            &mut (*(*(*(*d).tx).connp).out_decompressor).time_spent,
+            &mut (*(*tx.connp).out_decompressor).time_spent,
             &mut after,
-            &mut (*(*(*(*d).tx).connp).out_decompressor).time_before,
+            &mut (*(*tx.connp).out_decompressor).time_before,
         ) == Status::OK
         {
             // updates last tracked time
-            (*(*(*(*d).tx).connp).out_decompressor).time_before = after;
-            if (*(*(*(*d).tx).connp).out_decompressor).time_spent
-                > (*(*(*(*d).tx).connp).cfg).compression_time_limit
+            (*(*tx.connp).out_decompressor).time_before = after;
+            if (*(*tx.connp).out_decompressor).time_spent
+                > (*(*tx.connp).cfg).compression_time_limit
             {
                 htp_error!(
-                    (*(*d).tx).connp,
+                    tx.connp,
                     htp_log_code::COMPRESSION_BOMB,
                     format!(
                         "Compression bomb: spent {} us decompressing",
-                        (*(*(*(*d).tx).connp).out_decompressor).time_spent
+                        (*(*tx.connp).out_decompressor).time_spent
                     )
                 );
                 return Status::ERROR;
             }
         }
     }
-    if (*(*d).tx).response_entity_len > (*(*(*(*d).tx).connp).cfg).compression_bomb_limit as i64
-        && (*(*d).tx).response_entity_len > 2048 * (*(*d).tx).response_message_len
+    if tx.response_entity_len > (*(*tx.connp).cfg).compression_bomb_limit as i64
+        && tx.response_entity_len > 2048 * tx.response_message_len
     {
         htp_error!(
-            (*(*d).tx).connp,
+            tx.connp,
             htp_log_code::COMPRESSION_BOMB,
             format!(
                 "Compression bomb: decompressed {} bytes out of {}",
-                (*(*d).tx).response_entity_len,
-                (*(*d).tx).response_message_len
+                tx.response_entity_len, tx.response_message_len
             )
         );
         return Status::ERROR;
@@ -1236,16 +1265,7 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
     }
     // NULL data is allowed in this private function; it's
     // used to indicate the end of response body.
-    let mut d: htp_tx_data_t = htp_tx_data_t {
-        tx: 0 as *mut htp_tx_t,
-        data: 0 as *const u8,
-        len: 0,
-        is_last: 0,
-    };
-    d.tx = tx;
-    d.data = data as *mut u8;
-    d.len = len;
-    d.is_last = 0;
+    let mut d = htp_tx_data_t::new(tx, data as *const u8, len, false);
     // Keep track of body size before decompression.
     (*tx).response_message_len =
         ((*tx).response_message_len as u64).wrapping_add(d.len as u64) as i64;

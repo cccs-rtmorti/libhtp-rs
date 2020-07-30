@@ -99,7 +99,7 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx
 unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
     d: *mut htp_tx_data_t,
 ) -> Status {
-    let user_data = htp_tx_user_data((*d).tx) as *mut HybridParsing_Get_User_Data;
+    let user_data = htp_tx_user_data((*d).tx()) as *mut HybridParsing_Get_User_Data;
 
     // Don't do anything if in errored state.
     if (*user_data).response_body_correctly_received == -1 {
@@ -108,9 +108,9 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
 
     match (*user_data).response_body_chunks_seen {
         0 => {
-            if (*d).len == 9
+            if (*d).len() == 9
                 && (libc::memcmp(
-                    (*d).data as *const core::ffi::c_void,
+                    (*d).data() as *const core::ffi::c_void,
                     cstr!("<h1>Hello") as *const core::ffi::c_void,
                     9,
                 ) == 0)
@@ -122,9 +122,9 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
             }
         }
         1 => {
-            if (*d).len == 1
+            if (*d).len() == 1
                 && (libc::memcmp(
-                    (*d).data as *const core::ffi::c_void,
+                    (*d).data() as *const core::ffi::c_void,
                     cstr!(" ") as *const core::ffi::c_void,
                     1,
                 ) == 0)
@@ -136,9 +136,9 @@ unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
             }
         }
         2 => {
-            if (*d).len == 11
+            if (*d).len() == 11
                 && (libc::memcmp(
-                    (*d).data as *const core::ffi::c_void,
+                    (*d).data() as *const core::ffi::c_void,
                     cstr!("World!</h1>") as *const core::ffi::c_void,
                     11,
                 ) == 0)

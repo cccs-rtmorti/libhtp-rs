@@ -257,39 +257,24 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     let mut callback_rc: Status = Status::DECLINED;
     // Pass-through the NULL chunk, which indicates the end of the stream.
     if (*drec).passthrough != 0 {
-        let mut d2: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
-            tx: 0 as *mut htp_transaction::htp_tx_t,
-            data: 0 as *const u8,
-            len: 0,
-            is_last: 0,
-        };
-        d2.tx = (*d).tx;
-        d2.data = (*d).data;
-        d2.len = (*d).len;
-        d2.is_last = (*d).is_last;
+        let mut d2 = (*d).clone();
         callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut d2);
         if callback_rc != Status::OK {
             return Status::ERROR;
         }
         return Status::OK;
     }
-    if (*d).data.is_null() {
+    if (*d).data().is_null() {
         // Prepare data for callback.
-        let mut dout: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
-            tx: 0 as *mut htp_transaction::htp_tx_t,
-            data: 0 as *const u8,
-            len: 0,
-            is_last: 0,
+        let mut dout = {
+            let len = (8192_usize).wrapping_sub((*drec).stream.avail_out as usize);
+            let data = if len > 0 {
+                (*drec).buffer
+            } else {
+                std::ptr::null()
+            };
+            htp_transaction::htp_tx_data_t::new((*d).tx(), data, len, (*d).is_last())
         };
-        dout.tx = (*d).tx;
-        // This is last call, so output uncompressed data so far
-        dout.len = (8192_usize).wrapping_sub((*drec).stream.avail_out as usize);
-        if dout.len > 0 {
-            dout.data = (*drec).buffer
-        } else {
-            dout.data = 0 as *const u8
-        }
-        dout.is_last = (*d).is_last;
         if !(*drec).super_0.next.is_null() && (*drec).zlib_initialized != 0 {
             return htp_gzip_decompressor_decompress(
                 (*drec).super_0.next as *mut htp_decompressor_gzip_t,
@@ -308,8 +293,8 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     'c_5645: loop
     // we'll be restarting the compressor
     {
-        let connp = (*(*d).tx).connp;
-        if consumed > (*d).len {
+        let connp = (*(*d).tx()).connp;
+        if consumed > (*d).len() {
             htp_error!(
                 connp,
                 htp_log_code::GZIP_DECOMPRESSION_FAILED,
@@ -317,24 +302,20 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             );
             return Status::ERROR;
         }
-        (*drec).stream.next_in = (*d).data.offset(consumed as isize) as *mut u8;
-        (*drec).stream.avail_in = (*d).len.wrapping_sub(consumed) as u32;
+        (*drec).stream.next_in = (*d).data().offset(consumed as isize) as *mut u8;
+        (*drec).stream.avail_in = (*d).len().wrapping_sub(consumed) as u32;
         while (*drec).stream.avail_in != 0 {
             // If there's no more data left in the
             // buffer, send that information out.
             if (*drec).stream.avail_out == 0 {
                 (*drec).crc = crc32((*drec).crc, (*drec).buffer, 8192);
                 // Prepare data for callback.
-                let mut d2_0: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
-                    tx: 0 as *mut htp_transaction::htp_tx_t,
-                    data: 0 as *const u8,
-                    len: 0,
-                    is_last: 0,
-                };
-                d2_0.tx = (*d).tx;
-                d2_0.data = (*drec).buffer;
-                d2_0.len = 8192;
-                d2_0.is_last = (*d).is_last;
+                let mut d2_0 = htp_transaction::htp_tx_data_t::new(
+                    (*d).tx(),
+                    (*drec).buffer,
+                    8192,
+                    (*d).is_last(),
+                );
                 if !(*drec).super_0.next.is_null() && (*drec).zlib_initialized != 0 {
                     callback_rc = htp_gzip_decompressor_decompress(
                         (*drec).super_0.next as *mut htp_decompressor_gzip_t,
@@ -367,8 +348,8 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         (*drec).stream.next_in as *const core::ffi::c_void,
                         consumed,
                     );
-                    (*drec).stream.next_in = (*d).data.offset(consumed as isize) as *mut u8;
-                    (*drec).stream.avail_in = (*d).len.wrapping_sub(consumed) as u32;
+                    (*drec).stream.next_in = (*d).data().offset(consumed as isize) as *mut u8;
+                    (*drec).stream.avail_in = (*d).len().wrapping_sub(consumed) as u32;
                     (*drec).header_len = ((*drec).header_len as usize).wrapping_add(consumed) as u8
                 }
                 if (*drec).header_len == 5 + 8 {
@@ -400,7 +381,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         &mut inprocessed as *mut usize,
                         lzma::LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
                         &mut status,
-                        (*(*(*d).tx).cfg).lzma_memlimit,
+                        (*(*(*d).tx()).cfg).lzma_memlimit,
                     );
                     (*drec).stream.avail_in =
                         ((*drec).stream.avail_in as usize).wrapping_sub(inprocessed) as u32;
@@ -460,16 +441,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 let len: usize = 8192_u32.wrapping_sub((*drec).stream.avail_out) as usize;
                 // Update CRC
                 // Prepare data for the callback.
-                let mut d2_1: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
-                    tx: 0 as *mut htp_transaction::htp_tx_t,
-                    data: 0 as *const u8,
-                    len: 0,
-                    is_last: 0,
-                };
-                d2_1.tx = (*d).tx;
-                d2_1.data = (*drec).buffer;
-                d2_1.len = len;
-                d2_1.is_last = (*d).is_last;
+                let mut d2_1 = htp_transaction::htp_tx_data_t::new(
+                    (*d).tx(),
+                    (*drec).buffer,
+                    len,
+                    (*d).is_last(),
+                );
                 if !(*drec).super_0.next.is_null() && (*drec).zlib_initialized != 0 {
                     callback_rc = htp_gzip_decompressor_decompress(
                         (*drec).super_0.next as *mut htp_decompressor_gzip_t,
@@ -505,23 +482,15 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     inflateEnd(&mut (*drec).stream);
                 }
                 // see if we want to restart the decompressor
-                if htp_gzip_decompressor_restart(drec, (*d).data, (*d).len, &mut consumed) == 1 {
+                if htp_gzip_decompressor_restart(drec, (*d).data(), (*d).len(), &mut consumed) == 1
+                {
                     continue 'c_5645;
                 }
                 (*drec).zlib_initialized = 0;
                 // all our inflate attempts have failed, simply
                 // pass the raw data on to the callback in case
                 // it's not compressed at all
-                let mut d2_2: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
-                    tx: 0 as *mut htp_transaction::htp_tx_t,
-                    data: 0 as *const u8,
-                    len: 0,
-                    is_last: 0,
-                };
-                d2_2.tx = (*d).tx;
-                d2_2.data = (*d).data;
-                d2_2.len = (*d).len;
-                d2_2.is_last = (*d).is_last;
+                let mut d2_2 = (*d).clone();
                 callback_rc =
                     (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_2);
                 if callback_rc != Status::OK {

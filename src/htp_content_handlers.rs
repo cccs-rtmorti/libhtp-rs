@@ -16,13 +16,13 @@ extern "C" {
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
-    let tx: *mut htp_transaction::htp_tx_t = (*d).tx;
-    if !(*d).data.is_null() {
+    let tx: *mut htp_transaction::htp_tx_t = (*d).tx();
+    if !(*d).data().is_null() {
         // Process one chunk of data.
         htp_urlencoded::htp_urlenp_parse_partial(
             (*tx).request_urlenp_body,
-            (*d).data as *const core::ffi::c_void,
-            (*d).len,
+            (*d).data() as *const core::ffi::c_void,
+            (*d).len(),
         );
     } else {
         // Finalize parsing.
@@ -128,17 +128,17 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
-    let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx;
+    let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx();
     // Check that we were not invoked again after the finalization.
     if (*(*tx).request_mpartp).gave_up_data == 1 {
         return Status::ERROR;
     }
-    if !(*d).data.is_null() {
+    if !(*d).data().is_null() {
         // Process one chunk of data.
         htp_multipart::htp_mpartp_parse(
             (*tx).request_mpartp,
-            (*d).data as *const core::ffi::c_void,
-            (*d).len,
+            (*d).data() as *const core::ffi::c_void,
+            (*d).len(),
         );
     } else {
         // Finalize parsing.

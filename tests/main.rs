@@ -844,8 +844,8 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len;
-        let data: &[u8] = slice::from_raw_parts((*d).data, len);
+        let len = (*d).len();
+        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
         match COUNTER {
             0 => {
                 if !((len == 11) && data == b"User-Agent:") {
@@ -884,7 +884,7 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -914,8 +914,8 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len;
-        let data: &[u8] = slice::from_raw_parts((*d).data, len);
+        let len = (*d).len();
+        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
         match COUNTER {
             0 => {
                 if !((len == 7) && (data == b"Cookie:")) {
@@ -942,7 +942,7 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -972,8 +972,8 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len;
-        let data: &[u8] = slice::from_raw_parts((*d).data, len);
+        let len = (*d).len();
+        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
         match COUNTER {
         0 => {
             if !((len == 5) && (data == b"Date:")) {
@@ -1012,7 +1012,7 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -1042,8 +1042,8 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
 ) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len;
-        let data: &[u8] = slice::from_raw_parts((*d).data, len);
+        let len = (*d).len();
+        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
         match COUNTER {
             0 => {
                 if !((len == 11) && (data == b"Set-Cookie:")) {
@@ -1086,7 +1086,7 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx, counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }

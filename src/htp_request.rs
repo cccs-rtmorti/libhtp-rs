@@ -64,26 +64,22 @@ pub type htp_time_t = libc::timeval;
 /// Returns HTP_OK, or a value returned from a callback.
 unsafe fn htp_connp_req_receiver_send_data(
     connp: *mut htp_connection_parser::htp_connp_t,
-    is_last: i32,
+    is_last: bool,
 ) -> Status {
     if (*connp).in_data_receiver_hook.is_null() {
         return Status::OK;
     }
-    let mut d: htp_transaction::htp_tx_data_t = htp_transaction::htp_tx_data_t {
-        tx: 0 as *mut htp_transaction::htp_tx_t,
-        data: 0 as *const u8,
-        len: 0,
-        is_last: 0,
-    };
-    d.tx = (*connp).in_tx_mut_ptr();
-    d.data = (*connp)
-        .in_current_data
-        .offset((*connp).in_current_receiver_offset as isize);
-    d.len = ((*connp).in_current_read_offset - (*connp).in_current_receiver_offset) as usize;
-    d.is_last = is_last;
+    let mut data = htp_transaction::htp_tx_data_t::new(
+        (*connp).in_tx_mut_ptr(),
+        (*connp)
+            .in_current_data
+            .offset((*connp).in_current_receiver_offset as isize),
+        ((*connp).in_current_read_offset - (*connp).in_current_receiver_offset) as usize,
+        is_last,
+    );
     let rc: Status = htp_hooks::htp_hook_run_all(
         (*connp).in_data_receiver_hook,
-        &mut d as *mut htp_transaction::htp_tx_data_t as *mut core::ffi::c_void,
+        &mut data as *mut htp_transaction::htp_tx_data_t as *mut core::ffi::c_void,
     );
     if rc != Status::OK {
         return rc;
@@ -115,7 +111,7 @@ pub unsafe fn htp_connp_req_receiver_finalize_clear(
     if (*connp).in_data_receiver_hook.is_null() {
         return Status::OK;
     }
-    let rc: Status = htp_connp_req_receiver_send_data(connp, 1);
+    let rc: Status = htp_connp_req_receiver_send_data(connp, true);
     (*connp).in_data_receiver_hook = 0 as *mut htp_hooks::htp_hook_t;
     rc
 }
@@ -1277,7 +1273,7 @@ pub unsafe fn htp_connp_req_data(
         if rc != Status::OK {
             // Do we need more data?
             if rc == Status::DATA || rc == Status::DATA_BUFFER {
-                htp_connp_req_receiver_send_data(connp, 0);
+                htp_connp_req_receiver_send_data(connp, false);
                 if rc == Status::DATA_BUFFER && htp_connp_req_buffer(connp) != Status::OK {
                     (*connp).in_status =
                         htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
