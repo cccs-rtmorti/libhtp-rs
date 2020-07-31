@@ -565,7 +565,7 @@ fn Bstr_UtilMemTrim() {
 
         let src = std::slice::from_raw_parts(data as *const u8, len);
         let b = bstr_t::from("0123456789");
-        assert_eq!(std::cmp::Ordering::Equal, b.cmp(src));
+        assert!(b.eq(src));
     }
 }
 

@@ -8,7 +8,6 @@ use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::*;
 use htp::htp_util::*;
 use htp::Status;
-use std::cmp::Ordering;
 use std::ffi::CString;
 use std::ops::Drop;
 
@@ -281,35 +280,29 @@ fn GetTest() {
 
         // Check request line data
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
+        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP/1.1"));
+        assert!((*(*tx).request_protocol).eq("HTTP/1.1"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/"));
 
         assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=1&q=2"));
+        assert!((*(*(*tx).parsed_uri).query).eq("p=1&q=2"));
 
         // Check parameters
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "q")
-                .unwrap()
-                .value
-                .cmp("2")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("1"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
+            .unwrap()
+            .value
+            .eq("2"));
 
         // Request headers
         htp_tx_req_set_header(tx, "Host", "www.example.com");
@@ -336,10 +329,10 @@ fn GetTest() {
 
         // Response line data
         htp_tx_res_set_status_line(tx, "HTTP/1.1 200 OK");
-        assert_eq!(0, bstr_cmp_str((*tx).response_protocol, "HTTP/1.1"));
+        assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert_eq!(200, (*tx).response_status_number);
-        assert_eq!(0, bstr_cmp_str((*tx).response_message, "OK"));
+        assert!((*(*tx).response_message).eq("OK"));
 
         // Response line complete
         htp_tx_state_response_line(tx);
@@ -418,20 +411,14 @@ fn PostUrlecodedTest() {
         htp_tx_state_request_complete(tx);
 
         // Check parameters
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "q")
-                .unwrap()
-                .value
-                .cmp("2")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("1"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
+            .unwrap()
+            .value
+            .eq("2"));
     }
 }
 
@@ -501,40 +488,29 @@ fn ParamCaseSensitivity() {
         htp_tx_state_request_line(tx);
 
         // Check the parameters.
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "q")
-                .unwrap()
-                .value
-                .cmp("2")
-        );
-        assert_eq!(
-            Ordering::Equal,
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("1"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("1"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
+            .unwrap()
+            .value
+            .eq("2"));
+        assert!(
             htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q")
                 .unwrap()
                 .value
-                .cmp("2")
+                .eq("2")
         );
-        assert_eq!(
-            Ordering::Equal,
+        assert!(
             htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q")
                 .unwrap()
                 .value
-                .cmp("2")
+                .eq("2")
         );
     }
 }
@@ -572,20 +548,14 @@ fn PostUrlecodedChunked() {
         htp_tx_state_request_complete(tx);
 
         // Check the parameters.
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "q")
-                .unwrap()
-                .value
-                .cmp("2")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("1"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
+            .unwrap()
+            .value
+            .eq("2"));
     }
 }
 
@@ -606,28 +576,22 @@ fn RequestLineParsing1() {
         // Request line complete
         htp_tx_state_request_line(tx);
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP/1.0"));
+        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
+        assert!((*(*tx).request_protocol).eq("HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=1&q=2"));
+        assert!((*(*(*tx).parsed_uri).query).eq("p=1&q=2"));
 
         // Check parameters
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "q")
-                .unwrap()
-                .value
-                .cmp("2")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("1"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
+            .unwrap()
+            .value
+            .eq("2"));
     }
 }
 
@@ -646,11 +610,11 @@ fn RequestLineParsing2() {
 
         // Check the results now.
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(1, (*tx).is_protocol_0_9);
         assert_eq!(Protocol::V0_9, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+        assert!((*(*tx).request_uri).eq("/"));
     }
 }
 
@@ -669,11 +633,11 @@ fn RequestLineParsing3() {
 
         // Check the results now.
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(Protocol::V1_1, (*tx).request_protocol_number);
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP  / 01.1"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+        assert!((*(*tx).request_protocol).eq("HTTP  / 01.1"));
+        assert!((*(*tx).request_uri).eq("/"));
     }
 }
 
@@ -692,11 +656,11 @@ fn RequestLineParsing4() {
 
         // Check the results now.
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP  / 01.10"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+        assert!((*(*tx).request_protocol).eq("HTTP  / 01.10"));
+        assert!((*(*tx).request_uri).eq("/"));
     }
 }
 #[test]
@@ -720,15 +684,15 @@ fn ParsedUriSupplied() {
 
         // Check the results now.
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert!(!(*tx).request_protocol.is_null());
         assert_eq!(Protocol::V1_0, (*tx).request_protocol_number);
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
+        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/123"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/123"));
     }
 }
 
@@ -761,16 +725,16 @@ fn TestRepeatCallbacks() {
 
         // Check request line data
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+        assert!((*(*tx).request_uri).eq("/"));
         assert!(!(*tx).request_protocol.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_protocol, "HTTP/1.0"));
+        assert!((*(*tx).request_protocol).eq("HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/"));
 
         // Request headers complete
         htp_tx_state_request_headers(tx);

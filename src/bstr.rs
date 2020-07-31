@@ -43,6 +43,11 @@ impl bstr_t {
         self.as_slice().cmp(other.as_ref())
     }
 
+    /// Return true if self is equal to other
+    pub fn eq<B: AsRef<[u8]>>(&self, other: B) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+
     /// Compare bstr with the given slice, ingnoring ascii case.
     pub fn cmp_nocase<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
         let lefts = &self.as_slice();
@@ -52,6 +57,11 @@ impl bstr_t {
         left.cmp(right)
     }
 
+    /// Return true if self is equal to other ignoring ascii case
+    pub fn eq_nocase<B: AsRef<[u8]>>(&self, other: B) -> bool {
+        self.cmp_nocase(other) == Ordering::Equal
+    }
+
     /// Case insensitive comparison between self and other, ignoring any zeros in self
     pub fn cmp_nocase_nozero<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
         let lefts = &self.as_slice();
@@ -59,6 +69,11 @@ impl bstr_t {
         let left = LowercaseNoZeroIterator::new(lefts);
         let right = LowercaseIterator::new(rights);
         left.cmp(right)
+    }
+
+    /// Return true if self is equal to other, ignoring ascii case and zeros in self
+    pub fn eq_nocase_nozero<B: AsRef<[u8]>>(&self, other: B) -> bool {
+        self.cmp_nocase_nozero(other) == Ordering::Equal
     }
 
     /// Extend this bstr with the given slice

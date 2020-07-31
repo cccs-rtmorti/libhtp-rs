@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-use htp::bstr::*;
 use htp::htp_config;
 use htp::htp_config::htp_decoder_ctx_t::*;
 use htp::htp_config::htp_server_personality_t::*;
@@ -14,7 +13,6 @@ use htp::htp_transaction::*;
 use htp::htp_util::*;
 use htp::log::*;
 use htp::Status;
-use std::cmp::Ordering;
 use std::env;
 use std::ffi::CString;
 use std::iter::IntoIterator;
@@ -283,19 +281,16 @@ fn Get() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
 
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=%20"));
+        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*(*tx).request_uri).eq("/?p=%20"));
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=%20"));
+        assert!((*(*(*tx).parsed_uri).query).eq("p=%20"));
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp(" ")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq(" "));
     }
 }
 
@@ -310,10 +305,10 @@ fn GetEncodedRelPath() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
 
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_hostname, "www.example.com"));
+        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*(*tx).request_hostname).eq("www.example.com"));
         assert!(!(*tx).parsed_uri.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/images.gif"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/images.gif"));
     }
 }
 
@@ -385,13 +380,10 @@ fn PostUrlencoded() {
             .as_ref()
             .expect("expected at least one transaction");
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("0123456789")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("0123456789"));
 
         assert_eq!((*tx).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx).response_progress, HTP_RESPONSE_COMPLETE);
@@ -421,13 +413,10 @@ fn PostUrlencodedChunked() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("0123456789")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("0123456789"));
         assert_eq!(25, (*tx).request_message_len);
         assert_eq!(12, (*tx).request_entity_len);
     }
@@ -523,22 +512,22 @@ fn HeaderHostParsing() {
         let tx1: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx1.is_null());
         assert!(!(*tx1).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx1).request_hostname, "www.example.com"));
+        assert!((*(*tx1).request_hostname).eq("www.example.com"));
 
         let tx2: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx2.is_null());
         assert!(!(*tx2).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx2).request_hostname, "www.example.com."));
+        assert!((*(*tx2).request_hostname).eq("www.example.com."));
 
         let tx3: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(2).unwrap() as *mut htp_tx_t;
         assert!(!tx3.is_null());
         assert!(!(*tx3).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx3).request_hostname, "www.example.com"));
+        assert!((*(*tx3).request_hostname).eq("www.example.com"));
 
         let tx4: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(3).unwrap() as *mut htp_tx_t;
         assert!(!tx4.is_null());
         assert!(!(*tx4).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx4).request_hostname, "www.example.com"));
+        assert!((*(*tx4).request_hostname).eq("www.example.com"));
     }
 }
 
@@ -570,7 +559,7 @@ fn FailedConnectRequest() {
 
         assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "CONNECT"));
+        assert!((*(*tx).request_method).eq("CONNECT"));
 
         assert_eq!(405, (*tx).response_status_number);
     }
@@ -631,7 +620,7 @@ fn SuccessfulConnectRequest() {
         //       HTP_DATA_OTHER, which is why the check below fails.
         //assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "CONNECT"));
+        assert!((*(*tx).request_method).eq("CONNECT"));
 
         assert_eq!(200, (*tx).response_status_number);
     }
@@ -670,20 +659,14 @@ fn Multipart() {
 
         assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "field1")
-                .unwrap()
-                .value
-                .cmp("0123456789")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "field2")
-                .unwrap()
-                .value
-                .cmp("9876543210")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "field1")
+            .unwrap()
+            .value
+            .eq("0123456789"));
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "field2")
+            .unwrap()
+            .value
+            .eq("9876543210"));
     }
 }
 
@@ -719,31 +702,28 @@ fn UrlEncoded() {
 
         assert!(0 != htp_tx_is_complete(tx));
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "POST"));
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=1&q=2"));
+        assert!((*(*tx).request_method).eq("POST"));
+        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
 
-        assert_eq!(
-            Ordering::Equal,
+        assert!(
             htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_BODY, "p")
                 .unwrap()
                 .value
-                .cmp("3")
+                .eq("3")
         );
 
-        assert_eq!(
-            Ordering::Equal,
+        assert!(
             htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_BODY, "q")
                 .unwrap()
                 .value
-                .cmp("4")
+                .eq("4")
         );
 
-        assert_eq!(
-            Ordering::Equal,
+        assert!(
             htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_BODY, "z")
                 .unwrap()
                 .value
-                .cmp("5")
+                .eq("5")
         );
     }
 }
@@ -766,14 +746,14 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx2));
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx2).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx2).request_hostname, "example.com"));
+        assert!((*(*tx2).request_hostname).eq("example.com"));
 
         let tx3: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(2).unwrap() as *mut htp_tx_t;
         assert!(!tx3.is_null());
         assert!(0 != htp_tx_is_complete(tx3));
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx3).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx3).request_hostname, "www.example.com"));
+        assert!((*(*tx3).request_hostname).eq("www.example.com"));
         assert_eq!(8001, (*tx3).request_port_number);
 
         let tx4: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(3).unwrap() as *mut htp_tx_t;
@@ -781,7 +761,7 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx4));
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx4).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx4).request_hostname, "www.example.com"));
+        assert!((*(*tx4).request_hostname).eq("www.example.com"));
         assert_eq!(8002, (*tx4).request_port_number);
 
         let tx5: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(4).unwrap() as *mut htp_tx_t;
@@ -789,7 +769,7 @@ fn AmbiguousHost() {
         assert!(0 != htp_tx_is_complete(tx5));
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx5).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx5).request_hostname, "www.example.com"));
+        assert!((*(*tx5).request_hostname).eq("www.example.com"));
         assert_eq!(80, (*tx5).request_port_number);
     }
 }
@@ -1145,30 +1125,24 @@ fn GetIPv6() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
 
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_str((*tx).request_uri, "http://[::1]:8080/?p=%20")
-        );
+        assert!((*(*tx).request_uri).eq("http://[::1]:8080/?p=%20"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).hostname, "[::1]"));
+        assert!((*(*(*tx).parsed_uri).hostname).eq("[::1]"));
         assert_eq!(8080, (*(*tx).parsed_uri).port_number);
 
         assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=%20"));
+        assert!((*(*(*tx).parsed_uri).query).eq("p=%20"));
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp(" ")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq(" "));
     }
 }
 
@@ -1185,7 +1159,7 @@ fn GetRequestLineNul() {
 
         assert!(!(*tx).request_uri.is_null());
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=%20"));
+        assert!((*(*tx).request_uri).eq("/?p=%20"));
     }
 }
 
@@ -1341,10 +1315,10 @@ fn AuthBasic() {
         assert_eq!(HTP_AUTH_BASIC, (*tx).request_auth_type);
 
         assert!(!(*tx).request_auth_username.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_auth_username, "ivanr"));
+        assert!((*(*tx).request_auth_username).eq("ivanr"));
 
         assert!(!(*tx).request_auth_password.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_auth_password, "secret"));
+        assert!((*(*tx).request_auth_password).eq("secret"));
     }
 }
 
@@ -1362,7 +1336,7 @@ fn AuthDigest() {
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
         assert!(!(*tx).request_auth_username.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_auth_username, "ivanr"));
+        assert!((*(*tx).request_auth_username).eq("ivanr"));
 
         assert!((*tx).request_auth_password.is_null());
     }
@@ -1380,7 +1354,7 @@ fn Unknown_MethodOnly() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "HELLO"));
+        assert!((*(*tx).request_method).eq("HELLO"));
 
         assert!((*tx).request_uri.is_null());
 
@@ -1563,18 +1537,15 @@ fn GetIPv6Invalid() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
 
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_str((*tx).request_uri, "http://[::1:8080/?p=%20")
-        );
+        assert!((*(*tx).request_uri).eq("http://[::1:8080/?p=%20"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).hostname, "[::1:8080"));
+        assert!((*(*(*tx).parsed_uri).hostname).eq("[::1:8080"));
     }
 }
 
@@ -1590,15 +1561,15 @@ fn InvalidPath() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
 
         assert!(!(*tx).request_uri.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "invalid/path?p=%20"));
+        assert!((*(*tx).request_uri).eq("invalid/path?p=%20"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "invalid/path"));
+        assert!((*(*(*tx).parsed_uri).path).eq("invalid/path"));
     }
 }
 
@@ -1724,7 +1695,7 @@ fn PathUtf8_Decode_Valid() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/Ristic.txt"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/Ristic.txt"));
     }
 }
 
@@ -1744,7 +1715,7 @@ fn PathUtf8_Decode_Overlong2() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
     }
 }
 
@@ -1764,7 +1735,7 @@ fn PathUtf8_Decode_Overlong3() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
     }
 }
 
@@ -1784,7 +1755,7 @@ fn PathUtf8_Decode_Overlong4() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
     }
 }
 
@@ -1805,7 +1776,7 @@ fn PathUtf8_Decode_Invalid() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/Ristic?.txt"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/Ristic?.txt"));
     }
 }
 
@@ -1825,7 +1796,7 @@ fn PathUtf8_Decode_FullWidth() {
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).path, "/&.txt"));
+        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
     }
 }
 
@@ -1843,19 +1814,19 @@ fn RequestCookies() {
         assert_eq!(3, (*(*tx).request_cookies).size());
 
         let mut res = &(*(*tx).request_cookies)[0];
-        assert_eq!(Ordering::Equal, res.0.cmp("p"));
+        assert!(res.0.eq("p"));
         assert!(!res.1.is_null());
-        assert_eq!(0, bstr_cmp_str(res.1, "1"));
+        assert!((*res.1).eq("1"));
 
         res = &(*(*tx).request_cookies)[1];
-        assert_eq!(Ordering::Equal, res.0.cmp("q"));
+        assert!(res.0.eq("q"));
         assert!(!res.1.is_null());
-        assert_eq!(0, bstr_cmp_str(res.1, "2"));
+        assert!((*res.1).eq("2"));
 
         res = &(*(*tx).request_cookies)[2];
-        assert_eq!(Ordering::Equal, res.0.cmp("z"));
+        assert!(res.0.eq("z"));
         assert!(!res.1.is_null());
-        assert_eq!(0, bstr_cmp_str(res.1, ""));
+        assert!((*res.1).eq(""));
     }
 }
 
@@ -1925,13 +1896,10 @@ fn PostChunkedSplitChunk() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp("0123456789")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq("0123456789"));
     }
 }
 
@@ -1946,10 +1914,7 @@ fn LongRequestLine1() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(
-            0,
-            bstr_cmp_str((*tx).request_uri, "/0123456789/0123456789/")
-        );
+        assert!((*(*tx).request_uri).eq("/0123456789/0123456789/"));
     }
 }
 
@@ -2242,7 +2207,7 @@ fn Put() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_hostname, "www.example.com"));
+        assert!((*(*tx).request_hostname).eq("www.example.com"));
     }
 }
 
@@ -2331,18 +2296,15 @@ fn IncorrectHostAmbiguousWarning() {
         assert!(!(*tx).parsed_uri_raw.is_null());
 
         assert!(!(*(*tx).parsed_uri_raw).port.is_null());
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri_raw).port, "443"));
+        assert!((*(*(*tx).parsed_uri_raw).port).eq("443"));
 
         assert!(!(*(*tx).parsed_uri_raw).hostname.is_null());
-        assert_eq!(
-            0,
-            bstr_cmp_str((*(*tx).parsed_uri_raw).hostname, "www.example.com")
-        );
+        assert!((*(*(*tx).parsed_uri_raw).hostname).eq("www.example.com"));
 
         assert_eq!(443, (*(*tx).parsed_uri_raw).port_number);
 
         assert!(!(*tx).request_hostname.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_hostname, "www.example.com"));
+        assert!((*(*tx).request_hostname).eq("www.example.com"));
 
         assert!(!(*tx).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
     }
@@ -2359,23 +2321,20 @@ fn GetWhitespace() {
         let tx: *mut htp_tx_t = *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, " GET"));
+        assert!((*(*tx).request_method).eq(" GET"));
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/?p=%20"));
+        assert!((*(*tx).request_uri).eq("/?p=%20"));
 
         assert!(!(*tx).parsed_uri.is_null());
 
         assert!(!(*(*tx).parsed_uri).query.is_null());
 
-        assert_eq!(0, bstr_cmp_str((*(*tx).parsed_uri).query, "p=%20"));
+        assert!((*(*(*tx).parsed_uri).query).eq("p=%20"));
 
-        assert_eq!(
-            Ordering::Equal,
-            htp_tx_req_get_param(&*(*tx).request_params, "p")
-                .unwrap()
-                .value
-                .cmp(" ")
-        );
+        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
+            .unwrap()
+            .value
+            .eq(" "));
     }
 }
 
@@ -2406,13 +2365,13 @@ fn RequestInvalid() {
         let mut tx: *mut htp_tx_t =
             *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "POST"));
+        assert!((*(*tx).request_method).eq("POST"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
         tx = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_NOT_STARTED, (*tx).response_progress);
     }
@@ -2430,9 +2389,9 @@ fn Http_0_9_MethodOnly() {
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         assert!(!(*tx).request_method.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
 
-        assert_eq!(0, bstr_cmp_str((*tx).request_uri, "/"));
+        assert!((*(*tx).request_uri).eq("/"));
 
         assert_eq!(1, (*tx).is_protocol_0_9);
     }
@@ -2524,12 +2483,12 @@ fn RequestsCut() {
         let mut tx: *mut htp_tx_t =
             *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         tx = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
     }
 }
@@ -2544,14 +2503,14 @@ fn ResponsesCut() {
         let mut tx: *mut htp_tx_t =
             *(*(*t.connp).conn).transactions.get(0).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
         tx = *(*(*t.connp).conn).transactions.get(1).unwrap() as *mut htp_tx_t;
         assert!(!tx.is_null());
-        assert_eq!(0, bstr_cmp_str((*tx).request_method, "GET"));
+        assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
@@ -2573,7 +2532,7 @@ fn AuthDigest_EscapedQuote() {
 
         assert!(!(*tx).request_auth_username.is_null());
         dbg!(&*(*tx).request_auth_username);
-        assert_eq!(0, bstr_cmp_str((*tx).request_auth_username, "ivan\"r\""));
+        assert!((*(*tx).request_auth_username).eq("ivan\"r\""));
 
         assert!((*tx).request_auth_password.is_null());
     }

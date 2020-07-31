@@ -2,7 +2,6 @@
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 use libc;
-use std::cmp::Ordering;
 use std::ffi::{CStr, CString};
 use std::io::Write;
 
@@ -508,7 +507,7 @@ fn ParseHostPort_1() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(valid);
 }
@@ -519,7 +518,7 @@ fn ParseHostPort_2() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(valid);
 }
@@ -530,7 +529,7 @@ fn ParseHostPort_3() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert_eq!(8001, port.unwrap().1.unwrap());
     assert!(valid);
 }
@@ -541,7 +540,7 @@ fn ParseHostPort_4() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert_eq!(8001, port.unwrap().1.unwrap());
     assert!(valid);
 }
@@ -552,7 +551,7 @@ fn ParseHostPort_5() {
     let e = bstr_t::from("www.example.com.");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(valid);
 }
@@ -563,7 +562,7 @@ fn ParseHostPort_6() {
     let e = bstr_t::from("www.example.com.");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert_eq!(8001, port.unwrap().1.unwrap());
     assert!(valid);
 }
@@ -574,7 +573,7 @@ fn ParseHostPort_7() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(!valid);
 }
@@ -585,7 +584,7 @@ fn ParseHostPort_8() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.unwrap().1.is_none());
     assert!(!valid);
 }
@@ -596,7 +595,7 @@ fn ParseHostPort_9() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.unwrap().1.is_none());
     assert!(!valid);
 }
@@ -607,7 +606,7 @@ fn ParseHostPort_10() {
     let e = bstr_t::from("www.example.com");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.unwrap().1.is_none());
     assert!(!valid);
 }
@@ -618,7 +617,7 @@ fn ParseHostPort_11() {
     let e = bstr_t::from("[::1]");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert_eq!(8080, port.unwrap().1.unwrap());
     assert!(valid);
 }
@@ -629,7 +628,7 @@ fn ParseHostPort_12() {
     let e = bstr_t::from("[::1]");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(!valid);
 }
@@ -640,7 +639,7 @@ fn ParseHostPort_13() {
     let e = bstr_t::from("[::1]");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(!valid);
 }
@@ -651,7 +650,7 @@ fn ParseHostPort_14() {
     let e = bstr_t::from("[::1");
     let (_, (host, port, valid)) = htp_parse_hostport(&mut i).unwrap();
 
-    assert_eq!(e.cmp_nocase(host), Ordering::Equal);
+    assert!(e.eq_nocase(host));
     assert!(port.is_none());
     assert!(!valid);
 }
@@ -897,7 +896,7 @@ fn ParseContentType_1() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -907,7 +906,7 @@ fn ParseContentType_2() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -917,7 +916,7 @@ fn ParseContentType_3() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -927,7 +926,7 @@ fn ParseContentType_4() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -937,7 +936,7 @@ fn ParseContentType_5() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -947,7 +946,7 @@ fn ParseContentType_6() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -957,7 +956,7 @@ fn ParseContentType_7() {
     let mut ct = bstr_t::new();
 
     assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
-    assert_eq!(ct.cmp(e), Ordering::Equal);
+    assert!(ct.eq(e));
 }
 
 #[test]
@@ -1760,7 +1759,7 @@ fn DecodingTest_InvalidUtf8() {
             .set_utf8_convert_bestfit(htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
         utf8_decode_and_validate_path_inplace(&mut *test.tx, &mut i);
     }
-    assert_eq!(i.cmp("?.?}abcd"), Ordering::Equal);
+    assert!(i.eq("?.?}abcd"));
 }
 
 struct UrlEncodedParserTest {
@@ -1823,10 +1822,7 @@ fn UrlencodedParser_EmptyKey1() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "&".as_ptr() as *const core::ffi::c_void, 1);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1837,10 +1833,7 @@ fn UrlencodedParser_EmptyKey2() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=&".as_ptr() as *const core::ffi::c_void, 2);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1851,10 +1844,7 @@ fn UrlencodedParser_EmptyKey3() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=1&".as_ptr() as *const core::ffi::c_void, 3);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("1")
-        );
+        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq("1"));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1865,10 +1855,7 @@ fn UrlencodedParser_EmptyKeyAndValue() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "=".as_ptr() as *const core::ffi::c_void, 1);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1879,10 +1866,7 @@ fn UrlencodedParser_OnePairEmptyValue() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p=".as_ptr() as *const core::ffi::c_void, 2);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1893,10 +1877,7 @@ fn UrlencodedParser_OnePair() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p=1".as_ptr() as *const core::ffi::c_void, 3);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("1")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq("1"));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1911,14 +1892,8 @@ fn UrlencodedParser_TwoPairs() {
             7,
         );
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("1")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("q").unwrap().1.cmp("2")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq("1"));
+        assert!((*test.urlenp).params.get_nocase("q").unwrap().1.eq("2"));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -1929,10 +1904,7 @@ fn UrlencodedParser_KeyNoValue1() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p".as_ptr() as *const core::ffi::c_void, 1);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1943,10 +1915,7 @@ fn UrlencodedParser_KeyNoValue2() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&".as_ptr() as *mut core::ffi::c_void, 2);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -1957,14 +1926,8 @@ fn UrlencodedParser_KeyNoValue3() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&q".as_ptr() as *mut core::ffi::c_void, 3);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("q").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
+        assert!((*test.urlenp).params.get_nocase("q").unwrap().1.eq(""));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -1975,14 +1938,8 @@ fn UrlencodedParser_KeyNoValue4() {
         let test = UrlEncodedParserTest::new();
         htp_urlenp_parse_complete(test.urlenp, "p&q=2".as_ptr() as *mut core::ffi::c_void, 5);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("q").unwrap().1.cmp("2")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
+        assert!((*test.urlenp).params.get_nocase("q").unwrap().1.eq("2"));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -1994,10 +1951,7 @@ fn UrlencodedParser_Partial1() {
         htp_urlenp_parse_partial(test.urlenp, "p".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2010,10 +1964,7 @@ fn UrlencodedParser_Partial2() {
         htp_urlenp_parse_partial(test.urlenp, "x".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("px").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("px").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2026,10 +1977,7 @@ fn UrlencodedParser_Partial3() {
         htp_urlenp_parse_partial(test.urlenp, "x&".as_ptr() as *mut core::ffi::c_void, 2);
         htp_urlenp_finalize(test.urlenp);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("px").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("px").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2042,10 +1990,7 @@ fn UrlencodedParser_Partial4() {
         htp_urlenp_parse_partial(test.urlenp, "=".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2060,10 +2005,7 @@ fn UrlencodedParser_Partial5() {
         htp_urlenp_parse_partial(test.urlenp, "".as_ptr() as *mut core::ffi::c_void, 0);
         htp_urlenp_finalize(test.urlenp);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("p").unwrap().1.cmp("")
-        );
+        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
         assert_eq!(1, (*test.urlenp).params.size());
     }
 }
@@ -2088,14 +2030,8 @@ fn UrlencodedParser_Partial6i() {
         htp_urlenp_parse_partial(test.urlenp, "&".as_ptr() as *mut core::ffi::c_void, 1);
         htp_urlenp_finalize(test.urlenp);
 
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("pxn").unwrap().1.cmp("12")
-        );
-        assert_eq!(
-            Ordering::Equal,
-            (*test.urlenp).params.get_nocase("qzn").unwrap().1.cmp("23")
-        );
+        assert!((*test.urlenp).params.get_nocase("pxn").unwrap().1.eq("12"));
+        assert!((*test.urlenp).params.get_nocase("qzn").unwrap().1.eq("23"));
         assert_eq!(2, (*test.urlenp).params.size());
     }
 }
@@ -2243,43 +2179,43 @@ fn Table_Misc() {
 fn Util_NormalizeUriPath() {
     let mut s = bstr_t::from("/a/b/c/./../../g");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp("/a/g"));
+    assert!(s.eq("/a/g"));
 
     let mut s = bstr_t::from("mid/content=5/../6");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp("mid/6"));
+    assert!(s.eq("mid/6"));
 
     let mut s = bstr_t::from("./one");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp("one"));
+    assert!(s.eq("one"));
 
     let mut s = bstr_t::from("../one");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp("one"));
+    assert!(s.eq("one"));
 
     let mut s = bstr_t::from(".");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp(""));
+    assert!(s.eq(""));
 
     let mut s = bstr_t::from("..");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp(""));
+    assert!(s.eq(""));
 
     let mut s = bstr_t::from("one/.");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp("one"));
+    assert!(s.eq("one"));
 
     let mut s = bstr_t::from("one/..");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp(""));
+    assert!(s.eq(""));
 
     let mut s = bstr_t::from("one/../");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp(""));
+    assert!(s.eq(""));
 
     let mut s = bstr_t::from("/../../../images.gif");
     htp_normalize_uri_path_inplace(&mut s);
-    assert_eq!(Ordering::Equal, s.cmp("/images.gif"));
+    assert!(s.eq("/images.gif"));
 }
 
 #[test]
