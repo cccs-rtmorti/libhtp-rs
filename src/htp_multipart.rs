@@ -1,10 +1,20 @@
 use crate::bstr::{bstr_len, bstr_ptr};
-use crate::htp_util::Flags;
+use crate::htp_util::{take_ascii_whitespace, Flags};
 use crate::{
     bstr, bstr_builder, htp_config, htp_hooks, htp_table, htp_transaction, htp_util, list, Status,
 };
 use bitflags;
 use std::cmp::Ordering;
+
+use nom::{
+    branch::alt,
+    bytes::complete::{tag, take, take_while},
+    character::complete::char,
+    combinator::{map, not, opt},
+    multi::fold_many1,
+    sequence::tuple,
+    IResult,
+};
 
 bitflags::bitflags! {
     #[repr(C)]
@@ -288,35 +298,6 @@ pub struct htp_multipart_t {
     pub flags: MultipartFlags,
 }
 
-/// Determines the type of a Content-Disposition parameter.
-///
-/// Returns CD_PARAM_OTHER, CD_PARAM_NAME or CD_PARAM_FILENAME.
-unsafe extern "C" fn htp_mpartp_cd_param_type(
-    data: *mut u8,
-    startpos: usize,
-    endpos: usize,
-) -> i32 {
-    if endpos.wrapping_sub(startpos) == 4 {
-        if memcmp(
-            data.offset(startpos as isize) as *const core::ffi::c_void,
-            b"name\x00" as *const u8 as *const i8 as *const core::ffi::c_void,
-            4,
-        ) == 0
-        {
-            return 1;
-        }
-    } else if endpos.wrapping_sub(startpos) == 8
-        && memcmp(
-            data.offset(startpos as isize) as *const core::ffi::c_void,
-            b"filename\x00" as *const u8 as *const i8 as *const core::ffi::c_void,
-            8,
-        ) == 0
-    {
-        return 2;
-    }
-    0
-}
-
 /// Returns the multipart structure created by the parser.
 ///
 /// Returns The main multipart structure.
@@ -326,41 +307,88 @@ pub unsafe extern "C" fn htp_mpartp_get_multipart(
     &mut (*parser).multipart
 }
 
-/// Decodes a C-D header value. This is impossible to do correctly without a
+/// Extracts and decodes a C-D header param name and value following a form-data. This is impossible to do correctly without a
 /// parsing personality because most browsers are broken:
 ///  - Firefox encodes " as \", and \ is not encoded.
 ///  - Chrome encodes " as %22.
 ///  - IE encodes " as \", and \ is not encoded.
 ///  - Opera encodes " as \" and \ as \\.
-unsafe extern "C" fn htp_mpart_decode_quoted_cd_value_inplace(b: *mut bstr::bstr_t) {
-    let mut s: *mut u8 = bstr_ptr(b);
-    let mut d: *mut u8 = bstr_ptr(b);
-    let len: usize = bstr_len(b);
-    let mut pos: usize = 0;
-    while pos < len {
-        // Ignore \ when before \ or ".
-        if *s == '\\' as u8
-            && pos.wrapping_add(1) < len
-            && (*s.offset(1) == '\"' as u8 || *s.offset(1) == '\\' as u8)
-        {
-            s = s.offset(1);
-            pos = pos.wrapping_add(1)
+fn content_disposition_param() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Vec<u8>)> {
+    move |input| {
+        let (mut remaining_input, param_name) = map(
+            tuple((
+                take_ascii_whitespace(),
+                char(';'),
+                take_ascii_whitespace(),
+                take_while(|c: u8| c != '=' as u8 && !c.is_ascii_whitespace()),
+                take_ascii_whitespace(),
+                char('='),
+                take_ascii_whitespace(),
+                char('\"'), //must start with opening quote
+            )),
+            |(_, _, _, param_name, _, _, _, _)| param_name,
+        )(input)?;
+        // Unescape any escaped " and \ and find the closing "
+        let mut param_value = Vec::new();
+        loop {
+            let (left, (value, to_insert)) = tuple((
+                take_while(|c: u8| c != '\"' as u8 && c != '\\' as u8),
+                opt(tuple((char('\\'), alt((char('\"'), char('\\')))))),
+            ))(remaining_input)?;
+            remaining_input = left;
+            param_value.extend_from_slice(value);
+            if let Some((_, to_insert)) = to_insert {
+                // Insert the character
+                param_value.push(to_insert as u8);
+            } else {
+                // Must end with a quote or it is invalid
+                let (left, _) = char('\"')(remaining_input)?;
+                remaining_input = left;
+                break;
+            }
         }
-        let fresh0 = s;
-        s = s.offset(1);
-        let fresh1 = d;
-        d = d.offset(1);
-        *fresh1 = *fresh0;
-        pos = pos.wrapping_add(1)
+        Ok((remaining_input, (param_name, param_value)))
     }
-    bstr::bstr_adjust_len(b, len.wrapping_sub(s.wrapping_offset_from(d) as usize));
+}
+
+/// Extracts and decodes a C-D header param names and values. This is impossible to do correctly without a
+/// parsing personality because most browsers are broken:
+///  - Firefox encodes " as \", and \ is not encoded.
+///  - Chrome encodes " as %22.
+///  - IE encodes " as \", and \ is not encoded.
+///  - Opera encodes " as \" and \ as \\.
+fn content_disposition<'a>(input: &'a [u8]) -> IResult<&'a [u8], Vec<(&'a [u8], Vec<u8>)>> {
+    // Multiple header values are seperated by a ", ": https://tools.ietf.org/html/rfc7230#section-3.2.2
+    map(
+        tuple((
+            tag("form-data"),
+            fold_many1(
+                tuple((
+                    content_disposition_param(),
+                    take_ascii_whitespace(),
+                    opt(tuple((tag(","), take_ascii_whitespace(), tag("form-data")))),
+                    take_ascii_whitespace(),
+                )),
+                Vec::new(),
+                |mut acc: Vec<(&'a [u8], Vec<u8>)>, (param, _, _, _)| {
+                    acc.push(param);
+                    acc
+                },
+            ),
+            take_ascii_whitespace(),
+            opt(tag(";")), // Allow trailing semicolon,
+            take_ascii_whitespace(),
+            not(take(1usize)), // We should have no data left, or we exited parsing prematurely
+        )),
+        |(_, result, _, _, _, _)| result,
+    )(input)
 }
 
 /// Parses the Content-Disposition part header.
 ///
 /// Returns HTP_OK on success (header found and parsed), HTP_DECLINED if there is no C-D header or if
 ///         it could not be processed, and HTP_ERROR on fatal error.
-pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_t) -> Status {
+pub unsafe fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_t) -> Status {
     // Find the C-D header.
     let header = {
         if let Some((_, header)) = (*part).headers.get_nocase_nozero_mut("content-disposition") {
@@ -372,172 +400,57 @@ pub unsafe extern "C" fn htp_mpart_part_parse_c_d(part: *mut htp_multipart_part_
     };
 
     // Require "form-data" at the beginning of the header.
-    if !header.value.starts_with("form-data") {
+    if let Ok((_, params)) = content_disposition((*header.value).as_slice()) {
+        for (param_name, param_value) in params {
+            match param_name {
+                b"name" => {
+                    // If we've reached the end of the string that means the
+                    // value was not terminated properly (the second double quote is missing).
+                    // Expecting the terminating double quote.
+                    // Over the terminating double quote.
+                    // Finally, process the parameter value.
+                    // Check that we have not seen the name parameter already.
+                    if !(*part).name.is_null() {
+                        (*(*part).parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
+                        return Status::DECLINED;
+                    }
+                    (*part).name = bstr::bstr_dup_str(param_value);
+                    if (*part).name.is_null() {
+                        return Status::ERROR;
+                    }
+                }
+                b"filename" => {
+                    // Check that we have not seen the filename parameter already.
+                    if !(*part).file.is_null() {
+                        (*(*part).parser).multipart.flags |=
+                            MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
+                        return Status::DECLINED;
+                    }
+                    (*part).file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
+                        as *mut htp_util::htp_file_t;
+                    if (*part).file.is_null() {
+                        return Status::ERROR;
+                    }
+                    (*(*part).file).fd = -1;
+                    (*(*part).file).source = htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
+                    (*(*part).file).filename = bstr::bstr_dup_str(param_value);
+                    if (*(*part).file).filename.is_null() {
+                        free((*part).file as *mut core::ffi::c_void);
+                        return Status::ERROR;
+                    }
+                }
+                _ => {
+                    // Unknown parameter.
+                    (*(*part).parser).multipart.flags |=
+                        MultipartFlags::HTP_MULTIPART_CD_PARAM_UNKNOWN;
+                    return Status::DECLINED;
+                }
+            }
+        }
+    } else {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
         return Status::DECLINED;
-    }
-    // The parsing starts here.
-    let data: *mut u8 = header.value.as_mut_ptr();
-    // Start after "form-data"
-    let len: usize = header.value.len();
-    let mut pos: usize = 9;
-    // Main parameter parsing loop (once per parameter).
-    while pos < len {
-        // Ignore whitespace.
-        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        // Continue to parse the next parameter, if any.
-        if *data.offset(pos as isize) != ';' as u8 {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        pos = pos.wrapping_add(1);
-        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace()
-        // Expecting a semicolon.
-        // Go over the whitespace before parameter name.
-        {
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        let mut start: usize = pos;
-        while pos < len
-            && (!(*data.offset(pos as isize)).is_ascii_whitespace()
-                && *data.offset(pos as isize) != '=' as u8)
-        // Found the starting position of the parameter name.
-        // Look for the ending position.
-        {
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        let param_type: i32 = htp_mpartp_cd_param_type(data, start, pos);
-        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace()
-        // Ending position is in "pos" now.
-        // Determine parameter type ("name", "filename", or other).
-        // Ignore whitespace after parameter name, if any.
-        {
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        if *data.offset(pos as isize) != '=' as u8 {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        pos = pos.wrapping_add(1);
-        while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace()
-        // Equals.
-        // Go over the whitespace before the parameter value.
-        {
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        if *data.offset(pos as isize) != '\"' as u8 {
-            // Expecting a double quote.
-            // Bare string or non-standard quoting, which we don't like.
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID; // Over the double quote.
-            return Status::DECLINED;
-        }
-        pos = pos.wrapping_add(1);
-        start = pos;
-        while pos < len && *data.offset(pos as isize) != '\"' as u8
-        // We have the starting position of the value.
-        // Find the end of the value.
-        {
-            // Check for escaping.
-            if *data.offset(pos as isize) == '\\' as u8 {
-                if pos.wrapping_add(1) >= len {
-                    // A backslash as the last character in the C-D header.
-                    (*(*part).parser).multipart.flags |=
-                        MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-                    return Status::DECLINED;
-                }
-                // Allow " and \ to be escaped.
-                if *data.offset(pos.wrapping_add(1) as isize) == '\"' as u8
-                    || *data.offset(pos.wrapping_add(1) as isize) == '\\' as u8
-                {
-                    // Go over the quoted character.
-                    pos = pos.wrapping_add(1)
-                }
-            }
-            pos = pos.wrapping_add(1)
-        }
-        if pos == len {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        if *data.offset(pos as isize) != '\"' as u8 {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Status::DECLINED;
-        }
-        pos = pos.wrapping_add(1);
-        match param_type {
-            1 => {
-                // If we've reached the end of the string that means the
-                // value was not terminated properly (the second double quote is missing).
-                // Expecting the terminating double quote.
-                // Over the terminating double quote.
-                // Finally, process the parameter value.
-                // Check that we have not seen the name parameter already.
-                if !(*part).name.is_null() {
-                    (*(*part).parser).multipart.flags |=
-                        MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                    return Status::DECLINED;
-                }
-                (*part).name = bstr::bstr_dup_mem(
-                    data.offset(start as isize) as *const core::ffi::c_void,
-                    pos.wrapping_sub(start).wrapping_sub(1),
-                );
-                if (*part).name.is_null() {
-                    return Status::ERROR;
-                }
-                htp_mpart_decode_quoted_cd_value_inplace((*part).name);
-            }
-            2 => {
-                // Check that we have not seen the filename parameter already.
-                if !(*part).file.is_null() {
-                    (*(*part).parser).multipart.flags |=
-                        MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                    return Status::DECLINED;
-                }
-                (*part).file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
-                    as *mut htp_util::htp_file_t;
-                if (*part).file.is_null() {
-                    return Status::ERROR;
-                }
-                (*(*part).file).fd = -1;
-                (*(*part).file).source = htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
-                (*(*part).file).filename = bstr::bstr_dup_mem(
-                    data.offset(start as isize) as *const core::ffi::c_void,
-                    pos.wrapping_sub(start).wrapping_sub(1),
-                );
-                if (*(*part).file).filename.is_null() {
-                    free((*part).file as *mut core::ffi::c_void);
-                    return Status::ERROR;
-                }
-                htp_mpart_decode_quoted_cd_value_inplace((*(*part).file).filename);
-            }
-            _ => {
-                // Unknown parameter.
-                (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_PARAM_UNKNOWN;
-                return Status::DECLINED;
-            }
-        }
     }
     Status::OK
 }
@@ -1850,4 +1763,105 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
     }
     htp_mpartp_validate_content_type(content_type, flags);
     Status::OK
+}
+
+// Tests
+
+#[test]
+fn ContentDispositionParamValid() {
+    let inputs: Vec<&[u8]> = vec![
+        b"   ;key=\"value\" more keys and data and we do not care about",
+        b"   ;key=\"value\"",
+        b"   ;   key=\"value\"",
+        b";key=\"value\"",
+        b";key=\"\\\"value\\\"\"",
+        b"; key=\"value\"",
+        b";key =\"value\"",
+        b";key= \"value\"",
+        b";key= \"\\\"val\\\\'ue\"",
+    ];
+
+    let outputs: Vec<(&[u8], Vec<u8>)> = vec![
+        (b"key", b"value".to_vec()),
+        (b"key", b"value".to_vec()),
+        (b"key", b"value".to_vec()),
+        (b"key", b"value".to_vec()),
+        (b"key", b"\"value\"".to_vec()),
+        (b"key", b"value".to_vec()),
+        (b"key", b"value".to_vec()),
+        (b"key", b"value".to_vec()),
+        (b"key", b"\"val\\'ue".to_vec()),
+    ];
+    for i in 0..inputs.len() {
+        assert_eq!(
+            outputs[i],
+            content_disposition_param()(inputs[i]).unwrap().1
+        );
+    }
+}
+#[test]
+fn ContentDispositionParamInvalid() {
+    let inputs: Vec<&[u8]> = vec![
+        b";key=\"value",
+        b";k ey=\"value\"",
+        b";key =\\\"value\"",
+        b";key= value\"",
+        b";key==\"value\"",
+    ];
+    for input in inputs {
+        assert!(content_disposition_param()(input).is_err());
+    }
+}
+
+#[test]
+fn ContentDispositionValid() {
+    let inputs: Vec<&[u8]> = vec![
+        b"form-data; name=\"file\"",
+        b"form-data; name=\"file1\"    ;   ",
+        b"form-data; name=\"file2\"; filename=\"New Text Document.txt\"",
+        b"form-data    ; name=\"file2\"; filename=\"New Text Document.txt\"",
+        b"form-data    ; key1=\"value1\"; key2=\"value2\"",
+        b"form-data    ; key1=\"value1\"; key2=\"value2\", form-data   ; key3=\"value3\"; key4=\"value4\"",
+    ];
+
+    let outputs: Vec<Vec<(&[u8], Vec<u8>)>> = vec![
+        vec![(b"name", b"file".to_vec())],
+        vec![(b"name", b"file1".to_vec())],
+        vec![
+            (b"name", b"file2".to_vec()),
+            (b"filename", b"New Text Document.txt".to_vec()),
+        ],
+        vec![
+            (b"name", b"file2".to_vec()),
+            (b"filename", b"New Text Document.txt".to_vec()),
+        ],
+        vec![(b"key1", b"value1".to_vec()), (b"key2", b"value2".to_vec())],
+        vec![
+            (b"key1", b"value1".to_vec()),
+            (b"key2", b"value2".to_vec()),
+            (b"key3", b"value3".to_vec()),
+            (b"key4", b"value4".to_vec()),
+        ],
+    ];
+    for i in 0..inputs.len() {
+        assert_eq!(outputs[i], content_disposition(inputs[i]).unwrap().1);
+    }
+}
+
+#[test]
+fn ContentDispositionInvalid() {
+    let inputs: Vec<&[u8]> = vec![
+        b"form-data; name=file\"",
+        b"form-datas; name=\"file\"",
+        b"form-data name=\"file\"",
+        b"form-data; name=\"file1",
+        b"form-data; name=\"file2\" filename=\"New Text Document.txt\"",
+        b"    form-data    ; name=\"file2\"; filename=\"New Text Document.txt\"",
+        b"\tform-data    ; key1=\"value1\"; key2=\"value2\"",
+        b"garbage-data    ; key1=\"value1\"; key2=\"value2\", form-data   ; key3=\"value3\"; key4=\"value4\"",
+        b"form-data; key1=\"value1\"; key2=\"value2\"; form-data; key3=\"value3\"; key4=\"value4\"",
+    ];
+    for input in inputs {
+        assert!(content_disposition(input).is_err());
+    }
 }
