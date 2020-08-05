@@ -1437,7 +1437,7 @@ fn InvalidHeader6() {
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
     ];
 
-    // No header name.
+    // No header value. Header values are non-optional: see https://tools.ietf.org/html/rfc7230#section-3.2
 
     let data = vec![
         "--0123456789\r\n\

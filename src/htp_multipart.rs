@@ -8,9 +8,10 @@ use std::cmp::Ordering;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take, take_while},
+    bytes::complete::{tag, take, take_while, take_while1},
     character::complete::char,
-    combinator::{map, not, opt},
+    character::is_space,
+    combinator::{map, not, opt, peek},
     multi::fold_many1,
     sequence::tuple,
     IResult,
@@ -484,108 +485,65 @@ pub unsafe extern "C" fn htp_mpart_part_process_headers(part: *mut htp_multipart
     }
     Status::OK
 }
+/// Parses header, extracting a valid name and valid value.
+/// Does not allow leading or trailing whitespace for a name, but allows leading and trailing whitespace for the value.
+///
+/// Returns a tuple of a valid name and value
+fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> {
+    move |input| {
+        let (value, (name, _, _, _)) = tuple((
+            // The name must not be empty and must consist only of token characters (i.e., no spaces, seperators, control characters, etc)
+            take_while1(|c: u8| htp_util::htp_is_token(c)),
+            // First non token character must be a colon, to seperate name and value
+            tag(":"),
+            // Allow whitespace between the colon and the value
+            take_while(|c| is_space(c)),
+            // Peek ahead to ensure a non empty header value
+            peek(take(1usize)),
+        ))(input)?;
+        Ok((b"", (name, value)))
+    }
+}
 
 /// Parses one part header.
 ///
 /// Returns HTP_OK on success, HTP_DECLINED on parsing error, HTP_ERROR on fatal error.
-pub unsafe extern "C" fn htp_mpartp_parse_header(
+pub unsafe fn htp_mpartp_parse_header<'a>(
     part: *mut htp_multipart_part_t,
-    data: *const u8,
-    len: usize,
+    input: &'a [u8],
 ) -> Status {
-    let mut name_start: usize = 0;
-    let mut name_end: usize = 0;
-    let mut value_start: usize = 0;
-    let mut value_end: usize = 0;
     // We do not allow NUL bytes here.
-    if !memchr(data as *const core::ffi::c_void, '\u{0}' as i32, len).is_null() {
+    if input.contains(&('\0' as u8)) {
         (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_NUL_BYTE;
         return Status::DECLINED;
     }
-    name_start = 0;
-    // Look for the starting position of the name first.
-    let mut colon_pos: usize = 0;
-    while colon_pos < len && htp_util::htp_is_space(*data.offset(colon_pos as isize)) {
-        colon_pos = colon_pos.wrapping_add(1)
-    }
-    if colon_pos != 0 {
-        // Whitespace before header name.
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return Status::DECLINED;
-    }
-    // Now look for the colon.
-    while colon_pos < len && *data.offset(colon_pos as isize) != ':' as u8 {
-        colon_pos = colon_pos.wrapping_add(1)
-    }
-    if colon_pos == len {
-        // Missing colon.
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return Status::DECLINED;
-    }
-    if colon_pos == 0 {
-        // Empty header name.
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return Status::DECLINED;
-    }
-    name_end = colon_pos;
-    // Ignore LWS after header name.
-    let mut prev: usize = name_end;
-    if prev > name_start && htp_util::htp_is_lws(*data.offset(prev.wrapping_sub(1) as isize)) {
-        prev = prev.wrapping_sub(1);
-        name_end = name_end.wrapping_sub(1);
-        // LWS after field name. Not allowing for now.
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return Status::DECLINED;
-    }
-    // Header value.
-    value_start = colon_pos.wrapping_add(1);
-    // Ignore LWS before value.
-    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize)) {
-        value_start = value_start.wrapping_add(1)
-    }
-    if value_start == len {
-        // No header value.
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return Status::DECLINED;
-    }
-    // Assume the value is at the end.
-    value_end = len;
-    // Check that the header name is a token.
-    let mut i: usize = name_start;
-    while i < name_end {
-        if !htp_util::htp_is_token(*data.offset(i as isize)) {
-            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-            return Status::DECLINED;
-        }
-        i = i.wrapping_add(1)
-    }
-    // Now extract the name and the value.
-    let name = std::slice::from_raw_parts(
-        data.offset(name_start as isize),
-        name_end.wrapping_sub(name_start),
-    );
-    let value = std::slice::from_raw_parts(
-        data.offset(value_start as isize),
-        value_end.wrapping_sub(value_start),
-    );
-    let header = htp_transaction::htp_header_t::new(name.into(), value.into());
+    // Extract the name and the value
+    if let Ok((_, (name, value))) = header()(input) {
+        // Now extract the name and the value.
+        let header = htp_transaction::htp_header_t::new(name.into(), value.into());
 
-    if header.name.cmp_nocase("content-disposition") != Ordering::Equal
-        && header.name.cmp_nocase("content-type") != Ordering::Equal
-    {
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
-    }
-    // Check if the header already exists.
-    if let Some((_, h_existing)) = (*part).headers.get_nocase_mut(header.name.as_slice()) {
-        h_existing.value.extend_from_slice(b", ");
-        h_existing.value.extend_from_slice(header.value.as_slice());
-        // Keep track of same-name headers.
-        // FIXME: Normalize the flags? define the symbol in both Flags and MultipartFlags and set the value in both from their own namespace
-        h_existing.flags |=
-            Flags::from_bits_unchecked(MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits());
-        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
+        if header.name.cmp_nocase("content-disposition") != Ordering::Equal
+            && header.name.cmp_nocase("content-type") != Ordering::Equal
+        {
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_UNKNOWN
+        }
+        // Check if the header already exists.
+        if let Some((_, h_existing)) = (*part).headers.get_nocase_mut(header.name.as_slice()) {
+            h_existing.value.extend_from_slice(b", ");
+            h_existing.value.extend_from_slice(header.value.as_slice());
+            // Keep track of same-name headers.
+            // FIXME: Normalize the flags? define the symbol in both Flags and MultipartFlags and set the value in both from their own namespace
+            h_existing.flags |= Flags::from_bits_unchecked(
+                MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED.bits(),
+            );
+            (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_REPEATED
+        } else {
+            (*part).headers.add(header.name.clone(), header);
+        }
     } else {
-        (*part).headers.add(header.name.clone(), header);
+        // Invalid name and/or value found
+        (*(*part).parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
+        return Status::DECLINED;
     }
     Status::OK
 }
@@ -788,8 +746,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 if !(*(*part).parser).pending_header_line.is_null() {
                     if htp_mpartp_parse_header(
                         part,
-                        bstr_ptr((*(*part).parser).pending_header_line),
-                        bstr_len((*(*part).parser).pending_header_line),
+                        &(*(*(*part).parser).pending_header_line).as_slice(),
                     ) == Status::ERROR
                     {
                         bstr::bstr_free(line);
@@ -873,8 +830,7 @@ pub unsafe extern "C" fn htp_mpart_part_handle_data(
                 // Process the pending header line.
                 if htp_mpartp_parse_header(
                     part,
-                    bstr_ptr((*(*part).parser).pending_header_line),
-                    bstr_len((*(*part).parser).pending_header_line),
+                    &(*(*(*part).parser).pending_header_line).as_slice(),
                 ) == Status::ERROR
                 {
                     bstr::bstr_free(line);
@@ -1768,100 +1724,55 @@ pub unsafe extern "C" fn htp_mpartp_find_boundary(
 // Tests
 
 #[test]
-fn ContentDispositionParamValid() {
-    let inputs: Vec<&[u8]> = vec![
-        b"   ;key=\"value\" more keys and data and we do not care about",
-        b"   ;key=\"value\"",
-        b"   ;   key=\"value\"",
-        b";key=\"value\"",
-        b";key=\"\\\"value\\\"\"",
-        b"; key=\"value\"",
-        b";key =\"value\"",
-        b";key= \"value\"",
-        b";key= \"\\\"val\\\\'ue\"",
-    ];
+fn Header() {
+    // Space after header name
+    let input: &[u8] =
+        b"Content-Disposition: form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    let name: &[u8] = b"Content-Disposition";
+    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert_eq!((name, value), header()(input).unwrap().1);
 
-    let outputs: Vec<(&[u8], Vec<u8>)> = vec![
-        (b"key", b"value".to_vec()),
-        (b"key", b"value".to_vec()),
-        (b"key", b"value".to_vec()),
-        (b"key", b"value".to_vec()),
-        (b"key", b"\"value\"".to_vec()),
-        (b"key", b"value".to_vec()),
-        (b"key", b"value".to_vec()),
-        (b"key", b"value".to_vec()),
-        (b"key", b"\"val\\'ue".to_vec()),
-    ];
-    for i in 0..inputs.len() {
-        assert_eq!(
-            outputs[i],
-            content_disposition_param()(inputs[i]).unwrap().1
-        );
-    }
-}
-#[test]
-fn ContentDispositionParamInvalid() {
-    let inputs: Vec<&[u8]> = vec![
-        b";key=\"value",
-        b";k ey=\"value\"",
-        b";key =\\\"value\"",
-        b";key= value\"",
-        b";key==\"value\"",
-    ];
-    for input in inputs {
-        assert!(content_disposition_param()(input).is_err());
-    }
-}
+    // Tab after header name
+    let input: &[u8] =
+        b"Content-Disposition:\tform-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    let name: &[u8] = b"Content-Disposition";
+    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert_eq!((name, value), header()(input).unwrap().1);
 
-#[test]
-fn ContentDispositionValid() {
-    let inputs: Vec<&[u8]> = vec![
-        b"form-data; name=\"file\"",
-        b"form-data; name=\"file1\"    ;   ",
-        b"form-data; name=\"file2\"; filename=\"New Text Document.txt\"",
-        b"form-data    ; name=\"file2\"; filename=\"New Text Document.txt\"",
-        b"form-data    ; key1=\"value1\"; key2=\"value2\"",
-        b"form-data    ; key1=\"value1\"; key2=\"value2\", form-data   ; key3=\"value3\"; key4=\"value4\"",
-    ];
+    // Space/tabs after header name
+    let input: &[u8] =
+        b"Content-Disposition: \t form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    let name: &[u8] = b"Content-Disposition";
+    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert_eq!((name, value), header()(input).unwrap().1);
 
-    let outputs: Vec<Vec<(&[u8], Vec<u8>)>> = vec![
-        vec![(b"name", b"file".to_vec())],
-        vec![(b"name", b"file1".to_vec())],
-        vec![
-            (b"name", b"file2".to_vec()),
-            (b"filename", b"New Text Document.txt".to_vec()),
-        ],
-        vec![
-            (b"name", b"file2".to_vec()),
-            (b"filename", b"New Text Document.txt".to_vec()),
-        ],
-        vec![(b"key1", b"value1".to_vec()), (b"key2", b"value2".to_vec())],
-        vec![
-            (b"key1", b"value1".to_vec()),
-            (b"key2", b"value2".to_vec()),
-            (b"key3", b"value3".to_vec()),
-            (b"key4", b"value4".to_vec()),
-        ],
-    ];
-    for i in 0..inputs.len() {
-        assert_eq!(outputs[i], content_disposition(inputs[i]).unwrap().1);
-    }
-}
+    // No space after header name
+    let input: &[u8] =
+        b"Content-Disposition:form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    let name: &[u8] = b"Content-Disposition";
+    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert_eq!((name, value), header()(input).unwrap().1);
 
-#[test]
-fn ContentDispositionInvalid() {
-    let inputs: Vec<&[u8]> = vec![
-        b"form-data; name=file\"",
-        b"form-datas; name=\"file\"",
-        b"form-data name=\"file\"",
-        b"form-data; name=\"file1",
-        b"form-data; name=\"file2\" filename=\"New Text Document.txt\"",
-        b"    form-data    ; name=\"file2\"; filename=\"New Text Document.txt\"",
-        b"\tform-data    ; key1=\"value1\"; key2=\"value2\"",
-        b"garbage-data    ; key1=\"value1\"; key2=\"value2\", form-data   ; key3=\"value3\"; key4=\"value4\"",
-        b"form-data; key1=\"value1\"; key2=\"value2\"; form-data; key3=\"value3\"; key4=\"value4\"",
-    ];
-    for input in inputs {
-        assert!(content_disposition(input).is_err());
-    }
+    // Space before header name
+    let input: &[u8] =
+        b" Content-Disposition: form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert!(header()(input).is_err());
+
+    // Null characters
+    let input: &[u8] =
+        b"Content-Disposition\0: form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert!(header()(input).is_err());
+
+    // Empty header name
+    let input: &[u8] = b": form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert!(header()(input).is_err());
+
+    // Empty header value
+    let input: &[u8] = b"Content-Disposition:  ";
+    assert!(header()(input).is_err());
+
+    // Invalid header name characters
+    let input: &[u8] =
+        b"Content-Disposition\r\n:form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
+    assert!(header()(input).is_err());
 }
