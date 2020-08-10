@@ -43,9 +43,8 @@ pub fn htp_parse_protocol<'a>(
         }
         if contains_trailing {
             unsafe {
-                htp_log!(
+                htp_warn!(
                     connp as *mut htp_connection_parser::htp_connp_t,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::PROTOCOL_CONTAINS_EXTRA_DATA,
                     "Protocol version contains leading and/or trailing whitespace and/or leading zeros"
                 )

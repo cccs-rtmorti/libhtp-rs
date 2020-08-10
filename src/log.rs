@@ -181,6 +181,34 @@ macro_rules! htp_log {
     };
 }
 
+#[macro_export]
+macro_rules! htp_info {
+    ($connp:expr, $code:expr, $msg:expr) => {
+        htp_log!($connp, htp_log_level_t::HTP_LOG_INFO, $code, $msg);
+    };
+}
+
+#[macro_export]
+macro_rules! htp_debug {
+    ($connp:expr, $code:expr, $msg:expr) => {
+        htp_log!($connp, htp_log_level_t::HTP_LOG_DEBUG, $code, $msg);
+    };
+}
+
+#[macro_export]
+macro_rules! htp_warn {
+    ($connp:expr, $code:expr, $msg:expr) => {
+        htp_log!($connp, htp_log_level_t::HTP_LOG_WARNING, $code, $msg);
+    };
+}
+
+#[macro_export]
+macro_rules! htp_error {
+    ($connp:expr, $code:expr, $msg:expr) => {
+        htp_log!($connp, htp_log_level_t::HTP_LOG_ERROR, $code, $msg);
+    };
+}
+
 pub unsafe fn htp_logs_free(messages: &List<*mut core::ffi::c_void>) {
     for log in messages {
         if !log.is_null() {

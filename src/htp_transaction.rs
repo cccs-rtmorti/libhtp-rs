@@ -944,9 +944,8 @@ pub unsafe fn htp_tx_req_process_body_data_ex(
     d.len = len;
     let rc: Status = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut d);
     if rc != Status::OK {
-        htp_log!(
+        htp_error!(
             (*tx).connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
             format!("Request body data callback returned error ({:?})", rc)
         );
@@ -1044,9 +1043,8 @@ pub unsafe fn htp_tx_state_response_line(tx: *mut htp_tx_t) -> Status {
     // Is the response line valid?
     let connp = (*tx).connp;
     if (*tx).response_protocol_number == Protocol::INVALID {
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::RESPONSE_LINE_INVALID_PROTOCOL,
             "Invalid response line: invalid protocol"
         );
@@ -1056,9 +1054,8 @@ pub unsafe fn htp_tx_state_response_line(tx: *mut htp_tx_t) -> Status {
         || (*tx).response_status_number < 100
         || (*tx).response_status_number > 999
     {
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
             format!(
                 "Invalid response line: invalid response status {}.",
@@ -1182,9 +1179,8 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
             if (*(*(*(*d).tx).connp).out_decompressor).time_spent
                 > (*(*(*(*d).tx).connp).cfg).compression_time_limit
             {
-                htp_log!(
+                htp_error!(
                     (*(*d).tx).connp,
-                    htp_log_level_t::HTP_LOG_ERROR,
                     htp_log_code::COMPRESSION_BOMB,
                     format!(
                         "Compression bomb: spent {} us decompressing",
@@ -1198,9 +1194,8 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     if (*(*d).tx).response_entity_len > (*(*(*(*d).tx).connp).cfg).compression_bomb_limit as i64
         && (*(*d).tx).response_entity_len > 2048 * (*(*d).tx).response_message_len
     {
-        htp_log!(
+        htp_error!(
             (*(*d).tx).connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::COMPRESSION_BOMB,
             format!(
                 "Compression bomb: decompressed {} bytes out of {}",
@@ -1300,9 +1295,8 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
             {
                 if (*(*connp).out_decompressor).time_spent > (*(*connp).cfg).compression_time_limit
                 {
-                    htp_log!(
+                    htp_error!(
                         connp,
-                        htp_log_level_t::HTP_LOG_ERROR,
                         htp_log_code::COMPRESSION_BOMB,
                         format!(
                             "Compression bomb: spent {} us decompressing",
@@ -1329,9 +1323,8 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
         }
         _ => {
             // Internal error.
-            htp_log!(
+            htp_error!(
                 connp,
-                htp_log_level_t::HTP_LOG_ERROR,
                 htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
                 format!(
                     "[Internal Error] Invalid tx->response_content_encoding_processing value: {:?}",
@@ -1490,9 +1483,8 @@ pub unsafe fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
                 as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
         )
     } else {
-        htp_log!(
+        htp_warn!(
             (*tx).connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
             format!(
                 "[Internal Error] Invalid tx progress: {:?}",
@@ -1781,9 +1773,8 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                     layers += 1;
                     (layers) > (*(*connp).cfg).response_decompression_layer_limit
                 } {
-                    htp_log!(
+                    htp_warn!(
                         connp,
-                        htp_log_level_t::HTP_LOG_WARNING,
                         htp_log_code::TOO_MANY_ENCODING_LAYERS,
                         "Too many response content encoding layers"
                     );
@@ -1793,9 +1784,8 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                         if !(token.cmp("gzip") == Ordering::Equal
                             || token.cmp("x-gzip") == Ordering::Equal)
                         {
-                            htp_log!(
+                            htp_warn!(
                                 connp,
-                                htp_log_level_t::HTP_LOG_WARNING,
                                 htp_log_code::ABNORMAL_CE_HEADER,
                                 "C-E gzip has abnormal value"
                             );
@@ -1805,9 +1795,8 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                         if !(token.cmp("deflate") == Ordering::Equal
                             || token.cmp("x-deflate") == Ordering::Equal)
                         {
-                            htp_log!(
+                            htp_warn!(
                                 connp,
-                                htp_log_level_t::HTP_LOG_WARNING,
                                 htp_log_code::ABNORMAL_CE_HEADER,
                                 "C-E deflate has abnormal value"
                             );
@@ -1819,9 +1808,8 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
                         cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
                     } else {
                         // continue
-                        htp_log!(
+                        htp_warn!(
                             connp,
-                            htp_log_level_t::HTP_LOG_WARNING,
                             htp_log_code::ABNORMAL_CE_HEADER,
                             "C-E unknown setting"
                         );
@@ -1917,9 +1905,8 @@ pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
                     as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
             )
     {
-        htp_log!(
+        htp_warn!(
             (*tx).connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::REQUEST_LINE_INCOMPLETE,
             "Request line incomplete"
         );

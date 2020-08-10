@@ -378,9 +378,8 @@ pub unsafe fn htp_connp_open(
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_NEW
         || (*connp).out_status != htp_stream_state_t::HTP_STREAM_NEW
     {
-        htp_log!(
+        htp_error!(
             connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::CONNECTION_ALREADY_OPEN,
             "Connection is already open"
         );

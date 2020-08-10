@@ -191,9 +191,8 @@ unsafe fn htp_connp_req_buffer(mut connp: *mut htp_connection_parser::htp_connp_
         newlen = newlen.wrapping_add(bstr_len((*connp).in_header))
     }
     if newlen > (*(*(*connp).in_tx).cfg).field_limit_hard {
-        htp_log!(
+        htp_error!(
             connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::REQUEST_FIELD_TOO_LONG,
             format!(
                 "Request buffer over the limit: size {} limit {}.",
@@ -556,9 +555,8 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_LENGTH(
                     htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER
             } else {
                 // Invalid chunk length.
-                htp_log!(
+                htp_error!(
                     connp,
-                    htp_log_level_t::HTP_LOG_ERROR,
                     htp_log_code::INVALID_REQUEST_CHUNK_LEN,
                     "Request chunk encoding: Invalid chunk length"
                 );
@@ -805,9 +803,8 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 // Warn only once per transaction.
                 if !(*(*connp).in_tx).flags.contains(Flags::HTP_INVALID_FOLDING) {
                     (*(*connp).in_tx).flags |= Flags::HTP_INVALID_FOLDING;
-                    htp_log!(
+                    htp_warn!(
                         connp,
-                        htp_log_level_t::HTP_LOG_WARNING,
                         htp_log_code::INVALID_REQUEST_FIELD_FOLDING,
                         "Invalid request field folding"
                     );
@@ -855,9 +852,8 @@ pub unsafe extern "C" fn htp_connp_REQ_PROTOCOL(
         // Probe if data looks like a header line
         while pos < (*connp).in_current_len {
             if *(*connp).in_current_data.offset(pos as isize) == ':' as u8 {
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::REQUEST_LINE_NO_PROTOCOL,
                     "Request line: missing protocol"
                 );
@@ -1064,9 +1060,8 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
         if method_type == htp_method_t::HTP_M_UNKNOWN {
             // else continue
             // Interpret remaining bytes as body data
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_BODY_UNEXPECTED,
                 "Unexpected request body"
             );
@@ -1151,9 +1146,8 @@ pub unsafe fn htp_connp_req_data(
 ) -> i32 {
     // Return if the connection is in stop state.
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
-        htp_log!(
+        htp_info!(
             connp,
-            htp_log_level_t::HTP_LOG_INFO,
             htp_log_code::PARSER_STATE_ERROR,
             "Inbound parser is in HTP_STREAM_STOP"
         );
@@ -1161,9 +1155,8 @@ pub unsafe fn htp_connp_req_data(
     }
     // Return if the connection had a fatal error earlier
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
-        htp_log!(
+        htp_error!(
             connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::PARSER_STATE_ERROR,
             "Inbound parser is in HTP_STREAM_ERROR"
         );
@@ -1178,9 +1171,8 @@ pub unsafe fn htp_connp_req_data(
             )
     {
         (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-        htp_log!(
+        htp_error!(
             connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::MISSING_INBOUND_TRANSACTION_DATA,
             "Missing inbound transaction data"
         );
@@ -1193,9 +1185,8 @@ pub unsafe fn htp_connp_req_data(
     if (data == 0 as *mut core::ffi::c_void || len == 0)
         && (*connp).in_status != htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
     {
-        htp_log!(
+        htp_error!(
             connp,
-            htp_log_level_t::HTP_LOG_ERROR,
             htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
             "Zero-length data chunks are not allowed"
         );

@@ -117,9 +117,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             // Only once per transaction.
             (*(*connp).out_tx).flags |= Flags::HTP_FIELD_UNPARSEABLE;
             (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::RESPONSE_FIELD_MISSING_COLON,
                 "Response field invalid: missing colon."
             );
@@ -139,9 +138,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
                     "Response field invalid: empty name."
                 );
@@ -157,9 +155,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
                     "Response field invalid: LWS after name"
                 );
@@ -181,9 +178,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             flags |= Flags::HTP_FIELD_INVALID;
             if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
                     "Response header name is not a token."
                 );
@@ -196,9 +192,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     i = value_start;
     while i < value_end {
         if *data.offset(i as isize) == 0 {
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_HEADER_INVALID,
                 "Response header value contains null."
             );
@@ -243,9 +238,8 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         // Keep track of repeated same-name headers.
         if !h_existing.flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );
@@ -269,9 +263,8 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             new_cl = htp_util::htp_parse_content_length(&header.value, std::ptr::null_mut());
             if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
                 // Ambiguous response C-L value.
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                     "Ambiguous response C-L value"
                 );

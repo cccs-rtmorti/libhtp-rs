@@ -385,9 +385,8 @@ pub unsafe fn htp_parse_content_length(
         && ((*data.offset(pos as isize)) < '0' as u8 || *data.offset(pos as isize) > '9' as u8)
     {
         if !htp_is_lws(*data.offset(pos as isize)) && !connp.is_null() && r == 0 {
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::CONTENT_LENGTH_EXTRA_DATA_START,
                 "C-L value with extra data in the beginning"
             );
@@ -406,9 +405,8 @@ pub unsafe fn htp_parse_content_length(
     );
     // Ok to have junk afterwards
     if pos < len && !connp.is_null() {
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::CONTENT_LENGTH_EXTRA_DATA_END,
             "C-L value with extra data in the end"
         );

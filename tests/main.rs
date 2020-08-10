@@ -1504,7 +1504,7 @@ fn InvalidResponseHeaders2() {
 
 #[test]
 fn Util() {
-    use htp::htp_log;
+    use htp::{htp_error, htp_log};
     let mut t = Test::new();
     unsafe {
         assert!(t.run("50-util.t").is_ok());
@@ -1515,12 +1515,7 @@ fn Util() {
         // A message that should not be logged.
         let log_message_count = (*(*(*tx).connp).conn).messages.len();
         (*(*(*tx).connp).cfg).log_level = htp_log_level_t::HTP_LOG_NONE;
-        htp_log!(
-            (*tx).connp,
-            htp_log_level_t::HTP_LOG_ERROR,
-            htp_log_code::UNKNOWN,
-            "Log message"
-        );
+        htp_error!((*tx).connp, htp_log_code::UNKNOWN, "Log message");
         assert_eq!(log_message_count, (*(*(*tx).connp).conn).messages.len());
     }
 }

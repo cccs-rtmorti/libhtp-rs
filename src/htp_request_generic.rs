@@ -37,9 +37,8 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         //      allowed to be combined in this way?
         if !h_existing.flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_HEADER_REPETITION,
                 "Repetition for header"
             );
@@ -63,9 +62,8 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
                 htp_util::htp_parse_content_length(&header.value, std::ptr::null_mut());
             // Ambiguous response C-L value.
             if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
                     "Ambiguous request C-L value"
                 );
@@ -115,9 +113,8 @@ pub unsafe fn htp_parse_request_header_generic(
             .contains(Flags::HTP_FIELD_UNPARSEABLE)
         {
             (*(*connp).in_tx).flags |= Flags::HTP_FIELD_UNPARSEABLE;
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_FIELD_MISSING_COLON,
                 "Request field invalid: colon missing"
             );
@@ -138,9 +135,8 @@ pub unsafe fn htp_parse_request_header_generic(
         // Log only once per transaction.
         if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
             (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_INVALID_EMPTY_NAME,
                 "Request field invalid: empty name"
             );
@@ -157,9 +153,8 @@ pub unsafe fn htp_parse_request_header_generic(
         // Log only once per transaction.
         if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
             (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
                 "Request field invalid: LWS after name"
             );
@@ -195,9 +190,8 @@ pub unsafe fn htp_parse_request_header_generic(
             // Log only once per transaction.
             if !(*(*connp).in_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
                 (*(*connp).in_tx).flags |= Flags::HTP_FIELD_INVALID;
-                htp_log!(
+                htp_warn!(
                     connp,
-                    htp_log_level_t::HTP_LOG_WARNING,
                     htp_log_code::REQUEST_HEADER_INVALID,
                     "Request header name is not a token"
                 );
@@ -259,9 +253,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         pos = pos.wrapping_add(1)
     }
     if pos != 0 {
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
             "Request line: leading whitespace"
         );
@@ -303,9 +296,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     }
     // Too much performance overhead for fuzzing
     if bad_delim != 0 {
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::METHOD_DELIM_NON_COMPLIANT,
             "Request line: non-compliant delimiter between Method and URI"
         );
@@ -316,9 +308,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         (*tx).is_protocol_0_9 = 1;
         (*tx).request_protocol_number = Protocol::V0_9;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
                 "Request line: unknown method only"
             );
@@ -347,9 +338,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     // Too much performance overhead for fuzzing
     if bad_delim != 0 {
         // warn regardless if we've seen non-compliant chars
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::URI_DELIM_NON_COMPLIANT,
             "Request line: URI contains non-compliant delimiter"
         );
@@ -371,9 +361,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         (*tx).is_protocol_0_9 = 1;
         (*tx).request_protocol_number = Protocol::V0_9;
         if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
-            htp_log!(
+            htp_warn!(
                 connp,
-                htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
                 "Request line: unknown method and no protocol"
             );
@@ -393,9 +382,8 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN
         && (*tx).request_protocol_number == Protocol::INVALID
     {
-        htp_log!(
+        htp_warn!(
             connp,
-            htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
             "Request line: unknown method and invalid protocol"
         );
