@@ -15,6 +15,7 @@ use htp::htp_urlencoded::*;
 use htp::htp_util::*;
 use htp::list::List;
 use htp::Status;
+use std::net::{IpAddr, Ipv4Addr};
 
 // import common testing utilities
 mod common;
@@ -997,14 +998,14 @@ impl DecodingTest {
             ret.connp = htp_connp_create(ret.cfg);
             htp_connp_open(
                 ret.connp,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 80,
-                std::ptr::null_mut(),
+                None,
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
-            ret.tx = (*(*ret.connp).conn).tx_mut_ptr(tx_id);
+            ret.tx = (*ret.connp).conn.tx_mut_ptr(tx_id);
         }
         ret
     }
@@ -1735,14 +1736,14 @@ impl UrlEncodedParserTest {
             ret.connp = htp_connp_create(ret.cfg);
             htp_connp_open(
                 ret.connp,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 80,
-                std::ptr::null_mut(),
+                None,
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
-            ret.tx = (*(*ret.connp).conn).tx_mut_ptr(tx_id);
+            ret.tx = (*ret.connp).conn.tx_mut_ptr(tx_id);
             ret.urlenp = htp_urlenp_create(ret.tx);
             ret
         }

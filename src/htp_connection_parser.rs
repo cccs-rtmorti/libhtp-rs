@@ -2,6 +2,7 @@ use crate::{
     bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_request, htp_response,
     htp_transaction, htp_util, Status,
 };
+use std::net::IpAddr;
 
 extern "C" {
     #[no_mangle]
@@ -30,9 +31,9 @@ pub struct htp_connp_t {
     /// Current parser configuration structure.
     pub cfg: *mut htp_config::htp_cfg_t,
     /// The connection structure associated with this parser.
-    pub conn: *mut htp_connection::htp_conn_t,
+    pub conn: htp_connection::htp_conn_t,
     /// Opaque user data associated with this parser.
-    pub user_data: *const core::ffi::c_void,
+    pub user_data: *mut core::ffi::c_void,
     // Request parser fields
     /// Parser inbound status. Starts as HTP_OK, but may turn into HTP_ERROR.
     pub in_status: htp_stream_state_t,
@@ -150,8 +151,8 @@ impl htp_connp_t {
     fn new(cfg: *mut htp_config::htp_cfg_t) -> Self {
         Self {
             cfg,
-            conn: htp_connection::htp_conn_create(),
-            user_data: std::ptr::null(),
+            conn: htp_connection::htp_conn_t::new(),
+            user_data: std::ptr::null_mut(),
             in_status: htp_stream_state_t::HTP_STREAM_NEW,
             out_status: htp_stream_state_t::HTP_STREAM_NEW,
             out_data_other_at_tx_end: 0,
@@ -216,8 +217,8 @@ impl htp_connp_t {
     /// Also sets the in_tx to the newly created one.
     pub unsafe fn create_tx(&mut self) -> Result<usize, Status> {
         // Detect pipelining.
-        if (*self.conn).tx_size() > self.out_next_tx_index {
-            (*self.conn).flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
+        if self.conn.tx_size() > self.out_next_tx_index {
+            self.conn.flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
         }
         htp_transaction::htp_tx_t::new(self).map(|tx_id| {
             self.in_tx = Some(tx_id);
@@ -242,12 +243,12 @@ impl htp_connp_t {
 
     /// Get the in_tx or None if not set.
     pub unsafe fn in_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
-        self.in_tx.and_then(|in_tx| (*self.conn).tx(in_tx))
+        self.in_tx.and_then(|in_tx| self.conn.tx(in_tx))
     }
 
     /// Get the in_tx as a mutable reference or None if not set.
     pub unsafe fn in_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
-        self.in_tx.and_then(|in_tx| (*self.conn).tx_mut(in_tx))
+        self.in_tx.and_then(move |in_tx| self.conn.tx_mut(in_tx))
     }
 
     /// Get the in_tx as a pointer or NULL if not set.
@@ -281,12 +282,12 @@ impl htp_connp_t {
 
     /// Get the out_tx or None if not set.
     pub unsafe fn out_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
-        self.out_tx.and_then(|out_tx| (*self.conn).tx(out_tx))
+        self.out_tx.and_then(|out_tx| self.conn.tx(out_tx))
     }
 
     /// Get the out_tx as a mutable reference or None if not set.
     pub unsafe fn out_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
-        self.out_tx.and_then(|out_tx| (*self.conn).tx_mut(out_tx))
+        self.out_tx.and_then(move |out_tx| self.conn.tx_mut(out_tx))
     }
 
     /// Get the out_tx as a pointer or NULL if not set.
@@ -348,7 +349,7 @@ impl Drop for htp_connp_t {
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_req_close(connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
+pub unsafe fn htp_connp_req_close(connp: *mut htp_connp_t, timestamp: Option<htp_time_t>) {
     if connp.is_null() {
         return;
     }
@@ -364,12 +365,12 @@ pub unsafe fn htp_connp_req_close(connp: *mut htp_connp_t, timestamp: *const htp
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_close(connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
+pub unsafe fn htp_connp_close(connp: *mut htp_connp_t, timestamp: Option<htp_time_t>) {
     if connp.is_null() {
         return;
     }
     // Close the underlying connection.
-    htp_connection::htp_conn_close((*connp).conn, timestamp);
+    (*connp).conn.close(timestamp.clone());
     // Update internal flags
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_ERROR {
         (*connp).in_status = htp_stream_state_t::HTP_STREAM_CLOSED
@@ -379,7 +380,7 @@ pub unsafe fn htp_connp_close(connp: *mut htp_connp_t, timestamp: *const htp_tim
     }
     // Call the parsers one last time, which will allow them
     // to process the events that depend on stream closure
-    htp_request::htp_connp_req_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
+    htp_request::htp_connp_req_data(connp, timestamp.clone(), 0 as *const core::ffi::c_void, 0);
     htp_response::htp_connp_res_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
 }
 
@@ -410,32 +411,8 @@ pub unsafe fn htp_connp_destroy_all(connp: *mut htp_connp_t) {
     if connp.is_null() {
         return;
     }
-    // Destroy connection
-    htp_connection::htp_conn_destroy((*connp).conn);
-    (*connp).conn = std::ptr::null_mut();
     // Destroy everything else
     htp_connp_destroy(connp);
-}
-
-/// Returns the connection associated with the connection parser.
-/// Returns a htp_conn_t instance, or NULL if one is not available.
-pub unsafe fn htp_connp_get_connection(
-    connp: *const htp_connp_t,
-) -> *mut htp_connection::htp_conn_t {
-    if connp.is_null() {
-        return 0 as *mut htp_connection::htp_conn_t;
-    }
-    (*connp).conn
-}
-
-/// Retrieve the user data associated with this connection parser.
-///
-/// Returns user data, or NULL if there isn't any.
-pub unsafe fn htp_connp_get_user_data(connp: *const htp_connp_t) -> *mut core::ffi::c_void {
-    if connp.is_null() {
-        return 0 as *mut core::ffi::c_void;
-    }
-    (*connp).user_data as *mut core::ffi::c_void
 }
 
 /// This function is most likely not used and/or not needed.
@@ -453,11 +430,11 @@ pub unsafe fn htp_connp_in_reset(connp: *mut htp_connp_t) {
 /// timestamp is optional
 pub unsafe fn htp_connp_open(
     connp: *mut htp_connp_t,
-    client_addr: *const i8,
+    client_addr: Option<IpAddr>,
     client_port: i32,
-    server_addr: *const i8,
+    server_addr: Option<IpAddr>,
     server_port: i32,
-    timestamp: *const htp_time_t,
+    timestamp: Option<htp_time_t>,
 ) {
     if connp.is_null() {
         return;
@@ -473,8 +450,7 @@ pub unsafe fn htp_connp_open(
         );
         return;
     }
-    if htp_connection::htp_conn_open(
-        (*connp).conn,
+    if (*connp).conn.open(
         client_addr,
         client_port,
         server_addr,
@@ -489,10 +465,7 @@ pub unsafe fn htp_connp_open(
 }
 
 /// Associate user data with the supplied parser.
-pub unsafe fn htp_connp_set_user_data(
-    connp: *mut htp_connp_t,
-    user_data: *const core::ffi::c_void,
-) {
+pub unsafe fn htp_connp_set_user_data(connp: *mut htp_connp_t, user_data: *mut core::ffi::c_void) {
     if connp.is_null() {
         return;
     }

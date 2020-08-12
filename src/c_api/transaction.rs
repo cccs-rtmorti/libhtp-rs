@@ -15,7 +15,7 @@ pub unsafe extern "C" fn htp_tx_create(
 ) -> *mut htp_transaction::htp_tx_t {
     if let Some(connp) = connp.as_mut() {
         if let Ok(tx_id) = connp.create_tx() {
-            (*connp.conn).tx_mut_ptr(tx_id)
+            connp.conn.tx_mut_ptr(tx_id)
         } else {
             std::ptr::null_mut()
         }
@@ -37,12 +37,12 @@ pub unsafe extern "C" fn htp_tx_destroy(tx: *mut htp_transaction::htp_tx_t) -> S
 /// Returns the connection parser or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_connp(
-    tx: *const htp_transaction::htp_tx_t,
-) -> *const htp_connection_parser::htp_connp_t {
+    tx: *mut htp_transaction::htp_tx_t,
+) -> *mut htp_connection_parser::htp_connp_t {
     if let Some(tx) = tx.as_ref() {
         tx.connp
     } else {
-        std::ptr::null()
+        std::ptr::null_mut()
     }
 }
 

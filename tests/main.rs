@@ -14,8 +14,8 @@ use htp::htp_util::*;
 use htp::log::*;
 use htp::Status;
 use std::env;
-use std::ffi::CString;
 use std::iter::IntoIterator;
+use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Drop;
 use std::path::PathBuf;
 use std::slice;
@@ -142,11 +142,11 @@ impl Test {
             libc::gettimeofday(&mut tv_start, std::ptr::null_mut());
             htp_connp_open(
                 self.connp,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 10000,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 80,
-                &mut tv_start,
+                Some(tv_start),
             );
 
             let mut path = self.basedir.clone();
@@ -159,7 +159,7 @@ impl Test {
                     Chunk::Client(data) => {
                         let rc = htp_connp_req_data(
                             self.connp,
-                            &tv_start,
+                            Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
@@ -181,7 +181,7 @@ impl Test {
                         if let Some(out_remaining) = out_buf {
                             let rc = htp_connp_res_data(
                                 self.connp,
-                                &tv_start,
+                                Some(tv_start),
                                 out_remaining.as_ptr() as *const core::ffi::c_void,
                                 out_remaining.len(),
                             );
@@ -195,7 +195,7 @@ impl Test {
                         // Now use up this data chunk
                         let rc = htp_connp_res_data(
                             self.connp,
-                            &tv_start,
+                            Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
@@ -216,7 +216,7 @@ impl Test {
                         if let Some(in_remaining) = in_buf {
                             let rc = htp_connp_req_data(
                                 self.connp,
-                                &tv_start,
+                                Some(tv_start),
                                 in_remaining.as_ptr() as *const core::ffi::c_void,
                                 in_remaining.len(),
                             );
@@ -234,7 +234,7 @@ impl Test {
             if let Some(out_remaining) = out_buf {
                 let rc = htp_connp_res_data(
                     self.connp,
-                    &tv_start,
+                    Some(tv_start),
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
                 );
@@ -249,7 +249,7 @@ impl Test {
                 tv_usec: 0,
             };
             libc::gettimeofday(&mut tv_end, std::ptr::null_mut());
-            htp_connp_close(self.connp, &mut tv_end);
+            htp_connp_close(self.connp, Some(tv_end));
         }
         Ok(())
     }
@@ -276,9 +276,9 @@ fn Get() {
     unsafe {
         assert!(t.run("01-get.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
 
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
@@ -300,9 +300,9 @@ fn GetEncodedRelPath() {
     unsafe {
         assert!(t.run("99-get.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
 
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
@@ -318,7 +318,7 @@ fn ApacheHeaderParsing() {
     unsafe {
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut(0).expect("expected tx to exist");
+        let tx = (*t.connp).conn.tx_mut(0).expect("expected tx to exist");
 
         let actual: Vec<(&[u8], &[u8])> = (&tx.request_headers)
             .into_iter()
@@ -370,10 +370,11 @@ fn PostUrlencoded() {
     unsafe {
         assert!(t.run("03-post-urlencoded.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
         // Transaction 1
-        let tx = (*(*t.connp).conn)
+        let tx = (*t.connp)
+            .conn
             .tx(0)
             .expect("expected at least one transaction");
 
@@ -388,7 +389,8 @@ fn PostUrlencoded() {
         assert_response_header_eq!(tx, "Server", "Apache");
 
         // Transaction 2
-        let tx2 = (*(*t.connp).conn)
+        let tx2 = (*t.connp)
+            .conn
             .tx(1)
             .expect("expected at least two transactions");
 
@@ -405,9 +407,9 @@ fn PostUrlencodedChunked() {
     unsafe {
         assert!(t.run("04-post-urlencoded-chunked.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -425,9 +427,9 @@ fn Expect() {
     unsafe {
         assert!(t.run("05-expect.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         // The interim header from the 100 response should not be among the final headers.
@@ -441,9 +443,9 @@ fn UriNormal() {
     unsafe {
         assert!(t.run("06-uri-normal.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
     }
 }
@@ -454,13 +456,14 @@ fn PipelinedConn() {
     unsafe {
         assert!(t.run("07-pipelined-connection.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        assert!((*(*t.connp).conn)
+        assert!((*t.connp)
+            .conn
             .flags
             .contains(ConnectionFlags::HTP_CONN_PIPELINED));
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
     }
 }
@@ -471,13 +474,14 @@ fn NotPipelinedConn() {
     unsafe {
         assert!(t.run("08-not-pipelined-connection.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        assert!(!(*(*t.connp).conn)
+        assert!(!(*t.connp)
+            .conn
             .flags
             .contains(ConnectionFlags::HTP_CONN_PIPELINED));
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).flags.contains(Flags::HTP_MULTI_PACKET_HEAD));
@@ -490,9 +494,9 @@ fn MultiPacketRequest() {
     unsafe {
         assert!(t.run("09-multi-packet-request-head.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_MULTI_PACKET_HEAD));
@@ -504,24 +508,24 @@ fn HeaderHostParsing() {
     let mut t = Test::new();
     unsafe {
         assert!(t.run("10-host-in-headers.t").is_ok());
-        assert_eq!(4, (*(*t.connp).conn).tx_size());
+        assert_eq!(4, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
         assert!(!(*tx1).request_hostname.is_null());
         assert!((*(*tx1).request_hostname).eq("www.example.com"));
 
-        let tx2: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
         assert!(!(*tx2).request_hostname.is_null());
         assert!((*(*tx2).request_hostname).eq("www.example.com."));
 
-        let tx3: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(2);
+        let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
         assert!(!(*tx3).request_hostname.is_null());
         assert!((*(*tx3).request_hostname).eq("www.example.com"));
 
-        let tx4: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(3);
+        let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
         assert!(!(*tx4).request_hostname.is_null());
         assert!((*(*tx4).request_hostname).eq("www.example.com"));
@@ -534,9 +538,9 @@ fn ResponseWithoutContentLength() {
     unsafe {
         assert!(t.run("11-response-stream-closure.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -549,9 +553,9 @@ fn FailedConnectRequest() {
     unsafe {
         assert!(t.run("12-connect-request.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -568,9 +572,9 @@ fn CompressedResponseContentType() {
     unsafe {
         assert!(t.run("13-compressed-response-gzip-ct.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -587,9 +591,9 @@ fn CompressedResponseChunked() {
     unsafe {
         assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -606,9 +610,9 @@ fn SuccessfulConnectRequest() {
     unsafe {
         assert!(t.run("15-connect-complete.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         // TODO: Update the test_run() function to provide better
@@ -629,14 +633,14 @@ fn ConnectRequestWithExtraData() {
     unsafe {
         assert!(t.run("16-connect-extra.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert!(0 != htp_tx_is_complete(tx1));
 
-        let tx2: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert!(0 != htp_tx_is_complete(tx2));
@@ -649,9 +653,9 @@ fn Multipart() {
     unsafe {
         assert!(t.run("17-multipart-1.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -673,9 +677,9 @@ fn CompressedResponseDeflate() {
     unsafe {
         assert!(t.run("18-compressed-response-deflate.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -692,9 +696,9 @@ fn UrlEncoded() {
     unsafe {
         assert!(t.run("19-urlencoded-test.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -731,21 +735,21 @@ fn AmbiguousHost() {
     unsafe {
         assert!(t.run("20-ambiguous-host.t").is_ok());
 
-        assert_eq!(5, (*(*t.connp).conn).tx_size());
+        assert_eq!(5, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
         assert!(0 != htp_tx_is_complete(tx1));
         assert!(!(*tx1).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
 
-        let tx2: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
         assert!(0 != htp_tx_is_complete(tx2));
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx2).request_hostname.is_null());
         assert!((*(*tx2).request_hostname).eq("example.com"));
 
-        let tx3: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(2);
+        let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
         assert!(0 != htp_tx_is_complete(tx3));
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -753,7 +757,7 @@ fn AmbiguousHost() {
         assert!((*(*tx3).request_hostname).eq("www.example.com"));
         assert_eq!(8001, (*tx3).request_port_number);
 
-        let tx4: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(3);
+        let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
         assert!(0 != htp_tx_is_complete(tx4));
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -761,7 +765,7 @@ fn AmbiguousHost() {
         assert!((*(*tx4).request_hostname).eq("www.example.com"));
         assert_eq!(8002, (*tx4).request_port_number);
 
-        let tx5: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(4);
+        let tx5: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(4);
         assert!(!tx5.is_null());
         assert!(0 != htp_tx_is_complete(tx5));
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -777,12 +781,13 @@ fn Http_0_9() {
     unsafe {
         assert!(t.run("21-http09.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
-        assert!(!(*(*t.connp).conn)
+        assert_eq!(1, (*t.connp).conn.tx_size());
+        assert!(!(*t.connp)
+            .conn
             .flags
             .contains(ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA));
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
     }
 }
@@ -793,9 +798,9 @@ fn Http11HostMissing() {
     unsafe {
         assert!(t.run("22-http_1_1-host_missing").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_HOST_MISSING));
@@ -808,12 +813,13 @@ fn Http_0_9_Multiple() {
     unsafe {
         assert!(t.run("23-http09-multiple.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
-        assert!((*(*t.connp).conn)
+        assert_eq!(1, (*t.connp).conn.tx_size());
+        assert!((*t.connp)
+            .conn
             .flags
             .contains(ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA));
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
     }
 }
@@ -824,9 +830,9 @@ fn Http_0_9_Explicit() {
     unsafe {
         assert!(t.run("24-http09-explicit.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert_eq!(0, (*tx).is_protocol_0_9);
     }
@@ -899,7 +905,7 @@ fn RequestHeaderData() {
         ));
         assert!(t.run("26-request-headers-raw.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
@@ -957,7 +963,7 @@ fn RequestTrailerData() {
         ));
         assert!(t.run("27-request-trailer-raw.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
@@ -1027,7 +1033,7 @@ fn ResponseHeaderData() {
         ));
         assert!(t.run("28-response-headers-raw.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
@@ -1101,7 +1107,7 @@ fn ResponseTrailerData() {
         ));
         assert!(t.run("29-response-trailer-raw.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
@@ -1116,9 +1122,9 @@ fn GetIPv6() {
     unsafe {
         assert!(t.run("30-get-ipv6.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
@@ -1149,9 +1155,9 @@ fn GetRequestLineNul() {
     unsafe {
         assert!(t.run("31-get-request-line-nul.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_uri.is_null());
@@ -1166,9 +1172,9 @@ fn InvalidHostname1() {
     unsafe {
         assert!(t.run("32-invalid-hostname.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_HOSTU_INVALID));
@@ -1182,9 +1188,9 @@ fn InvalidHostname2() {
     unsafe {
         assert!(t.run("33-invalid-hostname.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
@@ -1199,9 +1205,9 @@ fn InvalidHostname3() {
     unsafe {
         assert!(t.run("34-invalid-hostname.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_HOSTH_INVALID));
@@ -1211,22 +1217,12 @@ fn InvalidHostname3() {
 }
 
 #[test]
-fn API_connp_get_connection() {
-    let mut t = Test::new();
-    unsafe {
-        assert!(t.run("34-invalid-hostname.t").is_ok());
-
-        assert_eq!((*t.connp).conn, htp_connp_get_connection(t.connp));
-    }
-}
-
-#[test]
 fn EarlyResponse() {
     let mut t = Test::new();
     unsafe {
         assert!(t.run("35-early-response.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -1239,7 +1235,7 @@ fn InvalidRequest1() {
     unsafe {
         assert!(t.run("36-invalid-request-1-invalid-c-l.t").is_err());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_HEADERS, (*tx).request_progress);
@@ -1258,7 +1254,7 @@ fn InvalidRequest2() {
         assert!(t.run("37-invalid-request-2-t-e-and-c-l.t").is_ok());
         // No error, flags only.
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1275,7 +1271,7 @@ fn InvalidRequest3() {
     unsafe {
         assert!(t.run("38-invalid-request-3-invalid-t-e.t").is_err());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_HEADERS, (*tx).request_progress);
@@ -1294,7 +1290,7 @@ fn AutoDestroyCrash() {
         (*t.cfg).set_tx_auto_destroy(1);
         assert!(t.run("39-auto-destroy-crash.t").is_ok());
 
-        assert_eq!(4, (*(*t.connp).conn).tx_size());
+        assert_eq!(4, (*t.connp).conn.tx_size());
     }
 }
 
@@ -1304,7 +1300,7 @@ fn AuthBasic() {
     unsafe {
         assert!(t.run("40-auth-basic.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1325,7 +1321,7 @@ fn AuthDigest() {
     unsafe {
         assert!(t.run("41-auth-digest.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1345,7 +1341,7 @@ fn Unknown_MethodOnly() {
     unsafe {
         assert!(t.run("42-unknown-method_only.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1365,7 +1361,7 @@ fn InvalidProtocol() {
     unsafe {
         assert!(t.run("43-invalid-protocol.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1380,7 +1376,7 @@ fn AuthBasicInvalid() {
     unsafe {
         assert!(t.run("44-auth-basic-invalid.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1401,7 +1397,7 @@ fn AuthDigestUnquotedUsername() {
     unsafe {
         assert!(t.run("45-auth-digest-unquoted-username.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1422,7 +1418,7 @@ fn AuthDigestInvalidUsername1() {
     unsafe {
         assert!(t.run("46-auth-digest-invalid-username.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1443,7 +1439,7 @@ fn AuthUnrecognized() {
     unsafe {
         assert!(t.run("47-auth-unrecognized.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1462,7 +1458,7 @@ fn InvalidResponseHeaders1() {
     unsafe {
         assert!(t.run("48-invalid-response-headers-1.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
@@ -1487,7 +1483,7 @@ fn InvalidResponseHeaders2() {
     unsafe {
         assert!(t.run("49-invalid-response-headers-2.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
@@ -1506,14 +1502,14 @@ fn Util() {
     unsafe {
         assert!(t.run("50-util.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         // A message that should not be logged.
-        let log_message_count = (*(*(*tx).connp).conn).message_size();
+        let log_message_count = (*(*tx).connp).conn.message_size();
         (*(*(*tx).connp).cfg).log_level = htp_log_level_t::HTP_LOG_NONE;
         htp_error!((*tx).connp, htp_log_code::UNKNOWN, "Log message");
-        assert_eq!(log_message_count, (*(*(*tx).connp).conn).message_size());
+        assert_eq!(log_message_count, (*(*tx).connp).conn.message_size());
     }
 }
 
@@ -1523,9 +1519,9 @@ fn GetIPv6Invalid() {
     unsafe {
         assert!(t.run("51-get-ipv6-invalid.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
@@ -1547,9 +1543,9 @@ fn InvalidPath() {
     unsafe {
         assert!(t.run("52-invalid-path.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_method.is_null());
@@ -1571,9 +1567,9 @@ fn PathUtf8_None() {
     unsafe {
         assert!(t.run("53-path-utf8-none.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).flags.contains(Flags::HTP_PATH_UTF8_VALID));
@@ -1588,9 +1584,9 @@ fn PathUtf8_Valid() {
     unsafe {
         assert!(t.run("54-path-utf8-valid.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_VALID));
@@ -1603,9 +1599,9 @@ fn PathUtf8_Overlong2() {
     unsafe {
         assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1618,9 +1614,9 @@ fn PathUtf8_Overlong3() {
     unsafe {
         assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1633,9 +1629,9 @@ fn PathUtf8_Overlong4() {
     unsafe {
         assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1648,9 +1644,9 @@ fn PathUtf8_Invalid() {
     unsafe {
         assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID));
@@ -1664,9 +1660,9 @@ fn PathUtf8_FullWidth() {
     unsafe {
         assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_HALF_FULL_RANGE));
@@ -1680,9 +1676,9 @@ fn PathUtf8_Decode_Valid() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("54-path-utf8-valid.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).parsed_uri.is_null());
@@ -1698,9 +1694,9 @@ fn PathUtf8_Decode_Overlong2() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1718,9 +1714,9 @@ fn PathUtf8_Decode_Overlong3() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1738,9 +1734,9 @@ fn PathUtf8_Decode_Overlong4() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
@@ -1758,9 +1754,9 @@ fn PathUtf8_Decode_Invalid() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_INVALID));
@@ -1779,9 +1775,9 @@ fn PathUtf8_Decode_FullWidth() {
         (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
         assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*tx).flags.contains(Flags::HTP_PATH_HALF_FULL_RANGE));
@@ -1798,9 +1794,9 @@ fn RequestCookies() {
     unsafe {
         assert!(t.run("60-request-cookies.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(3, (*(*tx).request_cookies).size());
@@ -1828,9 +1824,9 @@ fn EmptyLineBetweenRequests() {
     unsafe {
         assert!(t.run("61-empty-line-between-requests.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
 
         /*part of previous request body assert_eq!(1, (*tx).request_ignored_lines);*/
@@ -1843,15 +1839,15 @@ fn PostNoBody() {
     unsafe {
         assert!(t.run("62-post-no-body.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let tx2: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -1883,9 +1879,9 @@ fn PostChunkedSplitChunk() {
     unsafe {
         assert!(t.run("66-post-chunked-split-chunk.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -1901,9 +1897,9 @@ fn LongRequestLine1() {
     unsafe {
         assert!(t.run("67-long-request-line.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*(*tx).request_uri).eq("/0123456789/0123456789/"));
@@ -1917,7 +1913,7 @@ fn LongRequestLine2() {
         (*t.cfg).set_field_limits(0, 16);
         assert!(t.run("67-long-request-line.t").is_err());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_LINE, (*tx).request_progress);
@@ -1930,9 +1926,10 @@ fn InvalidRequestHeader() {
     unsafe {
         assert!(t.run("68-invalid-request-header.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn)
+        let tx = (*t.connp)
+            .conn
             .tx(0)
             .expect("expected at least one transaction");
 
@@ -1947,9 +1944,9 @@ fn TestGenericPersonality() {
         (*t.cfg).set_server_personality(HTP_SERVER_IDS);
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
     }
 }
@@ -1961,7 +1958,7 @@ fn LongResponseHeader() {
         (*t.cfg).set_field_limits(0, 16);
         assert!(t.run("69-long-response-header.t").is_err());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         //error first assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1981,9 +1978,9 @@ fn ResponseSplitChunk() {
     unsafe {
         assert!(t.run("71-response-split-chunk.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -1997,9 +1994,9 @@ fn ResponseBody() {
     unsafe {
         assert!(t.run("72-response-split-body.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2013,9 +2010,9 @@ fn ResponseContainsTeAndCl() {
     unsafe {
         assert!(t.run("73-response-te-and-cl.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2031,9 +2028,9 @@ fn ResponseMultipleCl() {
     unsafe {
         assert!(t.run("74-response-multiple-cl.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2052,9 +2049,9 @@ fn ResponseMultipleClMismatch() {
     unsafe {
         assert!(t.run("88-response-multiple-cl-mismatch.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2065,8 +2062,8 @@ fn ResponseMultipleClMismatch() {
         assert_response_header_eq!(tx, "Content-Length", "12");
         assert_response_header_flag_contains!(tx, "Content-Length", Flags::HTP_FIELD_REPEATED);
 
-        assert_eq!(2, (*(*tx).conn).message_size());
-        let log = (*(*tx).conn).message(1).unwrap();
+        assert_eq!(2, (*(*tx).connp).conn.message_size());
+        let log = (*(*tx).connp).conn.message(1).unwrap();
         assert_eq!(log.msg, "Ambiguous response C-L value");
         assert_eq!(htp_log_level_t::HTP_LOG_WARNING, log.level);
     }
@@ -2078,9 +2075,9 @@ fn ResponseInvalidCl() {
     unsafe {
         assert!(t.run("75-response-invalid-cl.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2096,9 +2093,9 @@ fn ResponseNoBody() {
     unsafe {
         assert!(t.run("76-response-no-body.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
@@ -2106,7 +2103,7 @@ fn ResponseNoBody() {
 
         assert_response_header_eq!(tx1, "Server", "Apache");
 
-        let tx2: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2122,9 +2119,9 @@ fn ResponseFoldedHeaders() {
     unsafe {
         assert!(t.run("77-response-folded-headers.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
@@ -2132,7 +2129,7 @@ fn ResponseFoldedHeaders() {
 
         assert_response_header_eq!(tx1, "Server", "Apache Server");
 
-        let tx2: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(1);
+        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2146,9 +2143,9 @@ fn ResponseNoStatusHeaders() {
     unsafe {
         assert!(t.run("78-response-no-status-headers.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2162,7 +2159,7 @@ fn ConnectInvalidHostport() {
     unsafe {
         assert!(t.run("79-connect-invalid-hostport.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
     }
 }
 
@@ -2172,7 +2169,7 @@ fn HostnameInvalid1() {
     unsafe {
         assert!(t.run("80-hostname-invalid-1.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
     }
 }
 
@@ -2182,7 +2179,7 @@ fn HostnameInvalid2() {
     unsafe {
         assert!(t.run("81-hostname-invalid-2.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
     }
 }
 
@@ -2192,9 +2189,9 @@ fn Put() {
     unsafe {
         assert!(t.run("82-put.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).request_hostname.is_null());
@@ -2208,7 +2205,7 @@ fn AuthDigestInvalidUsername2() {
     unsafe {
         assert!(t.run("83-auth-digest-invalid-username-2.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2229,9 +2226,9 @@ fn ResponseNoStatusHeaders2() {
     unsafe {
         assert!(t.run("84-response-no-status-headers-2.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2246,9 +2243,9 @@ fn ResponseNoStatusHeaders2() {
 //unsafe {
 //    assert!(t.run("85-zero-byte-request-timeout.t").is_ok());
 //
-//    assert_eq!(1, (*(*t.connp).conn).tx_len());
+//    assert_eq!(1, (*t.connp).conn.tx_len());
 //
-//    let tx = (*(*t.connp).conn).get_tx_mut_ptr(0);
+//    let tx = (*t.connp).conn.get_tx_mut_ptr(0);
 //    assert!(!tx.is_null());
 //
 //    assert_eq!(HTP_REQUEST_NOT_STARTED, (*tx).request_progress);
@@ -2261,9 +2258,9 @@ fn PartialRequestTimeout() {
     unsafe {
         assert!(t.run("86-partial-request-timeout.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2279,9 +2276,9 @@ fn IncorrectHostAmbiguousWarning() {
             .run("87-issue-55-incorrect-host-ambiguous-warning.t")
             .is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(!(*tx).parsed_uri_raw.is_null());
@@ -2307,9 +2304,9 @@ fn GetWhitespace() {
     unsafe {
         assert!(t.run("89-get-whitespace.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!((*(*tx).request_method).eq(" GET"));
@@ -2335,9 +2332,9 @@ fn RequestUriTooLarge() {
     unsafe {
         assert!(t.run("90-request-uri-too-large.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2351,15 +2348,15 @@ fn RequestInvalid() {
     unsafe {
         assert!(t.run("91-request-unexpected-body.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
+        assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let mut tx: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("POST"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        tx = (*(*t.connp).conn).tx_mut_ptr(1);
+        tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2373,7 +2370,7 @@ fn Http_0_9_MethodOnly() {
     unsafe {
         assert!(t.run("92-http_0_9-method_only.t").is_ok());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2393,9 +2390,9 @@ fn CompressedResponseDeflateAsGzip() {
     unsafe {
         assert!(t.run("93-compressed-response-deflateasgzip.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2412,9 +2409,9 @@ fn CompressedResponseMultiple() {
     unsafe {
         assert!(t.run("94-compressed-response-multiple.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2431,9 +2428,9 @@ fn CompressedResponseGzipAsDeflate() {
     unsafe {
         assert!(t.run("95-compressed-response-gzipasdeflate.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2450,9 +2447,9 @@ fn CompressedResponseLzma() {
     unsafe {
         assert!(t.run("96-compressed-response-lzma.t").is_ok());
 
-        assert_eq!(1, (*(*t.connp).conn).tx_size());
+        assert_eq!(1, (*t.connp).conn.tx_size());
 
-        let tx = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert!(0 != htp_tx_is_complete(tx));
@@ -2469,13 +2466,13 @@ fn RequestsCut() {
     unsafe {
         assert!(t.run("97-requests-cut.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
-        let mut tx: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        assert_eq!(2, (*t.connp).conn.tx_size());
+        let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
-        tx = (*(*t.connp).conn).tx_mut_ptr(1);
+        tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2488,15 +2485,15 @@ fn ResponsesCut() {
     unsafe {
         assert!(t.run("98-responses-cut.t").is_ok());
 
-        assert_eq!(2, (*(*t.connp).conn).tx_size());
-        let mut tx: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        assert_eq!(2, (*t.connp).conn.tx_size());
+        let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
-        tx = (*(*t.connp).conn).tx_mut_ptr(1);
+        tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*(*tx).request_method).eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2511,7 +2508,7 @@ fn AuthDigest_EscapedQuote() {
     unsafe {
         assert!(t.run("100-auth-digest-escaped-quote.t").is_ok());
 
-        let tx: *mut htp_tx_t = (*(*t.connp).conn).tx_mut_ptr(0);
+        let tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);

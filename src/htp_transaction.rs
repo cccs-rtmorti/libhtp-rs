@@ -1,9 +1,9 @@
 use crate::htp_util::Flags;
 use crate::list::List;
 use crate::{
-    bstr, htp_config, htp_connection, htp_connection_parser, htp_cookies, htp_decompressors,
-    htp_hooks, htp_multipart, htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded,
-    htp_util, Status,
+    bstr, htp_config, htp_connection_parser, htp_cookies, htp_decompressors, htp_hooks,
+    htp_multipart, htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded, htp_util,
+    Status,
 };
 use std::cmp::Ordering;
 
@@ -167,8 +167,6 @@ impl htp_header_t {
 pub struct htp_tx_t {
     /// The connection parser associated with this transaction.
     pub connp: *mut htp_connection_parser::htp_connp_t,
-    /// The connection to which this transaction belongs.
-    pub conn: *mut htp_connection::htp_conn_t,
     /// The configuration structure associated with this transaction.
     pub cfg: *mut htp_config::htp_cfg_t,
     /// Is the configuration structure shared with other transactions or connections? If
@@ -393,7 +391,6 @@ impl htp_tx_t {
     pub unsafe fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize, Status> {
         let tx = Self {
             connp,
-            conn: connp.conn,
             cfg: connp.cfg,
             is_config_shared: 1,
             user_data: std::ptr::null_mut(),
@@ -449,7 +446,7 @@ impl htp_tx_t {
             flags: Flags::empty(),
             request_progress: htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED,
             response_progress: htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED,
-            index: (*connp.conn).tx_size(),
+            index: connp.conn.tx_size(),
             req_header_repetitions: 0,
             res_header_repetitions: 0,
         };
@@ -457,7 +454,7 @@ impl htp_tx_t {
             return Err(Status::ERROR);
         }
         let tx_id = tx.index;
-        (*tx.conn).push_tx(tx);
+        (*tx.connp).conn.push_tx(tx);
         Ok(tx_id)
     }
 
@@ -515,7 +512,7 @@ impl Drop for htp_tx_t {
 
 impl PartialEq for htp_tx_t {
     fn eq(&self, other: &Self) -> bool {
-        self.conn == other.conn && self.index == other.index
+        unsafe { (*self.connp).conn == (*other.connp).conn && self.index == other.index }
     }
 }
 
@@ -589,7 +586,7 @@ pub unsafe fn htp_tx_destroy(tx: *mut htp_tx_t) -> Status {
             return Status::ERROR;
         }
         // remove the tx from the connection so it will be dropped
-        let _ = (*tx.conn).remove_tx(tx.index);
+        let _ = (*tx.connp).conn.remove_tx(tx.index);
         Status::OK
     } else {
         Status::ERROR

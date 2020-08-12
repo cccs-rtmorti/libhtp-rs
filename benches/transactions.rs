@@ -4,17 +4,11 @@ use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
 use htp::htp_request::*;
 use htp::htp_response::*;
-use std::ffi::CString;
 use std::fmt;
 use std::iter::IntoIterator;
+use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Drop;
 use std::time::Duration;
-
-macro_rules! cstr {
-    ( $x:expr ) => {{
-        CString::new($x).unwrap().as_ptr()
-    }};
-}
 
 #[derive(Debug, Clone)]
 enum Chunk {
@@ -76,11 +70,11 @@ impl Test {
             libc::gettimeofday(&mut tv_start, std::ptr::null_mut());
             htp_connp_open(
                 self.connp,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 10000,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 80,
-                &mut tv_start,
+                Some(tv_start),
             );
 
             let mut in_buf: Option<Vec<u8>> = None;
@@ -90,7 +84,7 @@ impl Test {
                     Chunk::Client(data) => {
                         let rc = htp_connp_req_data(
                             self.connp,
-                            &tv_start,
+                            Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
@@ -112,7 +106,7 @@ impl Test {
                         if let Some(out_remaining) = out_buf {
                             let rc = htp_connp_res_data(
                                 self.connp,
-                                &tv_start,
+                                Some(tv_start),
                                 out_remaining.as_ptr() as *const core::ffi::c_void,
                                 out_remaining.len(),
                             );
@@ -126,7 +120,7 @@ impl Test {
                         // Now use up this data chunk
                         let rc = htp_connp_res_data(
                             self.connp,
-                            &tv_start,
+                            Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
@@ -147,7 +141,7 @@ impl Test {
                         if let Some(in_remaining) = in_buf {
                             let rc = htp_connp_req_data(
                                 self.connp,
-                                &tv_start,
+                                Some(tv_start),
                                 in_remaining.as_ptr() as *const core::ffi::c_void,
                                 in_remaining.len(),
                             );
@@ -165,7 +159,7 @@ impl Test {
             if let Some(out_remaining) = out_buf {
                 let rc = htp_connp_res_data(
                     self.connp,
-                    &tv_start,
+                    Some(tv_start),
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
                 );
@@ -180,7 +174,7 @@ impl Test {
                 tv_usec: 0,
             };
             libc::gettimeofday(&mut tv_end, std::ptr::null_mut());
-            htp_connp_close(self.connp, &mut tv_end);
+            htp_connp_close(self.connp, Some(tv_end));
         }
         Ok(())
     }

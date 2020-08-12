@@ -5,7 +5,7 @@ use htp::htp_transaction::htp_tx_t;
 #[allow(dead_code)]
 pub unsafe fn htp_connp_tx_create(connp: *mut htp_connp_t) -> *mut htp_tx_t {
     if let Ok(tx_id) = (*connp).create_tx() {
-        (*(*connp).conn).tx_mut_ptr(tx_id)
+        (*connp).conn.tx_mut_ptr(tx_id)
     } else {
         std::ptr::null_mut()
     }

@@ -1,8 +1,6 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_util::Flags;
-use crate::{
-    bstr, htp_connection, htp_connection_parser, htp_hooks, htp_transaction, htp_util, Status,
-};
+use crate::{bstr, htp_connection_parser, htp_hooks, htp_transaction, htp_util, Status};
 
 extern "C" {
     #[no_mangle]
@@ -1130,7 +1128,7 @@ pub unsafe extern "C" fn htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(
     // Consume whatever is left in the buffer.
     let bytes_left: usize = ((*connp).in_current_len - (*connp).in_current_read_offset) as usize;
     if bytes_left > 0 {
-        (*(*connp).conn).flags |= htp_util::ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA
+        (*connp).conn.flags |= htp_util::ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA
     }
     (*connp).in_current_read_offset =
         ((*connp).in_current_read_offset as u64).wrapping_add(bytes_left as u64) as i64;
@@ -1179,7 +1177,7 @@ pub unsafe fn htp_connp_req_data_consumed(connp: *mut htp_connection_parser::htp
 ///         HTP_STREAM_CLOSED and HTP_STREAM_TUNNEL are also possible.
 pub unsafe fn htp_connp_req_data(
     connp: *mut htp_connection_parser::htp_connp_t,
-    timestamp: *const htp_time_t,
+    timestamp: Option<htp_time_t>,
     data: *const core::ffi::c_void,
     len: usize,
 ) -> i32 {
@@ -1232,13 +1230,10 @@ pub unsafe fn htp_connp_req_data(
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED as i32;
     }
     // Remember the timestamp of the current request data chunk
-    if !timestamp.is_null() {
-        memcpy(
-            &mut (*connp).in_timestamp as *mut htp_time_t as *mut core::ffi::c_void,
-            timestamp as *const core::ffi::c_void,
-            ::std::mem::size_of::<htp_time_t>(),
-        );
+    if let Some(timestamp) = timestamp {
+        (*connp).in_timestamp = timestamp;
     }
+
     // Store the current chunk information
     (*connp).in_current_data = data as *mut u8;
     (*connp).in_current_len = len as i64;
@@ -1246,7 +1241,7 @@ pub unsafe fn htp_connp_req_data(
     (*connp).in_current_consume_offset = 0;
     (*connp).in_current_receiver_offset = 0;
     (*connp).in_chunk_count = (*connp).in_chunk_count.wrapping_add(1);
-    htp_connection::htp_conn_track_inbound_data((*connp).conn, len, timestamp);
+    (*connp).conn.track_inbound_data(len);
     // Return without processing any data if the stream is in tunneling
     // mode (which it would be after an initial CONNECT transaction).
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {

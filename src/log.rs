@@ -1,5 +1,5 @@
 use crate::{htp_connection_parser, htp_hooks, list::List};
-use std::ffi::CStr;
+use std::net::IpAddr;
 
 /// cbindgen:prefix-with-name=true
 #[repr(u8)]
@@ -97,11 +97,11 @@ pub enum htp_log_level_t {
 #[derive(Clone)]
 pub struct htp_log_t {
     /// Client IP address.
-    pub client_addr: String,
+    pub client_addr: Option<IpAddr>,
     /// Client port.
     pub client_port: i32,
     /// Server IP address.
-    pub server_addr: String,
+    pub server_addr: Option<IpAddr>,
     /// Server port.
     pub server_port: i32,
 
@@ -128,25 +128,11 @@ impl htp_log_t {
         code: htp_log_code,
         msg: String,
     ) -> htp_log_t {
-        let mut client_addr = String::new();
-        let mut server_addr = String::new();
-
-        if !(*(*connp).conn).client_addr.is_null() {
-            client_addr = CStr::from_ptr((*(*connp).conn).client_addr)
-                .to_string_lossy()
-                .into_owned();
-        }
-        if !(*(*connp).conn).server_addr.is_null() {
-            server_addr = CStr::from_ptr((*(*connp).conn).server_addr)
-                .to_string_lossy()
-                .into_owned();
-        }
-
         Self {
-            client_addr,
-            client_port: (*(*connp).conn).client_port,
-            server_addr,
-            server_port: (*(*connp).conn).server_port,
+            client_addr: (*connp).conn.client_addr,
+            client_port: (*connp).conn.client_port,
+            server_addr: (*connp).conn.server_addr,
+            server_port: (*connp).conn.server_port,
             file: file.to_string(),
             line,
             level,
@@ -164,7 +150,7 @@ pub unsafe fn htp_log(
     code: htp_log_code,
     msg: String,
 ) {
-    if let (Some(cfg), Some(conn)) = (connp.cfg.as_ref(), connp.conn.as_mut()) {
+    if let Some(cfg) = connp.cfg.as_ref() {
         // Ignore messages below our log level.
         if level <= cfg.log_level {
             let mut log = htp_log_t::new(connp, file, line, level, code, msg);
@@ -172,7 +158,7 @@ pub unsafe fn htp_log(
                 cfg.hook_log,
                 (&mut log as *mut htp_log_t) as *mut core::ffi::c_void,
             );
-            conn.push_message(log);
+            connp.conn.push_message(log);
         }
     }
 }

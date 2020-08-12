@@ -9,8 +9,8 @@ use htp::htp_transaction::*;
 use htp::Status;
 use libc::calloc;
 use std::ffi::CStr;
-use std::ffi::CString;
 use std::fs;
+use std::net::{IpAddr, Ipv4Addr};
 
 // import common testing utilities
 mod common;
@@ -50,18 +50,18 @@ impl Test {
             // Open connection
             htp_connp_open(
                 self.connp,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 80,
-                std::ptr::null_mut(),
+                None,
             );
 
             // Send headers
             for header in headers {
                 htp_connp_req_data(
                     self.connp,
-                    std::ptr::null_mut(),
+                    None,
                     header.as_ptr() as *const core::ffi::c_void,
                     header.chars().count(),
                 );
@@ -76,14 +76,14 @@ impl Test {
             let contentStr = format!("Content-Length: {}\r\n", bodyLen);
             htp_connp_req_data(
                 self.connp,
-                std::ptr::null_mut(),
+                None,
                 contentStr.as_ptr() as *const core::ffi::c_void,
                 contentStr.chars().count(),
             );
 
             htp_connp_req_data(
                 self.connp,
-                std::ptr::null_mut(),
+                None,
                 "\r\n".as_ptr() as *const core::ffi::c_void,
                 2,
             );
@@ -92,15 +92,15 @@ impl Test {
             for d in data {
                 htp_connp_req_data(
                     self.connp,
-                    std::ptr::null_mut(),
+                    None,
                     d.as_ptr() as *const core::ffi::c_void,
                     d.chars().count(),
                 );
             }
 
-            assert_eq!(1, (*(*self.connp).conn).tx_size());
+            assert_eq!(1, (*self.connp).conn.tx_size());
 
-            self.tx = (*(*self.connp).conn).tx_mut_ptr(0);
+            self.tx = (*self.connp).conn.tx_mut_ptr(0);
 
             assert!(!self.tx.is_null());
             assert!(!(*self.tx).request_mpartp.is_null());
@@ -201,8 +201,6 @@ impl Drop for Test {
             if !self.mpartp.is_null() {
                 htp_mpartp_destroy(self.mpartp);
             }
-
-            htp_connp_destroy(self.connp);
             (*self.cfg).destroy();
         }
     }

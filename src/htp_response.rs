@@ -2,8 +2,8 @@ use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
-    bstr, htp_connection, htp_connection_parser, htp_decompressors, htp_hooks, htp_request,
-    htp_transaction, htp_util, Status,
+    bstr, htp_connection_parser, htp_decompressors, htp_hooks, htp_request, htp_transaction,
+    htp_util, Status,
 };
 use std::cmp::Ordering;
 
@@ -1440,7 +1440,8 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
     // If there is none, we just create one so that responses without
     // request can still be processed.
     (*connp).set_out_tx_id(
-        (*(*connp).conn)
+        (*connp)
+            .conn
             .tx((*connp).out_next_tx_index)
             .map(|tx| tx.index),
     );
@@ -1462,7 +1463,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
         }
         if let Ok(Some(out_tx)) = (*connp)
             .create_tx()
-            .map(|tx_id| (*(*connp).conn).tx_mut(tx_id))
+            .map(|tx_id| (*connp).conn.tx_mut(tx_id))
         {
             (*connp).set_out_tx(out_tx);
 
@@ -1508,7 +1509,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed
 pub unsafe fn htp_connp_res_data(
     connp: *mut htp_connection_parser::htp_connp_t,
-    timestamp: *const htp_time_t,
+    timestamp: Option<htp_time_t>,
     data: *const core::ffi::c_void,
     len: usize,
 ) -> i32 {
@@ -1561,12 +1562,8 @@ pub unsafe fn htp_connp_res_data(
         return htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED as i32;
     }
     // Remember the timestamp of the current response data chunk
-    if !timestamp.is_null() {
-        memcpy(
-            &mut (*connp).out_timestamp as *mut htp_time_t as *mut core::ffi::c_void,
-            timestamp as *const core::ffi::c_void,
-            ::std::mem::size_of::<htp_time_t>(),
-        );
+    if let Some(timestamp) = timestamp {
+        (*connp).out_timestamp = timestamp;
     }
     // Store the current chunk information
     (*connp).out_current_data = data as *mut u8;
@@ -1574,7 +1571,7 @@ pub unsafe fn htp_connp_res_data(
     (*connp).out_current_read_offset = 0;
     (*connp).out_current_consume_offset = 0;
     (*connp).out_current_receiver_offset = 0;
-    htp_connection::htp_conn_track_outbound_data((*connp).conn, len, timestamp);
+    (*connp).conn.track_outbound_data(len);
     // Return without processing any data if the stream is in tunneling
     // mode (which it would be after an initial CONNECT transaction.
     if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {

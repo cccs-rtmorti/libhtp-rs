@@ -10,7 +10,7 @@ use crate::list;
 use crate::log::{self, *};
 use crate::Status;
 use std::convert::TryFrom;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 pub mod transaction;
 pub mod uri;
@@ -441,7 +441,7 @@ pub unsafe extern "C" fn htp_connp_close(
     connp: *mut htp_connection_parser::htp_connp_t,
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
-    htp_connection_parser::htp_connp_close(connp, timestamp)
+    htp_connection_parser::htp_connp_close(connp, timestamp.as_ref().map(|val| val.clone()))
 }
 
 /// Creates a new connection parser using the provided configuration. Because
@@ -469,19 +469,25 @@ pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut htp_connection_parser
 ///
 /// Returns htp_conn_t instance, or NULL if one is not available.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_connection(
-    connp: *const htp_connection_parser::htp_connp_t,
+pub unsafe extern "C" fn htp_connp_connection(
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut htp_connection::htp_conn_t {
-    htp_connection_parser::htp_connp_get_connection(connp)
+    connp
+        .as_mut()
+        .map(|val| &mut val.conn as *mut htp_connection::htp_conn_t)
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// Retrieve the user data associated with this connection parser.
 /// Returns user data, or NULL if there isn't any.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_user_data(
-    connp: *const htp_connection_parser::htp_connp_t,
+pub unsafe extern "C" fn htp_connp_user_data(
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut libc::c_void {
-    htp_connection_parser::htp_connp_get_user_data(connp)
+    connp
+        .as_mut()
+        .map(|val| val.user_data)
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// Opens connection.
@@ -494,8 +500,29 @@ pub unsafe extern "C" fn htp_connp_open(
     client_port: libc::c_int,
     server_addr: *const libc::c_char,
     server_port: libc::c_int,
-    timestamp: *mut htp_connection_parser::htp_time_t,
+    timestamp: *const htp_connection_parser::htp_time_t,
 ) {
+    let client_addr = if let Some(client_addr) = client_addr.as_ref() {
+        CStr::from_ptr(client_addr)
+            .to_str()
+            .ok()
+            .and_then(|val| val.parse().ok())
+    } else {
+        None
+    };
+    let server_addr = if let Some(server_addr) = server_addr.as_ref() {
+        CStr::from_ptr(server_addr)
+            .to_str()
+            .ok()
+            .and_then(|val| val.parse().ok())
+    } else {
+        None
+    };
+    let timestamp = if let Some(timestamp) = timestamp.as_ref() {
+        Some(timestamp.clone())
+    } else {
+        None
+    };
     htp_connection_parser::htp_connp_open(
         connp,
         client_addr,
@@ -514,7 +541,7 @@ pub unsafe extern "C" fn htp_connp_req_close(
     connp: *mut htp_connection_parser::htp_connp_t,
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
-    htp_connection_parser::htp_connp_req_close(connp, timestamp)
+    htp_connection_parser::htp_connp_req_close(connp, timestamp.as_ref().map(|val| val.clone()))
 }
 
 /// Process a chunk of inbound client request data
@@ -529,7 +556,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> libc::c_int {
-    htp_request::htp_connp_req_data(connp, timestamp, data, len)
+    htp_request::htp_connp_req_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
 }
 
 /// Process a chunk of outbound (server or response) data.
@@ -543,14 +570,14 @@ pub unsafe extern "C" fn htp_connp_res_data(
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> libc::c_int {
-    htp_response::htp_connp_res_data(connp, timestamp, data, len)
+    htp_response::htp_connp_res_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
 }
 
 /// Associate user data with the supplied parser.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_set_user_data(
     connp: *mut htp_connection_parser::htp_connp_t,
-    user_data: *const libc::c_void,
+    user_data: *mut libc::c_void,
 ) {
     htp_connection_parser::htp_connp_set_user_data(connp, user_data)
 }

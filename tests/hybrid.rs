@@ -9,6 +9,7 @@ use htp::htp_transaction::*;
 use htp::htp_util::*;
 use htp::Status;
 use std::ffi::CString;
+use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Drop;
 
 // import common testing utilities
@@ -189,11 +190,11 @@ impl HybridParsingTest {
             assert!(!connp.is_null());
             htp_connp_open(
                 connp,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
-                cstr!("127.0.0.1"),
+                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 80,
-                std::ptr::null_mut(),
+                None,
             );
 
             let user_data = HybridParsing_Get_User_Data::new();
@@ -209,7 +210,7 @@ impl HybridParsingTest {
     fn close_conn_parser(&mut self) {
         unsafe {
             if self.connp_open {
-                htp_connp_close(self.connp, std::ptr::null_mut());
+                htp_connp_close(self.connp, None);
                 self.connp_open = false;
             }
         }
