@@ -96,69 +96,23 @@ fn IsLineWhitespace() {
 }
 
 #[test]
-fn ParsePositiveIntegerWhitespace() {
-    unsafe {
-        assert_eq!(
-            123,
-            htp_parse_positive_integer_whitespace(cstr!("123   ") as *const u8, 6, 10)
-        );
-        assert_eq!(
-            123,
-            htp_parse_positive_integer_whitespace(cstr!("   123") as *const u8, 6, 10)
-        );
-        assert_eq!(
-            123,
-            htp_parse_positive_integer_whitespace(cstr!("   123   ") as *const u8, 9, 10)
-        );
-        assert_eq!(
-            -1,
-            htp_parse_positive_integer_whitespace(cstr!("a123") as *const u8, 4, 10)
-        );
-        assert_eq!(
-            -1001,
-            htp_parse_positive_integer_whitespace(cstr!("   \t") as *const u8, 4, 10)
-        );
-        assert_eq!(
-            -1002,
-            htp_parse_positive_integer_whitespace(cstr!("123b ") as *const u8, 5, 10)
-        );
-
-        assert_eq!(
-            -1,
-            htp_parse_positive_integer_whitespace(cstr!("   a123   ") as *const u8, 9, 10)
-        );
-        assert_eq!(
-            -1002,
-            htp_parse_positive_integer_whitespace(cstr!("   123b   ") as *const u8, 9, 10)
-        );
-
-        assert_eq!(
-            0x123,
-            htp_parse_positive_integer_whitespace(cstr!("   123   ") as *const u8, 9, 16)
-        );
-    }
-}
-
-#[test]
 fn ParseContentLength() {
-    unsafe {
-        let data: *mut bstr_t = bstr_dup_str("134");
-
-        assert_eq!(134, htp_parse_content_length(data, std::ptr::null_mut()));
-
-        bstr_free(data);
-    }
+    assert_eq!(134, htp_parse_content_length(b"134", None).unwrap());
+    assert_eq!(
+        134,
+        htp_parse_content_length(b"    \t134    ", None).unwrap()
+    );
+    assert_eq!(134, htp_parse_content_length(b"abcd134    ", None).unwrap());
+    assert!(htp_parse_content_length(b"abcd    ", None).is_none());
 }
 
 #[test]
 fn ParseChunkedLength() {
-    unsafe {
-        let mut_data = CString::new("12a5").unwrap();
-        assert_eq!(
-            0x12a5,
-            htp_parse_chunked_length(mut_data.as_ptr() as *mut u8, 4)
-        );
-    }
+    assert_eq!(Ok(Some(0x12a5)), htp_parse_chunked_length(b"12a5"));
+    assert_eq!(
+        Ok(Some(0x12a5)),
+        htp_parse_chunked_length(b"    \t12a5    ")
+    );
 }
 
 #[test]

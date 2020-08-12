@@ -56,12 +56,10 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
             // Don't use string comparison here because we want to
             // ignore small formatting differences.
-            let existing_cl: i64 =
-                htp_util::htp_parse_content_length(&h_existing.value, std::ptr::null_mut());
-            let new_cl: i64 =
-                htp_util::htp_parse_content_length(&header.value, std::ptr::null_mut());
+            let existing_cl = htp_util::htp_parse_content_length(&h_existing.value, None);
+            let new_cl = htp_util::htp_parse_content_length(&header.value, None);
             // Ambiguous response C-L value.
-            if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
+            if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                 htp_warn!(
                     connp,
                     htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,

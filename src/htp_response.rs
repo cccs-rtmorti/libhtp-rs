@@ -376,10 +376,17 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
         }
         (*(*connp).out_tx).response_message_len =
             ((*(*connp).out_tx).response_message_len as u64).wrapping_add(len as u64) as i64;
-        (*connp).out_chunked_length = htp_util::htp_parse_chunked_length(data, len);
-        // empty chunk length line, lets try to continue
-        if (*connp).out_chunked_length == -1004 {
-            continue;
+
+        let buf: &mut [u8] = std::slice::from_raw_parts_mut(data, len);
+        if let Ok(chunked_length) = htp_util::htp_parse_chunked_length(buf) {
+            if let Some(chunked_length) = chunked_length {
+                (*connp).out_chunked_length = chunked_length as i64;
+            } else {
+                // empty chunk length line, lets try to continue
+                continue;
+            }
+        } else {
+            (*connp).out_chunked_length = -1;
         }
         if (*connp).out_chunked_length < 0 {
             // reset out_current_read_offset so htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
@@ -737,19 +744,10 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                 (*(*connp).out_tx).flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             // Get body length
-            (*(*connp).out_tx).response_content_length =
-                htp_util::htp_parse_content_length(&cl.value, connp);
-            if (*(*connp).out_tx).response_content_length < 0 {
-                htp_error!(
-                    connp,
-                    htp_log_code::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
-                    format!(
-                        "Invalid C-L field in response: {}",
-                        (*(*connp).out_tx).response_content_length
-                    )
-                );
-                return Status::ERROR;
-            } else {
+            if let Some(content_length) =
+                htp_util::htp_parse_content_length((*(*cl).value).as_slice(), Some(&mut *connp))
+            {
+                (*(*connp).out_tx).response_content_length = content_length;
                 (*connp).out_content_length = (*(*connp).out_tx).response_content_length;
                 (*connp).out_body_data_left = (*connp).out_content_length;
                 if (*connp).out_content_length != 0 {
@@ -769,6 +767,16 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                             ) -> Status,
                     )
                 }
+            } else {
+                htp_error!(
+                    connp,
+                    htp_log_code::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
+                    format!(
+                        "Invalid C-L field in response: {}",
+                        (*(*connp).out_tx).response_content_length
+                    )
+                );
+                return Status::ERROR;
             }
         } else {
             // 4. If the message uses the media type "multipart/byteranges", which is

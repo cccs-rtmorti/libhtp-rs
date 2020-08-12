@@ -755,14 +755,17 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
             //      which is bound to fail (because it will contain commas).
         }
         // Get the body length.
-        (*tx).request_content_length = htp_util::htp_parse_content_length(&cl.value, (*tx).connp);
-        if (*tx).request_content_length < 0 {
+        if let Some(content_length) =
+            htp_util::htp_parse_content_length((*(*cl).value).as_slice(), Some(&mut *(*tx).connp))
+        {
+            // We have a request body of known length.
+            (*tx).request_content_length = content_length;
+            (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
+        } else {
+            (*tx).request_content_length = -1;
             (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID_C_L;
             (*tx).flags |= Flags::HTP_REQUEST_INVALID
-        } else {
-            // We have a request body of known length.
-            (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
         }
     } else {
         // No body.

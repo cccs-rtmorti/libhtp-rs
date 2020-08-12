@@ -1,4 +1,3 @@
-use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_transaction::Protocol;
 use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
 use nom::{
@@ -63,14 +62,24 @@ pub fn htp_parse_protocol<'a>(
 
 /// Determines the numerical value of a response status given as a string.
 ///
-/// Returns Status code on success, or HTP_STATUS_INVALID on error.
-pub unsafe extern "C" fn htp_parse_status(status: *const bstr::bstr_t) -> i32 {
-    let r: i64 =
-        htp_util::htp_parse_positive_integer_whitespace(bstr_ptr(status), bstr_len(status), 10);
-    if r >= 100 && r <= 999 {
-        return r as i32;
+/// Returns Status code as a u16 on success or None on failure
+pub fn htp_parse_status(status: &bstr::bstr_t) -> Option<u16> {
+    if let Ok((trailing_data, (leading_data, status_code))) =
+        htp_util::ascii_digits()(status.as_slice())
+    {
+        if trailing_data.len() > 0 || leading_data.len() > 0 {
+            //There are invalid characters in the status code
+            return None;
+        }
+        if let Ok(status_code) = std::str::from_utf8(status_code) {
+            if let Ok(status_code) = u16::from_str_radix(status_code, 10) {
+                if status_code >= 100 && status_code <= 999 {
+                    return Some(status_code);
+                }
+            }
+        }
     }
-    -1
+    None
 }
 
 /// Parses Digest Authorization request header.
@@ -217,4 +226,28 @@ fn AuthDigest() {
     );
     assert!(htp_parse_authorization_digest(b"username=ivanr\"   ").is_err()); //Missing opening quote
     assert!(htp_parse_authorization_digest(b"username=\"ivanr   ").is_err()); //Missing closing quote
+}
+
+#[test]
+fn Status() {
+    let status = bstr::bstr_t::from("   200    ");
+    assert_eq!(Some(200u16), htp_parse_status(&status));
+
+    let status = bstr::bstr_t::from("  \t 404    ");
+    assert_eq!(Some(404u16), htp_parse_status(&status));
+
+    let status = bstr::bstr_t::from("123");
+    assert_eq!(Some(123u16), htp_parse_status(&status));
+
+    let status = bstr::bstr_t::from("99");
+    assert!(htp_parse_status(&status).is_none());
+
+    let status = bstr::bstr_t::from("1000");
+    assert!(htp_parse_status(&status).is_none());
+
+    let status = bstr::bstr_t::from("200 OK");
+    assert!(htp_parse_status(&status).is_none());
+
+    let status = bstr::bstr_t::from("NOT 200");
+    assert!(htp_parse_status(&status).is_none());
 }

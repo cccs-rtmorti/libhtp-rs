@@ -66,7 +66,11 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     if (*tx).response_status.is_null() {
         return Status::ERROR;
     }
-    (*tx).response_status_number = htp_parsers::htp_parse_status((*tx).response_status);
+    if let Some(status_code) = htp_parsers::htp_parse_status(&*(*tx).response_status) {
+        (*tx).response_status_number = status_code as i32;
+    } else {
+        (*tx).response_status_number = -1;
+    }
     // Ignore whitespace that follows the status code.
     while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
         pos = pos.wrapping_add(1)
@@ -256,12 +260,9 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
             // Don't use string comparison here because we want to
             // ignore small formatting differences.
-            let mut existing_cl: i64 = 0;
-            let mut new_cl: i64 = 0;
-            existing_cl =
-                htp_util::htp_parse_content_length(&h_existing.value, std::ptr::null_mut());
-            new_cl = htp_util::htp_parse_content_length(&header.value, std::ptr::null_mut());
-            if existing_cl == -1 || new_cl == -1 || existing_cl != new_cl {
+            let existing_cl = htp_util::htp_parse_content_length(&h_existing.value, None);
+            let new_cl = htp_util::htp_parse_content_length(&(header.value), None);
+            if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                 // Ambiguous response C-L value.
                 htp_warn!(
                     connp,

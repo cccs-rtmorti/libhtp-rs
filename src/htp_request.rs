@@ -529,10 +529,12 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_LENGTH(
             }
             (*(*connp).in_tx).request_message_len =
                 ((*(*connp).in_tx).request_message_len as u64).wrapping_add(len as u64) as i64;
-            let s = std::slice::from_raw_parts(data as *const u8, len);
-            let s = htp_util::htp_chomp(&s);
-            len = s.len();
-            (*connp).in_chunked_length = htp_util::htp_parse_chunked_length(data, len);
+            let buf: &mut [u8] = std::slice::from_raw_parts_mut(data, len);
+            if let Ok(Some(chunked_len)) = htp_util::htp_parse_chunked_length(buf) {
+                (*connp).in_chunked_length = chunked_len as i64;
+            } else {
+                (*connp).in_chunked_length = -1;
+            }
             htp_connp_req_clear_buffer(connp);
             // Handle chunk length.
             if (*connp).in_chunked_length > 0 {

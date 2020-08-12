@@ -1,4 +1,3 @@
-use crate::bstr::{bstr_len, bstr_ptr};
 use crate::htp_config::htp_decoder_cfg_t;
 use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
@@ -8,8 +7,12 @@ use crate::{
 use bitflags;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, tag_no_case, take, take_until, take_while, take_while_m_n},
-    character::complete::char,
+    bytes::complete::{
+        is_not, tag, tag_no_case, take, take_till, take_until, take_while, take_while1,
+        take_while_m_n,
+    },
+    character::complete::{char, digit1},
+    character::is_space,
     combinator::{map, not, opt, peek},
     multi::{fold_many0, many0},
     number::complete::be_u8,
@@ -365,133 +368,98 @@ pub fn htp_is_line_whitespace(data: &[u8]) -> bool {
     true
 }
 
+/// Searches for and extracts the next set of ascii digits from the input slice if present
+/// Parses over leading and trailing LWS characters.
+///
+/// Returns (any trailing non-LWS characters, (non-LWS leading characters, ascii digits))
+pub fn ascii_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> {
+    move |input| {
+        map(
+            tuple((
+                take_while(|c| is_space(c)),
+                take_till(|c: u8| c.is_ascii_digit()),
+                digit1,
+                take_while(|c| is_space(c)),
+            )),
+            |(_, leading_data, digits, _)| (leading_data, digits),
+        )(input)
+    }
+}
+
+/// Searches for and extracts the next set of hex digits from the input slice if present
+/// Parses over leading and trailing LWS characters.
+///
+/// Returns a tuple of any trailing non-LWS characters and the found hex digits
+fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        map(
+            tuple((
+                take_while(|c| is_space(c)),
+                take_while1(|c: u8| c.is_ascii_hexdigit()),
+                take_while(|c| is_space(c)),
+            )),
+            |(_, digits, _)| digits,
+        )(input)
+    }
+}
+
 /// Parses Content-Length string (positive decimal number).
 /// White space is allowed before and after the number.
 ///
-/// Returns Content-Length as a number, or -1 on error.
-pub unsafe fn htp_parse_content_length(
-    b: *const bstr::bstr_t,
-    connp: *mut htp_connection_parser::htp_connp_t,
-) -> i64 {
-    let len: usize = bstr_len(b);
-    let data: *mut u8 = bstr_ptr(b);
-    let mut pos: usize = 0;
-    let mut r: i64 = 0;
-    if len == 0 {
-        return -1003;
-    }
-    // Ignore junk before
-    while pos < len
-        && ((*data.offset(pos as isize)) < '0' as u8 || *data.offset(pos as isize) > '9' as u8)
-    {
-        if !htp_is_lws(*data.offset(pos as isize)) && !connp.is_null() && r == 0 {
-            htp_warn!(
-                connp,
-                htp_log_code::CONTENT_LENGTH_EXTRA_DATA_START,
-                "C-L value with extra data in the beginning"
-            );
-            r = -1
+/// Returns Content-Length as a number or None if parsing failed.
+pub fn htp_parse_content_length<'a>(
+    input: &'a [u8],
+    connp: Option<&mut htp_connection_parser::htp_connp_t>,
+) -> Option<i64> {
+    if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
+        if let Some(connp) = connp {
+            if leading_data.len() > 0 {
+                // Contains invalid characters! But still attempt to process
+                unsafe {
+                    htp_warn!(
+                        connp as *mut htp_connection_parser::htp_connp_t,
+                        htp_log_code::CONTENT_LENGTH_EXTRA_DATA_START,
+                        "C-L value with extra data in the beginning"
+                    );
+                };
+            }
+
+            if trailing_data.len() > 0 {
+                // Ok to have junk afterwards
+                unsafe {
+                    htp_warn!(
+                        connp as *mut htp_connection_parser::htp_connp_t,
+                        htp_log_code::CONTENT_LENGTH_EXTRA_DATA_END,
+                        "C-L value with extra data in the end"
+                    );
+                };
+            }
         }
-        pos = pos.wrapping_add(1)
+        if let Ok(content_length) = std::str::from_utf8(content_length) {
+            if let Ok(content_length) = i64::from_str_radix(content_length, 10) {
+                return Some(content_length);
+            }
+        }
     }
-    if pos == len {
-        return -1001;
-    }
-    r = bstr::bstr_util_mem_to_pint(
-        data.offset(pos as isize) as *const core::ffi::c_void,
-        len.wrapping_sub(pos),
-        10,
-        &mut pos,
-    );
-    // Ok to have junk afterwards
-    if pos < len && !connp.is_null() {
-        htp_warn!(
-            connp,
-            htp_log_code::CONTENT_LENGTH_EXTRA_DATA_END,
-            "C-L value with extra data in the end"
-        );
-    }
-    r
+    None
 }
 
 /// Parses chunk length (positive hexadecimal number). White space is allowed before
-/// and after the number. An error will be returned if the chunk length is greater than
-/// INT32_MAX.
+/// and after the number.
 ///
-/// Returns Chunk length, or a negative number on error.
-pub unsafe fn htp_parse_chunked_length(mut data: *mut u8, mut len: usize) -> i64 {
-    // skip leading line feeds and other control chars
-    while len != 0 {
-        let c: u8 = *data;
-        if !(c == 0xd || c == 0xa || c == 0x20 || c == 0x9 || c == 0xb || c == 0xc) {
-            break;
+/// Returns a chunked_length or None if empty.
+pub fn htp_parse_chunked_length<'a>(input: &'a [u8]) -> Result<Option<i32>, &'static str> {
+    if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
+        if trailing_data.len() == 0 && chunked_length.len() == 0 {
+            return Ok(None);
         }
-        data = data.offset(1);
-        len = len.wrapping_sub(1)
-    }
-    if len == 0 {
-        return -1004;
-    }
-    // find how much of the data is correctly formatted
-    let mut i: usize = 0;
-    while i < len {
-        let c_0: u8 = *data.offset(i as isize);
-
-        if !c_0.is_ascii_hexdigit() {
-            break;
+        if let Ok(chunked_length) = std::str::from_utf8(chunked_length) {
+            if let Ok(chunked_length) = i32::from_str_radix(chunked_length, 16) {
+                return Ok(Some(chunked_length));
+            }
         }
-        i = i.wrapping_add(1)
     }
-    // cut off trailing junk
-    if i != len {
-        len = i
-    }
-    let chunk_len: i64 = htp_parse_positive_integer_whitespace(data, len, 16);
-    if chunk_len < 0 {
-        return chunk_len;
-    }
-    if chunk_len > 2147483647 {
-        return -1;
-    }
-    chunk_len
-}
-
-/// A somewhat forgiving parser for a positive integer in a given base.
-/// Only LWS is allowed before and after the number.
-///
-/// Returns The parsed number on success; a negative number on error.
-pub unsafe fn htp_parse_positive_integer_whitespace(data: *const u8, len: usize, base: i32) -> i64 {
-    if len == 0 {
-        return -1003;
-    }
-    let mut last_pos: usize = 0;
-    let mut pos: usize = 0;
-    // Ignore LWS before
-    while pos < len && htp_is_lws(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    if pos == len {
-        return -1001;
-    }
-    let r: i64 = bstr::bstr_util_mem_to_pint(
-        data.offset(pos as isize) as *const core::ffi::c_void,
-        len.wrapping_sub(pos),
-        base,
-        &mut last_pos,
-    );
-    if r < 0 {
-        return r;
-    }
-    // Move after the last digit
-    pos = (pos).wrapping_add(last_pos);
-    // Ignore LWS after
-    while pos < len {
-        if !htp_is_lws(*data.offset(pos as isize)) {
-            return -1002;
-        }
-        pos = pos.wrapping_add(1)
-    }
-    r
+    Err("Invalid Chunk Length")
 }
 
 /// Determines if the given line is a continuation (of some previous line).
@@ -1683,20 +1651,11 @@ pub unsafe fn htp_normalize_parsed_uri(
     }
     // Port.
     if !(*incomplete).port.is_null() {
-        let port_parsed: i64 = htp_parse_positive_integer_whitespace(
-            bstr_ptr((*incomplete).port),
-            bstr_len((*incomplete).port),
-            10,
-        );
-        if port_parsed < 0 {
-            // Failed to parse the port number.
-            (*normalized).port_number = -1;
-            (*tx).flags |= Flags::HTP_HOSTU_INVALID
-        } else if port_parsed > 0 && port_parsed < 65536 {
+        if let Some(port) = convert_port((&*(*incomplete).port).as_slice()) {
             // Valid port number.
-            (*normalized).port_number = port_parsed as i32
+            (*normalized).port_number = port as i32;
         } else {
-            // Port number out of range.
+            // Failed to parse the port number.
             (*normalized).port_number = -1;
             (*tx).flags |= Flags::HTP_HOSTU_INVALID
         }
@@ -1994,4 +1953,47 @@ pub unsafe fn htp_uri_alloc() -> *mut htp_uri_t {
 /// Returns the LibHTP version string.
 pub unsafe fn htp_get_version() -> *const i8 {
     HTP_VERSION_STRING_FULL.as_ptr() as *const i8
+}
+
+// Tests
+
+#[test]
+fn AsciiDigits() {
+    // Returns (any trailing non-LWS characters, (non-LWS leading characters, ascii digits))
+    assert_eq!(
+        Ok((b"bcd ".as_ref(), (b"a".as_ref(), b"200".as_ref()))),
+        ascii_digits()(b"    a200 \t  bcd ")
+    );
+    assert_eq!(
+        Ok((b"".as_ref(), (b"".as_ref(), b"555555555".as_ref()))),
+        ascii_digits()(b"   555555555    ")
+    );
+    assert_eq!(
+        Ok((b"500".as_ref(), (b"".as_ref(), b"555555555".as_ref()))),
+        ascii_digits()(b"   555555555    500")
+    );
+    assert!(ascii_digits()(b"   garbage no ascii ").is_err());
+}
+
+#[test]
+fn HexDigits() {
+    //(trailing non-LWS characters, found hex digits)
+    assert_eq!(Ok((b"".as_ref(), b"12a5".as_ref())), hex_digits()(b"12a5"));
+    assert_eq!(
+        Ok((b"".as_ref(), b"12a5".as_ref())),
+        hex_digits()(b"    \t12a5    ")
+    );
+    assert_eq!(
+        Ok((b".....".as_ref(), b"12a5".as_ref())),
+        hex_digits()(b"12a5   .....")
+    );
+    assert_eq!(
+        Ok((b".....    ".as_ref(), b"12a5".as_ref())),
+        hex_digits()(b"    \t12a5.....    ")
+    );
+    assert_eq!(
+        Ok((b"12a5".as_ref(), b"68656c6c6f".as_ref())),
+        hex_digits()(b"68656c6c6f   12a5")
+    );
+    assert!(hex_digits()(b"  .....").is_err());
 }
