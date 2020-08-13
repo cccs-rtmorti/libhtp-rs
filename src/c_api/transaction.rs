@@ -197,12 +197,12 @@ pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const htp_transaction::htp_
 /// Returns the parsed uri or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_parsed_uri(
-    tx: *const htp_transaction::htp_tx_t,
-) -> *const htp_util::htp_uri_t {
-    if let Some(tx) = tx.as_ref() {
+    tx: *mut htp_transaction::htp_tx_t,
+) -> *mut htp_util::htp_uri_t {
+    if let Some(tx) = tx.as_mut() {
         tx.parsed_uri
     } else {
-        std::ptr::null()
+        std::ptr::null_mut()
     }
 }
 

@@ -103,7 +103,6 @@ pub enum htp_file_source_t {
 /// Used to represent files that are seen during the processing of HTTP traffic. Most
 /// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
 /// request bodies can be treated as files.
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_file_t {
     /// Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT.
@@ -122,7 +121,6 @@ pub struct htp_file_t {
 /// URI element. Where an element is not present in a URI, the
 /// corresponding field will be set to NULL or -1, depending on the
 /// field type.
-#[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct htp_uri_t {
     /// Scheme, e.g., "http".
@@ -160,7 +158,6 @@ pub struct uri_t<'a> {
 }
 
 /// Represents a chunk of file data.
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_file_data_t {
     /// File information.

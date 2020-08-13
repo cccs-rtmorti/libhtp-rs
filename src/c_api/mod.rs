@@ -13,6 +13,7 @@ use std::convert::TryFrom;
 use std::ffi::CString;
 
 pub mod transaction;
+pub mod uri;
 
 /// Creates a new configuration structure. Configuration structures created at
 /// configuration time must not be changed afterwards in order to support lock-less
