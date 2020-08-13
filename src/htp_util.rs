@@ -32,7 +32,6 @@ pub const HTP_VERSION_STRING_FULL: &'static str =
 
 // Connection flags are 8 bits wide.
 bitflags::bitflags! {
-    #[repr(C)]
     pub struct ConnectionFlags: u8 {
         const HTP_CONN_UNKNOWN        = 0x00;
         const HTP_CONN_PIPELINED      = 0x01;
@@ -42,7 +41,6 @@ bitflags::bitflags! {
 
 // All other flags are 64 bits wide.
 bitflags::bitflags! {
-    #[repr(C)]
     pub struct Flags: u64 {
         const HTP_FIELD_UNPARSEABLE      = 0x000000004;
         const HTP_FIELD_INVALID          = 0x000000008;

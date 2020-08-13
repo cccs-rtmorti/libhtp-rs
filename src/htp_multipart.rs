@@ -18,7 +18,6 @@ use nom::{
 };
 
 bitflags::bitflags! {
-    #[repr(C)]
     pub struct MultipartFlags: u64 {
 
 /// Seen a LF line in the payload. LF lines are not allowed, but

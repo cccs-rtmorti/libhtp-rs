@@ -143,7 +143,6 @@ fn free_htp_uri_t(urip: *mut *mut htp_uri_t) {
     }
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct uri_expected {
     scheme: *const i8,
@@ -156,7 +155,6 @@ struct uri_expected {
     fragment: *const i8,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 struct uri_test {
     uri: *const i8,

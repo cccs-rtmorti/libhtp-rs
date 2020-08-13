@@ -12,7 +12,6 @@ pub struct htp_hook_t {
     pub callbacks: List<*mut core::ffi::c_void>,
 }
 
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_callback_t {
     pub fn_0: htp_callback_fn_t,

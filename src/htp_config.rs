@@ -219,7 +219,6 @@ impl Default for htp_cfg_t {
     }
 }
 
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_decoder_cfg_t {
     // Path-specific decoding options.
