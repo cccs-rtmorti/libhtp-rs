@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take, take_while, take_while1},
+    bytes::complete::{tag, tag_no_case, take, take_until, take_while, take_while1},
     character::complete::char,
     character::is_space,
     combinator::{map, not, opt, peek},
@@ -1506,7 +1506,9 @@ pub unsafe extern "C" fn htp_mpartp_parse(
 ///    MSIE: Content-Type: multipart/form-data; boundary=---------------------------7dd13e11c0452
 ///    Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
 ///    Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
-fn htp_mpartp_validate_boundary(boundary: &[u8], flags: &mut MultipartFlags) {
+///
+/// Returns in flags the appropriate MultipartFlags
+fn validate_boundary(boundary: &[u8], flags: &mut MultipartFlags) {
     // The RFC allows up to 70 characters. In real life,
     // boundaries tend to be shorter.
     if boundary.len() == 0 || boundary.len() > 70 {
@@ -1530,195 +1532,286 @@ fn htp_mpartp_validate_boundary(boundary: &[u8], flags: &mut MultipartFlags) {
     }
 }
 
-unsafe extern "C" fn htp_mpartp_validate_content_type(
-    content_type: *mut bstr::bstr_t,
-    flags: *mut MultipartFlags,
-) {
-    let mut data: *mut u8 = bstr_ptr(content_type);
-    let mut len: usize = bstr_len(content_type);
-    let mut counter: usize = 0;
-    while len > 0 {
-        let i =
-            bstr::bstr_util_mem_index_of_nocase(data as *const core::ffi::c_void, len, "boundary");
-        if i == -1 {
-            break;
-        }
-        data = data.offset(i as isize);
-        len = len.wrapping_sub(i as usize);
-        // In order to work around the fact that WebKit actually uses
-        // the word "boundary" in their boundary, we also require one
-        // equals character the follow the words.
-        // "multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD"
-        if memchr(data as *const core::ffi::c_void, '=' as i32, len).is_null() {
-            break;
-        }
-        counter = counter.wrapping_add(1);
-        // Check for case variations.
-        let mut j: usize = 0;
-        while j < 8 {
-            if !(*data >= 'a' as u8 && *data <= 'z' as u8) {
-                *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
+/// Validates the content type by checking if there are multiple boundary occurrences or any occurrence contains uppercase characters
+///
+/// Returns in flags the appropriate MultipartFlags
+
+fn validate_content_type<'a>(content_type: &'a [u8], flags: &mut MultipartFlags) {
+    if let Ok((_, (f, _))) = fold_many1(
+        tuple((
+            htp_util::take_until_no_case(b"boundary"),
+            tag_no_case("boundary"),
+            take_until("="),
+            tag("="),
+        )),
+        (MultipartFlags::empty(), false),
+        |(mut flags, mut seen_prev): (MultipartFlags, bool),
+         (_, boundary, _, _): (_, &[u8], _, _)| {
+            for byte in boundary {
+                if byte.is_ascii_uppercase() {
+                    flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
+                    break;
+                }
             }
-            data = data.offset(1);
-            len = len.wrapping_sub(1);
-            j = j.wrapping_add(1)
-        }
+            if seen_prev {
+                // Seen multiple boundaries
+                flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
+            }
+            seen_prev = true;
+            (flags, seen_prev)
+        },
+    )(content_type)
+    {
+        *flags |= f;
+    } else {
+        // There must be at least one occurrence!
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
     }
-    // How many boundaries have we seen?
-    if counter > 1 {
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
-    };
 }
 
-/// Looks for boundary in the supplied Content-Type request header. The extracted
-/// boundary will be allocated on the heap.
+/// Attempts to locate and extract the boundary from an input slice, returning a tuple of the matched
+/// boundary and any leading/trailing whitespace and non whitespace characters that might be relevant
+fn boundary<'a>() -> impl Fn(
+    &'a [u8],
+) -> IResult<
+    &'a [u8],
+    (
+        &'a [u8],
+        &'a [u8],
+        &'a [u8],
+        Option<char>,
+        &'a [u8],
+        Option<char>,
+        &'a [u8],
+        &'a [u8],
+    ),
+> {
+    move |input| {
+        map(
+            tuple((
+                htp_util::take_until_no_case(b"boundary"),
+                tag_no_case("boundary"),
+                take_while(|c: u8| htp_util::htp_is_space(c)),
+                take_until("="),
+                tag("="),
+                take_while(|c: u8| htp_util::htp_is_space(c)),
+                peek(opt(char('\"'))),
+                alt((
+                    map(tuple((tag("\""), take_until("\""))), |(_, boundary)| {
+                        boundary
+                    }),
+                    map(
+                        tuple((
+                            take_while(|c: u8| {
+                                c != ',' as u8 && c != ';' as u8 && !htp_util::htp_is_space(c)
+                            }),
+                            opt(alt((char(','), char(';')))), //Skip the matched character if we matched one without hitting the end
+                        )),
+                        |(boundary, _)| boundary,
+                    ),
+                )),
+                peek(opt(char('\"'))),
+                take_while(|c: u8| htp_util::htp_is_space(c)),
+                take_while(|c: u8| !htp_util::htp_is_space(c)),
+            )),
+            |(
+                _,
+                _,
+                spaces_before_equal,
+                chars_before_equal,
+                _,
+                spaces_after_equal,
+                opening_quote,
+                boundary,
+                closing_quote,
+                spaces_after_boundary,
+                chars_after_boundary,
+            )| {
+                (
+                    spaces_before_equal,
+                    chars_before_equal,
+                    spaces_after_equal,
+                    opening_quote,
+                    boundary,
+                    closing_quote,
+                    spaces_after_boundary,
+                    chars_after_boundary,
+                )
+            },
+        )(input)
+    }
+}
+
+/// Looks for boundary in the supplied Content-Type request header.
 ///
 /// Returns in multipart_flags: Multipart flags, which are not compatible from general LibHTP flags.
 ///
-/// Returns HTP_OK on success (boundary found), HTP_DECLINED if boundary was not found,
-///         and HTP_ERROR on failure. Flags may be set on HTP_OK and HTP_DECLINED. For
-///         example, if a boundary could not be extracted but there is indication that
-///         one is present, HTP_MULTIPART_HBOUNDARY_INVALID will be set.
-pub unsafe extern "C" fn htp_mpartp_find_boundary(
-    content_type: *mut bstr::bstr_t,
-    boundary: *mut *mut bstr::bstr_t,
-    flags: *mut MultipartFlags,
-) -> Status {
-    if content_type.is_null() || boundary.is_null() || flags.is_null() {
-        return Status::ERROR;
-    }
+/// Returns boundary if found, None otherwise.
+/// Flags may be set on even without successfully locating the boundary. For
+/// example, if a boundary could not be extracted but there is indication that
+/// one is present, HTP_MULTIPART_HBOUNDARY_INVALID will be set.
+pub fn htp_mpartp_find_boundary<'a>(
+    content_type: &'a [u8],
+    flags: &mut MultipartFlags,
+) -> Option<&'a [u8]> {
     // Our approach is to ignore the MIME type and instead just look for
     // the boundary. This approach is more reliable in the face of various
     // evasion techniques that focus on submitting invalid MIME types.
     // Reset flags.
     *flags = MultipartFlags::empty();
-    // Look for the boundary, case insensitive.
-
-    let i: i32 = bstr::bstr_index_of_nocase(content_type, "boundary");
-    if i == -1 {
-        return Status::DECLINED;
-    }
-    let data: *mut u8 = bstr_ptr(content_type).offset(i as isize).offset(8 as isize);
-    let len: usize = bstr_len(content_type)
-        .wrapping_sub(i as usize)
-        .wrapping_sub(8);
-    // Look for the boundary value.
-    let mut pos: usize = 0;
-    while pos < len && *data.offset(pos as isize) != '=' as u8 {
-        if htp_util::htp_is_space(*data.offset(pos as isize)) {
-            // It is unusual to see whitespace before the equals sign.
-            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
-        } else {
-            // But seeing a non-whitespace character may indicate evasion.
-            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
-        }
-        pos = pos.wrapping_add(1)
-    }
-    if pos >= len {
-        // No equals sign in the header.
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-        return Status::DECLINED;
-    }
-    // Go over the '=' character.
-    pos = pos.wrapping_add(1);
-    // Ignore any whitespace after the equals sign.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
-        if htp_util::htp_is_space(*data.offset(pos as isize)) {
-            // It is unusual to see whitespace after
-            // the equals sign.
-            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
-        }
-        pos = pos.wrapping_add(1)
-    }
-    if pos >= len {
-        // No value after the equals sign.
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-        return Status::DECLINED;
-    }
-    if *data.offset(pos as isize) == '\"' as u8 {
-        // Quoted boundary.
-        // Possibly not very unusual, but let's see.
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL;
-        // Over the double quote.
-        pos = pos.wrapping_add(1); // Over the double quote.
-        let mut startpos: usize = pos; // Starting position of the boundary.
-        while pos < len && *data.offset(pos as isize) != '\"' as u8
-        // Look for the terminating double quote.
-        {
-            pos = pos.wrapping_add(1)
-        }
-        if pos >= len {
-            // Ran out of space without seeing
-            // the terminating double quote.
-            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-            // Include the starting double quote in the boundary.
-            startpos = startpos.wrapping_sub(1)
-        }
-        *boundary = bstr::bstr_dup_mem(
-            data.offset(startpos as isize) as *const core::ffi::c_void,
-            pos.wrapping_sub(startpos),
-        );
-        if (*boundary).is_null() {
-            return Status::ERROR;
-        }
-        pos = pos.wrapping_add(1)
-    } else {
-        // Boundary not quoted.
-        let startpos_0: usize = pos;
-        // Find the end of the boundary. For the time being, we replicate
-        // the behavior of PHP 5.4.x. This may result with a boundary that's
-        // closer to what would be accepted in real life. Our subsequent
-        // checks of boundary characters will catch irregularities.
-        while pos < len
-            && *data.offset(pos as isize) != ',' as u8
-            && *data.offset(pos as isize) != ';' as u8
-            && !htp_util::htp_is_space(*data.offset(pos as isize))
-        {
-            pos = pos.wrapping_add(1)
-        }
-        *boundary = bstr::bstr_dup_mem(
-            data.offset(startpos_0 as isize) as *const core::ffi::c_void,
-            pos.wrapping_sub(startpos_0),
-        );
-        if (*boundary).is_null() {
-            return Status::ERROR;
-        }
-    }
-    // Check for a zero-length boundary.
-    if bstr_len(*boundary) == 0 {
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
-        bstr::bstr_free(*boundary);
-        *boundary = 0 as *mut bstr::bstr_t;
-        return Status::DECLINED;
-    }
-    // Allow only whitespace characters after the boundary.
-    let mut seen_space: i32 = 0;
-    let mut seen_non_space: i32 = 0;
-    while pos < len {
-        if !htp_util::htp_is_space(*data.offset(pos as isize)) {
-            seen_non_space = 1
-        } else {
-            seen_space = 1
-        }
-        pos = pos.wrapping_add(1)
-    }
-    // Raise INVALID if we see any non-space characters,
-    // but raise UNUSUAL if we see _only_ space characters.
-    if seen_non_space != 0 {
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
-    } else if seen_space != 0 {
-        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
-    }
-    // Validate boundary characters.
-    htp_mpartp_validate_boundary(&(**boundary).as_slice(), &mut *flags);
     // Correlate with the MIME type. This might be a tad too
     // sensitive because it may catch non-browser access with sloppy
     // implementations, but let's go with it for now.
-    if !(*content_type).starts_with("multipart/form-data;") {
+    if !content_type.starts_with(b"multipart/form-data;") {
         *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
     }
-    htp_mpartp_validate_content_type(content_type, flags);
-    Status::OK
+    // Look for the boundary, case insensitive.
+    if let Ok((
+        _,
+        (
+            spaces_before_equal,
+            chars_before_equal,
+            spaces_after_equal,
+            opening_quote,
+            boundary,
+            closing_quote,
+            spaces_after_boundary,
+            chars_after_boundary,
+        ),
+    )) = boundary()(content_type)
+    {
+        if spaces_before_equal.len() > 0
+            || spaces_after_equal.len() > 0
+            || opening_quote.is_some()
+            || (chars_after_boundary.len() == 0 && spaces_after_boundary.len() > 0)
+        {
+            // It is unusual to see whitespace before and/or after the equals sign.
+            // Unusual to have a quoted boundary
+            // Unusual but allowed to have only whitespace after the boundary
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL
+        }
+        if chars_before_equal.len() > 0
+            || (opening_quote.is_some() && !closing_quote.is_some())
+            || (!opening_quote.is_some() && closing_quote.is_some())
+            || chars_after_boundary.len() > 0
+        {
+            // Seeing a non-whitespace character before equal sign may indicate evasion
+            // Having an opening quote, but no closing quote is invalid
+            // Seeing any character after the boundary, other than whitespace is invalid
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
+        }
+        if boundary.len() == 0 {
+            *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
+            return None;
+        }
+        // Validate boundary characters.
+        validate_boundary(boundary, flags);
+        validate_content_type(content_type, flags);
+        Some(boundary)
+    } else {
+        *flags |= MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID;
+        None
+    }
+}
+
+#[test]
+fn Boundary() {
+    let inputs: Vec<&[u8]> = vec![
+        b"multipart/form-data; boundary=myboundarydata",
+        b"multipart/form-data; BounDary=myboundarydata",
+        b"multipart/form-data; boundary   =myboundarydata",
+        b"multipart/form-data; boundary=   myboundarydata",
+        b"multipart/form-data; boundary=myboundarydata ",
+        b"multipart/form-data; boundary=myboundarydata, ",
+        b"multipart/form-data; boundary=myboundarydata, boundary=secondboundarydata",
+        b"multipart/form-data; boundary=myboundarydata; ",
+        b"multipart/form-data; boundary=myboundarydata; boundary=secondboundarydata",
+        b"multipart/form-data; boundary=\"myboundarydata\"",
+        b"multipart/form-data; boundary=   \"myboundarydata\"",
+        b"multipart/form-data; boundary=\"myboundarydata\"  ",
+    ];
+
+    for input in inputs {
+        let (_, (_, _, _, _, b, _, _, _)) = boundary()(input).unwrap();
+        assert_eq!(b, b"myboundarydata");
+    }
+
+    let (_, (_, _, _, _, b, _, _, _)) =
+        boundary()(b"multipart/form-data; boundary=\"myboundarydata").unwrap();
+    assert_eq!(b, b"\"myboundarydata");
+
+    let (_, (_, _, _, _, b, _, _, _)) =
+        boundary()(b"multipart/form-data; boundary=   myboundarydata\"").unwrap();
+    assert_eq!(b, b"myboundarydata\"");
+}
+
+#[test]
+fn ValidateBoundary() {
+    let inputs: Vec<&[u8]> = vec![
+        b"Unusual\'Boundary",
+        b"Unusual(Boundary",
+        b"Unusual)Boundary",
+        b"Unusual+Boundary",
+        b"Unusual_Boundary",
+        b"Unusual,Boundary",
+        b"Unusual.Boundary",
+        b"Unusual/Boundary",
+        b"Unusual:Boundary",
+        b"Unusual=Boundary",
+        b"Unusual?Boundary",
+        b"Invalid>Boundary",
+        b"InvalidBoundaryTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOLONG",
+        b"", //Invalid...Need at least one byte
+        b"InvalidUnusual.~Boundary",
+    ];
+    let outputs: Vec<MultipartFlags> = vec![
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID
+            | MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL,
+    ];
+
+    for i in 0..inputs.len() {
+        let mut flags = MultipartFlags::empty();
+        validate_boundary(inputs[i], &mut flags);
+        assert_eq!(outputs[i], flags);
+    }
+}
+
+#[test]
+fn ValidateContentType() {
+    let inputs: Vec<&[u8]> = vec![
+        b"multipart/form-data; boundary   = stuff, boundary=stuff",
+        b"multipart/form-data; boundary=stuffm BounDary=stuff",
+        b"multipart/form-data; Boundary=stuff",
+        b"multipart/form-data; bouNdary=stuff",
+        b"multipart/form-data; boundary=stuff",
+    ];
+    let outputs: Vec<MultipartFlags> = vec![
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID,
+        MultipartFlags::empty(),
+    ];
+
+    for i in 0..inputs.len() {
+        let mut flags = MultipartFlags::empty();
+        validate_content_type(inputs[i], &mut flags);
+        assert_eq!(outputs[i], flags);
+    }
 }
 
 // Tests

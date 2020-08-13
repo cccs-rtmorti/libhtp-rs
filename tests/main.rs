@@ -2526,7 +2526,6 @@ fn AuthDigest_EscapedQuote() {
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
         assert!(!(*tx).request_auth_username.is_null());
-        dbg!(&*(*tx).request_auth_username);
         assert!((*(*tx).request_auth_username).eq("ivan\"r\""));
 
         assert!((*tx).request_auth_password.is_null());

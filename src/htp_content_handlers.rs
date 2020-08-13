@@ -189,11 +189,13 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     };
     let mut boundary: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut flags: MultipartFlags = MultipartFlags::empty();
-    let rc: Status =
-        htp_multipart::htp_mpartp_find_boundary(&mut ct.value, &mut boundary, &mut flags);
-    if rc != Status::OK {
-        // No boundary (HTP_DECLINED) or error (HTP_ERROR).
-        return rc;
+    if let Some(bound) =
+        htp_multipart::htp_mpartp_find_boundary(&(*(*ct).value).as_slice(), &mut flags)
+    {
+        boundary = bstr::bstr_dup_str(bound);
+    } else {
+        // No boundary
+        return Status::DECLINED;
     }
     if boundary.is_null() {
         return Status::ERROR;

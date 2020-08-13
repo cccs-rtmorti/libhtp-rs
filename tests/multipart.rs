@@ -1555,130 +1555,95 @@ fn MultipleContentTypeHeadersEvasion() {
 
 #[test]
 fn BoundaryNormal() {
-    let inputs = vec![
-        "multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD",
-        "multipart/form-data; boundary=---------------------------21071316483088",
-        "multipart/form-data; boundary=---------------------------7dd13e11c0452",
-        "multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh",
-        "multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S",
+    let inputs: Vec<&[u8]> = vec![
+        b"multipart/form-data; boundary=----WebKitFormBoundaryT4AfwQCOgIxNVwlD",
+        b"multipart/form-data; boundary=---------------------------21071316483088",
+        b"multipart/form-data; boundary=---------------------------7dd13e11c0452",
+        b"multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh",
+        b"multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S",
     ];
 
-    let outputs = vec![
-        "----WebKitFormBoundaryT4AfwQCOgIxNVwlD",
-        "---------------------------21071316483088",
-        "---------------------------7dd13e11c0452",
-        "----------2JL5oh7QWEDwyBllIRc7fh",
-        "----WebKitFormBoundaryre6zL3b0BelnTY5S",
+    let outputs: Vec<&[u8]> = vec![
+        b"----WebKitFormBoundaryT4AfwQCOgIxNVwlD",
+        b"---------------------------21071316483088",
+        b"---------------------------7dd13e11c0452",
+        b"----------2JL5oh7QWEDwyBllIRc7fh",
+        b"----WebKitFormBoundaryre6zL3b0BelnTY5S",
     ];
-
-    unsafe {
-        for i in 0..inputs.len() {
-            let input: *mut bstr_t;
-            input = bstr_dup_str(inputs[i]);
-            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
-            let mut flags: MultipartFlags = MultipartFlags::empty();
-            let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
-            assert_eq!(Status::OK, rc);
-            assert!(!boundary.is_null());
-            assert!((*boundary).eq(outputs[i]));
-            assert_eq!(MultipartFlags::empty(), flags);
-            bstr_free(boundary);
-            bstr_free(input);
-        }
+    for i in 0..inputs.len() {
+        let mut flags: MultipartFlags = MultipartFlags::empty();
+        assert_eq!(
+            htp_mpartp_find_boundary(inputs[i], &mut flags).unwrap(),
+            outputs[i]
+        );
+        assert_eq!(MultipartFlags::empty(), flags);
     }
 }
 
 #[test]
 fn BoundaryParsing() {
-    let inputs = vec![
-        "multipart/form-data; boundary=1 ",
-        "multipart/form-data; boundary=1, boundary=2",
-        "multipart/form-data; boundary=\"1\"",
-        "multipart/form-data; boundary=\"1\" ",
-        "multipart/form-data; boundary=\"1",
+    let inputs: Vec<&[u8]> = vec![
+        b"multipart/form-data; boundary=1 ",
+        b"multipart/form-data; boundary=1, boundary=2",
+        b"multipart/form-data; boundary=\"1\"",
+        b"multipart/form-data; boundary=\"1\" ",
+        b"multipart/form-data; boundary=\"1",
     ];
 
-    let outputs = vec!["1", "1", "1", "1", "\"1"];
+    let outputs: Vec<&[u8]> = vec![b"1", b"1", b"1", b"1", b"\"1"];
 
-    unsafe {
-        for i in 0..inputs.len() {
-            let input: *mut bstr_t;
-            input = bstr_dup_str(inputs[i]);
-            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
-            let mut flags: MultipartFlags = MultipartFlags::empty();
-            let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
-            assert_eq!(Status::OK, rc);
-            assert!(!boundary.is_null());
-            assert!((*boundary).eq(outputs[i]));
-            bstr_free(boundary);
-            bstr_free(input);
-        }
+    for i in 0..inputs.len() {
+        let mut flags: MultipartFlags = MultipartFlags::empty();
+        assert_eq!(
+            htp_mpartp_find_boundary(inputs[i], &mut flags).unwrap(),
+            outputs[i]
+        );
     }
 }
 
 #[test]
 fn BoundaryInvalid() {
-    let inputs = vec![
-        "multipart/form-data boundary=1",
-        "multipart/form-data ; boundary=1",
-        "multipart/form-data, boundary=1",
-        "multipart/form-data , boundary=1",
-        "multipart/form-datax; boundary=1",
-        "multipart/; boundary=1",
-        "multipart; boundary=1",
-        "application/octet-stream; boundary=1",
-        "boundary=1",
-        "multipart/form-data; boundary",
-        "multipart/form-data; boundary=",
-        "multipart/form-data; boundaryX=",
-        "multipart/form-data; boundary=\"\"",
-        "multipart/form-data; bounDary=1",
-        "multipart/form-data; boundary=1; boundary=2",
-        "multipart/form-data; boundary=1 2",
-        "multipart/form-data boundary=01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-
+    let inputs: Vec<&[u8]> = vec![
+        b"multipart/form-data boundary=1",
+        b"multipart/form-data ; boundary=1",
+        b"multipart/form-data, boundary=1",
+        b"multipart/form-data , boundary=1",
+        b"multipart/form-datax; boundary=1",
+        b"multipart/; boundary=1",
+        b"multipart; boundary=1",
+        b"application/octet-stream; boundary=1",
+        b"boundary=1",
+        b"multipart/form-data; boundary",
+        b"multipart/form-data; boundary=",
+        b"multipart/form-data; boundaryX=",
+        b"multipart/form-data; boundary=\"\"",
+        b"multipart/form-data; bounDary=1",
+        b"multipart/form-data; boundary=1; boundary=2",
+        b"multipart/form-data; boundary=1 2",
+        b"multipart/form-data boundary=01234567890123456789012345678901234567890123456789012345678901234567890123456789",
     ];
 
-    unsafe {
-        for i in inputs {
-            let input: *mut bstr_t;
-            input = bstr_dup_str(i);
-            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
-            let mut flags: MultipartFlags = MultipartFlags::empty();
-            let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
-            assert_ne!(Status::ERROR, rc);
-            assert!(flags.contains(MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID));
-            bstr_free(boundary);
-            bstr_free(input);
-        }
+    for input in inputs {
+        let mut flags: MultipartFlags = MultipartFlags::empty();
+        htp_mpartp_find_boundary(input, &mut flags);
+        assert!(flags.contains(MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID));
     }
 }
 
 #[test]
 fn BoundaryUnusual() {
-    let inputs = vec![
-        "multipart/form-data; boundary=1 ",
-        "multipart/form-data; boundary =1",
-        "multipart/form-data; boundary= 1",
-        "multipart/form-data; boundary=\"1\"",
-        "multipart/form-data; boundary=\" 1 \"",
-        //"multipart/form-data; boundary=1-2",
-        "multipart/form-data; boundary=\"1?2\"",
+    let inputs: Vec<&[u8]> = vec![
+        b"multipart/form-data; boundary=1 ",
+        b"multipart/form-data; boundary =1",
+        b"multipart/form-data; boundary= 1",
+        b"multipart/form-data; boundary=\"1\"",
+        b"multipart/form-data; boundary=\" 1 \"",
+        b"multipart/form-data; boundary=\"1?2\"",
     ];
-
-    unsafe {
-        for i in inputs {
-            let input: *mut bstr_t;
-            input = bstr_dup_str(i);
-            let mut boundary: *mut bstr_t = std::ptr::null_mut::<bstr_t>();
-            let mut flags: MultipartFlags = MultipartFlags::empty();
-            let rc: Status = htp_mpartp_find_boundary(input, &mut boundary, &mut flags);
-            assert_eq!(Status::OK, rc);
-            assert!(!boundary.is_null());
-            assert!(flags.contains(MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL));
-            bstr_free(boundary);
-            bstr_free(input);
-        }
+    for input in inputs {
+        let mut flags: MultipartFlags = MultipartFlags::empty();
+        assert!(htp_mpartp_find_boundary(input, &mut flags).is_some());
+        assert!(flags.contains(MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL));
     }
 }
 

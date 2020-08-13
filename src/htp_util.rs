@@ -254,6 +254,35 @@ pub fn htp_is_space(c: u8) -> bool {
     }
 }
 
+/// Helper function that mimics the functionality of bytes::complete::take_until, ignoring tag case
+/// Returns the longest input slice till it case insensitively matches the pattern. It doesn't consume the pattern.
+///
+/// Returns a tuple of the unconsumed data and the data up to but not including the input tag (if present)
+pub fn take_until_no_case<'a>(tag: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+    move |input| {
+        if tag.len() == 0 {
+            return Ok((b"", input));
+        }
+        let mut new_input = input;
+        let mut bytes_consumed: usize = 0;
+        while new_input.len() > 0 {
+            let (left, consumed) = take_till::<_, _, (&[u8], nom::error::ErrorKind)>(|c: u8| {
+                c.to_ascii_lowercase() == tag[0] || c.to_ascii_uppercase() == tag[0]
+            })(new_input)?;
+            new_input = left;
+            bytes_consumed = bytes_consumed.wrapping_add(consumed.len());
+            if tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>(tag)(new_input).is_ok() {
+                return Ok((new_input, &input[..bytes_consumed]));
+            } else if let Ok((left, consumed)) =
+                take::<_, _, (&[u8], nom::error::ErrorKind)>(1usize)(new_input)
+            {
+                bytes_consumed = bytes_consumed.wrapping_add(consumed.len());
+                new_input = left;
+            }
+        }
+        Ok((b"", input))
+    }
+}
 /// Converts request method, given as a string, into a number.
 ///
 /// Returns Method or M_UNKNOWN
@@ -1996,4 +2025,56 @@ fn HexDigits() {
         hex_digits()(b"68656c6c6f   12a5")
     );
     assert!(hex_digits()(b"  .....").is_err());
+}
+
+#[test]
+fn TakeUntilNoCase() {
+    let (remaining, consumed) = take_until_no_case(b"TAG")(
+        b"Let's fish for a Tag, but what about this TaG, or this TAG, or another tag. GO FISH.",
+    )
+    .unwrap();
+
+    let mut res_consumed: &[u8] = b"Let's fish for a ";
+    let mut res_remaining: &[u8] =
+        b"Tag, but what about this TaG, or this TAG, or another tag. GO FISH.";
+    assert_eq!(res_consumed, consumed);
+    assert_eq!(res_remaining, remaining);
+    let (remaining, _) =
+        tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+
+    res_consumed = b", but what about this ";
+    res_remaining = b"TaG, or this TAG, or another tag. GO FISH.";
+    let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
+    assert_eq!(res_consumed, consumed);
+    assert_eq!(res_remaining, remaining);
+    let (remaining, _) =
+        tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+
+    res_consumed = b", or this ";
+    res_remaining = b"TAG, or another tag. GO FISH.";
+    let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
+    assert_eq!(res_consumed, consumed);
+    assert_eq!(res_remaining, remaining);
+    let (remaining, _) =
+        tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+
+    res_consumed = b", or another ";
+    res_remaining = b"tag. GO FISH.";
+    let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
+    assert_eq!(res_consumed, consumed);
+    assert_eq!(res_remaining, remaining);
+
+    res_consumed = b"";
+    res_remaining = b"tag. GO FISH.";
+    let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
+    assert_eq!(res_consumed, consumed);
+    assert_eq!(res_remaining, remaining);
+    let (remaining, _) =
+        tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+
+    res_consumed = b". GO FISH.";
+    res_remaining = b"";
+    let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
+    assert_eq!(res_consumed, consumed);
+    assert_eq!(res_remaining, remaining);
 }
