@@ -8,6 +8,11 @@ pub unsafe fn htp_parse_single_cookie_v0(
     data: *mut u8,
     len: usize,
 ) -> Status {
+    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
+        in_tx
+    } else {
+        return Status::ERROR;
+    };
     if len == 0 {
         return Status::OK;
     }
@@ -35,7 +40,7 @@ pub unsafe fn htp_parse_single_cookie_v0(
     if value.is_null() {
         return Status::ERROR;
     }
-    (*(*(*connp).in_tx).request_cookies).add(name, value);
+    (*in_tx.request_cookies).add(name, value);
     Status::OK
 }
 
@@ -43,12 +48,14 @@ pub unsafe fn htp_parse_single_cookie_v0(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
 pub unsafe fn htp_parse_cookies_v0(connp: *mut htp_connection_parser::htp_connp_t) -> Status {
-    if let Some((_, cookie_header)) = (*(*connp).in_tx)
-        .request_headers
-        .get_nocase_nozero_mut("cookie")
-    {
+    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
+        in_tx
+    } else {
+        return Status::ERROR;
+    };
+    if let Some((_, cookie_header)) = in_tx.request_headers.get_nocase_nozero_mut("cookie") {
         // Create a new table to store cookies.
-        (*(*connp).in_tx).request_cookies = htp_table::htp_table_alloc(4);
+        in_tx.request_cookies = htp_table::htp_table_alloc(4);
         let data: *mut u8 = cookie_header.value.as_mut_ptr();
         let len: usize = cookie_header.value.len();
         let mut pos: usize = 0;

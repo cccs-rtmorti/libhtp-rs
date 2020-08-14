@@ -1,4 +1,5 @@
 use crate::htp_util::Flags;
+use crate::list::List;
 use crate::{
     bstr, htp_config, htp_connection, htp_connection_parser, htp_cookies, htp_decompressors,
     htp_hooks, htp_multipart, htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded,
@@ -353,12 +354,14 @@ pub struct htp_tx_t {
     pub res_header_repetitions: u16,
 }
 
+pub type htp_txs_t = List<htp_tx_t>;
+
 impl htp_tx_t {
-    unsafe fn new(connp: *mut htp_connection_parser::htp_connp_t) -> Result<Self, Status> {
+    pub unsafe fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize, Status> {
         let tx = Self {
             connp,
-            conn: (*connp).conn,
-            cfg: (*connp).cfg,
+            conn: connp.conn,
+            cfg: connp.cfg,
             is_config_shared: 1,
             user_data: std::ptr::null_mut(),
             request_ignored_lines: 0,
@@ -413,15 +416,20 @@ impl htp_tx_t {
             flags: Flags::empty(),
             request_progress: htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED,
             response_progress: htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED,
-            index: (*(*connp).conn).transactions.len(),
+            index: (*connp.conn).tx_size(),
             req_header_repetitions: 0,
             res_header_repetitions: 0,
         };
         if tx.parsed_uri_raw.is_null() {
-            Err(Status::ERROR)
-        } else {
-            Ok(tx)
+            return Err(Status::ERROR);
         }
+        let tx_id = tx.index;
+        (*tx.conn).push_tx(tx);
+        Ok(tx_id)
+    }
+
+    fn as_void_mut(&mut self) -> *mut std::ffi::c_void {
+        (self as *mut htp_tx_t) as *mut std::ffi::c_void
     }
 }
 
@@ -429,10 +437,6 @@ impl Drop for htp_tx_t {
     /// Destroys all the fields inside an htp_tx_t.
     fn drop(&mut self) {
         unsafe {
-            // Disconnect transaction from other structures.
-            let _ = htp_connection::htp_conn_remove_tx(self.conn, self);
-            //TODO: Propagate the error up rather than silencing it with `let _ =`.
-            htp_connection_parser::htp_connp_tx_remove(self.connp, self);
             // Request fields.
             bstr::bstr_free(self.request_line);
             bstr::bstr_free(self.request_method);
@@ -473,6 +477,12 @@ impl Drop for htp_tx_t {
                 (*self.cfg).destroy();
             }
         }
+    }
+}
+
+impl PartialEq for htp_tx_t {
+    fn eq(&self, other: &Self) -> bool {
+        self.conn == other.conn && self.index == other.index
     }
 }
 
@@ -539,45 +549,18 @@ pub enum Protocol {
 
 pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_void) -> Status>;
 
-/// Creates a new transaction structure.
-///
-/// connp: Connection parser pointer. Must not be NULL.
-///
-/// Returns The newly created transaction, or NULL on memory allocation failure.
-pub unsafe fn htp_tx_create(connp: *mut htp_connection_parser::htp_connp_t) -> *mut htp_tx_t {
-    if connp.is_null() {
-        return std::ptr::null_mut();
-    }
-    if let Ok(tx) = htp_tx_t::new(connp) {
-        let tx = Box::new(tx);
-        let tx = Box::into_raw(tx);
-        (*(*tx).conn)
-            .transactions
-            .push(tx as *mut core::ffi::c_void);
-        tx
-    } else {
-        std::ptr::null_mut()
-    }
-}
-
 /// Destroys the supplied transaction.
 pub unsafe fn htp_tx_destroy(tx: *mut htp_tx_t) -> Status {
-    if tx.is_null() {
-        return Status::ERROR;
+    if let Some(tx) = tx.as_mut() {
+        if htp_tx_is_complete(tx) == 0 {
+            return Status::ERROR;
+        }
+        // remove the tx from the connection so it will be dropped
+        let _ = (*tx.conn).remove_tx(tx.index);
+        Status::OK
+    } else {
+        Status::ERROR
     }
-    if htp_tx_is_complete(tx) == 0 {
-        return Status::ERROR;
-    }
-    htp_tx_destroy_incomplete(tx);
-    Status::OK
-}
-
-pub unsafe fn htp_tx_destroy_incomplete(tx: *mut htp_tx_t) {
-    if tx.is_null() {
-        return;
-    }
-    // retake ownership of the tx so it gets dropped
-    let _ = Box::from_raw(tx);
 }
 
 /// Returns the user data associated with this transaction.
@@ -1107,7 +1090,7 @@ pub unsafe fn htp_tx_res_set_header<S: AsRef<[u8]>>(
     }
 }
 
-pub unsafe fn htp_connp_destroy_decompressors(mut connp: *mut htp_connection_parser::htp_connp_t) {
+pub unsafe fn htp_connp_destroy_decompressors(connp: *mut htp_connection_parser::htp_connp_t) {
     let mut comp: *mut htp_decompressors::htp_decompressor_t = (*connp).out_decompressor;
     while !comp.is_null() {
         let next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
@@ -1340,7 +1323,7 @@ pub unsafe fn htp_tx_res_process_body_data_ex(
     Status::OK
 }
 
-pub unsafe fn htp_tx_state_request_complete_partial(mut tx: *mut htp_tx_t) -> Status {
+pub unsafe fn htp_tx_state_request_complete_partial(tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1388,7 +1371,7 @@ pub unsafe fn htp_tx_state_request_complete(tx: *mut htp_tx_t) -> Status {
     // Make a copy of the connection parser pointer, so that
     // we don't have to reference it via tx, which may be
     // destroyed later.
-    let mut connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
+    let connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
     // Determine what happens next, and remove this transaction from the parser.
     if (*tx).is_protocol_0_9 != 0 {
         (*connp).in_state = Some(
@@ -1405,7 +1388,7 @@ pub unsafe fn htp_tx_state_request_complete(tx: *mut htp_tx_t) -> Status {
     // destroy the transaction, if auto-destroy is enabled.
     htp_tx_finalize(tx);
     // At this point, tx may no longer be valid.
-    (*connp).in_tx = 0 as *mut htp_tx_t;
+    (*connp).clear_in_tx();
     Status::OK
 }
 
@@ -1416,15 +1399,20 @@ pub unsafe fn htp_tx_state_request_complete(tx: *mut htp_tx_t) -> Status {
 ///
 /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
-    if tx.is_null() {
+pub unsafe fn htp_tx_state_request_start(tx: *mut htp_tx_t) -> Status {
+    let tx = if let Some(tx) = tx.as_mut() {
+        tx
+    } else {
         return Status::ERROR;
-    }
+    };
+    let in_tx = if let Some(in_tx) = (*tx.connp).in_tx_mut() {
+        in_tx
+    } else {
+        return Status::ERROR;
+    };
     // Run hook REQUEST_START.
-    let rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_request_start,
-        tx as *mut core::ffi::c_void,
-    );
+    let rc: Status =
+        htp_hooks::htp_hook_run_all((*(*(*tx).connp).cfg).hook_request_start, tx.as_void_mut());
     if rc != Status::OK {
         return rc;
     }
@@ -1433,7 +1421,7 @@ pub unsafe fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
         htp_request::htp_connp_REQ_LINE
             as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
     );
-    (*(*(*tx).connp).in_tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
+    in_tx.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
     Status::OK
 }
 
@@ -1444,7 +1432,7 @@ pub unsafe fn htp_tx_state_request_start(mut tx: *mut htp_tx_t) -> Status {
 ///
 /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
+pub unsafe fn htp_tx_state_request_headers(tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1506,36 +1494,43 @@ pub unsafe fn htp_tx_state_request_headers(mut tx: *mut htp_tx_t) -> Status {
 ///
 /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
-    if tx.is_null() {
+pub unsafe fn htp_tx_state_request_line(tx: *mut htp_tx_t) -> Status {
+    let tx = if let Some(tx) = tx.as_mut() {
+        tx
+    } else {
         return Status::ERROR;
-    }
+    };
+    let in_tx = if let Some(in_tx) = (*tx.connp).in_tx_mut() {
+        in_tx
+    } else {
+        return Status::ERROR;
+    };
     // Determine how to process the request URI.
-    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
+    if tx.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
         // When CONNECT is used, the request URI contains an authority string.
-        if (*tx).request_uri.is_null() || (*tx).parsed_uri_raw.is_null() {
+        if tx.request_uri.is_null() || tx.parsed_uri_raw.is_null() {
             return Status::ERROR;
         }
         if htp_util::htp_parse_uri_hostport(
-            &mut *(*tx).request_uri,
-            &mut *(*tx).parsed_uri_raw,
-            &mut (*(*(*tx).connp).in_tx).flags,
+            &mut *tx.request_uri,
+            &mut *tx.parsed_uri_raw,
+            &mut in_tx.flags,
         ) != Status::OK
         {
             return Status::ERROR;
         }
-    } else if htp_util::htp_parse_uri((*tx).request_uri, &mut (*tx).parsed_uri_raw) != Status::OK {
+    } else if htp_util::htp_parse_uri(tx.request_uri, &mut tx.parsed_uri_raw) != Status::OK {
         return Status::ERROR;
     }
     // Parse the request URI into htp_tx_t::parsed_uri_raw.
     // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
-    if (*tx).parsed_uri.is_null() {
-        (*tx).parsed_uri = htp_util::htp_uri_alloc();
-        if (*tx).parsed_uri.is_null() {
+    if tx.parsed_uri.is_null() {
+        tx.parsed_uri = htp_util::htp_uri_alloc();
+        if tx.parsed_uri.is_null() {
             return Status::ERROR;
         }
         // Keep the original URI components, but create a copy which we can normalize and use internally.
-        if htp_util::htp_normalize_parsed_uri(tx, (*tx).parsed_uri_raw, (*tx).parsed_uri) != 1 {
+        if htp_util::htp_normalize_parsed_uri(tx, tx.parsed_uri_raw, tx.parsed_uri) != 1 {
             return Status::ERROR;
         }
     }
@@ -1548,16 +1543,13 @@ pub unsafe fn htp_tx_state_request_line(mut tx: *mut htp_tx_t) -> Status {
     // Run hook REQUEST_URI_NORMALIZE.
     let mut rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_request_uri_normalize,
-        tx as *mut core::ffi::c_void,
+        tx.as_void_mut(),
     );
     if rc != Status::OK {
         return rc;
     }
     // Run hook REQUEST_LINE.
-    rc = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_request_line,
-        tx as *mut core::ffi::c_void,
-    );
+    rc = htp_hooks::htp_hook_run_all((*(*(*tx).connp).cfg).hook_request_line, tx.as_void_mut());
     if rc != Status::OK {
         return rc;
     }
@@ -1604,7 +1596,7 @@ pub unsafe fn htp_tx_finalize(tx: *mut htp_tx_t) -> Status {
     Status::OK
 }
 
-pub unsafe fn htp_tx_state_response_complete_ex(mut tx: *mut htp_tx_t, hybrid_mode: i32) -> Status {
+pub unsafe fn htp_tx_state_response_complete_ex(tx: *mut htp_tx_t, hybrid_mode: i32) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
@@ -1639,7 +1631,7 @@ pub unsafe fn htp_tx_state_response_complete_ex(mut tx: *mut htp_tx_t, hybrid_mo
         // waiting on a response that we have not seen yet.
         if (*(*tx).connp).in_status
             == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
-            && (*(*tx).connp).in_tx == (*(*tx).connp).out_tx
+            && (*(*tx).connp).in_tx() == (*(*tx).connp).out_tx()
         {
             return Status::DATA_OTHER;
         }
@@ -1653,14 +1645,14 @@ pub unsafe fn htp_tx_state_response_complete_ex(mut tx: *mut htp_tx_t, hybrid_mo
     }
     // Make a copy of the connection parser pointer, so that
     // we don't have to reference it via tx, which may be destroyed later.
-    let mut connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
+    let connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
     // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
     let rc_0: Status = htp_tx_finalize(tx);
     if rc_0 != Status::OK {
         return rc_0;
     }
     // Disconnect transaction from the parser.
-    (*connp).out_tx = 0 as *mut htp_tx_t;
+    (*connp).clear_out_tx();
     (*connp).out_state = Some(
         htp_response::htp_connp_RES_IDLE
             as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
@@ -1865,11 +1857,11 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
 ///
 /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_response_start(mut tx: *mut htp_tx_t) -> Status {
+pub unsafe fn htp_tx_state_response_start(tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
-    (*(*tx).connp).out_tx = tx;
+    (*(*tx).connp).set_out_tx(&*tx);
     // Run hook RESPONSE_START.
     let rc: Status = htp_hooks::htp_hook_run_all(
         (*(*(*tx).connp).cfg).hook_response_start,

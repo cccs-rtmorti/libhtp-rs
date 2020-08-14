@@ -75,7 +75,7 @@ pub struct htp_connp_t {
     /// multiple lines, and are processed only when all data is available.
     pub in_header: *mut bstr::bstr_t,
     /// Ongoing inbound transaction.
-    pub in_tx: *mut htp_transaction::htp_tx_t,
+    in_tx: Option<usize>,
     /// The request body length declared in a valid request header. The key here
     /// is "valid". This field will not be populated if the request contains both
     /// a Transfer-Encoding header and a Content-Length header.
@@ -125,7 +125,7 @@ pub struct htp_connp_t {
     /// multiple lines, and are processed only when all data is available.
     pub out_header: *mut bstr::bstr_t,
     /// Ongoing outbound transaction
-    pub out_tx: *mut htp_transaction::htp_tx_t,
+    out_tx: Option<usize>,
     /// The length of the current response body as presented in the
     /// Content-Length response header.
     pub out_content_length: i64,
@@ -171,7 +171,7 @@ impl htp_connp_t {
             in_buf: std::ptr::null_mut(),
             in_buf_size: 0,
             in_header: std::ptr::null_mut(),
-            in_tx: std::ptr::null_mut(),
+            in_tx: None,
             in_content_length: 0,
             in_body_data_left: 0,
             in_chunked_length: 0,
@@ -196,7 +196,7 @@ impl htp_connp_t {
             out_buf: std::ptr::null_mut(),
             out_buf_size: 0,
             out_header: std::ptr::null_mut(),
-            out_tx: std::ptr::null_mut(),
+            out_tx: None,
             out_content_length: 0,
             out_body_data_left: 0,
             out_chunked_length: 0,
@@ -210,12 +210,145 @@ impl htp_connp_t {
             put_file: std::ptr::null_mut(),
         }
     }
+
+    /// Creates a transaction and attaches it to this connection.
+    ///
+    /// Also sets the in_tx to the newly created one.
+    pub unsafe fn create_tx(&mut self) -> Result<usize, Status> {
+        // Detect pipelining.
+        if (*self.conn).tx_size() > self.out_next_tx_index {
+            (*self.conn).flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
+        }
+        htp_transaction::htp_tx_t::new(self).map(|tx_id| {
+            self.in_tx = Some(tx_id);
+            htp_connp_in_reset(self);
+            tx_id
+        })
+    }
+
+    /// Removes references to the supplied transaction.
+    pub unsafe fn remove_tx(&mut self, tx: usize) {
+        if let Some(in_tx) = self.in_tx() {
+            if in_tx.index == tx {
+                self.in_tx = None
+            }
+        }
+        if let Some(out_tx) = self.out_tx() {
+            if out_tx.index == tx {
+                self.out_tx = None
+            }
+        }
+    }
+
+    /// Get the in_tx or None if not set.
+    pub unsafe fn in_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
+        self.in_tx.and_then(|in_tx| (*self.conn).tx(in_tx))
+    }
+
+    /// Get the in_tx as a mutable reference or None if not set.
+    pub unsafe fn in_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
+        self.in_tx.and_then(|in_tx| (*self.conn).tx_mut(in_tx))
+    }
+
+    /// Get the in_tx as a pointer or NULL if not set.
+    pub unsafe fn in_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
+        self.in_tx()
+            .map(|in_tx| in_tx as *const htp_transaction::htp_tx_t)
+            .unwrap_or(std::ptr::null())
+    }
+
+    /// Get the in_tx as a mutable pointer or NULL if not set.
+    pub unsafe fn in_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
+        self.in_tx_mut()
+            .map(|in_tx| in_tx as *mut htp_transaction::htp_tx_t)
+            .unwrap_or(std::ptr::null_mut())
+    }
+
+    /// Set the in_tx to the provided transaction.
+    pub fn set_in_tx(&mut self, tx: &htp_transaction::htp_tx_t) {
+        self.in_tx = Some(tx.index);
+    }
+
+    /// Set the in_tx to the provided transaction id.
+    pub fn set_in_tx_id(&mut self, tx_id: Option<usize>) {
+        self.in_tx = tx_id;
+    }
+
+    /// Unset the in_tx.
+    pub fn clear_in_tx(&mut self) {
+        self.in_tx = None;
+    }
+
+    /// Get the out_tx or None if not set.
+    pub unsafe fn out_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
+        self.out_tx.and_then(|out_tx| (*self.conn).tx(out_tx))
+    }
+
+    /// Get the out_tx as a mutable reference or None if not set.
+    pub unsafe fn out_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
+        self.out_tx.and_then(|out_tx| (*self.conn).tx_mut(out_tx))
+    }
+
+    /// Get the out_tx as a pointer or NULL if not set.
+    pub unsafe fn out_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
+        self.out_tx()
+            .map(|out_tx| out_tx as *const htp_transaction::htp_tx_t)
+            .unwrap_or(std::ptr::null())
+    }
+
+    /// Get the out_tx as a mutable pointer or NULL if not set.
+    pub unsafe fn out_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
+        self.out_tx_mut()
+            .map(|out_tx| out_tx as *mut htp_transaction::htp_tx_t)
+            .unwrap_or(std::ptr::null_mut())
+    }
+
+    /// Set the out_tx to the provided transaction.
+    pub fn set_out_tx(&mut self, tx: &htp_transaction::htp_tx_t) {
+        self.out_tx = Some(tx.index);
+    }
+
+    /// Set the out_tx to the provided transaction id.
+    pub fn set_out_tx_id(&mut self, tx_id: Option<usize>) {
+        self.out_tx = tx_id;
+    }
+
+    /// Unset the out_tx.
+    pub fn clear_out_tx(&mut self) {
+        self.out_tx = None;
+    }
+}
+
+impl Drop for htp_connp_t {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.in_buf.is_null() {
+                free(self.in_buf as *mut core::ffi::c_void);
+            }
+            if !self.out_buf.is_null() {
+                free(self.out_buf as *mut core::ffi::c_void);
+            }
+            htp_transaction::htp_connp_destroy_decompressors(&mut *self);
+            if !self.put_file.is_null() {
+                bstr::bstr_free((*self.put_file).filename);
+                free(self.put_file as *mut core::ffi::c_void);
+            }
+            if !self.in_header.is_null() {
+                bstr::bstr_free(self.in_header);
+                self.in_header = std::ptr::null_mut()
+            }
+            if !self.out_header.is_null() {
+                bstr::bstr_free(self.out_header);
+                self.out_header = std::ptr::null_mut()
+            }
+        }
+    }
 }
 
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_req_close(mut connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
+pub unsafe fn htp_connp_req_close(connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
     if connp.is_null() {
         return;
     }
@@ -267,40 +400,19 @@ pub unsafe fn htp_connp_destroy(connp: *mut htp_connp_t) {
     if connp.is_null() {
         return;
     }
-
     // Take back ownership of the box that was consumed in htp_connp_create()
-    let mut connp = Box::from_raw(connp);
-
-    if !connp.in_buf.is_null() {
-        free(connp.in_buf as *mut core::ffi::c_void);
-    }
-    if !connp.out_buf.is_null() {
-        free(connp.out_buf as *mut core::ffi::c_void);
-    }
-    htp_transaction::htp_connp_destroy_decompressors(&mut *connp);
-    if !connp.put_file.is_null() {
-        bstr::bstr_free((*connp.put_file).filename);
-        free(connp.put_file as *mut core::ffi::c_void);
-    }
-    if !connp.in_header.is_null() {
-        bstr::bstr_free(connp.in_header);
-        connp.in_header = 0 as *mut bstr::bstr_t
-    }
-    if !connp.out_header.is_null() {
-        bstr::bstr_free(connp.out_header);
-        connp.out_header = 0 as *mut bstr::bstr_t
-    }
+    let _ = Box::from_raw(connp);
 }
 
 /// Destroys the connection parser, its data structures, as well
 /// as the connection and its transactions.
-pub unsafe fn htp_connp_destroy_all(mut connp: *mut htp_connp_t) {
+pub unsafe fn htp_connp_destroy_all(connp: *mut htp_connp_t) {
     if connp.is_null() {
         return;
     }
     // Destroy connection
     htp_connection::htp_conn_destroy((*connp).conn);
-    (*connp).conn = 0 as *mut htp_connection::htp_conn_t;
+    (*connp).conn = std::ptr::null_mut();
     // Destroy everything else
     htp_connp_destroy(connp);
 }
@@ -316,30 +428,6 @@ pub unsafe fn htp_connp_get_connection(
     (*connp).conn
 }
 
-/// Retrieves the pointer to the active inbound transaction. In connection
-/// parsing mode there can be many open transactions, and up to 2 active
-/// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
-///
-/// Returns active inbound transaction, or NULL if there isn't one.
-pub unsafe fn htp_connp_get_in_tx(connp: *const htp_connp_t) -> *mut htp_transaction::htp_tx_t {
-    if connp.is_null() {
-        return 0 as *mut htp_transaction::htp_tx_t;
-    }
-    (*connp).in_tx
-}
-
-/// Retrieves the pointer to the active outbound transaction. In connection
-/// parsing mode there can be many open transactions, and up to 2 active
-/// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
-///
-/// Returns active outbound transaction, or NULL if there isn't one.
-pub unsafe fn htp_connp_get_out_tx(connp: *const htp_connp_t) -> *mut htp_transaction::htp_tx_t {
-    if connp.is_null() {
-        return 0 as *mut htp_transaction::htp_tx_t;
-    }
-    (*connp).out_tx
-}
-
 /// Retrieve the user data associated with this connection parser.
 ///
 /// Returns user data, or NULL if there isn't any.
@@ -351,7 +439,7 @@ pub unsafe fn htp_connp_get_user_data(connp: *const htp_connp_t) -> *mut core::f
 }
 
 /// This function is most likely not used and/or not needed.
-pub unsafe fn htp_connp_in_reset(mut connp: *mut htp_connp_t) {
+pub unsafe fn htp_connp_in_reset(connp: *mut htp_connp_t) {
     if connp.is_null() {
         return;
     }
@@ -364,7 +452,7 @@ pub unsafe fn htp_connp_in_reset(mut connp: *mut htp_connp_t) {
 ///
 /// timestamp is optional
 pub unsafe fn htp_connp_open(
-    mut connp: *mut htp_connp_t,
+    connp: *mut htp_connp_t,
     client_addr: *const i8,
     client_port: i32,
     server_addr: *const i8,
@@ -402,44 +490,11 @@ pub unsafe fn htp_connp_open(
 
 /// Associate user data with the supplied parser.
 pub unsafe fn htp_connp_set_user_data(
-    mut connp: *mut htp_connp_t,
+    connp: *mut htp_connp_t,
     user_data: *const core::ffi::c_void,
 ) {
     if connp.is_null() {
         return;
     }
     (*connp).user_data = user_data;
-}
-
-/// Create a new transaction using the connection parser provided.
-///
-/// Returns new transaction instance on success, NULL on failure.
-pub unsafe fn htp_connp_tx_create(mut connp: *mut htp_connp_t) -> *mut htp_transaction::htp_tx_t {
-    if connp.is_null() {
-        return 0 as *mut htp_transaction::htp_tx_t;
-    }
-    // Detect pipelining.
-    if (*(*connp).conn).transactions.len() > (*connp).out_next_tx_index {
-        (*(*connp).conn).flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
-    }
-    let tx: *mut htp_transaction::htp_tx_t = htp_transaction::htp_tx_create(connp);
-    if tx.is_null() {
-        return 0 as *mut htp_transaction::htp_tx_t;
-    }
-    (*connp).in_tx = tx;
-    htp_connp_in_reset(connp);
-    tx
-}
-
-/// Removes references to the supplied transaction.
-pub unsafe fn htp_connp_tx_remove(mut connp: *mut htp_connp_t, tx: *mut htp_transaction::htp_tx_t) {
-    if connp.is_null() {
-        return;
-    }
-    if (*connp).in_tx == tx {
-        (*connp).in_tx = 0 as *mut htp_transaction::htp_tx_t
-    }
-    if (*connp).out_tx == tx {
-        (*connp).out_tx = 0 as *mut htp_transaction::htp_tx_t
-    };
 }

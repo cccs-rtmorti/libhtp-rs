@@ -14,7 +14,11 @@ extern "C" {
 pub unsafe extern "C" fn htp_parse_response_line_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    let tx: *mut htp_transaction::htp_tx_t = (*connp).out_tx;
+    let tx = if let Some(out_tx) = (*connp).out_tx_mut() {
+        out_tx
+    } else {
+        return Status::ERROR;
+    };
     let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
     let len: usize = bstr::bstr_len((*tx).response_line);
     let mut pos: usize = 0;
@@ -95,6 +99,11 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     data: *mut u8,
     mut len: usize,
 ) -> Result<htp_transaction::htp_header_t, Status> {
+    let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
+        out_tx
+    } else {
+        return Err(Status::ERROR);
+    };
     let mut name_start: usize = 0;
     let mut name_end: usize = 0;
     let mut value_start: usize = 0;
@@ -114,13 +123,10 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
         // Header line with a missing colon.
         flags |= Flags::HTP_FIELD_UNPARSEABLE;
         flags |= Flags::HTP_FIELD_INVALID;
-        if !(*(*connp).out_tx)
-            .flags
-            .contains(Flags::HTP_FIELD_UNPARSEABLE)
-        {
+        if !out_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
             // Only once per transaction.
-            (*(*connp).out_tx).flags |= Flags::HTP_FIELD_UNPARSEABLE;
-            (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
+            out_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
+            out_tx.flags |= Flags::HTP_FIELD_INVALID;
             htp_warn!(
                 connp,
                 htp_log_code::RESPONSE_FIELD_MISSING_COLON,
@@ -139,9 +145,9 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
         if colon_pos == 0 {
             // Empty header name.
             flags |= Flags::HTP_FIELD_INVALID;
-            if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
+            if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
-                (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
+                out_tx.flags |= Flags::HTP_FIELD_INVALID;
                 htp_warn!(
                     connp,
                     htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
@@ -156,9 +162,9 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             prev = prev.wrapping_sub(1);
             name_end = name_end.wrapping_sub(1);
             flags |= Flags::HTP_FIELD_INVALID;
-            if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
+            if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
                 // Only once per transaction.
-                (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
+                out_tx.flags |= Flags::HTP_FIELD_INVALID;
                 htp_warn!(
                     connp,
                     htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
@@ -180,8 +186,8 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     while i < name_end {
         if !htp_util::htp_is_token(*data.offset(i as isize)) {
             flags |= Flags::HTP_FIELD_INVALID;
-            if !(*(*connp).out_tx).flags.contains(Flags::HTP_FIELD_INVALID) {
-                (*(*connp).out_tx).flags |= Flags::HTP_FIELD_INVALID;
+            if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                out_tx.flags |= Flags::HTP_FIELD_INVALID;
                 htp_warn!(
                     connp,
                     htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
@@ -229,13 +235,18 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
     data: *mut u8,
     len: usize,
 ) -> Status {
+    let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
+        out_tx
+    } else {
+        return Status::ERROR;
+    };
     let header = if let Ok(header) = htp_parse_response_header_generic(connp, data, len) {
         header
     } else {
         return Status::ERROR;
     };
     // Do we already have a header with the same name?
-    if let Some((_, h_existing)) = (*(*connp).out_tx)
+    if let Some((_, h_existing)) = out_tx
         .response_headers
         .get_nocase_mut(header.name.as_slice())
     {
@@ -247,9 +258,8 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
                 htp_log_code::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );
-        } else if ((*(*connp).out_tx).res_header_repetitions) < 64 {
-            (*(*connp).out_tx).res_header_repetitions =
-                (*(*connp).out_tx).res_header_repetitions.wrapping_add(1)
+        } else if (out_tx.res_header_repetitions) < 64 {
+            out_tx.res_header_repetitions = out_tx.res_header_repetitions.wrapping_add(1)
         } else {
             return Status::OK;
         }
@@ -276,9 +286,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             h_existing.value.extend_from_slice(header.value.as_slice());
         }
     } else {
-        (*(*connp).out_tx)
-            .response_headers
-            .add(header.name.clone(), header);
+        out_tx.response_headers.add(header.name.clone(), header);
     }
     Status::OK
 }

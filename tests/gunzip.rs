@@ -10,6 +10,10 @@ use htp::Status;
 use std::env;
 use std::path::PathBuf;
 
+// import common testing utilities
+mod common;
+use common::htp_connp_tx_create;
+
 #[no_mangle]
 extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
     unsafe {

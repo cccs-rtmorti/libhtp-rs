@@ -99,11 +99,9 @@ impl Test {
                 );
             }
 
-            assert_eq!(1, (*(*self.connp).conn).transactions.len());
+            assert_eq!(1, (*(*self.connp).conn).tx_size());
 
-            let tx = (*(*self.connp).conn).transactions.get(0);
-            assert!(tx.is_some());
-            self.tx = *tx.unwrap() as *mut htp_tx_t;
+            self.tx = (*(*self.connp).conn).tx_mut_ptr(0);
 
             assert!(!self.tx.is_null());
             assert!(!(*self.tx).request_mpartp.is_null());

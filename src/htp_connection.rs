@@ -1,4 +1,4 @@
-use crate::{htp_transaction, htp_util, list::List, log::htp_logs_free, Status};
+use crate::{htp_transaction, htp_util, list::List, log, Status};
 
 extern "C" {
     #[no_mangle]
@@ -28,9 +28,9 @@ pub struct htp_conn_t {
     /// Transactions carried out on this connection. The list may contain
     /// NULL elements when some of the transactions are deleted (and then
     /// removed from a connection by calling htp_conn_remove_tx().
-    pub transactions: List<*mut core::ffi::c_void>,
+    transactions: htp_transaction::htp_txs_t,
     /// Log messages associated with this connection.
-    pub messages: List<*mut core::ffi::c_void>,
+    messages: log::htp_logs_t,
     /// Parsing flags: HTP_CONN_PIPELINED.
     pub flags: htp_util::ConnectionFlags,
     /// When was this connection opened? Can be NULL.
@@ -64,6 +64,77 @@ impl htp_conn_t {
             in_data_counter: 0,
             out_data_counter: 0,
         }
+    }
+
+    /// Push a transaction to this connection's tx list.
+    pub fn push_tx(&mut self, tx: htp_transaction::htp_tx_t) {
+        self.transactions.push(tx)
+    }
+
+    /// Remove a transaction from this connection's tx list.
+    pub fn remove_tx(&mut self, tx_id: usize) -> Result<(), Status> {
+        self.transactions.remove(tx_id)
+    }
+
+    /// Get the transactions for this connection.
+    pub fn txs(&self) -> &htp_transaction::htp_txs_t {
+        &self.transactions
+    }
+
+    /// Get the transactions for this connection as a mutable reference.
+    pub fn txs_mut(&mut self) -> &mut htp_transaction::htp_txs_t {
+        &mut self.transactions
+    }
+
+    /// Get the number of transactions in this connection.
+    pub fn tx_size(&self) -> usize {
+        self.transactions.len()
+    }
+
+    /// Get a transaction by tx_id from this connection.
+    pub fn tx(&self, tx_id: usize) -> Option<&htp_transaction::htp_tx_t> {
+        self.transactions.get(tx_id)
+    }
+
+    /// Get a transaction by tx_id from this connection as a pointer.
+    pub fn tx_ptr(&self, tx_id: usize) -> *const htp_transaction::htp_tx_t {
+        self.transactions
+            .get(tx_id)
+            .map(|tx| tx as *const htp_transaction::htp_tx_t)
+            .unwrap_or(std::ptr::null())
+    }
+
+    /// Get a transaction by tx_id from this connection as a mutable reference.
+    pub fn tx_mut(&mut self, tx_id: usize) -> Option<&mut htp_transaction::htp_tx_t> {
+        self.transactions.get_mut(tx_id)
+    }
+
+    /// Get a transaction by tx_id from this connection as a mutable pointer.
+    pub fn tx_mut_ptr(&mut self, tx_id: usize) -> *mut htp_transaction::htp_tx_t {
+        self.transactions
+            .get_mut(tx_id)
+            .map(|tx| tx as *mut htp_transaction::htp_tx_t)
+            .unwrap_or(std::ptr::null_mut())
+    }
+
+    /// Push a log message to this connection's log list.
+    pub fn push_message(&mut self, log: log::htp_log_t) {
+        self.messages.push(log);
+    }
+
+    /// Get the log messages for this connection.
+    pub fn messages(&self) -> &log::htp_logs_t {
+        &self.messages
+    }
+
+    /// Get the number of log messages in this connection.
+    pub fn message_size(&self) -> usize {
+        self.messages.len()
+    }
+
+    /// Get a log message by id from this connection.
+    pub fn message(&self, msg_id: usize) -> Option<&log::htp_log_t> {
+        self.messages.get(msg_id)
     }
 }
 
@@ -101,18 +172,6 @@ pub unsafe fn htp_conn_destroy(conn: *mut htp_conn_t) {
 
     // retake ownership of the connection
     let conn = Box::from_raw(conn);
-
-    // Destroy individual transactions. Do note that iterating
-    // using the iterator does not work here because some of the
-    // list element may be NULL (and with the iterator it is impossible
-    // to distinguish a NULL element from the end of the list).
-    for tx in &conn.transactions {
-        if !tx.is_null() {
-            htp_transaction::htp_tx_destroy_incomplete(*tx as *mut htp_transaction::htp_tx_t);
-        }
-    }
-
-    htp_logs_free(&conn.messages);
 
     if !(*conn).server_addr.is_null() {
         free((*conn).server_addr as *mut core::ffi::c_void);
@@ -161,22 +220,6 @@ pub unsafe fn htp_conn_open(
         );
     }
     Status::OK
-}
-
-/// Removes the given transaction structure, which makes it possible to
-/// safely destroy it. It is safe to destroy transactions in this way
-/// because the index of the transactions (in a connection) is preserved.
-///
-/// Returns HTP_OK if transaction was removed (replaced with NULL) or HTP_ERROR if it wasn't found.
-pub unsafe fn htp_conn_remove_tx(
-    conn: *mut htp_conn_t,
-    tx: *const htp_transaction::htp_tx_t,
-) -> Result<(), Status> {
-    if tx.is_null() || conn.is_null() {
-        Err(Status::ERROR)
-    } else {
-        (*conn).transactions.remove((*tx).index)
-    }
 }
 
 /// Keeps track of inbound packets and data.

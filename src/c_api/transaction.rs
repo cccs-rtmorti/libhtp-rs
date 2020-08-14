@@ -13,7 +13,15 @@ use std::convert::TryFrom;
 pub unsafe extern "C" fn htp_tx_create(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut htp_transaction::htp_tx_t {
-    htp_transaction::htp_tx_create(connp)
+    if let Some(connp) = connp.as_mut() {
+        if let Ok(tx_id) = connp.create_tx() {
+            (*connp.conn).tx_mut_ptr(tx_id)
+        } else {
+            std::ptr::null_mut()
+        }
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 /// Destroys the supplied transaction.

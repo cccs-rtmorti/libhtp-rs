@@ -1005,7 +1005,8 @@ impl DecodingTest {
                 80,
                 std::ptr::null_mut(),
             );
-            ret.tx = htp_connp_tx_create(ret.connp);
+            let tx_id = (*ret.connp).create_tx().unwrap();
+            ret.tx = (*(*ret.connp).conn).tx_mut_ptr(tx_id);
         }
         ret
     }
@@ -1742,7 +1743,8 @@ impl UrlEncodedParserTest {
                 80,
                 std::ptr::null_mut(),
             );
-            ret.tx = htp_connp_tx_create(ret.connp);
+            let tx_id = (*ret.connp).create_tx().unwrap();
+            ret.tx = (*(*ret.connp).conn).tx_mut_ptr(tx_id);
             ret.urlenp = htp_urlenp_create(ret.tx);
             ret
         }

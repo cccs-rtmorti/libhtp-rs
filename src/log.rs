@@ -5,7 +5,7 @@ use std::ffi::CStr;
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum htp_log_code {
-    UNKNOWN,
+    UNKNOWN = 0,
     GZIP_DECOMPRESSION_FAILED,
     REQUEST_FIELD_MISSING_COLON,
     RESPONSE_FIELD_MISSING_COLON,
@@ -76,6 +76,8 @@ pub enum htp_log_code {
     LZMA_DECOMPRESSION_DISABLED,
     CONNECTION_ALREADY_OPEN,
     PROTOCOL_CONTAINS_EXTRA_DATA,
+    /// Error retrieving a log message's code
+    ERROR,
 }
 
 /// Enumerates all log levels.
@@ -115,9 +117,11 @@ pub struct htp_log_t {
     pub line: u32,
 }
 
+pub type htp_logs_t = List<htp_log_t>;
+
 impl htp_log_t {
     pub unsafe fn new(
-        connp: *mut htp_connection_parser::htp_connp_t,
+        connp: &mut htp_connection_parser::htp_connp_t,
         file: &str,
         line: u32,
         level: htp_log_level_t,
@@ -150,12 +154,25 @@ impl htp_log_t {
             msg,
         }
     }
+}
 
-    pub unsafe fn add_log(connp: *mut htp_connection_parser::htp_connp_t, log: Box<htp_log_t>) {
-        if !connp.is_null() && !(*connp).conn.is_null() {
-            let message = Box::into_raw(log) as *mut core::ffi::c_void;
-            (*(*connp).conn).messages.push(message);
-            htp_hooks::htp_hook_run_all((*(*connp).cfg).hook_log, message);
+pub unsafe fn htp_log(
+    connp: &mut htp_connection_parser::htp_connp_t,
+    file: &str,
+    line: u32,
+    level: htp_log_level_t,
+    code: htp_log_code,
+    msg: String,
+) {
+    if let (Some(cfg), Some(conn)) = (connp.cfg.as_ref(), connp.conn.as_mut()) {
+        // Ignore messages below our log level.
+        if level <= cfg.log_level {
+            let mut log = htp_log_t::new(connp, file, line, level, code, msg);
+            htp_hooks::htp_hook_run_all(
+                cfg.hook_log,
+                (&mut log as *mut htp_log_t) as *mut core::ffi::c_void,
+            );
+            conn.push_message(log);
         }
     }
 }
@@ -163,20 +180,9 @@ impl htp_log_t {
 #[macro_export]
 macro_rules! htp_log {
     ($connp:expr, $level:expr, $code:expr, $msg:expr) => {
-        if !$connp.is_null() {
-            use $crate::log::*;
-            // Ignore messages below our log level.
-            if !(*$connp).cfg.is_null() && $level <= (*(*$connp).cfg).log_level {
-                let log = Box::new(htp_log_t::new(
-                    $connp,
-                    file!(),
-                    line!(),
-                    $level,
-                    $code,
-                    $msg.to_string(),
-                ));
-                htp_log_t::add_log($connp, log);
-            }
+        if let Some(connp) = $connp.as_mut() {
+            use $crate::log::{htp_log, htp_log_code, htp_log_level_t};
+            htp_log(connp, file!(), line!(), $level, $code, $msg.to_string());
         }
     };
 }
@@ -207,12 +213,4 @@ macro_rules! htp_error {
     ($connp:expr, $code:expr, $msg:expr) => {
         htp_log!($connp, htp_log_level_t::HTP_LOG_ERROR, $code, $msg);
     };
-}
-
-pub unsafe fn htp_logs_free(messages: &List<*mut core::ffi::c_void>) {
-    for log in messages {
-        if !log.is_null() {
-            Box::from_raw(*log as *mut htp_log_t);
-        }
-    }
 }

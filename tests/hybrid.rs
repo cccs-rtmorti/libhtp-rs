@@ -13,6 +13,7 @@ use std::ops::Drop;
 
 // import common testing utilities
 mod common;
+use common::htp_connp_tx_create;
 
 struct HybridParsing_Get_User_Data {
     // Request callback indicators.

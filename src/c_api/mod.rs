@@ -7,7 +7,7 @@ use crate::htp_response;
 use crate::htp_transaction;
 use crate::htp_util;
 use crate::list;
-use crate::log::*;
+use crate::log::{self, *};
 use crate::Status;
 use std::convert::TryFrom;
 use std::ffi::CString;
@@ -560,49 +560,89 @@ pub unsafe extern "C" fn htp_get_version() -> *const libc::c_char {
     htp_util::htp_get_version()
 }
 
-/// Find the element at the given index.
-/// Returns the desired element, or NULL if the list is too small, or
-///         if the element at that position carries a NULL
-/// list: Expected to be an htp_list_array_t
+/// Get a log message's log message
+///
+/// Returns the log message as a cstring or NULL on error
+/// The caller must free this result with htp_log_free
 #[no_mangle]
-pub unsafe extern "C" fn htp_list_get(
-    list: *mut core::ffi::c_void,
-    idx: libc::size_t,
-) -> *mut libc::c_void {
-    if list.is_null() {
-        return core::ptr::null_mut();
-    }
-    let list = list as *mut list::List<*mut core::ffi::c_void>;
-    match (*list).get(idx) {
-        Some(x) => *x,
-        None => core::ptr::null_mut(),
-    }
-}
-
-/// Returns the size of the list.
-#[no_mangle]
-pub unsafe extern "C" fn htp_list_size(list: *const core::ffi::c_void) -> libc::size_t {
-    if list.is_null() {
-        return 0;
-    }
-    let list = list as *const list::List<*mut core::ffi::c_void>;
-    (*list).len()
-}
-
-/// Return a pointer to messages on a htp_conn_t
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_get_messages(
+pub unsafe extern "C" fn htp_conn_message_log(
     conn: *const htp_connection::htp_conn_t,
-) -> *mut core::ffi::c_void {
-    &(*conn).messages as *const _ as *mut core::ffi::c_void
+    msg_id: usize,
+) -> *mut std::os::raw::c_char {
+    conn.as_ref()
+        .and_then(|conn| conn.message(msg_id))
+        .and_then(|msg| CString::new(msg.msg.clone()).ok())
+        .map(|msg| msg.into_raw())
+        .unwrap_or(std::ptr::null_mut())
 }
 
-/// Return a pointer to transactions on a htp_conn_t
+/// Get a log message's file
+///
+/// Returns the file as a cstring or NULL on error
+/// The caller must free this result with htp_log_free
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_get_txs(
+pub unsafe extern "C" fn htp_conn_message_file(
     conn: *const htp_connection::htp_conn_t,
-) -> *mut core::ffi::c_void {
-    &(*conn).transactions as *const _ as *mut core::ffi::c_void
+    msg_id: usize,
+) -> *mut std::os::raw::c_char {
+    conn.as_ref()
+        .and_then(|conn| conn.message(msg_id))
+        .and_then(|msg| CString::new(msg.file.clone()).ok())
+        .map(|msg| msg.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
+/// Get a log message's code
+///
+/// Returns a code or ERROR on error
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_message_code(
+    conn: *const htp_connection::htp_conn_t,
+    msg_id: usize,
+) -> log::htp_log_code {
+    conn.as_ref()
+        .and_then(|conn| conn.message(msg_id))
+        .map(|msg| msg.code)
+        .unwrap_or(htp_log_code::ERROR)
+}
+
+/// Get the number of messages in a connection.
+///
+/// Returns the number of messages or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_message_size(conn: *const htp_connection::htp_conn_t) -> isize {
+    if let Some(conn) = conn.as_ref() {
+        isize::try_from(conn.message_size()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get the number of transactions in a connection
+///
+/// Returns the number of transactions or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_tx_size(conn: *const htp_connection::htp_conn_t) -> isize {
+    if let Some(conn) = conn.as_ref() {
+        isize::try_from(conn.tx_size()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get a transaction in a connection.
+///
+/// Returns the transaction or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_conn_tx(
+    conn: *mut htp_connection::htp_conn_t,
+    tx_id: usize,
+) -> *mut htp_transaction::htp_tx_t {
+    if let Some(conn) = conn.as_mut() {
+        conn.tx_mut_ptr(tx_id)
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 /// Returns the in_data_counter
@@ -837,9 +877,12 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(cfg: *mut htp_conf
 /// Returns active outbound transaction, or NULL if there isn't one.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_out_tx(
-    connp: *const htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut htp_transaction::htp_tx_t {
-    htp_connection_parser::htp_connp_get_out_tx(connp)
+    connp
+        .as_mut()
+        .map(|connp| connp.out_tx_mut_ptr())
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// Retrieves the pointer to the active inbound transaction. In connection
@@ -849,9 +892,12 @@ pub unsafe extern "C" fn htp_connp_get_out_tx(
 /// Returns active inbound transaction, or NULL if there isn't one.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_in_tx(
-    connp: *const htp_connection_parser::htp_connp_t,
+    connp: *mut htp_connection_parser::htp_connp_t,
 ) -> *mut htp_transaction::htp_tx_t {
-    htp_connection_parser::htp_connp_get_in_tx(connp)
+    connp
+        .as_mut()
+        .map(|connp| connp.in_tx_mut_ptr())
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// Destroys the connection parser and its data structures, leaving

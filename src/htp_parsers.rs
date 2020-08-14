@@ -114,6 +114,11 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     connp: *mut htp_connection_parser::htp_connp_t,
     auth_header: *const htp_transaction::htp_header_t,
 ) -> Status {
+    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
+        in_tx
+    } else {
+        return Status::ERROR;
+    };
     let data = &(*auth_header).value;
 
     if data.len() <= 5 {
@@ -142,8 +147,8 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
     };
 
     let (username, password) = decoded.split_at(i);
-    (*(*connp).in_tx).request_auth_username = bstr::bstr_dup_str(username);
-    (*(*connp).in_tx).request_auth_password = bstr::bstr_dup_str(&password[1..]);
+    in_tx.request_auth_username = bstr::bstr_dup_str(username);
+    in_tx.request_auth_password = bstr::bstr_dup_str(&password[1..]);
 
     Status::OK
 }
@@ -152,42 +157,44 @@ pub unsafe extern "C" fn htp_parse_authorization_basic(
 pub unsafe extern "C" fn htp_parse_authorization(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    let auth_header = if let Some((_, auth_header)) = (*(*connp).in_tx)
-        .request_headers
-        .get_nocase_nozero("authorization")
-    {
-        auth_header
+    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
+        in_tx
     } else {
-        (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
-        return Status::OK;
+        return Status::ERROR;
     };
+    let auth_header =
+        if let Some((_, auth_header)) = in_tx.request_headers.get_nocase_nozero("authorization") {
+            auth_header
+        } else {
+            in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
+            return Status::OK;
+        };
     // TODO Need a flag to raise when failing to parse authentication headers.
     if auth_header.value.starts_with_nocase("basic") {
         // Basic authentication
-        (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
+        in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
         return htp_parse_authorization_basic(connp, auth_header);
     } else if auth_header.value.starts_with_nocase("digest") {
         // Digest authentication
-        (*(*connp).in_tx).request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
+        in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
         if let Ok((_, auth_username)) =
             htp_parse_authorization_digest((*(*auth_header).value).as_slice())
         {
-            if (*(*connp).in_tx).request_auth_username.is_null() {
-                (*(*connp).in_tx).request_auth_username = bstr::bstr_dup_str(auth_username);
-                if (*(*connp).in_tx).request_auth_username.is_null() {
+            if in_tx.request_auth_username.is_null() {
+                in_tx.request_auth_username = bstr::bstr_dup_str(auth_username);
+                if in_tx.request_auth_username.is_null() {
                     return Status::ERROR;
                 }
             } else {
-                (*(*(*connp).in_tx).request_auth_username).clear();
-                (*(*(*connp).in_tx).request_auth_username).add(auth_username);
+                (*in_tx.request_auth_username).clear();
+                (*in_tx.request_auth_username).add(auth_username);
                 return Status::OK;
             }
         }
         return Status::DECLINED;
     } else {
         // Unrecognized authentication method
-        (*(*connp).in_tx).request_auth_type =
-            htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
+        in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
     }
     Status::OK
 }

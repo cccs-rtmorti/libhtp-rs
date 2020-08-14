@@ -1814,14 +1814,13 @@ pub unsafe fn htp_req_run_hook_body_data(
         return Status::OK;
     }
     // Do not invoke callbacks without a transaction.
-    if (*connp).in_tx.is_null() {
+    let mut rc = if let Some(in_tx) = (*connp).in_tx() {
+        // Run transaction hooks first
+        htp_hooks::htp_hook_run_all(in_tx.hook_request_body_data, d as *mut core::ffi::c_void)
+    } else {
         return Status::OK;
-    }
-    // Run transaction hooks first
-    let mut rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*connp).in_tx).hook_request_body_data,
-        d as *mut core::ffi::c_void,
-    );
+    };
+
     if rc != Status::OK {
         return rc;
     }
@@ -1860,15 +1859,18 @@ pub unsafe fn htp_res_run_hook_body_data(
     connp: *mut htp_connection_parser::htp_connp_t,
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
+    let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
+        out_tx
+    } else {
+        return Status::ERROR;
+    };
     // Do not invoke callbacks with an empty data chunk.
     if !(*d).data.is_null() && (*d).len == 0 {
         return Status::OK;
     }
     // Run transaction hooks first
-    let mut rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*connp).out_tx).hook_response_body_data,
-        d as *mut core::ffi::c_void,
-    );
+    let mut rc: Status =
+        htp_hooks::htp_hook_run_all(out_tx.hook_response_body_data, d as *mut core::ffi::c_void);
     if rc != Status::OK {
         return rc;
     }
