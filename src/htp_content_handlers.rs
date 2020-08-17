@@ -128,21 +128,14 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
-    let mut tx: *mut htp_transaction::htp_tx_t = (*d).tx();
-    // Check that we were not invoked again after the finalization.
-    if (*(*tx).request_mpartp).gave_up_data == 1 {
-        return Status::ERROR;
-    }
+    let tx: *mut htp_transaction::htp_tx_t = (*d).tx();
     if !(*d).data().is_null() {
         // Process one chunk of data.
-        htp_multipart::htp_mpartp_parse(
-            (*tx).request_mpartp,
-            (*d).data() as *const core::ffi::c_void,
-            (*d).len(),
-        );
+        let data = std::slice::from_raw_parts((*d).data(), (*d).len());
+        htp_multipart::htp_mpartp_parse(&mut *(*tx).request_mpartp, data);
     } else {
         // Finalize parsing.
-        htp_multipart::htp_mpartp_finalize((*tx).request_mpartp);
+        htp_multipart::htp_mpartp_finalize(&mut *(*tx).request_mpartp);
         let body: *mut htp_multipart::htp_multipart_t =
             htp_multipart::htp_mpartp_get_multipart((*tx).request_mpartp);
         for part in &(*body).parts {
@@ -159,9 +152,6 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
                 }
             }
         }
-        // Tell the parser that it no longer owns names
-        // and values of MULTIPART_PART_TEXT parts.
-        (*(*tx).request_mpartp).gave_up_data = 1
     }
     Status::OK
 }
@@ -187,37 +177,32 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     } else {
         return Status::ERROR;
     };
-    let mut boundary: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
     let mut flags: MultipartFlags = MultipartFlags::empty();
-    if let Some(bound) =
+    if let Some(boundary) =
         htp_multipart::htp_mpartp_find_boundary(&(*(*ct).value).as_slice(), &mut flags)
     {
-        boundary = bstr::bstr_dup_str(bound);
+        // Create a Multipart parser instance.
+        (*tx).request_mpartp =
+            htp_multipart::htp_mpartp_create((*(*tx).connp).cfg, boundary, flags);
+        if (*tx).request_mpartp.is_null() {
+            return Status::ERROR;
+        }
+        // Configure file extraction.
+        if (*(*tx).cfg).extract_request_files != 0 {
+            (*(*tx).request_mpartp).extract_files = 1;
+            (*(*tx).request_mpartp).extract_dir = (*(*(*tx).connp).cfg).tmpdir
+        }
+        // Register a request body data callback.
+        htp_transaction::htp_tx_register_request_body_data(
+            tx,
+            Some(
+                htp_ch_multipart_callback_request_body_data
+                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status,
+            ),
+        );
     } else {
         // No boundary
         return Status::DECLINED;
     }
-    if boundary.is_null() {
-        return Status::ERROR;
-    }
-    // Create a Multipart parser instance.
-    (*tx).request_mpartp = htp_multipart::htp_mpartp_create((*(*tx).connp).cfg, boundary, flags);
-    if (*tx).request_mpartp.is_null() {
-        bstr::bstr_free(boundary);
-        return Status::ERROR;
-    }
-    // Configure file extraction.
-    if (*(*tx).cfg).extract_request_files != 0 {
-        (*(*tx).request_mpartp).extract_files = 1;
-        (*(*tx).request_mpartp).extract_dir = (*(*(*tx).connp).cfg).tmpdir
-    }
-    // Register a request body data callback.
-    htp_transaction::htp_tx_register_request_body_data(
-        tx,
-        Some(
-            htp_ch_multipart_callback_request_body_data
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status,
-        ),
-    );
     Status::OK
 }

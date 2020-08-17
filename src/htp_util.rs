@@ -108,7 +108,7 @@ pub struct htp_file_t {
     /// File name, as provided (e.g., in the Content-Disposition multipart part header.
     pub filename: *mut bstr::bstr_t,
     /// File length.
-    pub len: i64,
+    pub len: usize,
     /// The unique filename in which this file is stored on the filesystem, when applicable.
     pub tmpname: *mut i8,
     /// The file descriptor used for external storage, or -1 if unused.
@@ -1837,8 +1837,7 @@ pub unsafe fn htp_req_run_hook_body_data(
         file_data.data = (*d).data();
         file_data.len = (*d).len();
         file_data.file = (*connp).put_file;
-        (*file_data.file).len =
-            ((*file_data.file).len as u64).wrapping_add((*d).len() as u64) as i64;
+        (*file_data.file).len = ((*file_data.file).len).wrapping_add((*d).len());
         rc = htp_hooks::htp_hook_run_all(
             (*(*connp).cfg).hook_request_file_data,
             &mut file_data as *mut htp_file_data_t as *mut core::ffi::c_void,

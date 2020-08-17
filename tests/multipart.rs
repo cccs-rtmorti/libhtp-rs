@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-use htp::bstr::*;
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
@@ -128,9 +127,7 @@ impl Test {
                 htp_multipart_type_t::MULTIPART_PART_TEXT,
                 (*(*field1)).type_0
             );
-            assert!(!(*(*field1)).name.is_null());
             assert!((*(*(*field1)).name).eq("field1"));
-            assert!(!(*(*field1)).value.is_null());
             assert!((*(*(*field1)).value).eq("ABCDEF"));
 
             // File 1
@@ -141,7 +138,6 @@ impl Test {
                 htp_multipart_type_t::MULTIPART_PART_FILE,
                 (*(*file1)).type_0
             );
-            assert!(!(*(*file1)).name.is_null());
             assert!((*(*(*file1)).name).eq("file1"));
             assert!(!(*(*(*file1)).file).filename.is_null());
             assert!((*(*(*(*file1)).file).filename).eq("file.bin"));
@@ -154,30 +150,20 @@ impl Test {
                 htp_multipart_type_t::MULTIPART_PART_TEXT,
                 (*(*field2)).type_0
             );
-            assert!(!(*(*field2)).name.is_null());
             assert!((*(*(*field2)).name).eq("field2"));
-            assert!(!(*(*field2)).value.is_null());
             assert!((*(*(*field2)).value).eq("GHIJKL"));
         }
     }
 
     fn parseParts(&mut self, parts: &Vec<&str>) {
         unsafe {
-            self.mpartp = htp_mpartp_create(
-                self.cfg,
-                bstr_dup_str("0123456789"),
-                MultipartFlags::empty(),
-            );
+            self.mpartp = htp_mpartp_create(self.cfg, b"0123456789", MultipartFlags::empty());
             assert!(!self.mpartp.is_null());
             for part in parts {
-                htp_mpartp_parse(
-                    self.mpartp,
-                    part.as_ptr() as *const core::ffi::c_void,
-                    part.chars().count(),
-                );
+                htp_mpartp_parse(&mut *self.mpartp, part.as_bytes());
             }
 
-            htp_mpartp_finalize(self.mpartp);
+            htp_mpartp_finalize(&mut *self.mpartp);
             self.body = htp_mpartp_get_multipart(self.mpartp);
             assert!(!self.body.is_null());
         }
@@ -196,18 +182,14 @@ impl Test {
             assert!(part.is_some());
             let part = part.unwrap();
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
-            assert!(!(*(*part)).name.is_null());
             assert!((*(*(*part)).name).eq("field1"));
-            assert!(!(*(*part)).value.is_null());
             assert!((*(*(*part)).value).eq("ABCDEF"));
 
             let part = (*self.body).parts.get(1);
             assert!(part.is_some());
             let part = part.unwrap();
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
-            assert!(!(*(*part)).name.is_null());
             assert!((*(*(*part)).name).eq("field2"));
-            assert!(!(*(*part)).value.is_null());
             assert!((*(*(*part)).value).eq("GHIJKL"));
         }
     }
@@ -232,7 +214,7 @@ fn Test1() {
     unsafe {
         t.mpartp = htp_mpartp_create(
             t.cfg,
-            bstr_dup_str("---------------------------41184676334"),
+            b"---------------------------41184676334",
             MultipartFlags::empty(),
         );
 
@@ -269,14 +251,10 @@ fn Test1() {
     ];
 
         for part in parts {
-            htp_mpartp_parse(
-                t.mpartp,
-                part.as_ptr() as *const core::ffi::c_void,
-                part.chars().count(),
-            );
+            htp_mpartp_parse(&mut *t.mpartp, part.as_bytes());
         }
 
-        htp_mpartp_finalize(t.mpartp);
+        htp_mpartp_finalize(&mut *t.mpartp);
 
         // Examine the result
         t.body = htp_mpartp_get_multipart(t.mpartp);
@@ -286,41 +264,33 @@ fn Test1() {
         let part = (*t.body).parts.get(0);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert!(!(*(*part)).name.is_null());
         assert!((*(*(*part)).name).eq("field1"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("0123456789"));
 
         let part = (*t.body).parts.get(1);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert!(!(*(*part)).name.is_null());
         assert!((*(*(*part)).name).eq("field2"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("0123456789\r\n----------------------------X"));
 
         let part = (*t.body).parts.get(2);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert!(!(*(*part)).name.is_null());
         assert!((*(*(*part)).name).eq("field3"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("9876543210"));
 
         let part = (*t.body).parts.get(3);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert!(!(*(*part)).name.is_null());
         assert!((*(*(*part)).name).eq("file1"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
 
         let part = (*t.body).parts.get(4);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert!(!(*(*part)).name.is_null());
         assert!((*(*(*part)).name).eq("file2"));
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
 
@@ -337,7 +307,7 @@ fn Test1() {
 fn Test2() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_str("BBB"), MultipartFlags::empty());
+        t.mpartp = htp_mpartp_create(t.cfg, b"BBB", MultipartFlags::empty());
 
         let parts = vec![
             "x0000x\n--BBB\n\nx1111x\n--\nx2222x\n--",
@@ -352,14 +322,10 @@ fn Test2() {
         ];
 
         for part in parts {
-            htp_mpartp_parse(
-                t.mpartp,
-                part.as_ptr() as *const core::ffi::c_void,
-                part.chars().count(),
-            );
+            htp_mpartp_parse(&mut *t.mpartp, part.as_bytes());
         }
 
-        htp_mpartp_finalize(t.mpartp);
+        htp_mpartp_finalize(&mut *t.mpartp);
 
         t.body = htp_mpartp_get_multipart(t.mpartp);
         assert!(!t.body.is_null());
@@ -372,7 +338,6 @@ fn Test2() {
             htp_multipart_type_t::MULTIPART_PART_PREAMBLE,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("x0000x"));
 
         let part = (*t.body).parts.get(1);
@@ -382,7 +347,6 @@ fn Test2() {
             htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("x1111x\n--\nx2222x"));
 
         let part = (*t.body).parts.get(2);
@@ -392,7 +356,6 @@ fn Test2() {
             htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("x3333x\n--BB\n\nx4444x\n--BB"));
 
         let part = (*t.body).parts.get(3);
@@ -402,7 +365,6 @@ fn Test2() {
             htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("x5555x\r\n--x6666x\r--"));
 
         assert!((*t.body)
@@ -455,7 +417,7 @@ fn BeginsWithoutLine() {
 }
 
 #[test]
-fn BeginsWithCrLf() {
+fn BeginsWithCrLf1() {
     let mut t = Test::new();
     let parts = vec![
         "\r\n--0123456789\r\n\
@@ -473,10 +435,51 @@ fn BeginsWithCrLf() {
 }
 
 #[test]
-fn BeginsWithLf() {
+fn BeginsWithCrLf2() {
+    let mut t = Test::new();
+    let parts = vec![
+        "\r",
+        "\n",
+        "--01234",
+        "56789\r\n\
+         Content-Disposition: form-data; name=\"field1\"\r\n\
+         \r\n\
+         ABCDEF\
+         \r\n--0123456789\r\n\
+         Content-Disposition: form-data; name=\"field2\"\r\n\
+         \r\n\
+         GHIJKL\
+         \r\n--0123456789--",
+    ];
+
+    t.parsePartsThenVerify(&parts);
+}
+
+#[test]
+fn BeginsWithLf1() {
     let mut t = Test::new();
     let parts = vec![
         "\n--0123456789\r\n\
+         Content-Disposition: form-data; name=\"field1\"\r\n\
+         \r\n\
+         ABCDEF\
+         \r\n--0123456789\r\n\
+         Content-Disposition: form-data; name=\"field2\"\r\n\
+         \r\n\
+         GHIJKL\
+         \r\n--0123456789--",
+    ];
+
+    t.parsePartsThenVerify(&parts);
+}
+
+#[test]
+fn BeginsWithLf2() {
+    let mut t = Test::new();
+    let parts = vec![
+        "\n",
+        "--0123456789",
+        "\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
          \r\n\
          ABCDEF\
@@ -791,7 +794,6 @@ fn WithPreamble() {
             htp_multipart_type_t::MULTIPART_PART_PREAMBLE,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("Preamble"));
     }
 }
@@ -829,7 +831,6 @@ fn WithEpilogue1() {
             htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("Epilogue"));
         assert!(!(*t.body)
             .flags
@@ -866,14 +867,11 @@ fn WithEpilogue2() {
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_HAS_EPILOGUE));
 
-        let part = (*t.body).parts.get(2);
-        assert!(part.is_some());
-        let part = part.unwrap();
+        let part = (*t.body).parts.get(2).unwrap();
         assert_eq!(
             htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("Epi\nlogue"));
         assert!(!(*t.body)
             .flags
@@ -911,14 +909,11 @@ fn WithEpilogue3() {
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_HAS_EPILOGUE));
 
-        let part = (*t.body).parts.get(2);
-        assert!(part.is_some());
-        let part = part.unwrap();
+        let part = (*t.body).parts.get(2).unwrap();
         assert_eq!(
             htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
             (*(*part)).type_0
         );
-        assert!(!(*(*part)).value.is_null());
         assert!((*(*(*part)).value).eq("Epi\r\n--logue"));
         assert!(!(*t.body)
             .flags
@@ -964,7 +959,6 @@ fn WithEpilogue4() {
             htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
             (*(*ep1)).type_0
         );
-        assert!(!(*(*ep1)).value.is_null());
         assert!((*(*(*ep1)).value).eq("Epilogue1"));
 
         let ep2 = (*t.body).parts.get(3);
@@ -974,7 +968,6 @@ fn WithEpilogue4() {
             htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
             (*(*ep2)).type_0
         );
-        assert!(!(*(*ep2)).value.is_null());
         assert!((*(*(*ep2)).value).eq("Epilogue2"));
 
         assert!(!(*t.body)
@@ -1113,7 +1106,6 @@ fn WithFile() {
         assert!(part.is_some());
         let part = part.unwrap();
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
-        assert!(!(*(*part)).content_type.is_null());
         assert!((*(*(*part)).content_type).eq("application/octet-stream"));
         assert!(!(*(*part)).file.is_null());
         assert!((*(*(*(*part)).file).filename).eq("test.bin"));
@@ -1151,7 +1143,6 @@ fn WithFileExternallyStored() {
         let part = part.unwrap();
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
 
-        assert!(!(*(*part)).content_type.is_null());
         assert!((*(*(*part)).content_type).eq("application/octet-stream"));
         assert!(!(*(*part)).file.is_null());
         assert!((*(*(*(*part)).file).filename).eq("test.bin"));
@@ -1472,7 +1463,7 @@ fn InvalidHeader6() {
 fn NullByte() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_str("0123456789"), MultipartFlags::empty());
+        t.mpartp = htp_mpartp_create(t.cfg, b"0123456789", MultipartFlags::empty());
     }
 
     // NUL byte in the part header.
@@ -1493,18 +1484,10 @@ fn NullByte() {
               \r\n--0123456789--";
 
     unsafe {
-        htp_mpartp_parse(
-            t.mpartp,
-            i1.as_ptr() as *const core::ffi::c_void,
-            i1.chars().count(),
-        );
-        htp_mpartp_parse(t.mpartp, i2.as_ptr() as *const core::ffi::c_void, 1);
-        htp_mpartp_parse(
-            t.mpartp,
-            i3.as_ptr() as *const core::ffi::c_void,
-            i3.chars().count(),
-        );
-        htp_mpartp_finalize(t.mpartp);
+        htp_mpartp_parse(&mut *t.mpartp, i1.as_bytes());
+        htp_mpartp_parse(&mut *t.mpartp, i2.as_bytes());
+        htp_mpartp_parse(&mut *t.mpartp, i3.as_bytes());
+        htp_mpartp_finalize(&mut *t.mpartp);
 
         t.body = htp_mpartp_get_multipart(t.mpartp);
         assert!(!t.body.is_null());
@@ -1780,12 +1763,9 @@ fn InvalidPartNoData() {
         assert!(!t.body.is_null());
         assert_eq!(3, (*t.body).parts.len());
 
-        let field1 = (*t.body).parts.get(0);
-        assert!(field1.is_some());
-        let field1 = field1.unwrap();
         assert_eq!(
             htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
-            (*(*field1)).type_0
+            (*(*(*t.body).parts.get(0).unwrap())).type_0
         );
 
         assert!((*t.body)
@@ -2079,7 +2059,7 @@ fn InvalidContentDispositionSyntax() {
 
     unsafe {
         for input in inputs {
-            t.mpartp = htp_mpartp_create(t.cfg, bstr_dup_str("123"), MultipartFlags::empty());
+            t.mpartp = htp_mpartp_create(t.cfg, b"123", MultipartFlags::empty());
 
             let mut part: *mut htp_multipart_part_t =
                 calloc(1, ::std::mem::size_of::<htp_multipart_part_t>())
@@ -2089,7 +2069,7 @@ fn InvalidContentDispositionSyntax() {
 
             let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
             (*part).headers.add(header.name.clone(), header);
-            let rc: Status = htp_mpart_part_parse_c_d(part);
+            let rc: Status = htp_mpart_part_parse_c_d(&mut *part);
 
             assert_eq!(Status::DECLINED, rc);
 
@@ -2101,7 +2081,7 @@ fn InvalidContentDispositionSyntax() {
                 .flags
                 .intersects(MultipartFlags::HTP_MULTIPART_CD_INVALID));
 
-            htp_mpart_part_destroy(part, 0);
+            htp_mpart_part_destroy(part);
             htp_mpartp_destroy(t.mpartp);
             t.mpartp = std::ptr::null_mut();
         }
@@ -2148,9 +2128,7 @@ fn ParamValueEscaping() {
             htp_multipart_type_t::MULTIPART_PART_TEXT,
             (*(*field1)).type_0
         );
-        assert!(!(*(*field1)).name.is_null());
         assert!((*(*(*field1)).name).eq("---\"---\\---"));
-        assert!(!(*(*field1)).value.is_null());
         assert!((*(*(*field1)).value).eq("ABCDEF"));
     }
 }
