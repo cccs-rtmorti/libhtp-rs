@@ -1,4 +1,4 @@
-use crate::{htp_connection_parser, htp_hooks, list::List};
+use crate::{htp_connection_parser, list::List};
 use std::net::IpAddr;
 
 /// cbindgen:prefix-with-name=true
@@ -154,10 +154,7 @@ pub unsafe fn htp_log(
         // Ignore messages below our log level.
         if level <= cfg.log_level {
             let mut log = htp_log_t::new(connp, file, line, level, code, msg);
-            htp_hooks::htp_hook_run_all(
-                cfg.hook_log,
-                (&mut log as *mut htp_log_t) as *mut core::ffi::c_void,
-            );
+            cfg.hook_log.run_all(&mut log);
             connp.conn.push_message(log);
         }
     }

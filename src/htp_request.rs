@@ -1,6 +1,7 @@
 use crate::bstr::{bstr_len, bstr_ptr};
+use crate::hook::DataHook;
 use crate::htp_util::Flags;
-use crate::{bstr, htp_connection_parser, htp_hooks, htp_transaction, htp_util, Status};
+use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
 
 extern "C" {
     #[no_mangle]
@@ -64,9 +65,11 @@ unsafe fn htp_connp_req_receiver_send_data(
     connp: *mut htp_connection_parser::htp_connp_t,
     is_last: bool,
 ) -> Status {
-    if (*connp).in_data_receiver_hook.is_null() {
+    let hook = if let Some(hook) = &(*connp).in_data_receiver_hook {
+        hook
+    } else {
         return Status::OK;
-    }
+    };
     let mut data = htp_transaction::htp_tx_data_t::new(
         (*connp).in_tx_mut_ptr(),
         (*connp)
@@ -75,10 +78,7 @@ unsafe fn htp_connp_req_receiver_send_data(
         ((*connp).in_current_read_offset - (*connp).in_current_receiver_offset) as usize,
         is_last,
     );
-    let rc: Status = htp_hooks::htp_hook_run_all(
-        (*connp).in_data_receiver_hook,
-        &mut data as *mut htp_transaction::htp_tx_data_t as *mut core::ffi::c_void,
-    );
+    let rc: Status = hook.run_all(&mut data);
     if rc != Status::OK {
         return rc;
     }
@@ -91,7 +91,7 @@ unsafe fn htp_connp_req_receiver_send_data(
 /// Returns HTP_OK, or a value returned from a callback.
 unsafe fn htp_connp_req_receiver_set(
     connp: *mut htp_connection_parser::htp_connp_t,
-    data_receiver_hook: *mut htp_hooks::htp_hook_t,
+    data_receiver_hook: Option<DataHook>,
 ) -> Status {
     htp_connp_req_receiver_finalize_clear(connp);
     (*connp).in_data_receiver_hook = data_receiver_hook;
@@ -106,11 +106,11 @@ unsafe fn htp_connp_req_receiver_set(
 pub unsafe fn htp_connp_req_receiver_finalize_clear(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {
-    if (*connp).in_data_receiver_hook.is_null() {
+    if (*connp).in_data_receiver_hook.is_none() {
         return Status::OK;
     }
     let rc: Status = htp_connp_req_receiver_send_data(connp, true);
-    (*connp).in_data_receiver_hook = 0 as *mut htp_hooks::htp_hook_t;
+    (*connp).in_data_receiver_hook = None;
     rc
 }
 
@@ -135,8 +135,18 @@ unsafe fn htp_req_handle_state_change(connp: *mut htp_connection_parser::htp_con
         };
         let mut rc: Status = Status::OK;
         match in_tx.request_progress as u32 {
-            2 => rc = htp_connp_req_receiver_set(connp, (*in_tx.cfg).hook_request_header_data),
-            4 => rc = htp_connp_req_receiver_set(connp, (*in_tx.cfg).hook_request_trailer_data),
+            2 => {
+                rc = htp_connp_req_receiver_set(
+                    connp,
+                    Some((*in_tx.cfg).hook_request_header_data.clone()),
+                )
+            }
+            4 => {
+                rc = htp_connp_req_receiver_set(
+                    connp,
+                    Some((*in_tx.cfg).hook_request_trailer_data.clone()),
+                )
+            }
             _ => {}
         }
         if rc != Status::OK {

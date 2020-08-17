@@ -1,8 +1,7 @@
 use crate::htp_config::htp_decoder_cfg_t;
 use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_hooks, htp_request, htp_transaction, utf8_decoder,
-    Status,
+    bstr, htp_config, htp_connection_parser, htp_request, htp_transaction, utf8_decoder, Status,
 };
 use bitflags;
 use nom::{
@@ -1792,7 +1791,7 @@ pub unsafe fn htp_req_run_hook_body_data(
     // Do not invoke callbacks without a transaction.
     let mut rc = if let Some(in_tx) = (*connp).in_tx() {
         // Run transaction hooks first
-        htp_hooks::htp_hook_run_all(in_tx.hook_request_body_data, d as *mut core::ffi::c_void)
+        in_tx.hook_request_body_data.run_all(d)
     } else {
         return Status::OK;
     };
@@ -1801,10 +1800,7 @@ pub unsafe fn htp_req_run_hook_body_data(
         return rc;
     }
     // Run configuration hooks second
-    rc = htp_hooks::htp_hook_run_all(
-        (*(*connp).cfg).hook_request_body_data,
-        d as *mut core::ffi::c_void,
-    );
+    rc = (*(*connp).cfg).hook_request_body_data.run_all(d);
     if rc != Status::OK {
         return rc;
     }
@@ -1819,10 +1815,9 @@ pub unsafe fn htp_req_run_hook_body_data(
         file_data.len = (*d).len();
         file_data.file = (*connp).put_file;
         (*file_data.file).len = ((*file_data.file).len).wrapping_add((*d).len());
-        rc = htp_hooks::htp_hook_run_all(
-            (*(*connp).cfg).hook_request_file_data,
-            &mut file_data as *mut htp_file_data_t as *mut core::ffi::c_void,
-        );
+        rc = (*(*connp).cfg)
+            .hook_request_file_data
+            .run_all(&mut file_data);
         if rc != Status::OK {
             return rc;
         }
@@ -1845,16 +1840,12 @@ pub unsafe fn htp_res_run_hook_body_data(
         return Status::OK;
     }
     // Run transaction hooks first
-    let mut rc: Status =
-        htp_hooks::htp_hook_run_all(out_tx.hook_response_body_data, d as *mut core::ffi::c_void);
+    let mut rc: Status = out_tx.hook_response_body_data.run_all(d);
     if rc != Status::OK {
         return rc;
     }
     // Run configuration hooks second
-    rc = htp_hooks::htp_hook_run_all(
-        (*(*connp).cfg).hook_response_body_data,
-        d as *mut core::ffi::c_void,
-    );
+    rc = (*(*connp).cfg).hook_response_body_data.run_all(d);
     if rc != Status::OK {
         return rc;
     }

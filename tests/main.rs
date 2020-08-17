@@ -844,10 +844,7 @@ fn SmallChunks() {
     assert!(t.run("25-small-chunks.t").is_ok());
 }
 
-#[no_mangle]
-extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
-    d: *mut htp_tx_data_t,
-) -> Status {
+fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -900,9 +897,8 @@ extern "C" fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
 fn RequestHeaderData() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).register_request_header_data(Some(
-            ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA,
-        ));
+        (*t.cfg)
+            .register_request_header_data(ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA);
         assert!(t.run("26-request-headers-raw.t").is_ok());
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);
@@ -914,10 +910,7 @@ fn RequestHeaderData() {
     }
 }
 
-#[no_mangle]
-extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
-    d: *mut htp_tx_data_t,
-) -> Status {
+fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data_t) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -958,9 +951,9 @@ extern "C" fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
 fn RequestTrailerData() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).register_request_trailer_data(Some(
+        (*t.cfg).register_request_trailer_data(
             ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA,
-        ));
+        );
         assert!(t.run("27-request-trailer-raw.t").is_ok());
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);
@@ -972,10 +965,7 @@ fn RequestTrailerData() {
     }
 }
 
-#[no_mangle]
-extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
-    d: *mut htp_tx_data_t,
-) -> Status {
+fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data_t) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -1028,9 +1018,9 @@ extern "C" fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
 fn ResponseHeaderData() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).register_response_header_data(Some(
+        (*t.cfg).register_response_header_data(
             ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA,
-        ));
+        );
         assert!(t.run("28-response-headers-raw.t").is_ok());
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);
@@ -1042,10 +1032,7 @@ fn ResponseHeaderData() {
     }
 }
 
-#[no_mangle]
-extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
-    d: *mut htp_tx_data_t,
-) -> Status {
+fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut htp_tx_data_t) -> Status {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -1102,9 +1089,9 @@ extern "C" fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
 fn ResponseTrailerData() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).register_response_trailer_data(Some(
+        (*t.cfg).register_response_trailer_data(
             ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA,
-        ));
+        );
         assert!(t.run("29-response-trailer-raw.t").is_ok());
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);

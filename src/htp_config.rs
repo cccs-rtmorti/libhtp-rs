@@ -1,11 +1,14 @@
+use crate::hook::{
+    DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
+    TxNativeCallbackFn,
+};
 use crate::log::htp_log_level_t;
-use crate::log::htp_log_t;
 use crate::{
-    htp_connection_parser, htp_content_handlers, htp_hooks, htp_request_apache_2_2,
-    htp_request_generic, htp_response_generic, htp_transaction, Status,
+    htp_connection_parser, htp_content_handlers, htp_request_apache_2_2, htp_request_generic,
+    htp_response_generic, htp_transaction, Status,
 };
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct htp_cfg_t {
     /// The maximum size of the buffer that is used when the current
     /// input chunk does not contain all the necessary data (e.g., a very header
@@ -70,72 +73,72 @@ pub struct htp_cfg_t {
     /// Request start hook, invoked when the parser receives the first byte of a new
     /// request. Because in HTTP a transaction always starts with a request, this hook
     /// doubles as a transaction start hook.
-    pub hook_request_start: *mut htp_hooks::htp_hook_t,
+    pub hook_request_start: TxHook,
     /// Request line hook, invoked after a request line has been parsed.
-    pub hook_request_line: *mut htp_hooks::htp_hook_t,
+    pub hook_request_line: TxHook,
     /// Request URI normalization hook, for overriding default normalization of URI.
-    pub hook_request_uri_normalize: *mut htp_hooks::htp_hook_t,
+    pub hook_request_uri_normalize: TxHook,
     /// Receives raw request header data, starting immediately after the request line,
     /// including all headers as they are seen on the TCP connection, and including the
     /// terminating empty line. Not available on genuine HTTP/0.9 requests (because
     /// they don't use headers).
-    pub hook_request_header_data: *mut htp_hooks::htp_hook_t,
+    pub hook_request_header_data: DataHook,
     /// Request headers hook, invoked after all request headers are seen.
-    pub hook_request_headers: *mut htp_hooks::htp_hook_t,
+    pub hook_request_headers: TxHook,
     /// Request body data hook, invoked every time body data is available. Each
     /// invocation will provide a htp_tx_data_t instance. Chunked data
     /// will be dechunked before the data is passed to this hook. Decompression
     /// is not currently implemented. At the end of the request body
     /// there will be a call with the data pointer set to NULL.
-    pub hook_request_body_data: *mut htp_hooks::htp_hook_t,
+    pub hook_request_body_data: DataHook,
     /// Request file data hook, which is invoked whenever request file data is
     /// available. Currently used only by the Multipart parser.
-    pub hook_request_file_data: *mut htp_hooks::htp_hook_t,
+    pub hook_request_file_data: FileDataHook,
     /// Receives raw request trailer data, which can be available on requests that have
     /// chunked bodies. The data starts immediately after the zero-length chunk
     /// and includes the terminating empty line.
-    pub hook_request_trailer_data: *mut htp_hooks::htp_hook_t,
+    pub hook_request_trailer_data: DataHook,
     /// Request trailer hook, invoked after all trailer headers are seen,
     /// and if they are seen (not invoked otherwise).
-    pub hook_request_trailer: *mut htp_hooks::htp_hook_t,
+    pub hook_request_trailer: TxHook,
     /// Request hook, invoked after a complete request is seen.
-    pub hook_request_complete: *mut htp_hooks::htp_hook_t,
+    pub hook_request_complete: TxHook,
     /// Response startup hook, invoked when a response transaction is found and
     /// processing started.
-    pub hook_response_start: *mut htp_hooks::htp_hook_t,
+    pub hook_response_start: TxHook,
     /// Response line hook, invoked after a response line has been parsed.
-    pub hook_response_line: *mut htp_hooks::htp_hook_t,
+    pub hook_response_line: TxHook,
     /// Receives raw response header data, starting immediately after the status line
     /// and including all headers as they are seen on the TCP connection, and including the
     /// terminating empty line. Not available on genuine HTTP/0.9 responses (because
     /// they don't have response headers).
-    pub hook_response_header_data: *mut htp_hooks::htp_hook_t,
+    pub hook_response_header_data: DataHook,
     /// Response headers book, invoked after all response headers have been seen.
-    pub hook_response_headers: *mut htp_hooks::htp_hook_t,
+    pub hook_response_headers: TxHook,
     /// Response body data hook, invoked every time body data is available. Each
     /// invocation will provide a htp_tx_data_t instance. Chunked data
     /// will be dechunked before the data is passed to this hook. By default,
     /// compressed data will be decompressed, but decompression can be disabled
     /// in configuration. At the end of the response body there will be a call
     /// with the data pointer set to NULL.
-    pub hook_response_body_data: *mut htp_hooks::htp_hook_t,
+    pub hook_response_body_data: DataHook,
     /// Receives raw response trailer data, which can be available on responses that have
     /// chunked bodies. The data starts immediately after the zero-length chunk
     /// and includes the terminating empty line.
-    pub hook_response_trailer_data: *mut htp_hooks::htp_hook_t,
+    pub hook_response_trailer_data: DataHook,
     /// Response trailer hook, invoked after all trailer headers have been processed,
     /// and only if the trailer exists.
-    pub hook_response_trailer: *mut htp_hooks::htp_hook_t,
+    pub hook_response_trailer: TxHook,
     /// Response hook, invoked after a response has been seen. Because sometimes servers
     /// respond before receiving complete requests, a response_complete callback may be
     /// invoked prior to a request_complete callback.
-    pub hook_response_complete: *mut htp_hooks::htp_hook_t,
+    pub hook_response_complete: TxHook,
     /// Transaction complete hook, which is invoked once the entire transaction is
     /// considered complete (request and response are both complete). This is always
     /// the last hook to be invoked.
-    pub hook_transaction_complete: *mut htp_hooks::htp_hook_t,
+    pub hook_transaction_complete: TxHook,
     /// Log hook, invoked every time the library wants to log.
-    pub hook_log: *mut htp_hooks::htp_hook_t,
+    pub hook_log: LogHook,
     /// Opaque user data associated with this configuration structure.
     pub user_data: *mut core::ffi::c_void,
     // Request Line parsing options.
@@ -177,26 +180,26 @@ impl Default for htp_cfg_t {
             extract_request_files: 0,
             extract_request_files_limit: -1,
             tmpdir: std::ptr::null_mut(),
-            hook_request_start: std::ptr::null_mut(),
-            hook_request_line: std::ptr::null_mut(),
-            hook_request_uri_normalize: std::ptr::null_mut(),
-            hook_request_header_data: std::ptr::null_mut(),
-            hook_request_headers: std::ptr::null_mut(),
-            hook_request_body_data: std::ptr::null_mut(),
-            hook_request_file_data: std::ptr::null_mut(),
-            hook_request_trailer_data: std::ptr::null_mut(),
-            hook_request_trailer: std::ptr::null_mut(),
-            hook_request_complete: std::ptr::null_mut(),
-            hook_response_start: std::ptr::null_mut(),
-            hook_response_line: std::ptr::null_mut(),
-            hook_response_header_data: std::ptr::null_mut(),
-            hook_response_headers: std::ptr::null_mut(),
-            hook_response_body_data: std::ptr::null_mut(),
-            hook_response_trailer_data: std::ptr::null_mut(),
-            hook_response_trailer: std::ptr::null_mut(),
-            hook_response_complete: std::ptr::null_mut(),
-            hook_transaction_complete: std::ptr::null_mut(),
-            hook_log: std::ptr::null_mut(),
+            hook_request_start: TxHook::new(),
+            hook_request_line: TxHook::new(),
+            hook_request_uri_normalize: TxHook::new(),
+            hook_request_header_data: DataHook::new(),
+            hook_request_headers: TxHook::new(),
+            hook_request_body_data: DataHook::new(),
+            hook_request_file_data: FileDataHook::new(),
+            hook_request_trailer_data: DataHook::new(),
+            hook_request_trailer: TxHook::new(),
+            hook_request_complete: TxHook::new(),
+            hook_response_start: TxHook::new(),
+            hook_response_line: TxHook::new(),
+            hook_response_header_data: DataHook::new(),
+            hook_response_headers: TxHook::new(),
+            hook_response_body_data: DataHook::new(),
+            hook_response_trailer_data: DataHook::new(),
+            hook_response_trailer: TxHook::new(),
+            hook_response_complete: TxHook::new(),
+            hook_transaction_complete: TxHook::new(),
+            hook_log: LogHook::new(),
             user_data: std::ptr::null_mut(),
             requestline_leading_whitespace_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             response_decompression_layer_limit: 2,
@@ -458,313 +461,118 @@ pub fn create() -> *mut htp_cfg_t {
 impl htp_cfg_t {
     /// Destroy a configuration structure.
     pub fn destroy(&mut self) {
-        unsafe {
-            htp_hooks::htp_hook_destroy(self.hook_request_start);
-            htp_hooks::htp_hook_destroy(self.hook_request_line);
-            htp_hooks::htp_hook_destroy(self.hook_request_uri_normalize);
-            htp_hooks::htp_hook_destroy(self.hook_request_header_data);
-            htp_hooks::htp_hook_destroy(self.hook_request_headers);
-            htp_hooks::htp_hook_destroy(self.hook_request_body_data);
-            htp_hooks::htp_hook_destroy(self.hook_request_file_data);
-            htp_hooks::htp_hook_destroy(self.hook_request_trailer);
-            htp_hooks::htp_hook_destroy(self.hook_request_trailer_data);
-            htp_hooks::htp_hook_destroy(self.hook_request_complete);
-            htp_hooks::htp_hook_destroy(self.hook_response_start);
-            htp_hooks::htp_hook_destroy(self.hook_response_line);
-            htp_hooks::htp_hook_destroy(self.hook_response_header_data);
-            htp_hooks::htp_hook_destroy(self.hook_response_headers);
-            htp_hooks::htp_hook_destroy(self.hook_response_body_data);
-            htp_hooks::htp_hook_destroy(self.hook_response_trailer);
-            htp_hooks::htp_hook_destroy(self.hook_response_trailer_data);
-            htp_hooks::htp_hook_destroy(self.hook_response_complete);
-            htp_hooks::htp_hook_destroy(self.hook_transaction_complete);
-            htp_hooks::htp_hook_destroy(self.hook_log);
-            config_free(self);
-        }
+        config_free(self);
     }
 
     /// Registers a callback that is invoked every time there is a log message with
     /// severity equal and higher than the configured log level.
-    pub unsafe fn register_log(
-        &mut self,
-
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_log_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_log,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_log_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_log(&mut self, cbk_fn: LogNativeCallbackFn) {
+        self.hook_log.register(cbk_fn);
     }
 
     /// Adds the built-in Multipart parser to the configuration. This parser will extract information
     /// stored in request bodies, when they are in multipart/form-data format.
     pub fn register_multipart_parser(&mut self) {
-        unsafe {
-            self.register_request_headers(Some(
-                htp_content_handlers::htp_ch_multipart_callback_request_headers
-                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
-            ));
-        }
+        self.hook_request_headers
+            .register_extern(htp_content_handlers::htp_ch_multipart_callback_request_headers)
     }
 
     /// Registers a REQUEST_COMPLETE callback.
-    pub unsafe fn register_request_complete(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_complete,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_request_complete.register(cbk_fn);
     }
 
     /// Registers a REQUEST_BODY_DATA callback.
-    pub unsafe fn register_request_body_data(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_body_data,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub fn register_request_body_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_request_body_data.register(cbk_fn);
     }
 
     /// Registers a REQUEST_HEADER_DATA callback.
-    pub unsafe fn register_request_header_data(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_header_data,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_header_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_request_header_data.register(cbk_fn);
     }
 
     /// Registers a REQUEST_HEADERS callback.
-    pub unsafe fn register_request_headers(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_headers,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_headers(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_request_headers.register(cbk_fn);
     }
 
     /// Registers a REQUEST_LINE callback.
-    pub unsafe fn register_request_line(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_line,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_line(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_request_line.register(cbk_fn);
     }
 
     /// Registers a REQUEST_START callback, which is invoked every time a new
     /// request begins and before any parsing is done.
-    pub unsafe fn register_request_start(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_start,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_start(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_request_start.register(cbk_fn);
     }
 
     /// Registers a HTP_REQUEST_TRAILER callback.
-    pub unsafe fn register_request_trailer(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_trailer,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_trailer(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_request_trailer.register(cbk_fn);
     }
 
     /// Registers a REQUEST_TRAILER_DATA callback.
-    pub unsafe fn register_request_trailer_data(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_request_trailer_data,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_request_trailer_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_request_trailer_data.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_BODY_DATA callback.
-    pub unsafe fn register_response_body_data(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_body_data,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_body_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_response_body_data.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_COMPLETE callback.
-    pub unsafe fn register_response_complete(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_complete,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_response_complete.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_HEADER_DATA callback.
-    pub unsafe fn register_response_header_data(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_header_data,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_header_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_response_header_data.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_HEADERS callback.
     #[allow(dead_code)]
-    pub unsafe fn register_response_headers(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_headers,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_headers(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_response_headers.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_LINE callback.
     #[allow(dead_code)]
-    pub unsafe fn register_response_line(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_line,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_line(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_response_line.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_START callback.
-    pub unsafe fn register_response_start(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_start,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_start(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_response_start.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_TRAILER callback.
-    pub unsafe fn register_response_trailer(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_trailer,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_trailer(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_response_trailer.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_TRAILER_DATA callback.
-    pub unsafe fn register_response_trailer_data(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_response_trailer_data,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_response_trailer_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_response_trailer_data.register(cbk_fn);
     }
 
     /// Registers a TRANSACTION_COMPLETE callback.
-    pub unsafe fn register_transaction_complete(
-        &mut self,
-        callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-    ) {
-        htp_hooks::htp_hook_register(
-            &mut self.hook_transaction_complete,
-            ::std::mem::transmute::<
-                Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
-                htp_callback_fn_t,
-            >(callback_fn),
-        );
+    pub unsafe fn register_transaction_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
+        self.hook_transaction_complete.register(cbk_fn);
     }
 
     /// Adds the built-in Urlencoded parser to the configuration. The parser will
     /// parse query strings and request bodies with the appropriate MIME type.
     #[allow(dead_code)]
     pub fn register_urlencoded_parser(&mut self) {
-        unsafe {
-            self.register_request_line(Some(
-                htp_content_handlers::htp_ch_urlencoded_callback_request_line
-                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
-            ));
-            self.register_request_headers(Some(
-                htp_content_handlers::htp_ch_urlencoded_callback_request_headers
-                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status,
-            ));
-        }
+        self.hook_request_line
+            .register_extern(htp_content_handlers::htp_ch_urlencoded_callback_request_line);
+        self.hook_request_headers
+            .register_extern(htp_content_handlers::htp_ch_urlencoded_callback_request_headers)
     }
 
     /// Configures the maximum size of the buffer LibHTP will use when all data is not available

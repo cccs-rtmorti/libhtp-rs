@@ -55,119 +55,137 @@ impl HybridParsing_Get_User_Data {
     }
 }
 
-unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_REQUEST_START_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_REQUEST_LINE_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_REQUEST_HEADERS_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_RESPONSE_START_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_RESPONSE_LINE_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
-    Status::OK
-}
-
-unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
-    d: *mut htp_tx_data_t,
-) -> Status {
-    let user_data = htp_tx_user_data((*d).tx()) as *mut HybridParsing_Get_User_Data;
-
-    // Don't do anything if in errored state.
-    if (*user_data).response_body_correctly_received == -1 {
-        return Status::ERROR;
-    }
-
-    match (*user_data).response_body_chunks_seen {
-        0 => {
-            if (*d).len() == 9
-                && (libc::memcmp(
-                    (*d).data() as *const core::ffi::c_void,
-                    cstr!("<h1>Hello") as *const core::ffi::c_void,
-                    9,
-                ) == 0)
-            {
-                (*user_data).response_body_chunks_seen += 1;
-            } else {
-                eprintln!("Mismatch in 1st chunk");
-                (*user_data).response_body_correctly_received = -1;
-            }
-        }
-        1 => {
-            if (*d).len() == 1
-                && (libc::memcmp(
-                    (*d).data() as *const core::ffi::c_void,
-                    cstr!(" ") as *const core::ffi::c_void,
-                    1,
-                ) == 0)
-            {
-                (*user_data).response_body_chunks_seen += 1;
-            } else {
-                eprintln!("Mismatch in 2nd chunk");
-                (*user_data).response_body_correctly_received = -1;
-            }
-        }
-        2 => {
-            if (*d).len() == 11
-                && (libc::memcmp(
-                    (*d).data() as *const core::ffi::c_void,
-                    cstr!("World!</h1>") as *const core::ffi::c_void,
-                    11,
-                ) == 0)
-            {
-                (*user_data).response_body_chunks_seen += 1;
-                (*user_data).response_body_correctly_received = 1;
-            } else {
-                eprintln!("Mismatch in 3rd chunk");
-                (*user_data).response_body_correctly_received = -1;
-            }
-        }
-        _ => {
-            eprintln!("Seen more than 3 chunks");
-            (*user_data).response_body_correctly_received = -1;
-        }
+fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_REQUEST_START_invoked += 1;
     }
     Status::OK
 }
 
-unsafe extern "C" fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
+fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_REQUEST_LINE_invoked += 1;
+    }
     Status::OK
 }
 
-unsafe extern "C" fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Status {
-    let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
-    (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
+fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_REQUEST_HEADERS_invoked += 1;
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_RESPONSE_START_invoked += 1;
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_RESPONSE_LINE_invoked += 1;
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data((*d).tx()) as *mut HybridParsing_Get_User_Data;
+
+        // Don't do anything if in errored state.
+        if (*user_data).response_body_correctly_received == -1 {
+            return Status::ERROR;
+        }
+
+        match (*user_data).response_body_chunks_seen {
+            0 => {
+                if (*d).len() == 9
+                    && (libc::memcmp(
+                        (*d).data() as *const core::ffi::c_void,
+                        cstr!("<h1>Hello") as *const core::ffi::c_void,
+                        9,
+                    ) == 0)
+                {
+                    (*user_data).response_body_chunks_seen += 1;
+                } else {
+                    eprintln!("Mismatch in 1st chunk");
+                    (*user_data).response_body_correctly_received = -1;
+                }
+            }
+            1 => {
+                if (*d).len() == 1
+                    && (libc::memcmp(
+                        (*d).data() as *const core::ffi::c_void,
+                        cstr!(" ") as *const core::ffi::c_void,
+                        1,
+                    ) == 0)
+                {
+                    (*user_data).response_body_chunks_seen += 1;
+                } else {
+                    eprintln!("Mismatch in 2nd chunk");
+                    (*user_data).response_body_correctly_received = -1;
+                }
+            }
+            2 => {
+                if (*d).len() == 11
+                    && (libc::memcmp(
+                        (*d).data() as *const core::ffi::c_void,
+                        cstr!("World!</h1>") as *const core::ffi::c_void,
+                        11,
+                    ) == 0)
+                {
+                    (*user_data).response_body_chunks_seen += 1;
+                    (*user_data).response_body_correctly_received = 1;
+                } else {
+                    eprintln!("Mismatch in 3rd chunk");
+                    (*user_data).response_body_correctly_received = -1;
+                }
+            }
+            _ => {
+                eprintln!("Seen more than 3 chunks");
+                (*user_data).response_body_correctly_received = -1;
+            }
+        }
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
+    }
+    Status::OK
+}
+
+fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Status {
+    unsafe {
+        let user_data = htp_tx_user_data(tx) as *mut HybridParsing_Get_User_Data;
+        (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
+    }
     Status::OK
 }
 
@@ -219,26 +237,21 @@ impl HybridParsingTest {
     fn register_user_callbacks(&mut self) {
         unsafe {
             // Request callbacks
-            (*self.cfg).register_request_start(Some(HybridParsing_Get_Callback_REQUEST_START));
-            (*self.cfg).register_request_line(Some(HybridParsing_Get_Callback_REQUEST_LINE));
-            (*self.cfg).register_request_headers(Some(HybridParsing_Get_Callback_REQUEST_HEADERS));
-            (*self.cfg)
-                .register_request_complete(Some(HybridParsing_Get_Callback_REQUEST_COMPLETE));
+            (*self.cfg).register_request_start(HybridParsing_Get_Callback_REQUEST_START);
+            (*self.cfg).register_request_line(HybridParsing_Get_Callback_REQUEST_LINE);
+            (*self.cfg).register_request_headers(HybridParsing_Get_Callback_REQUEST_HEADERS);
+            (*self.cfg).register_request_complete(HybridParsing_Get_Callback_REQUEST_COMPLETE);
 
             // Response callbacks
-            (*self.cfg).register_response_start(Some(HybridParsing_Get_Callback_RESPONSE_START));
-            (*self.cfg).register_response_line(Some(HybridParsing_Get_Callback_RESPONSE_LINE));
-            (*self.cfg)
-                .register_response_headers(Some(HybridParsing_Get_Callback_RESPONSE_HEADERS));
-            (*self.cfg)
-                .register_response_body_data(Some(HybridParsing_Get_Callback_RESPONSE_BODY_DATA));
-            (*self.cfg)
-                .register_response_complete(Some(HybridParsing_Get_Callback_RESPONSE_COMPLETE));
+            (*self.cfg).register_response_start(HybridParsing_Get_Callback_RESPONSE_START);
+            (*self.cfg).register_response_line(HybridParsing_Get_Callback_RESPONSE_LINE);
+            (*self.cfg).register_response_headers(HybridParsing_Get_Callback_RESPONSE_HEADERS);
+            (*self.cfg).register_response_body_data(HybridParsing_Get_Callback_RESPONSE_BODY_DATA);
+            (*self.cfg).register_response_complete(HybridParsing_Get_Callback_RESPONSE_COMPLETE);
 
             // Transaction calllbacks
-            (*self.cfg).register_transaction_complete(Some(
-                HybridParsing_Get_Callback_TRANSACTION_COMPLETE,
-            ));
+            (*self.cfg)
+                .register_transaction_complete(HybridParsing_Get_Callback_TRANSACTION_COMPLETE);
         }
     }
 }

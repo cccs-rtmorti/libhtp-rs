@@ -1,5 +1,5 @@
 use crate::{
-    bstr, htp_config, htp_connection, htp_decompressors, htp_hooks, htp_request, htp_response,
+    bstr, hook::DataHook, htp_config, htp_connection, htp_decompressors, htp_request, htp_response,
     htp_transaction, htp_util, Status,
 };
 use std::net::IpAddr;
@@ -93,7 +93,7 @@ pub struct htp_connp_t {
     /// Previous request parser state. Used to detect state changes.
     pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /// The hook that should be receiving raw connection data.
-    pub in_data_receiver_hook: *mut htp_hooks::htp_hook_t,
+    pub in_data_receiver_hook: Option<DataHook>,
 
     /// Response counter, incremented with every new response. This field is
     /// used to match responses to requests. The expectation is that for every
@@ -140,7 +140,7 @@ pub struct htp_connp_t {
     /// Previous response parser state.
     pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
     /// The hook that should be receiving raw connection data.
-    pub out_data_receiver_hook: *mut htp_hooks::htp_hook_t,
+    pub out_data_receiver_hook: Option<DataHook>,
     /// Response decompressor used to decompress response body data.
     pub out_decompressor: *mut htp_decompressors::htp_decompressor_t,
     /// On a PUT request, this field contains additional file data.
@@ -181,7 +181,7 @@ impl htp_connp_t {
                     as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
             ),
             in_state_previous: None,
-            in_data_receiver_hook: std::ptr::null_mut(),
+            in_data_receiver_hook: None,
             out_next_tx_index: 0,
             out_timestamp: htp_time_t {
                 tv_sec: 0,
@@ -206,7 +206,7 @@ impl htp_connp_t {
                     as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
             ),
             out_state_previous: None,
-            out_data_receiver_hook: std::ptr::null_mut(),
+            out_data_receiver_hook: None,
             out_decompressor: std::ptr::null_mut(),
             put_file: std::ptr::null_mut(),
         }

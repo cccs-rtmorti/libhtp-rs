@@ -1,4 +1,5 @@
 use crate::bstr;
+use crate::hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn};
 use crate::htp_config;
 use crate::htp_connection;
 use crate::htp_connection_parser;
@@ -35,10 +36,10 @@ pub unsafe extern "C" fn htp_config_destroy(cfg: *mut htp_config::htp_cfg_t) {
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_body_data(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    cbk_fn: DataExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_body_data(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_body_data.register_extern(cbk_fn)
     }
 }
 
@@ -46,10 +47,10 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_complete(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_complete(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_complete.register_extern(cbk_fn)
     }
 }
 
@@ -57,10 +58,10 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_headers(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_headers(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_headers.register_extern(cbk_fn)
     }
 }
 
@@ -68,10 +69,10 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_header_data(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    cbk_fn: DataExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_header_data(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_header_data.register_extern(cbk_fn)
     }
 }
 
@@ -79,10 +80,10 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_line(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_line(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_line.register_extern(cbk_fn)
     }
 }
 
@@ -91,10 +92,10 @@ pub unsafe extern "C" fn htp_config_register_request_line(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_start(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_start(callback_fn);
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_start.register_extern(cbk_fn)
     }
 }
 
@@ -102,10 +103,10 @@ pub unsafe extern "C" fn htp_config_register_request_start(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_trailer(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_trailer.register_extern(cbk_fn)
     }
 }
 
@@ -113,10 +114,10 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer_data(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    cbk_fn: DataExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_request_trailer_data(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_request_trailer_data.register_extern(cbk_fn)
     }
 }
 
@@ -124,10 +125,10 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_body_data(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    cbk_fn: DataExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_body_data(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_body_data.register_extern(cbk_fn)
     }
 }
 
@@ -135,10 +136,10 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_complete(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_complete(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_complete.register_extern(cbk_fn)
     }
 }
 
@@ -146,10 +147,10 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_headers(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_headers(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_headers.register_extern(cbk_fn)
     }
 }
 
@@ -157,10 +158,10 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_header_data(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    cbk_fn: DataExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_header_data(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_header_data.register_extern(cbk_fn)
     }
 }
 
@@ -168,10 +169,10 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_start(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_start(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_start.register_extern(cbk_fn)
     }
 }
 
@@ -179,10 +180,10 @@ pub unsafe extern "C" fn htp_config_register_response_start(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_trailer(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_trailer.register_extern(cbk_fn)
     }
 }
 
@@ -190,10 +191,10 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer_data(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status>,
+    cbk_fn: DataExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_response_trailer_data(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_response_trailer_data.register_extern(cbk_fn)
     }
 }
 
@@ -201,10 +202,10 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_transaction_complete(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_t) -> Status>,
+    cbk_fn: TxExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_transaction_complete(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_transaction_complete.register_extern(cbk_fn)
     }
 }
 
@@ -882,10 +883,10 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_log(
     cfg: *mut htp_config::htp_cfg_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_log_t) -> Status>,
+    cbk_fn: LogExternalCallbackFn,
 ) {
-    if !cfg.is_null() {
-        (*cfg).register_log(callback_fn)
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.hook_log.register_extern(cbk_fn)
     }
 }
 

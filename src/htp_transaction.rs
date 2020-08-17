@@ -1,9 +1,9 @@
+use crate::hook::{DataHook, DataNativeCallbackFn};
 use crate::htp_util::Flags;
 use crate::list::List;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_cookies, htp_decompressors, htp_hooks,
-    htp_multipart, htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded, htp_util,
-    Status,
+    bstr, htp_config, htp_connection_parser, htp_cookies, htp_decompressors, htp_multipart,
+    htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded, htp_util, Status,
 };
 use std::cmp::Ordering;
 
@@ -89,7 +89,7 @@ pub struct htp_tx_data_t {
 }
 
 impl htp_tx_data_t {
-    pub unsafe fn new(tx: *mut htp_tx_t, data: *const u8, len: usize, is_last: bool) -> Self {
+    pub fn new(tx: *mut htp_tx_t, data: *const u8, len: usize, is_last: bool) -> Self {
         Self {
             tx,
             data,
@@ -259,10 +259,10 @@ pub struct htp_tx_t {
     pub request_content_length: i64,
     /// Transaction-specific REQUEST_BODY_DATA hook. Behaves as
     /// the configuration hook with the same name.
-    pub hook_request_body_data: *mut htp_hooks::htp_hook_t,
+    pub hook_request_body_data: DataHook,
     /// Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
     /// the configuration hook with the same name.
-    pub hook_response_body_data: *mut htp_hooks::htp_hook_t,
+    pub hook_response_body_data: DataHook,
     /// Query string URLENCODED parser. Available only
     /// when the query string is not NULL and not empty.
     pub request_urlenp_query: *mut htp_urlencoded::htp_urlenp_t,
@@ -412,8 +412,8 @@ impl htp_tx_t {
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
             request_content_type: std::ptr::null_mut(),
             request_content_length: -1,
-            hook_request_body_data: std::ptr::null_mut(),
-            hook_response_body_data: std::ptr::null_mut(),
+            hook_request_body_data: DataHook::new(),
+            hook_response_body_data: DataHook::new(),
             request_urlenp_query: std::ptr::null_mut(),
             request_urlenp_body: std::ptr::null_mut(),
             request_mpartp: std::ptr::null_mut(),
@@ -458,8 +458,9 @@ impl htp_tx_t {
         Ok(tx_id)
     }
 
-    fn as_void_mut(&mut self) -> *mut std::ffi::c_void {
-        (self as *mut htp_tx_t) as *mut std::ffi::c_void
+    /// Register callback for the transaction-specific REQUEST_BODY_DATA hook.
+    pub fn register_request_body_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+        self.hook_request_body_data.register(cbk_fn)
     }
 }
 
@@ -494,7 +495,6 @@ impl Drop for htp_tx_t {
                 htp_table::htp_table_free(self.request_cookies);
             }
 
-            htp_hooks::htp_hook_destroy(self.hook_request_body_data);
             // Response fields.
             bstr::bstr_free(self.response_line);
             bstr::bstr_free(self.response_protocol);
@@ -894,10 +894,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
         return rc;
     }
     // Run hook REQUEST_HEADERS.
-    rc = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_request_headers,
-        tx as *mut core::ffi::c_void,
-    );
+    rc = (*(*(*tx).connp).cfg).hook_request_headers.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1074,10 +1071,7 @@ pub unsafe fn htp_tx_state_response_line(tx: *mut htp_tx_t) -> Status {
         (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
     }
     // Run hook HTP_RESPONSE_LINE
-    let rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_response_line,
-        tx as *mut core::ffi::c_void,
-    );
+    let rc = (*(*(*tx).connp).cfg).hook_response_line.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1353,10 +1347,7 @@ pub unsafe fn htp_tx_state_request_complete_partial(tx: *mut htp_tx_t) -> Status
     }
     (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
     // Run hook REQUEST_COMPLETE.
-    let rc_0: Status = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_request_complete,
-        tx as *mut core::ffi::c_void,
-    );
+    let rc_0 = (*(*(*tx).connp).cfg).hook_request_complete.run_all(tx);
     if rc_0 != Status::OK {
         return rc_0;
     }
@@ -1428,8 +1419,7 @@ pub unsafe fn htp_tx_state_request_start(tx: *mut htp_tx_t) -> Status {
         return Status::ERROR;
     };
     // Run hook REQUEST_START.
-    let rc: Status =
-        htp_hooks::htp_hook_run_all((*(*(*tx).connp).cfg).hook_request_start, tx.as_void_mut());
+    let rc: Status = (*(*(*tx).connp).cfg).hook_request_start.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1459,10 +1449,7 @@ pub unsafe fn htp_tx_state_request_headers(tx: *mut htp_tx_t) -> Status {
     if (*tx).request_progress > htp_tx_req_progress_t::HTP_REQUEST_HEADERS {
         // Request trailers.
         // Run hook HTP_REQUEST_TRAILER.
-        let mut rc: Status = htp_hooks::htp_hook_run_all(
-            (*(*(*tx).connp).cfg).hook_request_trailer,
-            tx as *mut core::ffi::c_void,
-        );
+        let mut rc: Status = (*(*(*tx).connp).cfg).hook_request_trailer.run_all(tx);
         if rc != Status::OK {
             return rc;
         }
@@ -1558,15 +1545,12 @@ pub unsafe fn htp_tx_state_request_line(tx: *mut htp_tx_t) -> Status {
         (*tx).flags |= Flags::HTP_HOSTU_INVALID
     }
     // Run hook REQUEST_URI_NORMALIZE.
-    let mut rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_request_uri_normalize,
-        tx.as_void_mut(),
-    );
+    let mut rc: Status = (*(*(*tx).connp).cfg).hook_request_uri_normalize.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
     // Run hook REQUEST_LINE.
-    rc = htp_hooks::htp_hook_run_all((*(*(*tx).connp).cfg).hook_request_line, tx.as_void_mut());
+    rc = (*(*(*tx).connp).cfg).hook_request_line.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1599,10 +1583,7 @@ pub unsafe fn htp_tx_finalize(tx: *mut htp_tx_t) -> Status {
         return Status::OK;
     }
     // Run hook TRANSACTION_COMPLETE.
-    let rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_transaction_complete,
-        tx as *mut core::ffi::c_void,
-    );
+    let rc: Status = (*(*(*tx).connp).cfg).hook_transaction_complete.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1624,10 +1605,7 @@ pub unsafe fn htp_tx_state_response_complete_ex(tx: *mut htp_tx_t, hybrid_mode: 
             htp_tx_res_process_body_data_ex(tx, 0 as *const core::ffi::c_void, 0);
         }
         // Run hook RESPONSE_COMPLETE.
-        let rc: Status = htp_hooks::htp_hook_run_all(
-            (*(*(*tx).connp).cfg).hook_response_complete,
-            tx as *mut core::ffi::c_void,
-        );
+        let rc: Status = (*(*(*tx).connp).cfg).hook_response_complete.run_all(tx);
         if rc != Status::OK {
             return rc;
         }
@@ -1727,10 +1705,7 @@ pub unsafe fn htp_tx_state_response_headers(mut tx: *mut htp_tx_t) -> Status {
         return rc;
     }
     // Run hook RESPONSE_HEADERS.
-    rc = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_response_headers,
-        tx as *mut core::ffi::c_void,
-    );
+    rc = (*(*(*tx).connp).cfg).hook_response_headers.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1880,10 +1855,7 @@ pub unsafe fn htp_tx_state_response_start(tx: *mut htp_tx_t) -> Status {
     }
     (*(*tx).connp).set_out_tx(&*tx);
     // Run hook RESPONSE_START.
-    let rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*(*tx).connp).cfg).hook_response_start,
-        tx as *mut core::ffi::c_void,
-    );
+    let rc: Status = (*(*(*tx).connp).cfg).hook_response_start.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
@@ -1924,42 +1896,6 @@ pub unsafe fn htp_tx_state_response_start(tx: *mut htp_tx_t) -> Status {
         );
     }
     Status::OK
-}
-
-/// Register callback for the transaction-specific REQUEST_BODY_DATA hook.
-#[no_mangle]
-pub unsafe fn htp_tx_register_request_body_data(
-    tx: *mut htp_tx_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
-) {
-    if tx.is_null() || callback_fn.is_none() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*tx).hook_request_body_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
-}
-
-/// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
-#[no_mangle]
-pub unsafe fn htp_tx_register_response_body_data(
-    tx: *mut htp_tx_t,
-    callback_fn: Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
-) {
-    if tx.is_null() || callback_fn.is_none() {
-        return;
-    }
-    htp_hooks::htp_hook_register(
-        &mut (*tx).hook_response_body_data,
-        ::std::mem::transmute::<
-            Option<unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status>,
-            htp_callback_fn_t,
-        >(callback_fn),
-    );
 }
 
 pub unsafe fn htp_tx_is_complete(tx: *mut htp_tx_t) -> i32 {

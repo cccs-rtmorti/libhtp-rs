@@ -1,5 +1,5 @@
 use crate::htp_util::{take_ascii_whitespace, Flags};
-use crate::{bstr, htp_config, htp_hooks, htp_table, htp_transaction, htp_util, list, Status};
+use crate::{bstr, htp_config, htp_table, htp_transaction, htp_util, list, Status};
 use bitflags;
 use std::cmp::Ordering;
 
@@ -645,10 +645,9 @@ pub unsafe fn htp_mpartp_run_request_file_data_hook(
     file_data.data = data.as_ptr();
     file_data.len = data.len();
     // Send data to callbacks
-    let rc: Status = htp_hooks::htp_hook_run_all(
-        (*(*part.parser).cfg).hook_request_file_data,
-        &mut file_data as *mut htp_util::htp_file_data_t as *mut core::ffi::c_void,
-    );
+    let rc: Status = (*(*(*part).parser).cfg)
+        .hook_request_file_data
+        .run_all(&mut file_data);
     if rc != Status::OK {
         return rc;
     }

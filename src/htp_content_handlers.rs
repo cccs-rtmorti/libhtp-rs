@@ -67,13 +67,9 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
         return Status::ERROR;
     }
     // Register a request body data callback.
-    htp_transaction::htp_tx_register_request_body_data(
-        tx,
-        Some(
-            htp_ch_urlencoded_callback_request_body_data
-                as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status,
-        ),
-    );
+    (*tx)
+        .hook_request_body_data
+        .register_extern(htp_ch_urlencoded_callback_request_body_data);
     Status::OK
 }
 
@@ -193,13 +189,9 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
             (*(*tx).request_mpartp).extract_dir = (*(*(*tx).connp).cfg).tmpdir
         }
         // Register a request body data callback.
-        htp_transaction::htp_tx_register_request_body_data(
-            tx,
-            Some(
-                htp_ch_multipart_callback_request_body_data
-                    as unsafe extern "C" fn(_: *mut htp_transaction::htp_tx_data_t) -> Status,
-            ),
-        );
+        (*tx)
+            .hook_request_body_data
+            .register_extern(htp_ch_multipart_callback_request_body_data);
     } else {
         // No boundary
         return Status::DECLINED;

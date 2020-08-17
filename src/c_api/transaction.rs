@@ -1,4 +1,5 @@
 use crate::bstr;
+use crate::hook::DataExternalCallbackFn;
 use crate::htp_config;
 use crate::htp_connection_parser;
 use crate::htp_decompressors;
@@ -780,6 +781,17 @@ pub unsafe extern "C" fn htp_tx_state_response_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     htp_transaction::htp_tx_state_response_complete(tx)
+}
+
+/// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
+#[no_mangle]
+pub unsafe fn htp_tx_register_response_body_data(
+    tx: *mut htp_transaction::htp_tx_t,
+    cbk_fn: DataExternalCallbackFn,
+) {
+    if let Some(tx) = tx.as_mut() {
+        tx.hook_response_body_data.register_extern(cbk_fn);
+    }
 }
 
 /// Get the data's transaction.
