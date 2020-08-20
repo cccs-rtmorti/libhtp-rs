@@ -1,6 +1,7 @@
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util, Status};
+use nom::{error::ErrorKind, sequence::tuple, Err::Error};
 use std::cmp::Ordering;
 
 extern "C" {
@@ -21,75 +22,63 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
     };
     let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
     let len: usize = bstr::bstr_len((*tx).response_line);
-    let mut pos: usize = 0;
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
     (*tx).response_protocol_number = Protocol::INVALID;
     (*tx).response_status = 0 as *mut bstr::bstr_t;
     (*tx).response_status_number = -1;
     (*tx).response_message = 0 as *mut bstr::bstr_t;
-    // Ignore whitespace at the beginning of the line.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    let mut start: usize = pos;
-    // Find the end of the protocol string.
-    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    if pos.wrapping_sub(start) == 0 {
-        return Status::OK;
-    }
-    (*tx).response_protocol = bstr::bstr_dup_mem(
-        data.offset(start as isize) as *const core::ffi::c_void,
-        pos.wrapping_sub(start),
-    );
-    if (*tx).response_protocol.is_null() {
-        return Status::ERROR;
-    }
-    (*tx).response_protocol_number =
-        htp_parsers::htp_parse_protocol(&*(*tx).response_protocol, &mut *connp);
-    // Ignore whitespace after the response protocol.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    if pos == len {
-        return Status::OK;
-    }
-    start = pos;
-    // Find the next whitespace character.
-    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    if pos.wrapping_sub(start) == 0 {
-        return Status::OK;
-    }
-    (*tx).response_status = bstr::bstr_dup_mem(
-        data.offset(start as isize) as *const core::ffi::c_void,
-        pos.wrapping_sub(start),
-    );
-    if (*tx).response_status.is_null() {
-        return Status::ERROR;
-    }
-    if let Some(status_code) = htp_parsers::htp_parse_status(&*(*tx).response_status) {
-        (*tx).response_status_number = status_code as i32;
+
+    let data_slice = std::slice::from_raw_parts(data, len);
+
+    let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
+        htp_util::take_htp_is_space,
+        htp_util::take_not_htp_is_space,
+        htp_util::take_htp_is_space,
+        htp_util::take_not_htp_is_space,
+        htp_util::take_ascii_whitespace(),
+    ));
+
+    if let Ok((message, (_ls, response_protocol, ws1, status_code, ws2))) =
+        response_line_parser(data_slice)
+    {
+        if response_protocol.len() == 0 {
+            return Status::OK;
+        }
+        (*tx).response_protocol = bstr::bstr_dup_str(response_protocol);
+        if (*tx).response_protocol.is_null() {
+            return Status::ERROR;
+        }
+
+        (*tx).response_protocol_number =
+            htp_parsers::htp_parse_protocol(response_protocol, &mut *connp);
+
+        if ws1.len() == 0 || status_code.len() == 0 {
+            return Status::OK;
+        }
+
+        (*tx).response_status = bstr::bstr_dup_str(status_code);
+        if (*tx).response_status.is_null() {
+            return Status::ERROR;
+        }
+
+        if let Some(status_number) = htp_parsers::htp_parse_status(status_code) {
+            (*tx).response_status_number = status_number as i32;
+        } else {
+            (*tx).response_status_number = -1;
+        }
+
+        if ws2.len() == 0 {
+            return Status::OK;
+        }
+
+        (*tx).response_message = bstr::bstr_dup_str(message);
+        if (*tx).response_message.is_null() {
+            return Status::ERROR;
+        }
     } else {
-        (*tx).response_status_number = -1;
-    }
-    // Ignore whitespace that follows the status code.
-    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
-        pos = pos.wrapping_add(1)
-    }
-    if pos == len {
-        return Status::OK;
-    }
-    // Assume the message stretches until the end of the line.
-    (*tx).response_message = bstr::bstr_dup_mem(
-        data.offset(pos as isize) as *const core::ffi::c_void,
-        len.wrapping_sub(pos),
-    );
-    if (*tx).response_message.is_null() {
         return Status::ERROR;
     }
+
     Status::OK
 }
 
@@ -97,132 +86,112 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
 pub unsafe extern "C" fn htp_parse_response_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
-    mut len: usize,
+    len: usize,
 ) -> Result<htp_transaction::htp_header_t, Status> {
     let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
         out_tx
     } else {
         return Err(Status::ERROR);
     };
-    let mut name_start: usize = 0;
-    let mut name_end: usize = 0;
-    let mut value_start: usize = 0;
-    let mut value_end: usize = 0;
-    let mut prev: usize = 0;
+
+    let data_slice = std::slice::from_raw_parts(data as *const u8, len);
+    let data_slice = htp_util::htp_chomp(&data_slice);
     let mut flags = Flags::empty();
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    let s = htp_util::htp_chomp(&s);
-    len = s.len();
-    name_start = 0;
-    // Look for the first colon.
-    let mut colon_pos: usize = 0;
-    while colon_pos < len && *data.offset(colon_pos as isize) != ':' as u8 {
-        colon_pos = colon_pos.wrapping_add(1)
-    }
-    if colon_pos == len {
-        // Header line with a missing colon.
-        flags |= Flags::HTP_FIELD_UNPARSEABLE;
-        flags |= Flags::HTP_FIELD_INVALID;
-        if !out_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
-            // Only once per transaction.
-            out_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
-            out_tx.flags |= Flags::HTP_FIELD_INVALID;
-            htp_warn!(
-                connp,
-                htp_log_code::RESPONSE_FIELD_MISSING_COLON,
-                "Response field invalid: missing colon."
-            );
+
+    let mut header: &[u8] = b"";
+    let mut value: &[u8] = b"";
+
+    match htp_util::split_by_colon(data_slice) {
+        Ok((mut name, val)) => {
+            // Colon present
+            // Log empty header name
+            let name_len = name.len();
+            if name_len == 0 {
+                flags |= Flags::HTP_FIELD_INVALID;
+                if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                    // Only once per transaction.
+                    out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                    htp_warn!(
+                        connp,
+                        htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
+                        "Response field invalid: empty name."
+                    );
+                }
+            }
+
+            let mut unprintable = 0;
+            // Ignore unprintable after field-name
+            for item in name.iter().rev() {
+                if item <= &0x20 {
+                    flags |= Flags::HTP_FIELD_INVALID;
+                    if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                        // Only once per transaction.
+                        out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                        htp_log!(
+                            connp,
+                            htp_log_level_t::HTP_LOG_WARNING,
+                            htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
+                            "Response field invalid: LWS after name"
+                        );
+                    }
+                    unprintable += 1;
+                } else {
+                    break;
+                }
+            }
+
+            if unprintable > 0 {
+                name = &name[0..name_len - unprintable];
+            }
+
+            // Check header is a token
+            if !htp_util::is_word_token(name) {
+                flags |= Flags::HTP_FIELD_INVALID;
+                if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                    out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                    htp_warn!(
+                        connp,
+                        htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
+                        "Response header name is not a token."
+                    );
+                }
+            }
+
+            header = name;
+            value = val;
         }
-        // Reset the position. We're going to treat this invalid header
-        // as a header with an empty name. That will increase the probability
-        // that the content will be inspected.
-        colon_pos = 0;
-        // suppress scan-build warning
-        name_end = 0;
-        value_start = 0
-    } else {
-        // Header line with a colon.
-        if colon_pos == 0 {
-            // Empty header name.
+        Err(Error(_)) => {
+            // No colon
+            flags |= Flags::HTP_FIELD_UNPARSEABLE;
             flags |= Flags::HTP_FIELD_INVALID;
-            if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+            // clean up
+            if !out_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
                 // Only once per transaction.
+                out_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                 out_tx.flags |= Flags::HTP_FIELD_INVALID;
                 htp_warn!(
                     connp,
-                    htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
-                    "Response field invalid: empty name."
+                    htp_log_code::RESPONSE_FIELD_MISSING_COLON,
+                    "Response field invalid: missing colon."
                 );
             }
+            value = data_slice;
         }
-        name_end = colon_pos;
-        // Ignore unprintable after field-name.
-        prev = name_end;
-        while prev > name_start && *data.offset(prev.wrapping_sub(1) as isize) <= 0x20 {
-            prev = prev.wrapping_sub(1);
-            name_end = name_end.wrapping_sub(1);
-            flags |= Flags::HTP_FIELD_INVALID;
-            if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-                // Only once per transaction.
-                out_tx.flags |= Flags::HTP_FIELD_INVALID;
-                htp_warn!(
-                    connp,
-                    htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
-                    "Response field invalid: LWS after name"
-                );
-            }
-        }
-        value_start = colon_pos.wrapping_add(1)
+        _ => (),
     }
-    // Header value.
-    // Ignore LWS before field-content.
-    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize)) {
-        value_start = value_start.wrapping_add(1)
+
+    // No null char in val
+    if value.contains(&0) {
+        htp_log!(
+            connp,
+            htp_log_level_t::HTP_LOG_WARNING,
+            htp_log_code::REQUEST_HEADER_INVALID,
+            "Response header value contains null."
+        );
     }
-    // Look for the end of field-content.
-    value_end = len;
-    // Check that the header name is a token.
-    let mut i: usize = name_start;
-    while i < name_end {
-        if !htp_util::htp_is_token(*data.offset(i as isize)) {
-            flags |= Flags::HTP_FIELD_INVALID;
-            if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-                out_tx.flags |= Flags::HTP_FIELD_INVALID;
-                htp_warn!(
-                    connp,
-                    htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
-                    "Response header name is not a token."
-                );
-            }
-            break;
-        } else {
-            i = i.wrapping_add(1)
-        }
-    }
-    i = value_start;
-    while i < value_end {
-        if *data.offset(i as isize) == 0 {
-            htp_warn!(
-                connp,
-                htp_log_code::REQUEST_HEADER_INVALID,
-                "Response header value contains null."
-            );
-            break;
-        } else {
-            i = i.wrapping_add(1)
-        }
-    }
-    // Now extract the name and the value.
-    let name = std::slice::from_raw_parts(
-        data.offset(name_start as isize),
-        name_end.wrapping_sub(name_start),
-    );
-    let value = std::slice::from_raw_parts(
-        data.offset(value_start as isize),
-        value_end.wrapping_sub(value_start),
-    );
+
     Ok(htp_transaction::htp_header_t::new_with_flags(
-        name.into(),
+        header.into(),
         value.into(),
         flags,
     ))

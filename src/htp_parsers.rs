@@ -63,10 +63,8 @@ pub fn htp_parse_protocol<'a>(
 /// Determines the numerical value of a response status given as a string.
 ///
 /// Returns Status code as a u16 on success or None on failure
-pub fn htp_parse_status(status: &bstr::bstr_t) -> Option<u16> {
-    if let Ok((trailing_data, (leading_data, status_code))) =
-        htp_util::ascii_digits()(status.as_slice())
-    {
+pub fn htp_parse_status(status: &[u8]) -> Option<u16> {
+    if let Ok((trailing_data, (leading_data, status_code))) = htp_util::ascii_digits()(status) {
         if trailing_data.len() > 0 || leading_data.len() > 0 {
             //There are invalid characters in the status code
             return None;

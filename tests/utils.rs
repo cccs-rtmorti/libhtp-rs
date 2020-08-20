@@ -15,6 +15,8 @@ use htp::htp_urlencoded::*;
 use htp::htp_util::*;
 use htp::list::List;
 use htp::Status;
+use nom::error::ErrorKind::TakeUntil;
+use nom::Err::Error;
 use std::net::{IpAddr, Ipv4Addr};
 
 // import common testing utilities
@@ -2259,4 +2261,87 @@ fn UrlencodedParser_UrlDecode1() {
         );
         assert_eq!(e, s);
     }
+}
+
+#[test]
+fn TakeIsSpace() {
+    assert_eq!(
+        Ok(("hello".as_bytes(), "   ".as_bytes())),
+        take_htp_is_space(b"   hello")
+    );
+    assert_eq!(
+        Ok(("hell o".as_bytes(), "   \t".as_bytes())),
+        take_htp_is_space(b"   \thell o")
+    );
+    assert_eq!(
+        Ok(("hell o".as_bytes(), "".as_bytes())),
+        take_htp_is_space(b"hell o")
+    );
+    assert_eq!(
+        Ok(("hell o".as_bytes(), "\r\x0b".as_bytes())),
+        take_htp_is_space(b"\r\x0bhell o")
+    );
+    assert_eq!(
+        Ok(("hell \to".as_bytes(), "\r\x0b  \t".as_bytes())),
+        take_htp_is_space(b"\r\x0b  \thell \to")
+    )
+}
+
+#[test]
+fn TreatResponseLineAsBody() {
+    assert_eq!(false, htp_treat_response_line_as_body(b"   http 1.1"));
+    assert_eq!(false, htp_treat_response_line_as_body(b"http"));
+    assert_eq!(false, htp_treat_response_line_as_body(b"HTTP"));
+    assert_eq!(false, htp_treat_response_line_as_body(b"    HTTP"));
+    assert_eq!(true, htp_treat_response_line_as_body(b"test"));
+    assert_eq!(true, htp_treat_response_line_as_body(b"     test"));
+    assert_eq!(true, htp_treat_response_line_as_body(b""));
+    assert_eq!(true, htp_treat_response_line_as_body(b"kfgjl  hTtp "));
+}
+
+#[test]
+fn RemoveLWS() {
+    assert_eq!(
+        Ok(("hello".as_bytes(), "   ".as_bytes())),
+        take_is_space(b"   hello")
+    );
+    assert_eq!(
+        Ok(("hell o".as_bytes(), "   \t".as_bytes())),
+        take_is_space(b"   \thell o")
+    );
+    assert_eq!(
+        Ok(("hell o".as_bytes(), "".as_bytes())),
+        take_is_space(b"hell o")
+    );
+}
+
+#[test]
+fn SplitByColon() {
+    assert_eq!(
+        Ok(("Content-Length".as_bytes(), "230".as_bytes())),
+        split_by_colon(b"Content-Length: 230")
+    );
+    assert_eq!(
+        Ok(("".as_bytes(), "No header name".as_bytes())),
+        split_by_colon(b":No header name")
+    );
+    assert_eq!(
+        Ok(("Header@Name".as_bytes(), "Not Token".as_bytes())),
+        split_by_colon(b"Header@Name: Not Token")
+    );
+    assert_eq!(
+        Err(Error(("No colon".as_bytes(), TakeUntil))),
+        split_by_colon(b"No colon")
+    );
+}
+
+#[test]
+fn IsWordToken() {
+    assert_eq!(true, is_word_token(b"allalpha"));
+    assert_eq!(true, is_word_token(b"alpha567numeric1234"));
+    assert_eq!(false, is_word_token(b"alpha{}"));
+    assert_eq!(false, is_word_token(b"\n"));
+    assert_eq!(true, is_word_token(b"234543"));
+    assert_eq!(false, is_word_token(b"abcdeg\t"));
+    assert_eq!(true, is_word_token(b"content-length"));
 }

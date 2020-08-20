@@ -1755,48 +1755,29 @@ pub fn htp_normalize_uri_path_inplace(s: &mut bstr::bstr_t) {
     s.add(consumed.as_slice());
 }
 
+/// Take spaces as defined by htp_is_space
+pub fn take_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| htp_is_space(c))(data)
+}
+
+/// Take any non-space character as defined by htp_is_space
+pub fn take_not_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| !htp_is_space(c))(data)
+}
+
 /// Determine if the information provided on the response line
 /// is good enough. Browsers are lax when it comes to response
 /// line parsing. In most cases they will only look for the
 /// words "http" at the beginning.
 ///
-/// Returns 1 for good enough or 0 for not good enough
-pub unsafe fn htp_treat_response_line_as_body(data: *const u8, len: usize) -> i32 {
+/// Returns true for good enough (treat as response body) or false for not good enough
+pub fn htp_treat_response_line_as_body(data: &[u8]) -> bool {
     // Browser behavior:
     //      Firefox 3.5.x: (?i)^\s*http
     //      IE: (?i)^\s*http\s*/
     //      Safari: ^HTTP/\d+\.\d+\s+\d{3}
-    let mut pos: usize = 0;
-    if data.is_null() {
-        return 1;
-    }
-    while pos < len
-        && (htp_is_space(*data.offset(pos as isize)) || *data.offset(pos as isize) as i32 == 0)
-    {
-        pos = pos.wrapping_add(1)
-    }
-    if len < pos.wrapping_add(4) {
-        return 1;
-    }
-    if *data.offset(pos as isize) != 'H' as u8 && *data.offset(pos as isize) != 'h' as u8 {
-        return 1;
-    }
-    if *data.offset(pos.wrapping_add(1) as isize) != 'T' as u8
-        && *data.offset(pos.wrapping_add(1) as isize) != 't' as u8
-    {
-        return 1;
-    }
-    if *data.offset(pos.wrapping_add(2) as isize) != 'T' as u8
-        && *data.offset(pos.wrapping_add(2) as isize) != 't' as u8
-    {
-        return 1;
-    }
-    if *data.offset(pos.wrapping_add(3) as isize) != 'P' as u8
-        && *data.offset(pos.wrapping_add(3) as isize) != 'p' as u8
-    {
-        return 1;
-    }
-    0
+
+    tuple((opt(take_htp_is_space), tag_no_case("http")))(data).is_err()
 }
 
 /// Run the REQUEST_BODY_DATA hook.
@@ -1981,8 +1962,25 @@ pub unsafe fn htp_get_version() -> *const i8 {
     HTP_VERSION_STRING_FULL.as_ptr() as *const i8
 }
 
-// Tests
+// Removes whitespace as defined by nom (tab and ' ')
+pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| is_space(c))(data)
+}
 
+// Splits by colon and removes leading whitespace from value
+pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (value, (header, _)) = tuple((take_until(":"), char(':')))(data)?;
+    // remove leading space
+    let (value, _) = take_is_space(value)?;
+    Ok((header, value))
+}
+
+// Returns true if each character is a token
+pub fn is_word_token(data: &[u8]) -> bool {
+    !data.iter().any(|c| !htp_is_token(*c))
+}
+
+// Tests
 #[test]
 fn AsciiDigits() {
     // Returns (any trailing non-LWS characters, (non-LWS leading characters, ascii digits))

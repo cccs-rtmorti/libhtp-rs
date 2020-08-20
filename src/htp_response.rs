@@ -1273,7 +1273,7 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
             // If the response line is invalid, determine if it _looks_ like
             // a response line. If it does not look like a line, process the
             // data as a response body because that is what browsers do.
-            if htp_util::htp_treat_response_line_as_body(data, len) != 0 {
+            if htp_util::htp_treat_response_line_as_body(std::slice::from_raw_parts(data, len)) {
                 out_tx.response_content_encoding_processing =
                     htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                 (*connp).out_current_consume_offset = (*connp).out_current_read_offset;
@@ -1392,7 +1392,7 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
         //closing
         return htp_transaction::htp_tx_state_response_complete_ex((*connp).out_tx_mut_ptr(), 0);
     }
-    if htp_util::htp_treat_response_line_as_body(data, bytes_left) != 0 {
+    if htp_util::htp_treat_response_line_as_body(std::slice::from_raw_parts(data, bytes_left)) {
         // Interpret remaining bytes as body data
         htp_warn!(
             connp,

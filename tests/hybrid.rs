@@ -333,6 +333,7 @@ fn GetTest() {
         htp_tx_res_set_status_line(tx, "HTTP/1.1 200 OK");
         assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
+        assert_eq!(0, bstr_cmp_str((*tx).response_status, "200"));
         assert_eq!(200, (*tx).response_status_number);
         assert!((*(*tx).response_message).eq("OK"));
 
@@ -801,5 +802,45 @@ fn DeleteTransactionBeforeComplete() {
 
         // Close connection
         t.close_conn_parser();
+    }
+}
+
+/// Try response line with missing response code and message
+#[test]
+fn ResponseLineIncomplete() {
+    unsafe {
+        let t = HybridParsingTest::new();
+        // Create a new LibHTP transaction
+        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+
+        assert!(!tx.is_null());
+        htp_tx_state_response_start(tx);
+        htp_tx_res_set_status_line(tx, "HTTP/1.1");
+        assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
+        assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
+        assert!((*tx).response_status.is_null());
+        assert_eq!(-1, (*tx).response_status_number);
+        assert!((*tx).response_message.is_null());
+        htp_tx_state_response_complete(tx);
+    }
+}
+
+/// Try response line with missing response message
+#[test]
+fn ResponseLineIncomplete1() {
+    unsafe {
+        let t = HybridParsingTest::new();
+        // Create a new LibHTP transaction
+        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+
+        assert!(!tx.is_null());
+        htp_tx_state_response_start(tx);
+        htp_tx_res_set_status_line(tx, "HTTP/1.1 200");
+        assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
+        assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
+        assert_eq!(0, bstr_cmp_str((*tx).response_status, "200"));
+        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_message.is_null());
+        htp_tx_state_response_complete(tx);
     }
 }
