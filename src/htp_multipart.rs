@@ -102,8 +102,6 @@ bitflags::bitflags! {
 }
 extern "C" {
     #[no_mangle]
-    fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
     fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
     #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
@@ -122,23 +120,9 @@ extern "C" {
     #[no_mangle]
     fn umask(__mask: libc::c_uint) -> libc::c_uint;
     #[no_mangle]
-    fn memcmp(
-        _: *const core::ffi::c_void,
-        _: *const core::ffi::c_void,
-        _: libc::size_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn memchr(
-        _: *const core::ffi::c_void,
-        _: libc::c_int,
-        _: libc::size_t,
-    ) -> *mut core::ffi::c_void;
-    #[no_mangle]
     fn strncpy(_: *mut libc::c_char, _: *const libc::c_char, _: libc::size_t) -> *mut libc::c_char;
     #[no_mangle]
     fn strncat(_: *mut libc::c_char, _: *const libc::c_char, _: libc::size_t) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
     #[no_mangle]
     fn strlen(_: *const libc::c_char) -> libc::size_t;
 }
@@ -740,7 +724,7 @@ pub unsafe fn htp_mpart_part_handle_data(
                             b"/libhtp-multipart-file-XXXXXX\x00" as *const u8 as *const i8,
                             (254 as usize).wrapping_sub(strlen(buf.as_mut_ptr())),
                         );
-                        (*part.file).tmpname = strdup(buf.as_mut_ptr());
+                        (*part.file).tmpname = libc::strdup(buf.as_mut_ptr());
                         if (*part.file).tmpname.is_null() {
                             bstr::bstr_free(line);
                             return Status::ERROR;
