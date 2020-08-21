@@ -88,12 +88,11 @@ impl Test {
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
-                        if rc == 3 {
-                            // HTP_STREAM_ERROR = 3
+                        if rc == htp_stream_state_t::HTP_STREAM_ERROR {
                             return Err(TestError::StreamError);
                         }
 
-                        if rc == 5 {
+                        if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
                             // HTP_STREAM_DATA_OTHER = 5
                             let consumed = htp_connp_req_data_consumed(self.connp);
                             let mut remaining = Vec::with_capacity(data.len() - consumed);
@@ -111,8 +110,7 @@ impl Test {
                                 out_remaining.len(),
                             );
                             out_buf = None;
-                            if rc == 3 {
-                                // HTP_STREAM_ERROR = 3
+                            if rc == htp_stream_state_t::HTP_STREAM_ERROR {
                                 return Err(TestError::StreamError);
                             }
                         }
@@ -124,13 +122,11 @@ impl Test {
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
-                        if rc == 3 {
-                            // HTP_STREAM_ERROR = 3
+                        if rc == htp_stream_state_t::HTP_STREAM_ERROR {
                             return Err(TestError::StreamError);
                         }
 
-                        if rc == 5 {
-                            // HTP_STREAM_DATA_OTHER
+                        if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
                             let consumed = htp_connp_res_data_consumed(self.connp) as usize;
                             let mut remaining = Vec::with_capacity(data.len() - consumed);
                             remaining.extend_from_slice(&data[consumed..]);
@@ -146,8 +142,7 @@ impl Test {
                                 in_remaining.len(),
                             );
                             in_buf = None;
-                            if rc == 3 {
-                                // HTP_STREAM_ERROR
+                            if rc == htp_stream_state_t::HTP_STREAM_ERROR {
                                 return Err(TestError::StreamError);
                             }
                         }
@@ -163,8 +158,7 @@ impl Test {
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
                 );
-                if rc == 3 {
-                    // HTP_STREAM_ERROR = 3
+                if rc == htp_stream_state_t::HTP_STREAM_ERROR {
                     return Err(TestError::StreamError);
                 }
             }

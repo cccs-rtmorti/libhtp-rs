@@ -556,7 +556,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
     timestamp: *const htp_connection_parser::htp_time_t,
     data: *const libc::c_void,
     len: libc::size_t,
-) -> libc::c_int {
+) -> htp_connection_parser::htp_stream_state_t {
     htp_request::htp_connp_req_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
 }
 
@@ -570,7 +570,7 @@ pub unsafe extern "C" fn htp_connp_res_data(
     timestamp: *const htp_connection_parser::htp_time_t,
     data: *const libc::c_void,
     len: libc::size_t,
-) -> libc::c_int {
+) -> htp_connection_parser::htp_stream_state_t {
     htp_response::htp_connp_res_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
 }
 

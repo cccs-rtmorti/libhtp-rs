@@ -1190,7 +1190,7 @@ pub unsafe fn htp_connp_req_data(
     timestamp: Option<htp_time_t>,
     data: *const core::ffi::c_void,
     len: usize,
-) -> i32 {
+) -> htp_connection_parser::htp_stream_state_t {
     // Return if the connection is in stop state.
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
         htp_info!(
@@ -1198,7 +1198,7 @@ pub unsafe fn htp_connp_req_data(
             htp_log_code::PARSER_STATE_ERROR,
             "Inbound parser is in HTP_STREAM_STOP"
         );
-        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP as i32;
+        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP;
     }
     // Return if the connection had a fatal error earlier
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
@@ -1207,7 +1207,7 @@ pub unsafe fn htp_connp_req_data(
             htp_log_code::PARSER_STATE_ERROR,
             "Inbound parser is in HTP_STREAM_ERROR"
         );
-        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
+        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
     }
     // Sanity check: we must have a transaction pointer if the state is not IDLE (no inbound transaction)
     if (*connp).in_tx().is_none()
@@ -1223,7 +1223,7 @@ pub unsafe fn htp_connp_req_data(
             htp_log_code::MISSING_INBOUND_TRANSACTION_DATA,
             "Missing inbound transaction data"
         );
-        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
+        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
     }
     // If the length of the supplied data chunk is zero, proceed
     // only if the stream has been closed. We do not allow zero-sized
@@ -1237,7 +1237,7 @@ pub unsafe fn htp_connp_req_data(
             htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
             "Zero-length data chunks are not allowed"
         );
-        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED as i32;
+        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED;
     }
     // Remember the timestamp of the current request data chunk
     if let Some(timestamp) = timestamp {
@@ -1255,7 +1255,7 @@ pub unsafe fn htp_connp_req_data(
     // Return without processing any data if the stream is in tunneling
     // mode (which it would be after an initial CONNECT transaction).
     if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {
-        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL as i32;
+        return htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
     }
     if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER {
         (*connp).out_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA
@@ -1271,7 +1271,7 @@ pub unsafe fn htp_connp_req_data(
         let mut rc: Status = (*connp).in_state.expect("non-null function pointer")(connp);
         if rc == Status::OK {
             if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {
-                return htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL as i32;
+                return htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
             }
             rc = htp_req_handle_state_change(connp)
         }
@@ -1282,10 +1282,10 @@ pub unsafe fn htp_connp_req_data(
                 if rc == Status::DATA_BUFFER && htp_connp_req_buffer(connp) != Status::OK {
                     (*connp).in_status =
                         htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
+                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
                 }
                 (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
-                return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA as i32;
+                return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
             }
             // Check for suspended parsing.
             if rc == Status::DATA_OTHER {
@@ -1293,22 +1293,22 @@ pub unsafe fn htp_connp_req_data(
                 if (*connp).in_current_read_offset >= (*connp).in_current_len {
                     // Do not send STREAM_DATE_DATA_OTHER if we've consumed the entire chunk.
                     (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
-                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA as i32;
+                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
                 } else {
                     // Partial chunk consumption.
                     (*connp).in_status =
                         htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER;
-                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER as i32;
+                    return htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER;
                 }
             }
             // Check for the stop signal.
             if rc == Status::STOP {
                 (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP;
-                return htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP as i32;
+                return htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP;
             }
             // Permanent stream error.
             (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-            return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR as i32;
+            return htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
         }
     }
 }
