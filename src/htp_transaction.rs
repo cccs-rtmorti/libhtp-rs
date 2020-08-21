@@ -873,7 +873,7 @@ unsafe fn htp_tx_process_request_headers(mut tx: *mut htp_tx_t) -> Status {
     }
     // Parse cookies.
     if (*(*(*tx).connp).cfg).parse_request_cookies != 0 {
-        rc = htp_cookies::htp_parse_cookies_v0((*tx).connp);
+        rc = htp_cookies::htp_parse_cookies_v0((*(*tx).connp).in_tx_mut());
         if rc != Status::OK {
             return rc;
         }

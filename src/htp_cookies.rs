@@ -1,90 +1,50 @@
-use crate::{bstr, htp_connection_parser, htp_table, Status};
+use crate::htp_util::take_ascii_whitespace;
+use crate::{bstr, htp_table, htp_transaction, Status};
 
-/// Parses a single v0 request cookie and places the results into tx->request_cookies.
+/// Parses a single v0 request cookie.
 ///
-/// Returns HTP_OK on success, HTP_ERROR on error.
-pub unsafe fn htp_parse_single_cookie_v0(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    data: *mut u8,
-    len: usize,
-) -> Status {
-    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
-        in_tx
-    } else {
-        return Status::ERROR;
-    };
-    if len == 0 {
-        return Status::OK;
+/// Returns the (name, value).
+pub fn htp_parse_single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
+    let parts: Vec<&[u8]> = data.splitn(2, |&x| x == '=' as u8).collect();
+    match parts.len() {
+        1 => (data, b""),
+        2 => (parts[0], parts[1]),
+        _ => (b"", b""),
     }
-    let mut pos: usize = 0;
-    // Look for '='.
-    while pos < len && *data.offset(pos as isize) != '=' as u8 {
-        pos = pos.wrapping_add(1)
-    } // Ignore a nameless cookie.
-    if pos == 0 {
-        return Status::OK;
-    }
-
-    let name = bstr::bstr_t::from(std::slice::from_raw_parts(data, pos));
-    let mut value: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
-    if pos == len {
-        // The cookie is empty.
-        value = bstr::bstr_alloc(0);
-    } else {
-        // The cookie is not empty.
-        value = bstr::bstr_dup_mem(
-            data.offset(pos as isize).offset(1) as *const core::ffi::c_void,
-            len.wrapping_sub(pos).wrapping_sub(1),
-        )
-    }
-    if value.is_null() {
-        return Status::ERROR;
-    }
-    (*in_tx.request_cookies).add(name, value);
-    Status::OK
 }
 
-/// Parses the Cookie request header in v0 format.
+/// Parses the Cookie request header in v0 format and places the results into tx->request_cookies.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
-pub unsafe fn htp_parse_cookies_v0(connp: *mut htp_connection_parser::htp_connp_t) -> Status {
-    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
-        in_tx
-    } else {
-        return Status::ERROR;
+pub fn htp_parse_cookies_v0(in_tx: Option<&mut htp_transaction::htp_tx_t>) -> Status {
+    let in_tx = match in_tx {
+        Some(in_tx) => in_tx,
+        None => return Status::ERROR,
     };
+
     if let Some((_, cookie_header)) = in_tx.request_headers.get_nocase_nozero_mut("cookie") {
+        let data: &[u8] = cookie_header.value.as_ref();
         // Create a new table to store cookies.
         in_tx.request_cookies = htp_table::htp_table_alloc(4);
-        let data: *mut u8 = cookie_header.value.as_mut_ptr();
-        let len: usize = cookie_header.value.len();
-        let mut pos: usize = 0;
-        while pos < len {
-            // Ignore whitespace at the beginning.
-            while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
-                pos = pos.wrapping_add(1)
-            }
-            if pos == len {
-                return Status::OK;
-            }
-            let start: usize = pos;
-            // Find the end of the cookie.
-            while pos < len && *data.offset(pos as isize) != ';' as u8 {
-                pos = pos.wrapping_add(1)
-            }
-            if htp_parse_single_cookie_v0(
-                connp,
-                data.offset(start as isize),
-                pos.wrapping_sub(start),
-            ) != Status::OK
-            {
-                return Status::ERROR;
-            }
-            // Go over the semicolon.
-            if pos < len {
-                pos = pos.wrapping_add(1)
+        for cookie in data.split(|b| *b == ';' as u8) {
+            if let Ok((cookie, _)) = take_ascii_whitespace()(cookie) {
+                if cookie.is_empty() {
+                    continue;
+                }
+                let (name, value) = htp_parse_single_cookie_v0(cookie);
+
+                if !name.is_empty() {
+                    unsafe {
+                        let value = bstr::bstr_dup_str(value);
+                        if value.is_null() {
+                            return Status::ERROR;
+                        }
+                        (*in_tx.request_cookies).add(bstr::bstr_t::from(name), value);
+                    }
+                }
             }
         }
     }
+
     Status::OK
 }
