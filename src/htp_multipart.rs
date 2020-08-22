@@ -137,7 +137,7 @@ pub struct htp_mpartp_t {
     pub file_count: i32,
     // Parsing callbacks
     pub handle_data: Option<fn(_: &mut htp_mpartp_t, _: bool) -> Status>,
-    pub handle_boundary: Option<fn(_: &mut htp_mpartp_t) -> Status>,
+    pub handle_boundary: Option<fn(_: &mut htp_mpartp_t)>,
     // Internal parsing fields; move into a private structure
     /// Parser state; one of MULTIPART_STATE_* constants.
     parser_state: htp_multipart_state_t,
@@ -166,15 +166,15 @@ pub struct htp_mpartp_t {
     /// across many input data buffers. On a match, the data stored here is
     /// discarded. When there is no match, the buffer is processed as data
     /// (belonging to the currently active part).
-    pub boundary_pieces: list::List<bstr::bstr_t>,
-    pub part_header_pieces: list::List<bstr::bstr_t>,
+    pub boundary_candidate: bstr::bstr_t,
+    pub part_header: bstr::bstr_t,
     pub pending_header_line: bstr::bstr_t,
     pub to_consume: bstr::bstr_t,
 
     /// Stores text part pieces until the entire part is seen, at which
     /// point the pieces are assembled into a single buffer, and the
     /// builder cleared.
-    pub part_data_pieces: list::List<bstr::bstr_t>,
+    pub part_data_pieces: bstr::bstr_t,
 
     /// The offset of the current boundary candidate, relative to the most
     /// recent data chunk (first unprocessed chunk of data).
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     (*part).value = bstr::bstr_t::with_capacity(64);
     (*part).parser = parser;
     (*parser).part_data_pieces.clear();
-    (*parser).part_header_pieces.clear();
+    (*parser).part_header.clear();
     part
 }
 
@@ -601,9 +601,7 @@ pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> S
         }
     } else if (*part.parser).part_data_pieces.len() > 0 {
         part.value.clear();
-        for each in &(*part.parser).part_data_pieces {
-            part.value.add(each.as_slice());
-        }
+        part.value.add((*part.parser).part_data_pieces.as_slice());
         (*part.parser).part_data_pieces.clear();
     }
     Status::OK
@@ -643,9 +641,12 @@ pub unsafe fn htp_mpartp_run_request_file_data_hook(
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe fn htp_mpart_part_handle_data(
     mut part: &mut htp_multipart_part_t,
-    mut data: &[u8],
+    data: &[u8],
     is_line: bool,
 ) -> Status {
+    let mut data = data;
+    // End of the line.
+    let mut line: Option<bstr::bstr_t> = None;
     // Keep track of raw part length.
     part.len = (part.len).wrapping_add(data.len());
     // If we're processing a part that came after the last boundary, then we're not sure if it
@@ -658,31 +659,22 @@ pub unsafe fn htp_mpart_part_handle_data(
         .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
         && part.type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN
     {
-        (*part.parser)
-            .part_data_pieces
-            .push(bstr::bstr_t::from(data));
+        (*part.parser).part_data_pieces.add(data);
     }
     if (*part.parser).current_part_mode == htp_part_mode_t::MODE_LINE {
         // Line mode.
         if is_line {
-            // End of the line.
-            let mut line: *mut bstr::bstr_t = 0 as *mut bstr::bstr_t;
             // If this line came to us in pieces, combine them now into a single buffer.
-            if (*part.parser).part_header_pieces.len() > 0 {
-                let mut len: usize = 0;
-                // Determine the size of the string
-                for each in &(*part.parser).part_header_pieces {
-                    len = len.wrapping_add(each.len());
-                }
+            if (*part.parser).part_header.len() > 0 {
                 // Allocate string
-                line = bstr::bstr_alloc(len + data.len());
-                for each in &(*part.parser).part_header_pieces {
-                    (*line).add(each.as_slice());
-                }
-                (*line).add(data);
-                data = (*line).as_slice();
-                (*part.parser).part_header_pieces.clear();
+                let mut header =
+                    bstr::bstr_t::with_capacity((*part.parser).part_header.len() + data.len());
+                header.add((*part.parser).part_header.as_slice());
+                header.add(data);
+                line = Some(header);
+                (*part.parser).part_header.clear();
             }
+            data = line.as_ref().map(|line| line.as_slice()).unwrap_or(data);
             // Ignore the line endings.
             if data.last() == Some(&('\n' as u8)) {
                 data = &data[..data.len() - 1];
@@ -700,17 +692,15 @@ pub unsafe fn htp_mpart_part_handle_data(
                         &(*(*part.parser).pending_header_line).as_slice(),
                     ) == Status::ERROR
                     {
-                        bstr::bstr_free(line);
                         return Status::ERROR;
                     }
                     (*part.parser).pending_header_line.clear()
                 }
                 if htp_mpart_part_process_headers(part) == Status::ERROR {
-                    bstr::bstr_free(line);
                     return Status::ERROR;
                 }
                 (*part.parser).current_part_mode = htp_part_mode_t::MODE_DATA;
-                (*part.parser).part_header_pieces.clear();
+                (*part.parser).part_header.clear();
                 if !part.file.is_null() {
                     // Changing part type because we have a filename.
                     part.type_0 = htp_multipart_type_t::MULTIPART_PART_FILE;
@@ -726,7 +716,6 @@ pub unsafe fn htp_mpart_part_handle_data(
                         );
                         (*part.file).tmpname = libc::strdup(buf.as_mut_ptr());
                         if (*part.file).tmpname.is_null() {
-                            bstr::bstr_free(line);
                             return Status::ERROR;
                         }
                         let previous_mask: u32 = umask(
@@ -737,7 +726,6 @@ pub unsafe fn htp_mpart_part_handle_data(
                         (*part.file).fd = mkstemp((*part.file).tmpname);
                         umask(previous_mask);
                         if (*part.file).fd < 0 {
-                            bstr::bstr_free(line);
                             return Status::ERROR;
                         }
                         (*part.parser).file_count += 1
@@ -748,10 +736,9 @@ pub unsafe fn htp_mpart_part_handle_data(
                     (*part.parser).part_data_pieces.clear();
                 }
             } else if (*part.parser).pending_header_line.len() == 0 {
-                if !line.is_null() {
-                    (*part.parser).pending_header_line.add((*line).as_slice());
-                    bstr::bstr_free(line);
-                    line = 0 as *mut bstr::bstr_t
+                if let Some(header) = line {
+                    (*part.parser).pending_header_line.add(header.as_slice());
+                    line = None;
                 } else {
                     (*part.parser).pending_header_line.add(data);
                 }
@@ -767,22 +754,18 @@ pub unsafe fn htp_mpart_part_handle_data(
                 if htp_mpartp_parse_header(part, &(*(*part.parser).pending_header_line).as_slice())
                     == Status::ERROR
                 {
-                    bstr::bstr_free(line);
                     return Status::ERROR;
                 }
                 (*part.parser).pending_header_line.clear();
-                if !line.is_null() {
-                    (*part.parser).pending_header_line.add((*line).as_slice());
+                if let Some(header) = line {
+                    (*part.parser).pending_header_line.add(header.as_slice());
                 } else {
                     (*part.parser).pending_header_line.add(data);
                 }
             }
-            bstr::bstr_free(line);
         } else {
             // Not end of line; keep the data chunk for later.
-            (*part.parser)
-                .part_header_pieces
-                .push(bstr::bstr_t::from(data));
+            (*part.parser).part_header.add(data);
         }
     } else {
         // Data mode; keep the data chunk for later (but not if it is a file).
@@ -803,9 +786,7 @@ pub unsafe fn htp_mpart_part_handle_data(
             }
             _ => {
                 // Make a copy of the data in RAM.
-                (*part.parser)
-                    .part_data_pieces
-                    .push(bstr::bstr_t::from(data));
+                (*part.parser).part_data_pieces.add(data);
             }
         }
     }
@@ -853,13 +834,11 @@ fn htp_mpartp_handle_data(parser: &mut htp_mpartp_t, is_line: bool) -> Status {
 }
 
 /// Handles a boundary event, which means that it will finalize a part if one exists.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-fn htp_mpartp_handle_boundary(mut parser: &mut htp_mpartp_t) -> Status {
+fn htp_mpartp_handle_boundary(mut parser: &mut htp_mpartp_t) {
     if !parser.current_part.is_null() {
         unsafe {
             if htp_mpart_part_finalize_data(&mut *(*parser).current_part) != Status::OK {
-                return Status::OK;
+                return;
             }
         }
         // We're done with this part
@@ -867,7 +846,6 @@ fn htp_mpartp_handle_boundary(mut parser: &mut htp_mpartp_t) -> Status {
         // Revert to line mode
         parser.current_part_mode = htp_part_mode_t::MODE_LINE
     }
-    Status::OK
 }
 
 fn htp_mpartp_init_boundary(parser: &mut htp_mpartp_t, data: &[u8]) -> Status {
@@ -906,10 +884,10 @@ pub unsafe extern "C" fn htp_mpartp_create(
         return 0 as *mut htp_mpartp_t;
     }
     (*parser).cfg = cfg;
-    (*parser).boundary_pieces = list::List::with_capacity(boundary.len());
+    (*parser).boundary_candidate = bstr::bstr_t::with_capacity(boundary.len());
     (*parser).pending_header_line = bstr::bstr_t::with_capacity(64);
-    (*parser).part_header_pieces = list::List::with_capacity(64);
-    (*parser).part_data_pieces = list::List::with_capacity(64);
+    (*parser).part_header = bstr::bstr_t::with_capacity(64);
+    (*parser).part_data_pieces = bstr::bstr_t::with_capacity(64);
     (*parser).multipart.parts = list::List::with_capacity(64);
     (*parser).multipart.flags = flags;
     (*parser).parser_state = htp_multipart_state_t::STATE_INIT;
@@ -922,8 +900,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
     }
     (*parser).handle_data =
         Some(htp_mpartp_handle_data as fn(_: &mut htp_mpartp_t, _: bool) -> Status);
-    (*parser).handle_boundary =
-        Some(htp_mpartp_handle_boundary as fn(_: &mut htp_mpartp_t) -> Status);
+    (*parser).handle_boundary = Some(htp_mpartp_handle_boundary as fn(_: &mut htp_mpartp_t));
     // Initialize the boundary.
     let rc: Status = htp_mpartp_init_boundary(&mut *parser, boundary);
     if rc != Status::OK {
@@ -947,9 +924,7 @@ pub unsafe extern "C" fn htp_mpartp_destroy(parser: *mut htp_mpartp_t) {
 }
 
 /// Processes set-aside data.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-fn htp_martp_process_aside(mut parser: &mut htp_mpartp_t, matched: bool) -> Status {
+fn htp_martp_process_aside(mut parser: &mut htp_mpartp_t, matched: bool) {
     // The stored data pieces can contain up to one line. If we're in data mode and there
     // was no boundary match, things are straightforward -- we process everything as data.
     // If there was a match, we need to take care to not send the line ending as data, nor
@@ -984,28 +959,17 @@ fn htp_martp_process_aside(mut parser: &mut htp_mpartp_t, matched: bool) -> Stat
 
         // Split the first chunk.
         // In line mode, we are OK with line endings.
-        if parser.boundary_pieces.len() > 0 {
-            let mut to_consume = bstr::bstr_t::with_capacity(parser.boundary_pieces.capacity());
-            if let Some(b) = parser.boundary_pieces.get_mut(0) {
-                to_consume.add((*b).as_slice());
-            }
-            parser
-                .to_consume
-                .add(&to_consume[..parser.boundary_candidate_pos]);
-            parser.handle_data.expect("non-null function pointer")(parser, !matched);
-            // The second part of the split chunks belongs to the boundary
-            // when matched, data otherwise.
-            if !matched {
-                parser
-                    .to_consume
-                    .add(&to_consume[parser.boundary_candidate_pos..]);
-                let mut i = 1;
-                while let Some(b) = parser.boundary_pieces.get_mut(i) {
-                    parser.to_consume.add((**b).as_slice());
-                    i += 1;
-                }
-            }
-            parser.boundary_pieces.clear();
+        // This should be unnecessary, but as a precaution check for min value:
+        let pos = std::cmp::min(
+            parser.boundary_candidate_pos,
+            parser.boundary_candidate.len(),
+        );
+        parser.to_consume.add(&parser.boundary_candidate[..pos]);
+        parser.handle_data.expect("non-null function pointer")(parser, !matched);
+        // The second part of the split chunks belongs to the boundary
+        // when matched, data otherwise.
+        if !matched {
+            parser.to_consume.add(&parser.boundary_candidate[pos..]);
         }
     } else {
         // Do not send data if there was a boundary match. The stored
@@ -1019,15 +983,10 @@ fn htp_martp_process_aside(mut parser: &mut htp_mpartp_t, matched: bool) -> Stat
             parser.cr_aside = false;
         }
         // We then process any pieces that we might have stored, also as data.
-        if (*parser).boundary_pieces.len() > 0 {
-            for each in &parser.boundary_pieces {
-                parser.to_consume.add((*each).as_slice());
-            }
-            parser.boundary_pieces.clear();
-        }
+        parser.to_consume.add(parser.boundary_candidate.as_slice());
     }
+    parser.boundary_candidate.clear();
     parser.handle_data.expect("non-null function pointer")(parser, false);
-    Status::OK
 }
 
 /// Finalize parsing.
@@ -1046,7 +1005,7 @@ pub unsafe fn htp_mpartp_finalize(parser: &mut htp_mpartp_t) -> Status {
             (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
         }
     }
-    (*parser).boundary_pieces.clear();
+    (*parser).boundary_candidate.clear();
     Status::OK
 }
 
@@ -1148,7 +1107,7 @@ fn htp_mpartp_parse_state_boundary<'a>(parser: &mut htp_mpartp_t, input: &'a [u8
         } else {
             // No more data in the input buffer; store (buffer) the unprocessed
             // part for later, for after we find out if this is a boundary.
-            parser.boundary_pieces.push(bstr::bstr_t::from(consumed));
+            parser.boundary_candidate.add(consumed);
         }
         remaining
     } else {
@@ -1224,10 +1183,7 @@ fn htp_mpartp_parse_state_lws<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) ->
 /// as many times as necessary until all data has been consumed.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe extern "C" fn htp_mpartp_parse<'a>(
-    parser: &mut htp_mpartp_t,
-    mut input: &'a [u8],
-) -> Status {
+pub fn htp_mpartp_parse<'a>(parser: &mut htp_mpartp_t, mut input: &'a [u8]) -> Status {
     while input.len() > 0 {
         match parser.parser_state {
             htp_multipart_state_t::STATE_INIT => {
