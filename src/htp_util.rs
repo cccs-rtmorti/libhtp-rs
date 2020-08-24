@@ -18,6 +18,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+
 use std::cmp::Ordering;
 
 pub const HTP_VERSION_STRING_FULL: &'static str =
@@ -1754,16 +1755,6 @@ pub fn htp_normalize_uri_path_inplace(s: &mut bstr::bstr_t) {
     s.add(consumed.as_slice());
 }
 
-/// Take spaces as defined by htp_is_space
-pub fn take_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| htp_is_space(c))(data)
-}
-
-/// Take any non-space character as defined by htp_is_space
-pub fn take_not_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| !htp_is_space(c))(data)
-}
-
 /// Determine if the information provided on the response line
 /// is good enough. Browsers are lax when it comes to response
 /// line parsing. In most cases they will only look for the
@@ -1953,17 +1944,40 @@ pub unsafe fn htp_get_version() -> *const i8 {
     HTP_VERSION_STRING_FULL.as_ptr() as *const i8
 }
 
+/// Splits by colon and removes leading whitespace from value
+pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (value, (header, _)) = tuple((take_until(":"), char(':')))(data)?;
+    let (value, _) = take_is_space(value)?;
+    Ok((header, value))
+}
+
 // Removes whitespace as defined by nom (tab and ' ')
 pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(|c: u8| is_space(c))(data)
 }
 
-// Splits by colon and removes leading whitespace from value
-pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (value, (header, _)) = tuple((take_until(":"), char(':')))(data)?;
-    // remove leading space
-    let (value, _) = take_is_space(value)?;
-    Ok((header, value))
+/// Returns data before the first null character if it exists
+pub fn take_until_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| c != b'\0')(data)
+}
+
+/// Returns data without trailing whitespace
+pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    if let Some(index) = data.iter().rposition(|c| !is_space(*c)) {
+        Ok((&data[..(index + 1)], &data[(index + 1)..]))
+    } else {
+        Ok((b"", data))
+    }
+}
+
+/// Take spaces as defined by htp_is_space
+pub fn take_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| htp_is_space(c))(data)
+}
+
+/// Take any non-space character as defined by htp_is_space
+pub fn take_not_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| !htp_is_space(c))(data)
 }
 
 // Returns true if each character is a token

@@ -2264,6 +2264,42 @@ fn UrlencodedParser_UrlDecode1() {
 }
 
 #[test]
+fn TakeUntilNull() {
+    assert_eq!(
+        Ok(("\0   ".as_bytes(), "hello_world  ".as_bytes())),
+        take_until_null(b"hello_world  \0   ")
+    );
+    assert_eq!(
+        Ok(("\0\0\0\0".as_bytes(), "hello".as_bytes())),
+        take_until_null(b"hello\0\0\0\0")
+    );
+    assert_eq!(Ok(("\0".as_bytes(), "".as_bytes())), take_until_null(b"\0"));
+}
+
+#[test]
+fn TakeIsSpaceTrailing() {
+    assert_eq!(
+        Ok(("w0rd".as_bytes(), "   ".as_bytes())),
+        take_is_space_trailing(b"w0rd   ")
+    );
+    assert_eq!(
+        Ok(("word".as_bytes(), "   \t".as_bytes())),
+        take_is_space_trailing(b"word   \t")
+    );
+    assert_eq!(
+        Ok(("w0rd".as_bytes(), "".as_bytes())),
+        take_is_space_trailing(b"w0rd")
+    );
+    assert_eq!(
+        Ok(("\t  w0rd".as_bytes(), "   ".as_bytes())),
+        take_is_space_trailing(b"\t  w0rd   ")
+    );
+    assert_eq!(
+        Ok(("".as_bytes(), "     ".as_bytes())),
+        take_is_space_trailing(b"     ")
+    );
+}
+
 fn TakeIsSpace() {
     assert_eq!(
         Ok(("hello".as_bytes(), "   ".as_bytes())),

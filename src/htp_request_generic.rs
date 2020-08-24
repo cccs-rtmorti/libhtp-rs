@@ -1,17 +1,14 @@
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
+use crate::htp_util::*;
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_parsers, htp_request, htp_transaction, htp_util,
     Status,
 };
+use nom::bytes::complete::take_while;
+use nom::error::ErrorKind;
+use nom::sequence::tuple;
 use std::cmp::Ordering;
-
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
 
 /// Extract one request header. A header can span multiple lines, in
 /// which case they will be folded into one before parsing is attempted.
@@ -28,7 +25,8 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         return Status::ERROR;
     };
     // Try to parse the header.
-    let header = if let Ok(header) = htp_parse_request_header_generic(connp, data, len) {
+    let data: &[u8] = std::slice::from_raw_parts(data as *const u8, len);
+    let header = if let Ok(header) = htp_parse_request_header_generic(connp, data) {
         header
     } else {
         return Status::ERROR;
@@ -81,130 +79,88 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
 /// Generic request header parser.
 pub unsafe fn htp_parse_request_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
-    data: *mut u8,
-    mut len: usize,
+    data: &[u8],
 ) -> Result<htp_transaction::htp_header_t, Status> {
     let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
     let mut flags = Flags::empty();
-    let mut name_start: usize = 0;
-    let mut name_end: usize = 0;
-    let mut value_start: usize = 0;
-    let mut value_end: usize = 0;
-    let s = std::slice::from_raw_parts(data as *const u8, len);
-    let s = htp_util::htp_chomp(&s);
-    len = s.len();
-    name_start = 0;
-    // Look for the colon.
-    let mut colon_pos: usize = 0;
-    while colon_pos < len
-        && *data.offset(colon_pos as isize) != '\u{0}' as u8
-        && *data.offset(colon_pos as isize) != ':' as u8
-    {
-        colon_pos = colon_pos.wrapping_add(1)
-    }
-    if colon_pos == len || *data.offset(colon_pos as isize) == '\u{0}' as u8 {
-        // Missing colon.
-        flags |= Flags::HTP_FIELD_UNPARSEABLE;
-        // Log only once per transaction.
-        if !in_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
-            in_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
-            htp_warn!(
-                connp,
-                htp_log_code::REQUEST_FIELD_MISSING_COLON,
-                "Request field invalid: colon missing"
-            );
+    let data = htp_util::htp_chomp(&data);
+
+    let (name, value): (&[u8], &[u8]) = match htp_util::split_by_colon(data) {
+        Ok((mut name, mut value)) => {
+            // Empty header name.
+            if name.is_empty() {
+                flags |= Flags::HTP_FIELD_INVALID;
+                // Log only once per transaction.
+                if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                    flags |= Flags::HTP_FIELD_INVALID;
+                    htp_warn!(
+                        connp,
+                        htp_log_code::REQUEST_INVALID_EMPTY_NAME,
+                        "Request field invalid: empty name"
+                    );
+                }
+            }
+            // Ignore LWS after field-name.
+            if let Ok((name_remaining, tws)) = take_is_space_trailing(name) {
+                flags |= Flags::HTP_FIELD_INVALID;
+                if !tws.is_empty() {
+                    // Log only once per transaction.
+                    if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                        flags |= Flags::HTP_FIELD_INVALID;
+                        htp_warn!(
+                            connp,
+                            htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
+                            "Request field invalid: LWS after name"
+                        );
+                    }
+                }
+                name = name_remaining;
+            }
+            // Remove value characters after null
+            if let Ok((_, val_before_null)) = htp_util::take_until_null(value) {
+                value = val_before_null;
+            }
+            // Remove value trailing whitespace
+            if let Ok((val_remaining, _)) = take_is_space_trailing(value) {
+                value = val_remaining;
+            }
+
+            // Check that field-name is a token
+            if !htp_util::is_word_token(name) {
+                // Incorrectly formed header name.
+                flags |= Flags::HTP_FIELD_INVALID;
+                // Log only once per transaction.
+                if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                    in_tx.flags |= Flags::HTP_FIELD_INVALID;
+                    htp_warn!(
+                        connp,
+                        htp_log_code::REQUEST_HEADER_INVALID,
+                        "Request header name is not a token"
+                    );
+                }
+            }
+            (name, value)
         }
-        // We handle this case as a header with an empty name, with the value equal
-        // to the entire input string.
-        // TODO Apache will respond to this problem with a 400.
-        // Now extract the name and the value
-        return Ok(htp_transaction::htp_header_t::new_with_flags(
-            bstr::bstr_t::new(),
-            std::slice::from_raw_parts(data, len).into(),
-            flags,
-        ));
-    }
-    if colon_pos == 0 {
-        // Empty header name.
-        flags |= Flags::HTP_FIELD_INVALID;
-        // Log only once per transaction.
-        if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-            in_tx.flags |= Flags::HTP_FIELD_INVALID;
-            htp_warn!(
-                connp,
-                htp_log_code::REQUEST_INVALID_EMPTY_NAME,
-                "Request field invalid: empty name"
-            );
-        }
-    }
-    name_end = colon_pos;
-    // Ignore LWS after field-name.
-    let mut prev: usize = name_end;
-    while prev > name_start && htp_util::htp_is_lws(*data.offset(prev.wrapping_sub(1) as isize)) {
-        // LWS after header name.
-        prev = prev.wrapping_sub(1);
-        name_end = name_end.wrapping_sub(1);
-        flags |= Flags::HTP_FIELD_INVALID;
-        // Log only once per transaction.
-        if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-            in_tx.flags |= Flags::HTP_FIELD_INVALID;
-            htp_warn!(
-                connp,
-                htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
-                "Request field invalid: LWS after name"
-            );
-        }
-    }
-    // Header value.
-    value_start = colon_pos;
-    // Go over the colon.
-    if value_start < len {
-        value_start = value_start.wrapping_add(1)
-    }
-    // Ignore LWS before field-content.
-    while value_start < len && htp_util::htp_is_lws(*data.offset(value_start as isize)) {
-        value_start = value_start.wrapping_add(1)
-    }
-    // Look for the end of field-content.
-    value_end = value_start;
-    while value_end < len && *data.offset(value_end as isize) != '\u{0}' as u8 {
-        value_end = value_end.wrapping_add(1)
-    }
-    // Ignore LWS after field-content.
-    prev = value_end.wrapping_sub(1);
-    while prev > value_start && htp_util::htp_is_lws(*data.offset(prev as isize)) {
-        prev = prev.wrapping_sub(1);
-        value_end = value_end.wrapping_sub(1)
-    }
-    // Check that the header name is a token.
-    let mut i: usize = name_start;
-    while i < name_end {
-        if !htp_util::htp_is_token(*data.offset(i as isize)) {
-            // Incorrectly formed header name.
-            flags |= Flags::HTP_FIELD_INVALID;
+        _ => {
+            // No colon
+            flags |= Flags::HTP_FIELD_UNPARSEABLE;
             // Log only once per transaction.
-            if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-                in_tx.flags |= Flags::HTP_FIELD_INVALID;
+            if !in_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
+                in_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                 htp_warn!(
                     connp,
-                    htp_log_code::REQUEST_HEADER_INVALID,
-                    "Request header name is not a token"
+                    htp_log_code::REQUEST_FIELD_MISSING_COLON,
+                    "Request field invalid: colon missing"
                 );
             }
-            break;
-        } else {
-            i = i.wrapping_add(1)
+            // We handle this case as a header with an empty name, with the value equal
+            // to the entire input string.
+            // TODO Apache will respond to this problem with a 400.
+            // Now extract the name and the value
+            (b"", data)
         }
-    }
-    // Now extract the name and the value
-    let name = std::slice::from_raw_parts(
-        data.offset(name_start as isize),
-        name_end.wrapping_sub(name_start),
-    );
-    let value = std::slice::from_raw_parts(
-        data.offset(value_start as isize),
-        value_end.wrapping_sub(value_start),
-    );
+    };
+
     Ok(htp_transaction::htp_header_t::new_with_flags(
         name.into(),
         value.into(),
@@ -230,162 +186,141 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     } else {
         return Status::ERROR;
     };
-    let data: *mut u8 = bstr::bstr_ptr(in_tx.request_line);
-    let mut len: usize = bstr::bstr_len(in_tx.request_line);
-    let mut pos: usize = 0;
-    let mut mstart: usize = 0;
-    let mut start: usize = 0;
-    let mut bad_delim: usize = 0;
+
+    let mut mstart: bool = false;
+    let mut data = (*in_tx.request_line).as_ref();
     if nul_terminates != 0 {
-        // The line ends with the first NUL byte.
-        let mut newlen: usize = 0;
-        while pos < len && *data.offset(pos as isize) != '\u{0}' as u8 {
-            pos = pos.wrapping_add(1);
-            newlen = newlen.wrapping_add(1)
-        }
-        // Start again, with the new length.
-        len = newlen;
-        pos = 0
-    }
-    // skip past leading whitespace. IIS allows this
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    if pos != 0 {
-        htp_warn!(
-            connp,
-            htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
-            "Request line: leading whitespace"
-        );
-        mstart = pos;
-        if (*(*connp).cfg).requestline_leading_whitespace_unwanted
-            != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
-        {
-            // reset mstart so that we copy the whitespace into the method
-            mstart = 0;
-            // set expected response code to this anomaly
-            in_tx.response_status_expected_number =
-                (*(*connp).cfg).requestline_leading_whitespace_unwanted as i32
+        if let Ok((_, before_null)) = htp_util::take_until_null(data) {
+            data = before_null
         }
     }
+
     // The request method starts at the beginning of the
     // line and ends with the first whitespace character.
-    while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    // No, we don't care if the method is empty.
-    in_tx.request_method = bstr::bstr_dup_mem(
-        data.offset(mstart as isize) as *const core::ffi::c_void,
-        pos.wrapping_sub(mstart),
-    );
-    if in_tx.request_method.is_null() {
-        return Status::ERROR;
-    }
-    in_tx.request_method_number = htp_util::htp_convert_bstr_to_method(&*in_tx.request_method);
-    bad_delim = 0;
-    // Ignore whitespace after request method. The RFC allows
-    // for only one SP, but then suggests any number of SP and HT
-    // should be permitted. Apache uses isspace(), which is even
-    // more permitting, so that's what we use here.
-    while pos < len && (*data.offset(pos as isize)).is_ascii_whitespace() {
-        if bad_delim == 0 && *data.offset(pos as isize) != 0x20 {
-            bad_delim = bad_delim.wrapping_add(1)
-        }
-        pos = pos.wrapping_add(1)
-    }
-    // Too much performance overhead for fuzzing
-    if bad_delim != 0 {
-        htp_warn!(
-            connp,
-            htp_log_code::METHOD_DELIM_NON_COMPLIANT,
-            "Request line: non-compliant delimiter between Method and URI"
-        );
-    }
-    // Is there anything after the request method?
-    if pos == len {
-        // No, this looks like a HTTP/0.9 request.
-        in_tx.is_protocol_0_9 = 1;
-        in_tx.request_protocol_number = Protocol::V0_9;
-        if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
+    let method_parser = tuple::<_, _, (_, ErrorKind), _>
+                                // skip past leading whitespace. IIS allows this
+                               ((take_htp_is_space,
+                               take_not_htp_is_space,
+                                // Ignore whitespace after request method. The RFC allows
+                                 // for only one SP, but then suggests any number of SP and HT
+                                 // should be permitted. Apache uses isspace(), which is even
+                                 // more permitting, so that's what we use here.
+                               htp_util::take_ascii_whitespace()
+                               ));
+
+    if let Ok((remaining, (ls, method, ws))) = method_parser(data) {
+        if !ls.is_empty() {
             htp_warn!(
                 connp,
-                htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
-                "Request line: unknown method only"
+                htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
+                "Request line: leading whitespace"
             );
+
+            if (*(*connp).cfg).requestline_leading_whitespace_unwanted
+                != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+            {
+                // reset mstart so that we copy the whitespace into the method
+                mstart = true;
+                // set expected response code to this anomaly
+                in_tx.response_status_expected_number =
+                    (*(*connp).cfg).requestline_leading_whitespace_unwanted as i32
+            }
         }
-        return Status::OK;
-    }
-    start = pos;
-    bad_delim = 0;
-    // The URI ends with the first whitespace.
-    while pos < len && *data.offset(pos as isize) != 0x20 {
-        if bad_delim == 0 && htp_util::htp_is_space(*data.offset(pos as isize)) {
-            bad_delim = bad_delim.wrapping_add(1)
+
+        if mstart {
+            in_tx.request_method = bstr::bstr_dup_str([&ls[..], &method[..]].concat());
+        } else {
+            in_tx.request_method = bstr::bstr_dup_str(method);
         }
-        pos = pos.wrapping_add(1)
-    }
-    // if we've seen some 'bad' delimiters, we retry with those
-    if bad_delim != 0 && pos == len {
-        // special case: even though RFC's allow only SP (0x20), many
-        // implementations allow other delimiters, like tab or other
-        // characters that isspace() accepts.
-        pos = start;
-        while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
-            pos = pos.wrapping_add(1)
+
+        if in_tx.request_method.is_null() {
+            return Status::ERROR;
         }
-    }
-    // Too much performance overhead for fuzzing
-    if bad_delim != 0 {
-        // warn regardless if we've seen non-compliant chars
-        htp_warn!(
-            connp,
-            htp_log_code::URI_DELIM_NON_COMPLIANT,
-            "Request line: URI contains non-compliant delimiter"
-        );
-    }
-    in_tx.request_uri = bstr::bstr_dup_mem(
-        data.offset(start as isize) as *const core::ffi::c_void,
-        pos.wrapping_sub(start),
-    );
-    if in_tx.request_uri.is_null() {
-        return Status::ERROR;
-    }
-    // Ignore whitespace after URI.
-    while pos < len && htp_util::htp_is_space(*data.offset(pos as isize)) {
-        pos = pos.wrapping_add(1)
-    }
-    // Is there protocol information available?
-    if pos == len {
-        // No, this looks like a HTTP/0.9 request.
-        in_tx.is_protocol_0_9 = 1;
-        in_tx.request_protocol_number = Protocol::V0_9;
-        if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
+        in_tx.request_method_number = htp_util::htp_convert_bstr_to_method(&*in_tx.request_method);
+
+        // Too much performance overhead for fuzzing
+        if ws.iter().any(|&c| c != 0x20) {
             htp_warn!(
                 connp,
-                htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
-                "Request line: unknown method and no protocol"
+                htp_log_code::METHOD_DELIM_NON_COMPLIANT,
+                "Request line: non-compliant delimiter between Method and URI"
             );
         }
-        return Status::OK;
-    }
-    // The protocol information continues until the end of the line.
-    in_tx.request_protocol = bstr::bstr_dup_mem(
-        data.offset(pos as isize) as *const core::ffi::c_void,
-        len.wrapping_sub(pos),
-    );
-    if in_tx.request_protocol.is_null() {
-        return Status::ERROR;
-    }
-    in_tx.request_protocol_number =
-        htp_parsers::htp_parse_protocol(&mut *in_tx.request_protocol, &mut *connp);
-    if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN
-        && in_tx.request_protocol_number == Protocol::INVALID
-    {
-        htp_warn!(
-            connp,
-            htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
-            "Request line: unknown method and invalid protocol"
-        );
+
+        if remaining.is_empty() {
+            // No, this looks like a HTTP/0.9 request.
+            in_tx.is_protocol_0_9 = 1;
+            in_tx.request_protocol_number = Protocol::V0_9;
+            if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
+                htp_warn!(
+                    connp,
+                    htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
+                    "Request line: unknown method only"
+                );
+            }
+            return Status::OK;
+        }
+
+        let uri_protocol_parser = tuple::<_, _, (_, ErrorKind), _>
+            // The URI ends with the first whitespace.
+            ((take_while(|c: u8| c != 0x20),
+              // Ignore whitespace after URI.
+              take_htp_is_space)
+            );
+
+        if let Ok((mut protocol, (mut uri, _))) = uri_protocol_parser(remaining) {
+            if uri.len() == remaining.len() && uri.iter().any(|&c| htp_is_space(c)) {
+                // warn regardless if we've seen non-compliant chars
+                htp_warn!(
+                    connp,
+                    htp_log_code::URI_DELIM_NON_COMPLIANT,
+                    "Request line: URI contains non-compliant delimiter"
+                );
+                // if we've seen some 'bad' delimiters, we retry with those
+                let uri_protocol_parser2 =
+                    tuple::<_, _, (_, ErrorKind), _>((take_not_htp_is_space, take_htp_is_space));
+                if let Ok((protocol2, (uri2, _))) = uri_protocol_parser2(remaining) {
+                    uri = uri2;
+                    protocol = protocol2;
+                }
+            }
+
+            in_tx.request_uri = bstr::bstr_dup_str(uri);
+            if in_tx.request_uri.is_null() {
+                return Status::ERROR;
+            }
+
+            // Is there protocol information available?
+            if protocol.is_empty() {
+                // No, this looks like a HTTP/0.9 request.
+                in_tx.is_protocol_0_9 = 1;
+                in_tx.request_protocol_number = Protocol::V0_9;
+                if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
+                    htp_warn!(
+                        connp,
+                        htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
+                        "Request line: unknown method and no protocol"
+                    );
+                }
+                return Status::OK;
+            }
+            // The protocol information continues until the end of the line.
+            in_tx.request_protocol = bstr::bstr_dup_str(protocol);
+            if in_tx.request_protocol.is_null() {
+                return Status::ERROR;
+            }
+            in_tx.request_protocol_number =
+                htp_parsers::htp_parse_protocol(&mut *in_tx.request_protocol, &mut *connp);
+            if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN
+                && in_tx.request_protocol_number == Protocol::INVALID
+            {
+                htp_warn!(
+                    connp,
+                    htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
+                    "Request line: unknown method and invalid protocol"
+                );
+            }
+        }
     }
     Status::OK
 }
