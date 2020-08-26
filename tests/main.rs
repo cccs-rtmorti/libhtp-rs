@@ -536,7 +536,7 @@ fn ResponseWithoutContentLength() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
     }
 }
 
@@ -551,7 +551,7 @@ fn FailedConnectRequest() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert!((*(*tx).request_method).eq("CONNECT"));
 
@@ -570,7 +570,7 @@ fn CompressedResponseContentType() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(187, (*tx).response_message_len);
 
@@ -589,7 +589,7 @@ fn CompressedResponseChunked() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(28261, (*tx).response_message_len);
 
@@ -612,7 +612,7 @@ fn SuccessfulConnectRequest() {
         //       simulation of real traffic. At the moment, it does not
         //       invoke inbound parsing after outbound parsing returns
         //       HTP_DATA_OTHER, which is why the check below fails.
-        //assert!(0 != htp_tx_is_complete(tx));
+        //assert!(htp_tx_is_complete(&*tx));
 
         assert!((*(*tx).request_method).eq("CONNECT"));
 
@@ -631,12 +631,12 @@ fn ConnectRequestWithExtraData() {
         let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx1));
+        assert!(htp_tx_is_complete(&*tx1));
 
         let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx2));
+        assert!(htp_tx_is_complete(&*tx2));
     }
 }
 
@@ -651,7 +651,7 @@ fn Multipart() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "field1")
             .unwrap()
@@ -675,7 +675,7 @@ fn CompressedResponseDeflate() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(755, (*tx).response_message_len);
 
@@ -694,7 +694,7 @@ fn UrlEncoded() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert!((*(*tx).request_method).eq("POST"));
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
@@ -732,19 +732,19 @@ fn AmbiguousHost() {
 
         let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
-        assert!(0 != htp_tx_is_complete(tx1));
+        assert!(htp_tx_is_complete(&*tx1));
         assert!(!(*tx1).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
 
         let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
-        assert!(0 != htp_tx_is_complete(tx2));
+        assert!(htp_tx_is_complete(&*tx2));
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx2).request_hostname.is_null());
         assert!((*(*tx2).request_hostname).eq("example.com"));
 
         let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
-        assert!(0 != htp_tx_is_complete(tx3));
+        assert!(htp_tx_is_complete(&*tx3));
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx3).request_hostname.is_null());
         assert!((*(*tx3).request_hostname).eq("www.example.com"));
@@ -752,7 +752,7 @@ fn AmbiguousHost() {
 
         let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
-        assert!(0 != htp_tx_is_complete(tx4));
+        assert!(htp_tx_is_complete(&*tx4));
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx4).request_hostname.is_null());
         assert!((*(*tx4).request_hostname).eq("www.example.com"));
@@ -760,7 +760,7 @@ fn AmbiguousHost() {
 
         let tx5: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(4);
         assert!(!tx5.is_null());
-        assert!(0 != htp_tx_is_complete(tx5));
+        assert!(htp_tx_is_complete(&*tx5));
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx5).request_hostname.is_null());
         assert!((*(*tx5).request_hostname).eq("www.example.com"));
@@ -1205,7 +1205,7 @@ fn EarlyResponse() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
     }
 }
 
@@ -2375,7 +2375,7 @@ fn CompressedResponseDeflateAsGzip() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(755, (*tx).response_message_len);
 
@@ -2394,7 +2394,7 @@ fn CompressedResponseMultiple() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(51, (*tx).response_message_len);
 
@@ -2413,7 +2413,7 @@ fn CompressedResponseGzipAsDeflate() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(187, (*tx).response_message_len);
 
@@ -2432,7 +2432,7 @@ fn CompressedResponseLzma() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(0 != htp_tx_is_complete(tx));
+        assert!(htp_tx_is_complete(&*tx));
 
         assert_eq!(90, (*tx).response_message_len);
 

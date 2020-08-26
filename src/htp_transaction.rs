@@ -583,7 +583,7 @@ pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_vo
 /// Destroys the supplied transaction.
 pub unsafe fn htp_tx_destroy(tx: *mut htp_tx_t) -> Status {
     if let Some(tx) = tx.as_mut() {
-        if htp_tx_is_complete(tx) == 0 {
+        if !htp_tx_is_complete(tx) {
             return Status::ERROR;
         }
         // remove the tx from the connection so it will be dropped
@@ -1549,7 +1549,7 @@ pub unsafe fn htp_tx_finalize(tx: *mut htp_tx_t) -> Status {
     if tx.is_null() {
         return Status::ERROR;
     }
-    if htp_tx_is_complete(tx) == 0 {
+    if !htp_tx_is_complete(&*tx) {
         return Status::OK;
     }
     // Run hook TRANSACTION_COMPLETE.
@@ -1855,17 +1855,10 @@ pub unsafe fn htp_tx_state_response_start(tx: *mut htp_tx_t) -> Status {
     Status::OK
 }
 
-pub unsafe fn htp_tx_is_complete(tx: *mut htp_tx_t) -> i32 {
-    if tx.is_null() {
-        return -1;
-    }
+pub unsafe fn htp_tx_is_complete(tx: &htp_tx_t) -> bool {
     // A transaction is considered complete only when both the request and
     // response are complete. (Sometimes a complete response can be seen
     // even while the request is ongoing.)
-    if (*tx).request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE
-        || (*tx).response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
-    {
-        return 0;
-    }
-    1
+    (*tx).request_progress == htp_tx_req_progress_t::HTP_REQUEST_COMPLETE
+        && (*tx).response_progress == htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
 }
