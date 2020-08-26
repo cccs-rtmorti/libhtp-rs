@@ -608,3 +608,132 @@ pub unsafe fn htp_connp_set_user_data(connp: *mut htp_connp_t, user_data: *mut c
     }
     (*connp).user_data = user_data;
 }
+
+impl htp_connp_t {
+    pub unsafe fn req_process_body_data_ex(
+        &mut self,
+        data: *const core::ffi::c_void,
+        len: usize,
+    ) -> Status {
+        if let Some(tx) = self.in_tx_mut() {
+            tx.req_process_body_data_ex(data, len)
+        } else {
+            Status::ERROR
+        }
+    }
+
+    /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
+    /// and invoke all registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_start(&mut self) -> Status {
+        if let Some(tx) = self.in_tx_mut() {
+            tx.state_request_start()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    /// Change transaction state to REQUEST_HEADERS and invoke all
+    /// registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_headers(&mut self) -> Status {
+        if let Some(tx) = self.in_tx_mut() {
+            tx.state_request_headers()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    /// Change transaction state to REQUEST_LINE and invoke all
+    /// registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_line(&mut self) -> Status {
+        if let Some(tx) = self.in_tx_mut() {
+            tx.state_request_line()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    /// Change transaction state to REQUEST and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_complete(&mut self) -> Status {
+        if let Some(tx) = self.in_tx_mut() {
+            tx.state_request_complete()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    pub unsafe fn res_process_body_data_ex(
+        &mut self,
+        data: *const core::ffi::c_void,
+        len: usize,
+    ) -> Status {
+        if let Some(tx) = self.out_tx_mut() {
+            tx.res_process_body_data_ex(data, len)
+        } else {
+            Status::ERROR
+        }
+    }
+
+    pub unsafe fn state_response_start(&mut self) -> Status {
+        if let Some(tx) = self.out_tx_mut() {
+            tx.state_response_start()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_response_headers(&mut self) -> Status {
+        if let Some(tx) = self.out_tx_mut() {
+            tx.state_response_headers()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_response_line(&mut self) -> Status {
+        if let Some(tx) = self.out_tx_mut() {
+            tx.state_response_line()
+        } else {
+            Status::ERROR
+        }
+    }
+
+    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Status {
+        if let Some(tx) = self.out_tx_mut() {
+            tx.state_response_complete_ex(hybrid_mode)
+        } else {
+            Status::ERROR
+        }
+    }
+}
