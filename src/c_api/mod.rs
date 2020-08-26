@@ -442,7 +442,9 @@ pub unsafe extern "C" fn htp_connp_close(
     connp: *mut htp_connection_parser::htp_connp_t,
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
-    htp_connection_parser::htp_connp_close(connp, timestamp.as_ref().map(|val| val.clone()))
+    if let Some(connp) = connp.as_mut() {
+        htp_connection_parser::htp_connp_close(connp, timestamp.as_ref().map(|val| val.clone()))
+    }
 }
 
 /// Creates a new connection parser using the provided configuration. Because
@@ -503,6 +505,11 @@ pub unsafe extern "C" fn htp_connp_open(
     server_port: libc::c_int,
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
+    let connp = if let Some(connp) = connp.as_mut() {
+        connp
+    } else {
+        return;
+    };
     let client_addr = if let Some(client_addr) = client_addr.as_ref() {
         CStr::from_ptr(client_addr)
             .to_str()
@@ -542,7 +549,9 @@ pub unsafe extern "C" fn htp_connp_req_close(
     connp: *mut htp_connection_parser::htp_connp_t,
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
-    htp_connection_parser::htp_connp_req_close(connp, timestamp.as_ref().map(|val| val.clone()))
+    if let Some(connp) = connp.as_mut() {
+        htp_connection_parser::htp_connp_req_close(connp, timestamp.as_ref().map(|val| val.clone()))
+    }
 }
 
 /// Process a chunk of inbound client request data
@@ -580,7 +589,9 @@ pub unsafe extern "C" fn htp_connp_set_user_data(
     connp: *mut htp_connection_parser::htp_connp_t,
     user_data: *mut libc::c_void,
 ) {
-    htp_connection_parser::htp_connp_set_user_data(connp, user_data)
+    if let Some(connp) = connp.as_mut() {
+        connp.user_data = user_data;
+    }
 }
 
 /// Returns the LibHTP version string.

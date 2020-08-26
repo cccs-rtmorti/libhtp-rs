@@ -207,7 +207,7 @@ impl HybridParsingTest {
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             htp_connp_open(
-                connp,
+                &mut *connp,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -228,7 +228,7 @@ impl HybridParsingTest {
     fn close_conn_parser(&mut self) {
         unsafe {
             if self.connp_open {
-                htp_connp_close(self.connp, None);
+                htp_connp_close(&mut *self.connp, None);
                 self.connp_open = false;
             }
         }

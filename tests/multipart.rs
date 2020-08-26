@@ -49,7 +49,7 @@ impl Test {
         unsafe {
             // Open connection
             htp_connp_open(
-                self.connp,
+                &mut *self.connp,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),

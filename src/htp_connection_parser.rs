@@ -496,10 +496,7 @@ impl Drop for htp_connp_t {
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_req_close(connp: *mut htp_connp_t, timestamp: Option<htp_time_t>) {
-    if connp.is_null() {
-        return;
-    }
+pub unsafe fn htp_connp_req_close(connp: &mut htp_connp_t, timestamp: Option<htp_time_t>) {
     // Update internal flags
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_ERROR {
         (*connp).in_status = htp_stream_state_t::HTP_STREAM_CLOSED
@@ -512,10 +509,7 @@ pub unsafe fn htp_connp_req_close(connp: *mut htp_connp_t, timestamp: Option<htp
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
-pub unsafe fn htp_connp_close(connp: *mut htp_connp_t, timestamp: Option<htp_time_t>) {
-    if connp.is_null() {
-        return;
-    }
+pub unsafe fn htp_connp_close(connp: &mut htp_connp_t, timestamp: Option<htp_time_t>) {
     // Close the underlying connection.
     (*connp).conn.close(timestamp.clone());
     // Update internal flags
@@ -566,22 +560,19 @@ pub unsafe fn htp_connp_destroy_all(connp: *mut htp_connp_t) {
 ///
 /// timestamp is optional
 pub unsafe fn htp_connp_open(
-    connp: *mut htp_connp_t,
+    connp: &mut htp_connp_t,
     client_addr: Option<IpAddr>,
     client_port: i32,
     server_addr: Option<IpAddr>,
     server_port: i32,
     timestamp: Option<htp_time_t>,
 ) {
-    if connp.is_null() {
-        return;
-    }
     // Check connection parser state first.
     if (*connp).in_status != htp_stream_state_t::HTP_STREAM_NEW
         || (*connp).out_status != htp_stream_state_t::HTP_STREAM_NEW
     {
         htp_error!(
-            connp,
+            connp as *mut htp_connp_t,
             htp_log_code::CONNECTION_ALREADY_OPEN,
             "Connection is already open"
         );
@@ -602,10 +593,7 @@ pub unsafe fn htp_connp_open(
 }
 
 /// Associate user data with the supplied parser.
-pub unsafe fn htp_connp_set_user_data(connp: *mut htp_connp_t, user_data: *mut core::ffi::c_void) {
-    if connp.is_null() {
-        return;
-    }
+pub unsafe fn htp_connp_set_user_data(connp: &mut htp_connp_t, user_data: *mut core::ffi::c_void) {
     (*connp).user_data = user_data;
 }
 

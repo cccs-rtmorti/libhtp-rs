@@ -999,7 +999,7 @@ impl DecodingTest {
             ret.cfg = htp_config::create();
             ret.connp = htp_connp_create(ret.cfg);
             htp_connp_open(
-                ret.connp,
+                &mut *ret.connp,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -1737,7 +1737,7 @@ impl UrlEncodedParserTest {
             ret.cfg = htp_config::create();
             ret.connp = htp_connp_create(ret.cfg);
             htp_connp_open(
-                ret.connp,
+                &mut *ret.connp,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),

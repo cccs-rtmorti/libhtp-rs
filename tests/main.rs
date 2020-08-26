@@ -142,7 +142,7 @@ impl Test {
             };
             libc::gettimeofday(&mut tv_start, std::ptr::null_mut());
             htp_connp_open(
-                self.connp,
+                &mut *self.connp,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 10000,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -249,7 +249,7 @@ impl Test {
                 tv_usec: 0,
             };
             libc::gettimeofday(&mut tv_end, std::ptr::null_mut());
-            htp_connp_close(self.connp, Some(tv_end));
+            htp_connp_close(&mut *self.connp, Some(tv_end));
         }
         Ok(())
     }
