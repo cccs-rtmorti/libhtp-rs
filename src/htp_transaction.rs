@@ -389,7 +389,7 @@ pub struct htp_tx_t {
 pub type htp_txs_t = List<htp_tx_t>;
 
 impl htp_tx_t {
-    pub unsafe fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize, Status> {
+    pub fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize, Status> {
         let tx = Self {
             connp,
             cfg: connp.cfg,
@@ -404,7 +404,7 @@ impl htp_tx_t {
             request_protocol_number: Protocol::UNKNOWN,
             is_protocol_0_9: 0,
             parsed_uri: std::ptr::null_mut(),
-            parsed_uri_raw: htp_util::htp_uri_alloc(),
+            parsed_uri_raw: unsafe { htp_util::htp_uri_alloc() },
             request_message_len: 0,
             request_entity_len: 0,
             request_headers: htp_table::htp_table_t::with_capacity(32),
@@ -455,7 +455,7 @@ impl htp_tx_t {
             return Err(Status::ERROR);
         }
         let tx_id = tx.index;
-        (*tx.connp).conn.push_tx(tx);
+        unsafe { (*tx.connp).conn.push_tx(tx) };
         Ok(tx_id)
     }
 

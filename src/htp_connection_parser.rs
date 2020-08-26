@@ -236,20 +236,20 @@ impl htp_connp_t {
     /// Creates a transaction and attaches it to this connection.
     ///
     /// Also sets the in_tx to the newly created one.
-    pub unsafe fn create_tx(&mut self) -> Result<usize, Status> {
+    pub fn create_tx(&mut self) -> Result<usize, Status> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
             self.conn.flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
         }
         htp_transaction::htp_tx_t::new(self).map(|tx_id| {
             self.in_tx = Some(tx_id);
-            htp_connp_in_reset(self);
+            self.in_reset();
             tx_id
         })
     }
 
     /// Removes references to the supplied transaction.
-    pub unsafe fn remove_tx(&mut self, tx: usize) {
+    pub fn remove_tx(&mut self, tx: usize) {
         if let Some(in_tx) = self.in_tx() {
             if in_tx.index == tx {
                 self.in_tx = None
@@ -263,24 +263,24 @@ impl htp_connp_t {
     }
 
     /// Get the in_tx or None if not set.
-    pub unsafe fn in_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
+    pub fn in_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
         self.in_tx.and_then(|in_tx| self.conn.tx(in_tx))
     }
 
     /// Get the in_tx as a mutable reference or None if not set.
-    pub unsafe fn in_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
+    pub fn in_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
         self.in_tx.and_then(move |in_tx| self.conn.tx_mut(in_tx))
     }
 
     /// Get the in_tx as a pointer or NULL if not set.
-    pub unsafe fn in_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
+    pub fn in_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
         self.in_tx()
             .map(|in_tx| in_tx as *const htp_transaction::htp_tx_t)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get the in_tx as a mutable pointer or NULL if not set.
-    pub unsafe fn in_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
+    pub fn in_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
         self.in_tx_mut()
             .map(|in_tx| in_tx as *mut htp_transaction::htp_tx_t)
             .unwrap_or(std::ptr::null_mut())
@@ -302,24 +302,24 @@ impl htp_connp_t {
     }
 
     /// Get the out_tx or None if not set.
-    pub unsafe fn out_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
+    pub fn out_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
         self.out_tx.and_then(|out_tx| self.conn.tx(out_tx))
     }
 
     /// Get the out_tx as a mutable reference or None if not set.
-    pub unsafe fn out_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
+    pub fn out_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
         self.out_tx.and_then(move |out_tx| self.conn.tx_mut(out_tx))
     }
 
     /// Get the out_tx as a pointer or NULL if not set.
-    pub unsafe fn out_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
+    pub fn out_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
         self.out_tx()
             .map(|out_tx| out_tx as *const htp_transaction::htp_tx_t)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get the out_tx as a mutable pointer or NULL if not set.
-    pub unsafe fn out_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
+    pub fn out_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
         self.out_tx_mut()
             .map(|out_tx| out_tx as *mut htp_transaction::htp_tx_t)
             .unwrap_or(std::ptr::null_mut())
@@ -432,6 +432,13 @@ impl htp_connp_t {
     pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Status {
         unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len) }
     }
+
+    /// This function is most likely not used and/or not needed.
+    fn in_reset(&mut self) {
+        self.in_content_length = -1;
+        self.in_body_data_left = -1;
+        self.in_chunk_request_index = self.in_chunk_count;
+    }
 }
 
 impl Drop for htp_connp_t {
@@ -527,16 +534,6 @@ pub unsafe fn htp_connp_destroy_all(connp: *mut htp_connp_t) {
     }
     // Destroy everything else
     htp_connp_destroy(connp);
-}
-
-/// This function is most likely not used and/or not needed.
-pub unsafe fn htp_connp_in_reset(connp: *mut htp_connp_t) {
-    if connp.is_null() {
-        return;
-    }
-    (*connp).in_content_length = -1;
-    (*connp).in_body_data_left = -1;
-    (*connp).in_chunk_request_index = (*connp).in_chunk_count;
 }
 
 /// Opens connection.
