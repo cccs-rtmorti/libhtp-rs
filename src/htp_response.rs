@@ -1233,16 +1233,6 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
     }
 }
 
-/// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an
-/// invocation of htp_connp_res_data() will consume all data from the supplied buffer, but there
-/// are circumstances where only partial consumption is possible. In such cases
-/// HTP_STREAM_DATA_OTHER will be returned.  Consumed bytes are no longer necessary, but the
-/// remainder of the buffer will be need to be saved for later.
-///
-/// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
-pub unsafe fn htp_connp_res_data_consumed(connp: *mut htp_connection_parser::htp_connp_t) -> usize {
-    (*connp).out_current_read_offset as usize
-}
 pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     connp: *mut htp_connection_parser::htp_connp_t,
 ) -> Status {

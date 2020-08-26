@@ -439,6 +439,22 @@ impl htp_connp_t {
         self.in_body_data_left = -1;
         self.in_chunk_request_index = self.in_chunk_count;
     }
+
+    /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
+    pub fn req_data_consumed(&self) -> i64 {
+        self.in_current_read_offset
+    }
+
+    /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
+    /// of htp_connp_res_data() will consume all data from the supplied buffer, but there are circumstances
+    /// where only partial consumption is possible. In such cases HTP_STREAM_DATA_OTHER will be returned.
+    /// Consumed bytes are no longer necessary, but the remainder of the buffer will be need to be saved
+    /// for later.
+    /// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
+    /// or -1 on error.
+    pub fn res_data_consumed(&self) -> i64 {
+        self.out_current_read_offset
+    }
 }
 
 impl Drop for htp_connp_t {

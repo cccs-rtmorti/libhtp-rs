@@ -13,6 +13,7 @@ use htp::htp_transaction::*;
 use htp::htp_util::*;
 use htp::log::*;
 use htp::Status;
+use std::convert::TryInto;
 use std::env;
 use std::iter::IntoIterator;
 use std::net::{IpAddr, Ipv4Addr};
@@ -168,7 +169,10 @@ impl Test {
                         }
 
                         if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
-                            let consumed = htp_connp_req_data_consumed(self.connp);
+                            let consumed = (*self.connp)
+                                .req_data_consumed()
+                                .try_into()
+                                .expect("Error retrieving number of consumed bytes.");
                             let mut remaining = Vec::with_capacity(data.len() - consumed);
                             remaining.extend_from_slice(&data[consumed..]);
                             in_buf = Some(remaining);
@@ -201,7 +205,10 @@ impl Test {
                         }
 
                         if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
-                            let consumed = htp_connp_res_data_consumed(self.connp);
+                            let consumed = (*self.connp)
+                                .res_data_consumed()
+                                .try_into()
+                                .expect("Error retrieving number of consumed bytes.");
                             let mut remaining = Vec::with_capacity(data.len() - consumed);
                             remaining.extend_from_slice(&data[consumed..]);
                             out_buf = Some(remaining);

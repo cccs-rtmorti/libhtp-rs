@@ -929,14 +929,16 @@ pub unsafe extern "C" fn htp_connp_get_in_tx(
         .unwrap_or(std::ptr::null_mut())
 }
 
-/// Destroys the connection parser and its data structures, leaving
-///
-/// Returns the nunber of bytes consumed
+/// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_data_consumed(
-    connp: *mut htp_connection_parser::htp_connp_t,
-) -> libc::size_t {
-    htp_request::htp_connp_req_data_consumed(connp)
+    connp: *const htp_connection_parser::htp_connp_t,
+) -> i64 {
+    if let Some(connp) = connp.as_ref() {
+        (*connp).req_data_consumed()
+    } else {
+        -1
+    }
 }
 
 /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
@@ -944,12 +946,17 @@ pub unsafe extern "C" fn htp_connp_req_data_consumed(
 /// where only partial consumption is possible. In such cases HTP_STREAM_DATA_OTHER will be returned.
 /// Consumed bytes are no longer necessary, but the remainder of the buffer will be need to be saved
 /// for later.
-/// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
+/// Returns the number of bytes consumed from the last data chunk sent for outbound processing
+/// or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_res_data_consumed(
-    connp: *mut htp_connection_parser::htp_connp_t,
-) -> libc::size_t {
-    htp_response::htp_connp_res_data_consumed(connp)
+    connp: *const htp_connection_parser::htp_connp_t,
+) -> i64 {
+    if let Some(connp) = connp.as_ref() {
+        (*connp).res_data_consumed()
+    } else {
+        -1
+    }
 }
 
 /// Append as many bytes from the source to destination bstring. The

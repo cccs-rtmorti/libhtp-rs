@@ -1100,12 +1100,6 @@ pub unsafe extern "C" fn htp_connp_REQ_IDLE(
     Status::OK
 }
 
-/// Returns how many bytes from the current data chunks were consumed so far.
-/// Returns the number of bytes consumed.
-pub unsafe fn htp_connp_req_data_consumed(connp: *mut htp_connection_parser::htp_connp_t) -> usize {
-    (*connp).in_current_read_offset as usize
-}
-
 /// Returns HTP_STREAM_DATA, HTP_STREAM_ERROR or STEAM_STATE_DATA_OTHER (see QUICK_START).
 ///         HTP_STREAM_CLOSED and HTP_STREAM_TUNNEL are also possible.
 pub unsafe fn htp_connp_req_data(
