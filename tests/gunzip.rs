@@ -17,7 +17,7 @@ use common::htp_connp_tx_create;
 #[no_mangle]
 extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
     unsafe {
-        let output_ptr: *mut *mut bstr_t = htp_tx_user_data((*d).tx()) as *mut *mut bstr_t;
+        let output_ptr: *mut *mut bstr_t = htp_tx_user_data(&*(*d).tx()) as *mut *mut bstr_t;
         *output_ptr = bstr_dup_mem((*d).data() as *const core::ffi::c_void, (*d).len());
     }
     Status::OK
@@ -81,7 +81,7 @@ impl Test {
         let mut data = std::fs::read(filepath).map_err(TestError::Io)?;
         unsafe {
             let output_ptr: *mut *mut bstr_t = &mut self.output;
-            htp_tx_set_user_data(self.tx, output_ptr as *mut core::ffi::c_void);
+            htp_tx_set_user_data(&mut *self.tx, output_ptr as *mut core::ffi::c_void);
 
             let mut tx =
                 htp_tx_data_t::new(self.tx, data.as_mut_ptr() as *const u8, data.len(), false);

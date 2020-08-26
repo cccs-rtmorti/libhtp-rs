@@ -28,7 +28,11 @@ pub unsafe extern "C" fn htp_tx_create(
 /// Destroys the supplied transaction.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_destroy(tx: *mut htp_transaction::htp_tx_t) -> Status {
-    htp_transaction::htp_tx_destroy(tx)
+    if let Some(tx) = tx.as_mut() {
+        htp_transaction::htp_tx_destroy(tx)
+    } else {
+        Status::ERROR
+    }
 }
 
 /// Get a transaction's connection parser.
@@ -63,12 +67,16 @@ pub unsafe extern "C" fn htp_tx_cfg(
     }
 }
 
-/// Returns the user data associated with this transaction.
+/// Returns the user data associated with this transaction or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_user_data(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *mut libc::c_void {
-    htp_transaction::htp_tx_user_data(tx)
+    if let Some(tx) = tx.as_ref() {
+        htp_transaction::htp_tx_user_data(tx)
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 /// Associates user data with this transaction.
@@ -77,7 +85,9 @@ pub unsafe extern "C" fn htp_tx_set_user_data(
     tx: *mut htp_transaction::htp_tx_t,
     user_data: *mut libc::c_void,
 ) {
-    htp_transaction::htp_tx_set_user_data(tx, user_data)
+    if let Some(tx) = tx.as_mut() {
+        htp_transaction::htp_tx_set_user_data(tx, user_data)
+    }
 }
 
 /// Get a transaction's request line.
@@ -767,7 +777,11 @@ pub unsafe extern "C" fn htp_tx_set_response_progress(
 pub unsafe extern "C" fn htp_tx_state_request_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
-    htp_transaction::htp_tx_state_request_complete(tx)
+    if let Some(tx) = tx.as_mut() {
+        htp_transaction::htp_tx_state_request_complete(tx)
+    } else {
+        Status::ERROR
+    }
 }
 
 /// Change transaction state to RESPONSE and invoke registered callbacks.
@@ -780,7 +794,11 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(
 pub unsafe extern "C" fn htp_tx_state_response_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
-    htp_transaction::htp_tx_state_response_complete(tx)
+    if let Some(tx) = tx.as_mut() {
+        htp_transaction::htp_tx_state_response_complete(tx)
+    } else {
+        Status::ERROR
+    }
 }
 
 /// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.

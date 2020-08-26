@@ -880,7 +880,7 @@ fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -897,7 +897,7 @@ fn RequestHeaderData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -934,7 +934,7 @@ fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -952,7 +952,7 @@ fn RequestTrailerData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(2, *counter);
     }
@@ -1001,7 +1001,7 @@ fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -1019,7 +1019,7 @@ fn ResponseHeaderData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -1072,7 +1072,7 @@ fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut htp_tx_da
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data((*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -1090,7 +1090,7 @@ fn ResponseTrailerData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(tx) as *mut i32;
+        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }

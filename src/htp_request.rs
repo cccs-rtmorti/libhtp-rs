@@ -364,7 +364,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_PROBE_DATA(
         bstr::bstr_free(method);
     }
     if method_type != htp_method_t::HTP_M_UNKNOWN {
-        return htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut_ptr());
+        return htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut().unwrap());
     } else {
         (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
         (*connp).out_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL
@@ -469,7 +469,7 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_DATA(
     }
     // Consume the data.
     let rc: Status = htp_transaction::htp_tx_req_process_body_data_ex(
-        (*connp).in_tx_mut_ptr(),
+        (*connp).in_tx_mut().unwrap(),
         (*connp)
             .in_current_data
             .offset((*connp).in_current_read_offset as isize) as *const core::ffi::c_void,
@@ -584,7 +584,7 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_IDENTITY(
     }
     // Consume data.
     let rc: Status = htp_transaction::htp_tx_req_process_body_data_ex(
-        (*connp).in_tx_mut_ptr(),
+        (*connp).in_tx_mut().unwrap(),
         (*connp)
             .in_current_data
             .offset((*connp).in_current_read_offset as isize) as *const core::ffi::c_void,
@@ -684,7 +684,7 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
             htp_connp_req_clear_buffer(connp);
             in_tx.request_progress = htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER;
             // We've seen all the request headers.
-            return htp_transaction::htp_tx_state_request_headers((*connp).in_tx_mut_ptr());
+            return htp_transaction::htp_tx_state_request_headers((*connp).in_tx_mut().unwrap());
         }
         if (*connp).in_current_read_offset < (*connp).in_current_len {
             (*connp).in_next_byte = *(*connp)
@@ -725,7 +725,9 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 }
                 htp_connp_req_clear_buffer(connp);
                 // We've seen all the request headers.
-                return htp_transaction::htp_tx_state_request_headers((*connp).in_tx_mut_ptr());
+                return htp_transaction::htp_tx_state_request_headers(
+                    (*connp).in_tx_mut().unwrap(),
+                );
             }
             let s = std::slice::from_raw_parts(data as *const u8, len);
             let s = htp_util::htp_chomp(&s);
@@ -895,7 +897,7 @@ pub unsafe extern "C" fn htp_connp_REQ_LINE_complete(
         return Status::ERROR;
     }
     // Finalize request line parsing.
-    if htp_transaction::htp_tx_state_request_line((*connp).in_tx_mut_ptr()) != Status::OK {
+    if htp_transaction::htp_tx_state_request_line((*connp).in_tx_mut().unwrap()) != Status::OK {
         return Status::ERROR;
     }
     htp_connp_req_clear_buffer(connp);
@@ -955,7 +957,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
                 as i32
         }
         if (*connp).in_next_byte == -1 {
-            return htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut_ptr());
+            return htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut().unwrap());
         }
         if (*connp).in_next_byte != '\n' as i32
             || (*connp).in_current_consume_offset >= (*connp).in_current_read_offset
@@ -987,7 +989,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     }
     if len == 0 {
         //closing
-        return htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut_ptr());
+        return htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut().unwrap());
     }
     let mut pos: usize = 0;
     let mut mstart: usize = 0;
@@ -1006,7 +1008,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     if pos <= mstart {
         //empty whitespace line
         let rc: Status = htp_transaction::htp_tx_req_process_body_data_ex(
-            (*connp).in_tx_mut_ptr(),
+            (*connp).in_tx_mut().unwrap(),
             data as *const core::ffi::c_void,
             len,
         );
@@ -1031,7 +1033,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
                 "Unexpected request body"
             );
             let rc_0: Status = htp_transaction::htp_tx_req_process_body_data_ex(
-                (*connp).in_tx_mut_ptr(),
+                (*connp).in_tx_mut().unwrap(),
                 data as *const core::ffi::c_void,
                 len,
             );
@@ -1049,7 +1051,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     if (*connp).in_current_read_offset < (*connp).in_current_consume_offset {
         (*connp).in_current_consume_offset = (*connp).in_current_read_offset
     }
-    htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut_ptr())
+    htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut().unwrap())
 }
 
 #[no_mangle]
@@ -1094,7 +1096,7 @@ pub unsafe extern "C" fn htp_connp_REQ_IDLE(
     }
 
     // Change state to TRANSACTION_START
-    htp_transaction::htp_tx_state_request_start((*connp).in_tx_mut_ptr());
+    htp_transaction::htp_tx_state_request_start((*connp).in_tx_mut().unwrap());
     Status::OK
 }
 

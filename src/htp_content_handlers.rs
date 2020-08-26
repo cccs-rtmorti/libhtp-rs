@@ -16,7 +16,11 @@ extern "C" {
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
-    let tx: *mut htp_transaction::htp_tx_t = (*d).tx();
+    let tx = if let Some(tx) = (*d).tx().as_mut() {
+        tx
+    } else {
+        return Status::ERROR;
+    };
     if !(*d).data().is_null() {
         // Process one chunk of data.
         htp_urlencoded::htp_urlenp_parse_partial(
@@ -81,6 +85,11 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_headers(
 pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
+    let tx = if let Some(tx) = tx.as_mut() {
+        tx
+    } else {
+        return Status::ERROR;
+    };
     // Proceed only if there's something for us to parse.
     if (*(*tx).parsed_uri).query.is_null() || bstr::bstr_len((*(*tx).parsed_uri).query) == 0 {
         return Status::DECLINED;
@@ -124,7 +133,11 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     d: *mut htp_transaction::htp_tx_data_t,
 ) -> Status {
-    let tx: *mut htp_transaction::htp_tx_t = (*d).tx();
+    let tx = if let Some(tx) = (*d).tx().as_mut() {
+        tx
+    } else {
+        return Status::ERROR;
+    };
     if !(*d).data().is_null() {
         // Process one chunk of data.
         let data = std::slice::from_raw_parts((*d).data(), (*d).len());
