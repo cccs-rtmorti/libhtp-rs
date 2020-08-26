@@ -1618,10 +1618,7 @@ pub unsafe fn htp_tx_state_response_complete_ex(tx: *mut htp_tx_t, hybrid_mode: 
     }
     // Disconnect transaction from the parser.
     (*connp).clear_out_tx();
-    (*connp).out_state = Some(
-        htp_response::htp_connp_RES_IDLE
-            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-    );
+    (*connp).out_state = State::IDLE;
     Status::OK
 }
 
@@ -1836,16 +1833,10 @@ pub unsafe fn htp_tx_state_response_start(tx: *mut htp_tx_t) -> Status {
         (*tx).response_content_encoding_processing =
             htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
-        (*(*tx).connp).out_state = Some(
-            htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        );
+        (*(*tx).connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
         (*(*tx).connp).out_body_data_left = -1
     } else {
-        (*(*tx).connp).out_state = Some(
-            htp_response::htp_connp_RES_LINE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        );
+        (*(*tx).connp).out_state = State::LINE;
         (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
     }
     // If at this point we have no method and no uri and our status

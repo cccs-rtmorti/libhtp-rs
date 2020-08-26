@@ -18,18 +18,22 @@ pub enum State {
     NONE,
     IDLE,
     LINE,
-    PROTOCOL,
     HEADERS,
-    CONNECT_CHECK,
-    CONNECT_PROBE_DATA,
-    CONNECT_WAIT_RESPONSE,
     BODY_CHUNKED_DATA_END,
     BODY_CHUNKED_DATA,
     BODY_CHUNKED_LENGTH,
     BODY_DETERMINE,
+    FINALIZE,
+    // Used by in_state only
+    PROTOCOL,
+    CONNECT_CHECK,
+    CONNECT_PROBE_DATA,
+    CONNECT_WAIT_RESPONSE,
     BODY_IDENTITY,
     IGNORE_DATA_AFTER_HTTP_0_9,
-    FINALIZE,
+    // Used by out_state only
+    BODY_IDENTITY_STREAM_CLOSE,
+    BODY_IDENTITY_CL_KNOWN,
 }
 
 /// Enumerates all stream states. Each connection has two streams, one
@@ -159,9 +163,9 @@ pub struct htp_connp_t {
     /// current response data chunk. Only used with chunked response bodies.
     pub out_chunked_length: i64,
     /// Current response parser state.
-    pub out_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
+    pub out_state: State,
     /// Previous response parser state.
-    pub out_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
+    pub out_state_previous: State,
     /// The hook that should be receiving raw connection data.
     pub out_data_receiver_hook: Option<DataHook>,
     /// Response decompressor used to decompress response body data.
@@ -221,11 +225,8 @@ impl htp_connp_t {
             out_content_length: 0,
             out_body_data_left: 0,
             out_chunked_length: 0,
-            out_state: Some(
-                htp_response::htp_connp_RES_IDLE
-                    as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
-            ),
-            out_state_previous: None,
+            out_state: State::IDLE,
+            out_state_previous: State::NONE,
             out_data_receiver_hook: None,
             out_decompressor: std::ptr::null_mut(),
             put_file: std::ptr::null_mut(),
@@ -364,6 +365,40 @@ impl htp_connp_t {
                 }
                 State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self),
                 State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self),
+                // These are only used by out_state
+                State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => Status::ERROR,
+            }
+        }
+    }
+
+    /// Handle the current state to be processed.
+    pub fn handle_out_state(&mut self) -> Status {
+        unsafe {
+            match self.out_state {
+                State::NONE => Status::ERROR,
+                State::IDLE => htp_response::htp_connp_RES_IDLE(self),
+                State::LINE => htp_response::htp_connp_RES_LINE(self),
+                State::HEADERS => htp_response::htp_connp_RES_HEADERS(self),
+                State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self),
+                State::BODY_CHUNKED_DATA => htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self),
+                State::BODY_CHUNKED_LENGTH => htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self),
+                State::BODY_CHUNKED_DATA_END => {
+                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self)
+                }
+                State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self),
+                State::BODY_IDENTITY_STREAM_CLOSE => {
+                    htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self)
+                }
+                State::BODY_IDENTITY_CL_KNOWN => {
+                    htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self)
+                }
+                // These are only used by in_state
+                State::PROTOCOL
+                | State::CONNECT_CHECK
+                | State::CONNECT_PROBE_DATA
+                | State::CONNECT_WAIT_RESPONSE
+                | State::BODY_IDENTITY
+                | State::IGNORE_DATA_AFTER_HTTP_0_9 => Status::ERROR,
             }
         }
     }
