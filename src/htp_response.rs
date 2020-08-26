@@ -1,5 +1,6 @@
 use crate::bstr::{bstr_len, bstr_ptr};
 use crate::hook::DataHook;
+use crate::htp_connection_parser::State;
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{
@@ -1008,10 +1009,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
             {
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
-                    if (*(*connp).cfg)
-                        .process_response_header
-                        .expect("non-null function pointer")(
-                        connp,
+                    if (*connp).process_response_header(
                         bstr_ptr((*connp).out_header),
                         bstr_len((*connp).out_header),
                     ) != Status::OK
@@ -1068,10 +1066,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 // New header line.
                 // Parse previous header, if any.
                 if !(*connp).out_header.is_null() {
-                    if (*(*connp).cfg)
-                        .process_response_header
-                        .expect("non-null function pointer")(
-                        connp,
+                    if (*connp).process_response_header(
                         bstr_ptr((*connp).out_header),
                         bstr_len((*connp).out_header),
                     ) != Status::OK
@@ -1091,11 +1086,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 if !htp_util::htp_is_folding_char((*connp).out_next_byte as u8) {
                     // Because we know this header is not folded, we can process the buffer straight away.
-                    if (*(*connp).cfg)
-                        .process_response_header
-                        .expect("non-null function pointer")(connp, data, len)
-                        != Status::OK
-                    {
+                    if (*connp).process_response_header(data, len) != Status::OK {
                         return Status::ERROR;
                     }
                 } else {
@@ -1140,10 +1131,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                             "Invalid response field folding"
                         );
                     }
-                    if (*(*connp).cfg)
-                        .process_response_header
-                        .expect("non-null function pointer")(
-                        connp,
+                    if (*connp).process_response_header(
                         bstr_ptr((*connp).out_header),
                         bstr_len((*connp).out_header),
                     ) != Status::OK
@@ -1315,11 +1303,7 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
             if out_tx.response_line.is_null() {
                 return Status::ERROR;
             }
-            if (*(*connp).cfg)
-                .parse_response_line
-                .expect("non-null function pointer")(connp)
-                != Status::OK
-            {
+            if (*connp).parse_response_line() != Status::OK {
                 return Status::ERROR;
             }
             let rc_0: Status =
@@ -1460,12 +1444,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
             "Unable to match response to request"
         );
         // finalize dangling request waiting for next request or body
-        if (*connp).in_state
-            == Some(
-                htp_request::htp_connp_REQ_FINALIZE
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            )
-        {
+        if (*connp).in_state == State::FINALIZE {
             htp_transaction::htp_tx_state_request_complete((*connp).in_tx_mut_ptr());
         }
         if let Ok(Some(out_tx)) = (*connp)
@@ -1489,10 +1468,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
         } else {
             return Status::ERROR;
         }
-        (*connp).in_state = Some(
-            htp_request::htp_connp_REQ_FINALIZE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        );
+        (*connp).in_state = State::FINALIZE;
         // We've used one transaction
         (*connp).out_next_tx_index = (*connp).out_next_tx_index.wrapping_add(1)
     } else {

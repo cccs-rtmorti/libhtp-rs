@@ -1,3 +1,7 @@
+use crate::htp_config::htp_server_personality_t;
+use crate::htp_request_apache_2_2;
+use crate::htp_request_generic;
+use crate::htp_response_generic;
 use crate::{
     bstr, hook::DataHook, htp_config, htp_connection, htp_decompressors, htp_request, htp_response,
     htp_transaction, htp_util, Status,
@@ -7,6 +11,25 @@ use std::net::IpAddr;
 extern "C" {
     #[no_mangle]
     fn free(__ptr: *mut core::ffi::c_void);
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum State {
+    NONE,
+    IDLE,
+    LINE,
+    PROTOCOL,
+    HEADERS,
+    CONNECT_CHECK,
+    CONNECT_PROBE_DATA,
+    CONNECT_WAIT_RESPONSE,
+    BODY_CHUNKED_DATA_END,
+    BODY_CHUNKED_DATA,
+    BODY_CHUNKED_LENGTH,
+    BODY_DETERMINE,
+    BODY_IDENTITY,
+    IGNORE_DATA_AFTER_HTTP_0_9,
+    FINALIZE,
 }
 
 /// Enumerates all stream states. Each connection has two streams, one
@@ -89,9 +112,9 @@ pub struct htp_connp_t {
     /// current data chunk. Only used with chunked request bodies.
     pub in_chunked_length: i64,
     /// Current request parser state.
-    pub in_state: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
+    pub in_state: State,
     /// Previous request parser state. Used to detect state changes.
-    pub in_state_previous: Option<unsafe extern "C" fn(_: *mut htp_connp_t) -> Status>,
+    pub in_state_previous: State,
     /// The hook that should be receiving raw connection data.
     pub in_data_receiver_hook: Option<DataHook>,
 
@@ -176,11 +199,8 @@ impl htp_connp_t {
             in_content_length: 0,
             in_body_data_left: 0,
             in_chunked_length: 0,
-            in_state: Some(
-                htp_request::htp_connp_REQ_IDLE
-                    as unsafe extern "C" fn(_: *mut htp_connp_t) -> Status,
-            ),
-            in_state_previous: None,
+            in_state: State::IDLE,
+            in_state_previous: State::NONE,
             in_data_receiver_hook: None,
             out_next_tx_index: 0,
             out_timestamp: htp_time_t {
@@ -317,6 +337,65 @@ impl htp_connp_t {
     /// Unset the out_tx.
     pub fn clear_out_tx(&mut self) {
         self.out_tx = None;
+    }
+
+    /// Handle the current state to be processed.
+    pub fn handle_in_state(&mut self) -> Status {
+        unsafe {
+            match self.in_state {
+                State::NONE => return Status::ERROR,
+                State::IDLE => return htp_request::htp_connp_REQ_IDLE(self),
+                State::IGNORE_DATA_AFTER_HTTP_0_9 => {
+                    return htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(self)
+                }
+                State::LINE => htp_request::htp_connp_REQ_LINE(self),
+                State::PROTOCOL => htp_request::htp_connp_REQ_PROTOCOL(self),
+                State::HEADERS => htp_request::htp_connp_REQ_HEADERS(self),
+                State::CONNECT_WAIT_RESPONSE => {
+                    htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE(self)
+                }
+                State::CONNECT_CHECK => htp_request::htp_connp_REQ_CONNECT_CHECK(self),
+                State::CONNECT_PROBE_DATA => htp_request::htp_connp_REQ_CONNECT_PROBE_DATA(self),
+                State::BODY_DETERMINE => htp_request::htp_connp_REQ_BODY_DETERMINE(self),
+                State::BODY_CHUNKED_DATA => htp_request::htp_connp_REQ_BODY_CHUNKED_DATA(self),
+                State::BODY_CHUNKED_LENGTH => htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH(self),
+                State::BODY_CHUNKED_DATA_END => {
+                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END(self)
+                }
+                State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self),
+                State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self),
+            }
+        }
+    }
+
+    /// The function used for request line parsing. Depends on the personality.
+    pub fn parse_request_line(&mut self) -> Status {
+        unsafe {
+            if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
+                htp_request_apache_2_2::htp_parse_request_line_apache_2_2(self)
+            } else {
+                htp_request_generic::htp_parse_request_line_generic(self)
+            }
+        }
+    }
+
+    /// The function used for response line parsing. Depends on the personality.
+    pub fn parse_response_line(&mut self) -> Status {
+        unsafe { htp_response_generic::htp_parse_response_line_generic(self) }
+    }
+
+    pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Status {
+        unsafe {
+            if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
+                htp_request_apache_2_2::htp_process_request_header_apache_2_2(self, data, len)
+            } else {
+                htp_request_generic::htp_process_request_header_generic(self, data, len)
+            }
+        }
+    }
+
+    pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Status {
+        unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len) }
     }
 }
 

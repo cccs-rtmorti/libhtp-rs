@@ -1,4 +1,5 @@
 use crate::hook::{DataHook, DataNativeCallbackFn};
+use crate::htp_connection_parser::State;
 use crate::htp_util::Flags;
 use crate::list::List;
 use crate::{
@@ -977,11 +978,7 @@ pub unsafe fn htp_tx_req_set_line<S: AsRef<[u8]>>(tx: *mut htp_tx_t, line: S) ->
     if (*tx).request_line.is_null() {
         return Status::ERROR;
     }
-    if (*(*(*tx).connp).cfg)
-        .parse_request_line
-        .expect("non-null function pointer")((*tx).connp)
-        != Status::OK
-    {
+    if (*(*tx).connp).parse_request_line() != Status::OK {
         return Status::ERROR;
     }
     Status::OK
@@ -1025,11 +1022,7 @@ pub unsafe fn htp_tx_res_set_status_line<S: AsRef<[u8]>>(tx: *mut htp_tx_t, line
     if (*tx).response_line.is_null() {
         return Status::ERROR;
     }
-    if (*(*(*tx).connp).cfg)
-        .parse_response_line
-        .expect("non-null function pointer")((*tx).connp)
-        != Status::OK
-    {
+    if (*(*tx).connp).parse_response_line() != Status::OK {
         return Status::ERROR;
     }
     Status::OK
@@ -1382,15 +1375,9 @@ pub unsafe fn htp_tx_state_request_complete(tx: *mut htp_tx_t) -> Status {
     let connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
     // Determine what happens next, and remove this transaction from the parser.
     if (*tx).is_protocol_0_9 != 0 {
-        (*connp).in_state = Some(
-            htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        )
+        (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
     } else {
-        (*connp).in_state = Some(
-            htp_request::htp_connp_REQ_IDLE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        )
+        (*connp).in_state = State::IDLE;
     }
     // Check if the entire transaction is complete. This call may
     // destroy the transaction, if auto-destroy is enabled.
@@ -1413,22 +1400,14 @@ pub unsafe fn htp_tx_state_request_start(tx: *mut htp_tx_t) -> Status {
     } else {
         return Status::ERROR;
     };
-    let in_tx = if let Some(in_tx) = (*tx.connp).in_tx_mut() {
-        in_tx
-    } else {
-        return Status::ERROR;
-    };
     // Run hook REQUEST_START.
-    let rc: Status = (*(*(*tx).connp).cfg).hook_request_start.run_all(tx);
+    let rc: Status = (*(*tx.connp).cfg).hook_request_start.run_all(tx);
     if rc != Status::OK {
         return rc;
     }
     // Change state into request line parsing.
-    (*(*tx).connp).in_state = Some(
-        htp_request::htp_connp_REQ_LINE
-            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-    );
-    in_tx.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
+    (*tx.connp).in_state = State::LINE;
+    tx.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
     Status::OK
 }
 
@@ -1459,10 +1438,7 @@ pub unsafe fn htp_tx_state_request_headers(tx: *mut htp_tx_t) -> Status {
             return rc;
         }
         // Completed parsing this request; finalize it now.
-        (*(*tx).connp).in_state = Some(
-            htp_request::htp_connp_REQ_FINALIZE
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        )
+        (*(*tx).connp).in_state = State::FINALIZE;
     } else if (*tx).request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {
         // Request headers.
         // Did this request arrive in multiple data chunks?
@@ -1473,10 +1449,7 @@ pub unsafe fn htp_tx_state_request_headers(tx: *mut htp_tx_t) -> Status {
         if rc_0 != Status::OK {
             return rc_0;
         }
-        (*(*tx).connp).in_state = Some(
-            htp_request::htp_connp_REQ_CONNECT_CHECK
-                as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-        )
+        (*(*tx).connp).in_state = State::CONNECT_CHECK;
     } else {
         htp_warn!(
             (*tx).connp,
@@ -1555,10 +1528,7 @@ pub unsafe fn htp_tx_state_request_line(tx: *mut htp_tx_t) -> Status {
         return rc;
     }
     // Move on to the next phase.
-    (*(*tx).connp).in_state = Some(
-        htp_request::htp_connp_REQ_PROTOCOL
-            as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-    );
+    (*(*tx).connp).in_state = State::PROTOCOL;
     Status::OK
 }
 
@@ -1883,11 +1853,7 @@ pub unsafe fn htp_tx_state_response_start(tx: *mut htp_tx_t) -> Status {
     // or a overly long request
     if (*tx).request_method.is_null()
         && (*tx).request_uri.is_null()
-        && (*(*tx).connp).in_state
-            == Some(
-                htp_request::htp_connp_REQ_LINE
-                    as unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status,
-            )
+        && (*(*tx).connp).in_state == State::LINE
     {
         htp_warn!(
             (*tx).connp,

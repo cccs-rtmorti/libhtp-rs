@@ -3,10 +3,7 @@ use crate::hook::{
     TxNativeCallbackFn,
 };
 use crate::log::htp_log_level_t;
-use crate::{
-    htp_connection_parser, htp_content_handlers, htp_request_apache_2_2, htp_request_generic,
-    htp_response_generic, htp_transaction, Status,
-};
+use crate::{htp_content_handlers, htp_transaction, Status};
 
 #[derive(Clone)]
 pub struct htp_cfg_t {
@@ -25,28 +22,6 @@ pub struct htp_cfg_t {
     pub tx_auto_destroy: i32,
     /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
-    /// The function used for request line parsing. Depends on the personality.
-    pub parse_request_line:
-        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status>,
-    /// The function used for response line parsing. Depends on the personality.
-    pub parse_response_line:
-        Option<unsafe extern "C" fn(_: *mut htp_connection_parser::htp_connp_t) -> Status>,
-    /// The function used for request header parsing. Depends on the personality.
-    pub process_request_header: Option<
-        unsafe extern "C" fn(
-            _: *mut htp_connection_parser::htp_connp_t,
-            _: *mut u8,
-            _: usize,
-        ) -> Status,
-    >,
-    /// The function used for response header parsing. Depends on the personality.
-    pub process_response_header: Option<
-        unsafe extern "C" fn(
-            _: *mut htp_connection_parser::htp_connp_t,
-            _: *mut u8,
-            _: usize,
-        ) -> Status,
-    >,
     /// The function to use to transform parameters after parsing.
     pub parameter_processor:
         Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> Status>,
@@ -165,10 +140,6 @@ impl Default for htp_cfg_t {
             log_level: htp_log_level_t::HTP_LOG_NOTICE,
             tx_auto_destroy: 0,
             server_personality: htp_server_personality_t::HTP_SERVER_GENERIC,
-            parse_request_line: None,
-            parse_response_line: None,
-            process_request_header: None,
-            process_response_header: None,
             parameter_processor: None,
             decoder_cfgs: [Default::default(), Default::default(), Default::default()],
             generate_request_uri_normalized: 0,
@@ -607,98 +578,13 @@ impl htp_cfg_t {
     /// Returns Status::OK if the personality is supported, Status::ERROR if it isn't.
     pub fn set_server_personality(&mut self, personality: htp_server_personality_t) -> Status {
         match personality {
-            htp_server_personality_t::HTP_SERVER_MINIMAL => {
-                self.parse_request_line = Some(
-                    htp_request_generic::htp_parse_request_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_generic::htp_process_request_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                )
-            }
+            htp_server_personality_t::HTP_SERVER_MINIMAL => {}
             htp_server_personality_t::HTP_SERVER_GENERIC => {
-                self.parse_request_line = Some(
-                    htp_request_generic::htp_parse_request_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_generic::htp_process_request_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
                 self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
             }
             htp_server_personality_t::HTP_SERVER_IDS => {
-                self.parse_request_line = Some(
-                    htp_request_generic::htp_parse_request_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_generic::htp_process_request_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
                 self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
@@ -711,34 +597,6 @@ impl htp_cfg_t {
                 );
             }
             htp_server_personality_t::HTP_SERVER_APACHE_2 => {
-                self.parse_request_line = Some(
-                    htp_request_apache_2_2::htp_parse_request_line_apache_2_2
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_apache_2_2::htp_process_request_header_apache_2_2
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
                 self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, false);
                 self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, false);
                 self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
@@ -761,34 +619,6 @@ impl htp_cfg_t {
                 );
             }
             htp_server_personality_t::HTP_SERVER_IIS_5_1 => {
-                self.parse_request_line = Some(
-                    htp_request_generic::htp_parse_request_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_generic::htp_process_request_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
                 self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
@@ -807,34 +637,6 @@ impl htp_cfg_t {
                 );
             }
             htp_server_personality_t::HTP_SERVER_IIS_6_0 => {
-                self.parse_request_line = Some(
-                    htp_request_generic::htp_parse_request_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_generic::htp_process_request_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
                 self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
@@ -858,34 +660,6 @@ impl htp_cfg_t {
             }
             htp_server_personality_t::HTP_SERVER_IIS_7_0
             | htp_server_personality_t::HTP_SERVER_IIS_7_5 => {
-                self.parse_request_line = Some(
-                    htp_request_generic::htp_parse_request_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_request_header = Some(
-                    htp_request_generic::htp_process_request_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
-                self.parse_response_line = Some(
-                    htp_response_generic::htp_parse_response_line_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                        ) -> Status,
-                );
-                self.process_response_header = Some(
-                    htp_response_generic::htp_process_response_header_generic
-                        as unsafe extern "C" fn(
-                            _: *mut htp_connection_parser::htp_connp_t,
-                            _: *mut u8,
-                            _: usize,
-                        ) -> Status,
-                );
                 self.set_backslash_convert_slashes(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_decode(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
                 self.set_path_separators_compress(htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
