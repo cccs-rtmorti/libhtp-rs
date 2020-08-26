@@ -175,7 +175,7 @@ pub struct htp_connp_t {
 }
 
 impl htp_connp_t {
-    fn new(cfg: *mut htp_config::htp_cfg_t) -> Self {
+    pub fn new(cfg: *mut htp_config::htp_cfg_t) -> Self {
         Self {
             cfg,
             conn: htp_connection::htp_conn_t::new(),
@@ -433,8 +433,40 @@ impl htp_connp_t {
         unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len) }
     }
 
+    /// Closes the connection associated with the supplied parser.
+    ///
+    /// timestamp is optional
+    pub unsafe fn req_close(&mut self, timestamp: Option<htp_time_t>) {
+        // Update internal flags
+        if self.in_status != htp_stream_state_t::HTP_STREAM_ERROR {
+            self.in_status = htp_stream_state_t::HTP_STREAM_CLOSED
+        }
+        // Call the parsers one last time, which will allow them
+        // to process the events that depend on stream closure
+        htp_request::htp_connp_req_data(self, timestamp, 0 as *const core::ffi::c_void, 0);
+    }
+
+    /// Closes the connection associated with the supplied parser.
+    ///
+    /// timestamp is optional
+    pub unsafe fn close(&mut self, timestamp: Option<htp_time_t>) {
+        // Close the underlying connection.
+        self.conn.close(timestamp.clone());
+        // Update internal flags
+        if self.in_status != htp_stream_state_t::HTP_STREAM_ERROR {
+            self.in_status = htp_stream_state_t::HTP_STREAM_CLOSED
+        }
+        if self.out_status != htp_stream_state_t::HTP_STREAM_ERROR {
+            self.out_status = htp_stream_state_t::HTP_STREAM_CLOSED
+        }
+        // Call the parsers one last time, which will allow them
+        // to process the events that depend on stream closure
+        htp_request::htp_connp_req_data(self, timestamp.clone(), 0 as *const core::ffi::c_void, 0);
+        htp_response::htp_connp_res_data(self, timestamp, 0 as *const core::ffi::c_void, 0);
+    }
+
     /// This function is most likely not used and/or not needed.
-    fn in_reset(&mut self) {
+    pub fn in_reset(&mut self) {
         self.in_content_length = -1;
         self.in_body_data_left = -1;
         self.in_chunk_request_index = self.in_chunk_count;
@@ -465,139 +497,48 @@ impl htp_connp_t {
         }
         self.out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
     }
-}
 
-impl Drop for htp_connp_t {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.in_buf.is_null() {
-                free(self.in_buf as *mut core::ffi::c_void);
-            }
-            if !self.out_buf.is_null() {
-                free(self.out_buf as *mut core::ffi::c_void);
-            }
-            self.destroy_decompressors();
-            if !self.put_file.is_null() {
-                bstr::bstr_free((*self.put_file).filename);
-                free(self.put_file as *mut core::ffi::c_void);
-            }
-            if !self.in_header.is_null() {
-                bstr::bstr_free(self.in_header);
-                self.in_header = std::ptr::null_mut()
-            }
-            if !self.out_header.is_null() {
-                bstr::bstr_free(self.out_header);
-                self.out_header = std::ptr::null_mut()
-            }
+    /// Opens connection.
+    ///
+    /// timestamp is optional
+    pub unsafe fn open(
+        &mut self,
+        client_addr: Option<IpAddr>,
+        client_port: i32,
+        server_addr: Option<IpAddr>,
+        server_port: i32,
+        timestamp: Option<htp_time_t>,
+    ) {
+        // Check connection parser state first.
+        if self.in_status != htp_stream_state_t::HTP_STREAM_NEW
+            || self.out_status != htp_stream_state_t::HTP_STREAM_NEW
+        {
+            htp_error!(
+                self as *mut htp_connp_t,
+                htp_log_code::CONNECTION_ALREADY_OPEN,
+                "Connection is already open"
+            );
+            return;
         }
+        if self.conn.open(
+            client_addr,
+            client_port,
+            server_addr,
+            server_port,
+            timestamp,
+        ) != Status::OK
+        {
+            return;
+        }
+        self.in_status = htp_stream_state_t::HTP_STREAM_OPEN;
+        self.out_status = htp_stream_state_t::HTP_STREAM_OPEN;
     }
-}
 
-/// Closes the connection associated with the supplied parser.
-///
-/// timestamp is optional
-pub unsafe fn htp_connp_req_close(connp: &mut htp_connp_t, timestamp: Option<htp_time_t>) {
-    // Update internal flags
-    if (*connp).in_status != htp_stream_state_t::HTP_STREAM_ERROR {
-        (*connp).in_status = htp_stream_state_t::HTP_STREAM_CLOSED
+    /// Associate user data with the supplied parser.
+    pub unsafe fn set_user_data(&mut self, user_data: *mut core::ffi::c_void) {
+        (*self).user_data = user_data;
     }
-    // Call the parsers one last time, which will allow them
-    // to process the events that depend on stream closure
-    htp_request::htp_connp_req_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
-}
 
-/// Closes the connection associated with the supplied parser.
-///
-/// timestamp is optional
-pub unsafe fn htp_connp_close(connp: &mut htp_connp_t, timestamp: Option<htp_time_t>) {
-    // Close the underlying connection.
-    (*connp).conn.close(timestamp.clone());
-    // Update internal flags
-    if (*connp).in_status != htp_stream_state_t::HTP_STREAM_ERROR {
-        (*connp).in_status = htp_stream_state_t::HTP_STREAM_CLOSED
-    }
-    if (*connp).out_status != htp_stream_state_t::HTP_STREAM_ERROR {
-        (*connp).out_status = htp_stream_state_t::HTP_STREAM_CLOSED
-    }
-    // Call the parsers one last time, which will allow them
-    // to process the events that depend on stream closure
-    htp_request::htp_connp_req_data(connp, timestamp.clone(), 0 as *const core::ffi::c_void, 0);
-    htp_response::htp_connp_res_data(connp, timestamp, 0 as *const core::ffi::c_void, 0);
-}
-
-/// Creates a new connection parser using the provided configuration. Because
-/// the configuration structure is used directly, in a multithreaded environment
-/// you are not allowed to change the structure, ever. If you have a need to
-/// change configuration on per-connection basis, make a copy of the configuration
-/// structure to go along with every connection parser.
-///
-/// Returns a new connection parser instance, or NULL on error.
-pub fn htp_connp_create(cfg: *mut htp_config::htp_cfg_t) -> *mut htp_connp_t {
-    Box::into_raw(Box::new(htp_connp_t::new(cfg)))
-}
-
-/// Destroys the connection parser and its data structures, leaving
-/// all the data (connection, transactions, etc) intact.
-pub unsafe fn htp_connp_destroy(connp: *mut htp_connp_t) {
-    if connp.is_null() {
-        return;
-    }
-    // Take back ownership of the box that was consumed in htp_connp_create()
-    let _ = Box::from_raw(connp);
-}
-
-/// Destroys the connection parser, its data structures, as well
-/// as the connection and its transactions.
-pub unsafe fn htp_connp_destroy_all(connp: *mut htp_connp_t) {
-    if connp.is_null() {
-        return;
-    }
-    // Destroy everything else
-    htp_connp_destroy(connp);
-}
-
-/// Opens connection.
-///
-/// timestamp is optional
-pub unsafe fn htp_connp_open(
-    connp: &mut htp_connp_t,
-    client_addr: Option<IpAddr>,
-    client_port: i32,
-    server_addr: Option<IpAddr>,
-    server_port: i32,
-    timestamp: Option<htp_time_t>,
-) {
-    // Check connection parser state first.
-    if (*connp).in_status != htp_stream_state_t::HTP_STREAM_NEW
-        || (*connp).out_status != htp_stream_state_t::HTP_STREAM_NEW
-    {
-        htp_error!(
-            connp as *mut htp_connp_t,
-            htp_log_code::CONNECTION_ALREADY_OPEN,
-            "Connection is already open"
-        );
-        return;
-    }
-    if (*connp).conn.open(
-        client_addr,
-        client_port,
-        server_addr,
-        server_port,
-        timestamp,
-    ) != Status::OK
-    {
-        return;
-    }
-    (*connp).in_status = htp_stream_state_t::HTP_STREAM_OPEN;
-    (*connp).out_status = htp_stream_state_t::HTP_STREAM_OPEN;
-}
-
-/// Associate user data with the supplied parser.
-pub unsafe fn htp_connp_set_user_data(connp: &mut htp_connp_t, user_data: *mut core::ffi::c_void) {
-    (*connp).user_data = user_data;
-}
-
-impl htp_connp_t {
     pub unsafe fn req_process_body_data_ex(
         &mut self,
         data: *const core::ffi::c_void,
@@ -722,6 +663,32 @@ impl htp_connp_t {
             tx.state_response_complete_ex(hybrid_mode)
         } else {
             Status::ERROR
+        }
+    }
+}
+
+impl Drop for htp_connp_t {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.in_buf.is_null() {
+                free(self.in_buf as *mut core::ffi::c_void);
+            }
+            if !self.out_buf.is_null() {
+                free(self.out_buf as *mut core::ffi::c_void);
+            }
+            self.destroy_decompressors();
+            if !self.put_file.is_null() {
+                bstr::bstr_free((*self.put_file).filename);
+                free(self.put_file as *mut core::ffi::c_void);
+            }
+            if !self.in_header.is_null() {
+                bstr::bstr_free(self.in_header);
+                self.in_header = std::ptr::null_mut()
+            }
+            if !self.out_header.is_null() {
+                bstr::bstr_free(self.out_header);
+                self.out_header = std::ptr::null_mut()
+            }
         }
     }
 }

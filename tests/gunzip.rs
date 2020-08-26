@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
+use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;

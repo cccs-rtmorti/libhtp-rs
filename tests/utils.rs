@@ -6,6 +6,7 @@ use std::ffi::{CStr, CString};
 use std::io::Write;
 
 use htp::bstr::*;
+use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::htp_config;
 use htp::htp_connection_parser::*;
 use htp::htp_request::*;
@@ -998,8 +999,7 @@ impl DecodingTest {
         unsafe {
             ret.cfg = htp_config::create();
             ret.connp = htp_connp_create(ret.cfg);
-            htp_connp_open(
-                &mut *ret.connp,
+            (*ret.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -1736,8 +1736,7 @@ impl UrlEncodedParserTest {
         unsafe {
             ret.cfg = htp_config::create();
             ret.connp = htp_connp_create(ret.cfg);
-            htp_connp_open(
-                &mut *ret.connp,
+            (*ret.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),

@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+use htp::c_api::htp_connp_create;
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
@@ -48,8 +49,7 @@ impl Test {
     fn parseRequest(&mut self, headers: &Vec<&str>, data: &Vec<&str>) {
         unsafe {
             // Open connection
-            htp_connp_open(
-                &mut *self.connp,
+            (*self.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),

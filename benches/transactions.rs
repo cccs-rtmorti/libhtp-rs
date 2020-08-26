@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
@@ -69,8 +70,7 @@ impl Test {
                 tv_usec: 0,
             };
             libc::gettimeofday(&mut tv_start, std::ptr::null_mut());
-            htp_connp_open(
-                &mut *self.connp,
+            (*self.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 10000,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -175,7 +175,7 @@ impl Test {
                 tv_usec: 0,
             };
             libc::gettimeofday(&mut tv_end, std::ptr::null_mut());
-            htp_connp_close(&mut *self.connp, Some(tv_end));
+            (*self.connp).close(Some(tv_end));
         }
         Ok(())
     }
@@ -184,7 +184,7 @@ impl Test {
 impl Drop for Test {
     fn drop(&mut self) {
         unsafe {
-            htp_connp_destroy(self.connp);
+            htp_connp_destroy_all(self.connp);
             (*self.cfg).destroy();
         }
     }

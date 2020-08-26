@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 use htp::bstr::*;
+use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
@@ -206,8 +207,7 @@ impl HybridParsingTest {
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
-            htp_connp_open(
-                &mut *connp,
+            (*connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 32768,
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -228,7 +228,7 @@ impl HybridParsingTest {
     fn close_conn_parser(&mut self) {
         unsafe {
             if self.connp_open {
-                htp_connp_close(&mut *self.connp, None);
+                (*self.connp).close(None);
                 self.connp_open = false;
             }
         }

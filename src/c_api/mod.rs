@@ -443,7 +443,7 @@ pub unsafe extern "C" fn htp_connp_close(
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
     if let Some(connp) = connp.as_mut() {
-        htp_connection_parser::htp_connp_close(connp, timestamp.as_ref().map(|val| val.clone()))
+        connp.close(timestamp.as_ref().map(|val| val.clone()))
     }
 }
 
@@ -458,14 +458,14 @@ pub unsafe extern "C" fn htp_connp_close(
 pub unsafe extern "C" fn htp_connp_create(
     cfg: *mut htp_config::htp_cfg_t,
 ) -> *mut htp_connection_parser::htp_connp_t {
-    htp_connection_parser::htp_connp_create(cfg)
+    Box::into_raw(Box::new(htp_connection_parser::htp_connp_t::new(cfg)))
 }
 
 /// Destroys the connection parser, its data structures, as well
 /// as the connection and its transactions.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut htp_connection_parser::htp_connp_t) {
-    htp_connection_parser::htp_connp_destroy_all(connp)
+    let _ = Box::from_raw(connp);
 }
 
 /// Returns the connection associated with the connection parser.
@@ -531,8 +531,7 @@ pub unsafe extern "C" fn htp_connp_open(
     } else {
         None
     };
-    htp_connection_parser::htp_connp_open(
-        connp,
+    connp.open(
         client_addr,
         client_port,
         server_addr,
@@ -550,7 +549,7 @@ pub unsafe extern "C" fn htp_connp_req_close(
     timestamp: *const htp_connection_parser::htp_time_t,
 ) {
     if let Some(connp) = connp.as_mut() {
-        htp_connection_parser::htp_connp_req_close(connp, timestamp.as_ref().map(|val| val.clone()))
+        connp.req_close(timestamp.as_ref().map(|val| val.clone()))
     }
 }
 
