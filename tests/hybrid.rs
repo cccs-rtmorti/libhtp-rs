@@ -57,7 +57,7 @@ impl HybridParsing_Get_User_Data {
 
 fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_START_invoked += 1;
     }
     Status::OK
@@ -65,7 +65,7 @@ fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_LINE_invoked += 1;
     }
     Status::OK
@@ -73,7 +73,7 @@ fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_HEADERS_invoked += 1;
     }
     Status::OK
@@ -81,7 +81,7 @@ fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
     }
     Status::OK
@@ -89,7 +89,7 @@ fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_START_invoked += 1;
     }
     Status::OK
@@ -97,7 +97,7 @@ fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_LINE_invoked += 1;
     }
     Status::OK
@@ -105,7 +105,7 @@ fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
     }
     Status::OK
@@ -113,7 +113,7 @@ fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*(*d).tx()) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data;
 
         // Don't do anything if in errored state.
         if (*user_data).response_body_correctly_received == -1 {
@@ -175,7 +175,7 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Statu
 
 fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
     }
     Status::OK
@@ -183,7 +183,7 @@ fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
 
 fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Status {
     unsafe {
-        let user_data = htp_tx_user_data(&*tx) as *mut HybridParsing_Get_User_Data;
+        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
     }
     Status::OK
@@ -277,23 +277,20 @@ fn GetTest() {
         assert!(!tx.is_null());
 
         // Configure user data and callbacks
-        htp_tx_set_user_data(
-            &mut *tx,
-            &mut t.user_data as *mut _ as *mut core::ffi::c_void,
-        );
+        (*tx).set_user_data(&mut t.user_data as *mut _ as *mut core::ffi::c_void);
 
         // Register callbacks
         t.register_user_callbacks();
 
         // Request begins
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        htp_tx_req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.1");
+        (*tx).req_set_line("GET /?p=1&q=2 HTTP/1.1");
 
         // Request line complete
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_line();
         assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
 
         // Check request line data
@@ -323,12 +320,12 @@ fn GetTest() {
             .eq("2"));
 
         // Request headers
-        htp_tx_req_set_header(&mut *tx, "Host", "www.example.com");
-        htp_tx_req_set_header(&mut *tx, "Connection", "keep-alive");
-        htp_tx_req_set_header(&mut *tx, "User-Agent", "Mozilla/5.0");
+        (*tx).req_set_header("Host", "www.example.com");
+        (*tx).req_set_header("Connection", "keep-alive");
+        (*tx).req_set_header("User-Agent", "Mozilla/5.0");
 
         // Request headers complete
-        htp_tx_state_request_headers(&mut *tx);
+        (*tx).state_request_headers();
 
         // Check headers
         assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
@@ -338,15 +335,15 @@ fn GetTest() {
         assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
         // Request complete
-        htp_tx_state_request_complete(&mut *tx);
+        (*tx).state_request_complete();
         assert_eq!(1, t.user_data.callback_REQUEST_COMPLETE_invoked);
 
         // Response begins
-        htp_tx_state_response_start(&mut *tx);
+        (*tx).state_response_start();
         assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
 
         // Response line data
-        htp_tx_res_set_status_line(&mut *tx, "HTTP/1.1 200 OK");
+        (*tx).res_set_status_line("HTTP/1.1 200 OK");
         assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert_eq!(0, bstr_cmp_str((*tx).response_status, "200"));
@@ -354,15 +351,15 @@ fn GetTest() {
         assert!((*(*tx).response_message).eq("OK"));
 
         // Response line complete
-        htp_tx_state_response_line(&mut *tx);
+        (*tx).state_response_line();
         assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
 
         // Response header data
-        htp_tx_res_set_header(&mut *tx, "Content-Type", "text/html");
-        htp_tx_res_set_header(&mut *tx, "Server", "Apache");
+        (*tx).res_set_header("Content-Type", "text/html");
+        (*tx).res_set_header("Server", "Apache");
 
         // Response headers complete
-        htp_tx_state_response_headers(&mut *tx);
+        (*tx).state_response_headers();
         assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
 
         // Check response headers
@@ -370,19 +367,19 @@ fn GetTest() {
         assert_response_header_eq!(tx, "server", "Apache");
 
         // Response body data
-        htp_tx_res_process_body_data(&mut *tx, "<h1>Hello");
-        htp_tx_res_process_body_data(&mut *tx, " ");
-        htp_tx_res_process_body_data(&mut *tx, "World!</h1>");
+        (*tx).res_process_body_data("<h1>Hello");
+        (*tx).res_process_body_data(" ");
+        (*tx).res_process_body_data("World!</h1>");
         assert_eq!(1, t.user_data.response_body_correctly_received);
 
-        htp_tx_res_set_header(&mut *tx, "Content-Type", "text/html");
-        htp_tx_res_set_header(&mut *tx, "Server", "Apache");
+        (*tx).res_set_header("Content-Type", "text/html");
+        (*tx).res_set_header("Server", "Apache");
 
         // Check trailing response headers
         assert_response_header_eq!(tx, "content-type", "text/html");
         assert_response_header_eq!(tx, "server", "Apache");
 
-        htp_tx_state_response_complete(&mut *tx);
+        (*tx).state_response_complete();
         assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
     }
 }
@@ -397,41 +394,37 @@ fn PostUrlecodedTest() {
         assert!(!tx.is_null());
 
         // Request begins
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
 
         // Request line data
-        htp_tx_req_set_line(&mut *tx, "POST / HTTP/1.1");
+        (*tx).req_set_line("POST / HTTP/1.1");
 
         // Request line complete
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_line();
 
         // Configure headers to trigger the URLENCODED parser
-        htp_tx_req_set_header(
-            &mut *tx,
-            "Content-Type",
-            "application/x-www-form-urlencoded",
-        );
-        htp_tx_req_set_header(&mut *tx, "Content-Length", "7");
+        (*tx).req_set_header("Content-Type", "application/x-www-form-urlencoded");
+        (*tx).req_set_header("Content-Length", "7");
 
         // Request headers complete
-        htp_tx_state_request_headers(&mut *tx);
+        (*tx).state_request_headers();
 
         // Send request body
-        htp_tx_req_process_body_data(&mut *tx, "p=1");
-        htp_tx_req_process_body_data(&mut *tx, "");
-        htp_tx_req_process_body_data(&mut *tx, "&");
-        htp_tx_req_process_body_data(&mut *tx, "q=2");
+        (*tx).req_process_body_data("p=1");
+        (*tx).req_process_body_data("");
+        (*tx).req_process_body_data("&");
+        (*tx).req_process_body_data("q=2");
 
-        htp_tx_req_set_header(&mut *tx, "Host", "www.example.com");
-        htp_tx_req_set_header(&mut *tx, "Connection", "keep-alive");
-        htp_tx_req_set_header(&mut *tx, "User-Agent", "Mozilla/5.0");
+        (*tx).req_set_header("Host", "www.example.com");
+        (*tx).req_set_header("Connection", "keep-alive");
+        (*tx).req_set_header("User-Agent", "Mozilla/5.0");
 
         assert_request_header_eq!(tx, "host", "www.example.com");
         assert_request_header_eq!(tx, "connection", "keep-alive");
         assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
         // Request complete
-        htp_tx_state_request_complete(&mut *tx);
+        (*tx).state_request_complete();
 
         // Check parameters
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -453,27 +446,27 @@ const HYBRID_PARSING_COMPRESSED_RESPONSE: &[u8] =
 
 extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
     unsafe {
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
 
-        htp_tx_req_set_line(&mut *tx, "GET / HTTP/1.1");
+        (*tx).req_set_line("GET / HTTP/1.1");
 
-        htp_tx_state_request_line(&mut *tx);
-        htp_tx_state_request_headers(&mut *tx);
-        htp_tx_state_request_complete(&mut *tx);
+        (*tx).state_request_line();
+        (*tx).state_request_headers();
+        (*tx).state_request_complete();
 
-        htp_tx_state_response_start(&mut *tx);
+        (*tx).state_response_start();
 
-        htp_tx_res_set_status_line(&mut *tx, "HTTP/1.1 200 OK");
-        htp_tx_res_set_header(&mut *tx, "Content-Encoding", "gzip");
-        htp_tx_res_set_header(&mut *tx, "Content-Length", "187");
+        (*tx).res_set_status_line("HTTP/1.1 200 OK");
+        (*tx).res_set_header("Content-Encoding", "gzip");
+        (*tx).res_set_header("Content-Length", "187");
 
-        htp_tx_state_response_headers(&mut *tx);
+        (*tx).state_response_headers();
 
         let body = bstr_t::from(base64::decode(HYBRID_PARSING_COMPRESSED_RESPONSE).unwrap());
 
-        htp_tx_res_process_body_data(&mut *tx, body.as_slice());
+        (*tx).res_process_body_data(body.as_slice());
 
-        htp_tx_state_response_complete(&mut *tx);
+        (*tx).state_response_complete();
     }
 }
 
@@ -502,13 +495,13 @@ fn ParamCaseSensitivity() {
         assert!(!tx.is_null());
 
         // Request begins
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
 
         // Request line data
-        htp_tx_req_set_line(&mut *tx, "GET /?p=1&Q=2 HTTP/1.1");
+        (*tx).req_set_line("GET /?p=1&Q=2 HTTP/1.1");
 
         // Request line complete
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_line();
 
         // Check the parameters.
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -549,30 +542,26 @@ fn PostUrlecodedChunked() {
         assert!(!tx.is_null());
 
         // Request begins.
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
 
         // Request line data.
-        htp_tx_req_set_line(&mut *tx, "POST / HTTP/1.1");
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).req_set_line("POST / HTTP/1.1");
+        (*tx).state_request_line();
 
         // Configure headers to trigger the URLENCODED parser.
-        htp_tx_req_set_header(
-            &mut *tx,
-            "Content-Type",
-            "application/x-www-form-urlencoded",
-        );
-        htp_tx_req_set_header(&mut *tx, "Transfer-Encoding", "chunked");
+        (*tx).req_set_header("Content-Type", "application/x-www-form-urlencoded");
+        (*tx).req_set_header("Transfer-Encoding", "chunked");
 
         // Request headers complete.
-        htp_tx_state_request_headers(&mut *tx);
+        (*tx).state_request_headers();
 
         // Send request body.
-        htp_tx_req_process_body_data(&mut *tx, "p=1");
-        htp_tx_req_process_body_data(&mut *tx, "&");
-        htp_tx_req_process_body_data(&mut *tx, "q=2");
+        (*tx).req_process_body_data("p=1");
+        (*tx).req_process_body_data("&");
+        (*tx).req_process_body_data("q=2");
 
         // Request complete.
-        htp_tx_state_request_complete(&mut *tx);
+        (*tx).state_request_complete();
 
         // Check the parameters.
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -595,13 +584,13 @@ fn RequestLineParsing1() {
         assert!(!tx.is_null());
 
         // Request begins
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
 
         // Request line data
-        htp_tx_req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0");
+        (*tx).req_set_line("GET /?p=1&q=2 HTTP/1.0");
 
         // Request line complete
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_line();
 
         assert!((*(*tx).request_method).eq("GET"));
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
@@ -631,9 +620,9 @@ fn RequestLineParsing2() {
 
         // Feed data to the parser.
 
-        htp_tx_state_request_start(&mut *tx);
-        htp_tx_req_set_line(&mut *tx, "GET /");
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_start();
+        (*tx).req_set_line("GET /");
+        (*tx).state_request_line();
 
         // Check the results now.
 
@@ -654,9 +643,9 @@ fn RequestLineParsing3() {
 
         // Feed data to the parser.
 
-        htp_tx_state_request_start(&mut *tx);
-        htp_tx_req_set_line(&mut *tx, "GET / HTTP  / 01.1");
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_start();
+        (*tx).req_set_line("GET / HTTP  / 01.1");
+        (*tx).state_request_line();
 
         // Check the results now.
 
@@ -677,9 +666,9 @@ fn RequestLineParsing4() {
 
         // Feed data to the parser.
 
-        htp_tx_state_request_start(&mut *tx);
-        htp_tx_req_set_line(&mut *tx, "GET / HTTP  / 01.10");
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_start();
+        (*tx).req_set_line("GET / HTTP  / 01.10");
+        (*tx).state_request_line();
 
         // Check the results now.
 
@@ -699,15 +688,15 @@ fn ParsedUriSupplied() {
 
         // Feed data to the parser.
 
-        htp_tx_state_request_start(&mut *tx);
-        htp_tx_req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0");
+        (*tx).state_request_start();
+        (*tx).req_set_line("GET /?p=1&q=2 HTTP/1.0");
 
         //htp_uri_t *u = htp_uri_alloc();
         let u = htp_uri_alloc();
         (*u).path = bstr_dup_str("/123");
-        htp_tx_req_set_parsed_uri(&mut *tx, u);
+        (*tx).req_set_parsed_uri(u);
 
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_line();
 
         // Check the results now.
 
@@ -734,23 +723,20 @@ fn TestRepeatCallbacks() {
         assert!(!tx.is_null());
 
         // Configure user data and callbacks
-        htp_tx_set_user_data(
-            &mut *tx,
-            &mut t.user_data as *mut _ as *mut core::ffi::c_void,
-        );
+        (*tx).set_user_data(&mut t.user_data as *mut _ as *mut core::ffi::c_void);
 
         // Request callbacks
         t.register_user_callbacks();
 
         // Request begins
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        htp_tx_req_set_line(&mut *tx, "GET / HTTP/1.0");
+        (*tx).req_set_line("GET / HTTP/1.0");
 
         // Request line complete
-        htp_tx_state_request_line(&mut *tx);
+        (*tx).state_request_line();
         assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
 
         // Check request line data
@@ -767,33 +753,33 @@ fn TestRepeatCallbacks() {
         assert!((*(*(*tx).parsed_uri).path).eq("/"));
 
         // Request headers complete
-        htp_tx_state_request_headers(&mut *tx);
+        (*tx).state_request_headers();
         assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
 
         // Request complete
-        htp_tx_state_request_complete(&mut *tx);
+        (*tx).state_request_complete();
         assert_eq!(1, t.user_data.callback_REQUEST_COMPLETE_invoked);
 
         // Response begins
-        htp_tx_state_response_start(&mut *tx);
+        (*tx).state_response_start();
         assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
 
         // Response line data
-        htp_tx_res_set_status_line(&mut *tx, "HTTP/1.1 200 OK\r\n");
+        (*tx).res_set_status_line("HTTP/1.1 200 OK\r\n");
 
         // Response line complete
-        htp_tx_state_response_line(&mut *tx);
+        (*tx).state_response_line();
         assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
 
         // Response headers complete
-        htp_tx_state_response_headers(&mut *tx);
+        (*tx).state_response_headers();
         assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
 
         // Response complete
-        htp_tx_state_response_complete(&mut *tx);
+        (*tx).state_response_complete();
         assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
 
-        assert_eq!(htp_tx_destroy(&mut *tx), Status::OK);
+        assert_eq!((*tx).destroy(), Status::OK);
 
         // Close connection
         t.close_conn_parser();
@@ -820,12 +806,12 @@ fn DeleteTransactionBeforeComplete() {
         assert!(!tx.is_null());
 
         // Request begins
-        htp_tx_state_request_start(&mut *tx);
+        (*tx).state_request_start();
 
         // Request line data
-        htp_tx_req_set_line(&mut *tx, "GET / HTTP/1.0");
+        (*tx).req_set_line("GET / HTTP/1.0");
 
-        assert_eq!(htp_tx_destroy(&mut *tx), Status::ERROR);
+        assert_eq!((*tx).destroy(), Status::ERROR);
 
         // Close connection
         t.close_conn_parser();
@@ -841,14 +827,14 @@ fn ResponseLineIncomplete() {
         let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
 
         assert!(!tx.is_null());
-        htp_tx_state_response_start(&mut *tx);
-        htp_tx_res_set_status_line(&mut *tx, "HTTP/1.1");
+        (*tx).state_response_start();
+        (*tx).res_set_status_line("HTTP/1.1");
         assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.is_null());
         assert_eq!(-1, (*tx).response_status_number);
         assert!((*tx).response_message.is_null());
-        htp_tx_state_response_complete(&mut *tx);
+        (*tx).state_response_complete();
     }
 }
 
@@ -861,13 +847,13 @@ fn ResponseLineIncomplete1() {
         let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
 
         assert!(!tx.is_null());
-        htp_tx_state_response_start(&mut *tx);
-        htp_tx_res_set_status_line(&mut *tx, "HTTP/1.1 200");
+        (*tx).state_response_start();
+        (*tx).res_set_status_line("HTTP/1.1 200");
         assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert_eq!(0, bstr_cmp_str((*tx).response_status, "200"));
         assert_eq!(200, (*tx).response_status_number);
         assert!((*tx).response_message.is_null());
-        htp_tx_state_response_complete(&mut *tx);
+        (*tx).state_response_complete();
     }
 }

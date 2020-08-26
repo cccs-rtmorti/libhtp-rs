@@ -29,7 +29,7 @@ pub unsafe extern "C" fn htp_tx_create(
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_destroy(tx: *mut htp_transaction::htp_tx_t) -> Status {
     if let Some(tx) = tx.as_mut() {
-        htp_transaction::htp_tx_destroy(tx)
+        tx.destroy()
     } else {
         Status::ERROR
     }
@@ -73,7 +73,7 @@ pub unsafe extern "C" fn htp_tx_user_data(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *mut libc::c_void {
     if let Some(tx) = tx.as_ref() {
-        htp_transaction::htp_tx_user_data(tx)
+        tx.user_data()
     } else {
         std::ptr::null_mut()
     }
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn htp_tx_set_user_data(
     user_data: *mut libc::c_void,
 ) {
     if let Some(tx) = tx.as_mut() {
-        htp_transaction::htp_tx_set_user_data(tx, user_data)
+        tx.set_user_data(user_data)
     }
 }
 
@@ -778,7 +778,7 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     if let Some(tx) = tx.as_mut() {
-        htp_transaction::htp_tx_state_request_complete(tx)
+        tx.state_request_complete()
     } else {
         Status::ERROR
     }
@@ -795,7 +795,7 @@ pub unsafe extern "C" fn htp_tx_state_response_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     if let Some(tx) = tx.as_mut() {
-        htp_transaction::htp_tx_state_response_complete(tx)
+        tx.state_response_complete()
     } else {
         Status::ERROR
     }

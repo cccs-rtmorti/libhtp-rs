@@ -164,6 +164,67 @@ impl htp_header_t {
     }
 }
 
+/// Possible states of a progressing transaction. Internally, progress will change
+/// to the next state when the processing activities associated with that state
+/// begin. For example, when we start to process request line bytes, the request
+/// state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
+pub enum htp_tx_res_progress_t {
+    HTP_RESPONSE_NOT_STARTED,
+    HTP_RESPONSE_LINE,
+    HTP_RESPONSE_HEADERS,
+    HTP_RESPONSE_BODY,
+    HTP_RESPONSE_TRAILER,
+    HTP_RESPONSE_COMPLETE,
+    HTP_RESPONSE_ERROR,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+pub enum htp_tx_req_progress_t {
+    HTP_REQUEST_NOT_STARTED,
+    HTP_REQUEST_LINE,
+    HTP_REQUEST_HEADERS,
+    HTP_REQUEST_BODY,
+    HTP_REQUEST_TRAILER,
+    HTP_REQUEST_COMPLETE,
+    HTP_REQUEST_ERROR,
+}
+
+/// Enumerates the possible values for authentication type.
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum htp_auth_type_t {
+    /// This is the default value that is used before
+    /// the presence of authentication is determined (e.g.,
+    /// before request headers are seen).
+    HTP_AUTH_UNKNOWN,
+    /// No authentication.
+    HTP_AUTH_NONE,
+    /// HTTP Basic authentication used.
+    HTP_AUTH_BASIC,
+    /// HTTP Digest authentication used.
+    HTP_AUTH_DIGEST,
+    /// Unrecognized authentication method.
+    HTP_AUTH_UNRECOGNIZED = 9,
+    /// Error retrieving the auth type.
+    HTP_AUTH_ERROR,
+}
+
+/// Protocol version constants
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+pub enum Protocol {
+    ERROR = -3,
+    INVALID = -2,
+    UNKNOWN = -1,
+    V0_9 = 9,
+    V1_0 = 100,
+    V1_1 = 101,
+}
+
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct htp_tx_t {
     /// The connection parser associated with this transaction.
@@ -463,6 +524,1063 @@ impl htp_tx_t {
     pub fn register_request_body_data(&mut self, cbk_fn: DataNativeCallbackFn) {
         self.hook_request_body_data.register(cbk_fn)
     }
+
+    /// Destroys the supplied transaction.
+    pub unsafe fn destroy(&mut self) -> Status {
+        if !self.is_complete() {
+            return Status::ERROR;
+        }
+        // remove the tx from the connection so it will be dropped
+        let _ = (*self.connp).conn.remove_tx(self.index);
+        Status::OK
+    }
+
+    /// Returns the user data associated with this transaction.
+    pub fn user_data(&self) -> *mut core::ffi::c_void {
+        self.user_data
+    }
+
+    /// Associates user data with this transaction.
+    pub fn set_user_data(&mut self, user_data: *mut core::ffi::c_void) {
+        self.user_data = user_data;
+    }
+
+    /// Adds one parameter to the request. THis function will take over the
+    /// responsibility for the provided htp_param_t structure.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// param: Parameter pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Status {
+        if (*self.cfg).parameter_processor.is_some()
+            && (*self.cfg)
+                .parameter_processor
+                .expect("non-null function pointer")(&mut param)
+                != Status::OK
+        {
+            return Status::ERROR;
+        }
+        (*self.request_params).add(param.name.clone(), param);
+        Status::OK
+    }
+
+    /// Determine if the request has a body.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns 1 if there is a body, 0 otherwise.
+    pub unsafe fn req_has_body(&self) -> i32 {
+        if self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_IDENTITY
+            || self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_CHUNKED
+        {
+            return 1;
+        }
+        0
+    }
+
+    /// Set one request header. This function should be invoked once for
+    /// each available header, and in the order in which headers were
+    /// seen in the request.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// name: Name data pointer. Must not be NULL.
+    /// name_len: Name data length.
+    /// value: Value data pointer. Must not be NULL.
+    /// value_len: Value data length.
+    /// alloc: Desired allocation strategy.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    #[allow(dead_code)]
+    pub unsafe fn req_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) -> Status {
+        self.request_headers.add(
+            name.as_ref().into(),
+            htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+        );
+        Status::OK
+    }
+
+    unsafe fn process_request_headers(&mut self) -> Status {
+        // Determine if we have a request body, and how it is packaged.
+        let mut rc: Status = Status::OK;
+        let cl_opt = self.request_headers.get_nocase_nozero("content-length");
+        // Check for the Transfer-Encoding header, which would indicate a chunked request body.
+        if let Some((_, te)) = self.request_headers.get_nocase_nozero("transfer-encoding") {
+            // Make sure it contains "chunked" only.
+            // TODO The HTTP/1.1 RFC also allows the T-E header to contain "identity", which
+            //      presumably should have the same effect as T-E header absence. However, Apache
+            //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
+            //      And it behaves strangely, too, sending a 501 and proceeding to process the request
+            //      (e.g., PHP is run), but without the body. It then closes the connection.
+            if te.value.cmp_nocase("chunked") != Ordering::Equal {
+                // Invalid T-E header value.
+                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
+                self.flags |= Flags::HTP_REQUEST_INVALID_T_E;
+                self.flags |= Flags::HTP_REQUEST_INVALID
+            } else {
+                // Chunked encoding is a HTTP/1.1 feature, so check that an earlier protocol
+                // version is not used. The flag will also be set if the protocol could not be parsed.
+                //
+                // TODO IIS 7.0, for example, would ignore the T-E header when it
+                //      it is used with a protocol below HTTP 1.1. This should be a
+                //      personality trait.
+                if self.request_protocol_number < Protocol::V1_1 {
+                    self.flags |= Flags::HTP_REQUEST_INVALID_T_E;
+                    self.flags |= Flags::HTP_REQUEST_SMUGGLING;
+                }
+                // If the T-E header is present we are going to use it.
+                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_CHUNKED;
+                // We are still going to check for the presence of C-L.
+                if cl_opt.is_some() {
+                    // According to the HTTP/1.1 RFC (section 4.4):
+                    //
+                    // "The Content-Length header field MUST NOT be sent
+                    //  if these two lengths are different (i.e., if a Transfer-Encoding
+                    //  header field is present). If a message is received with both a
+                    //  Transfer-Encoding header field and a Content-Length header field,
+                    //  the latter MUST be ignored."
+                    //
+                    self.flags |= Flags::HTP_REQUEST_SMUGGLING
+                }
+            }
+        } else if let Some((_, cl)) = cl_opt {
+            // Check for a folded C-L header.
+            if cl.flags.contains(Flags::HTP_FIELD_FOLDED) {
+                self.flags |= Flags::HTP_REQUEST_SMUGGLING
+            }
+            // Check for multiple C-L headers.
+            if cl.flags.contains(Flags::HTP_FIELD_REPEATED) {
+                self.flags |= Flags::HTP_REQUEST_SMUGGLING
+                // TODO Personality trait to determine which C-L header to parse.
+                //      At the moment we're parsing the combination of all instances,
+                //      which is bound to fail (because it will contain commas).
+            }
+            // Get the body length.
+            if let Some(content_length) = htp_util::htp_parse_content_length(
+                (*(*cl).value).as_slice(),
+                Some(&mut *self.connp),
+            ) {
+                // We have a request body of known length.
+                self.request_content_length = content_length;
+                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
+            } else {
+                self.request_content_length = -1;
+                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
+                self.flags |= Flags::HTP_REQUEST_INVALID_C_L;
+                self.flags |= Flags::HTP_REQUEST_INVALID
+            }
+        } else {
+            // No body.
+            self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_NO_BODY
+        }
+        // If we could not determine the correct body handling,
+        // consider the request invalid.
+        if self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_UNKNOWN {
+            self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
+            self.flags |= Flags::HTP_REQUEST_INVALID
+        }
+        // Check for PUT requests, which we need to treat as file uploads.
+        if self.request_method_number == htp_request::htp_method_t::HTP_M_PUT
+            && self.req_has_body() != 0
+        {
+            // Prepare to treat PUT request body as a file.
+            (*self.connp).put_file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
+                as *mut htp_util::htp_file_t;
+            if (*self.connp).put_file.is_null() {
+                return Status::ERROR;
+            }
+            (*(*self.connp).put_file).fd = -1;
+            (*(*self.connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
+        }
+        // Determine hostname.
+        // Use the hostname from the URI, when available.
+        if !(*self.parsed_uri).hostname.is_null() {
+            self.request_hostname = bstr::bstr_dup((*self.parsed_uri).hostname);
+            if self.request_hostname.is_null() {
+                return Status::ERROR;
+            }
+        }
+        self.request_port_number = (*self.parsed_uri).port_number;
+        // Examine the Host header.
+        if let Some((_, header)) = self.request_headers.get_nocase_nozero_mut("host") {
+            // Host information available in the headers.
+            if let Ok((_, (hostname, port_nmb, valid))) =
+                htp_util::htp_parse_hostport(&mut header.value)
+            {
+                if !valid {
+                    self.flags |= Flags::HTP_HOSTH_INVALID
+                }
+                // The host information in the headers is valid.
+                // Is there host information in the URI?
+                if self.request_hostname.is_null() {
+                    // There is no host information in the URI. Place the
+                    // hostname from the headers into the parsed_uri structure.
+                    self.request_hostname = bstr::bstr_dup_str(hostname);
+                    bstr::bstr_to_lowercase(self.request_hostname);
+                    if let Some((_, Some(port))) = port_nmb {
+                        self.request_port_number = port as i32;
+                    }
+                } else {
+                    // The host information appears in the URI and in the headers. The
+                    // HTTP RFC states that we should ignore the header copy.
+                    // Check for different hostnames.
+                    if (*self.request_hostname).cmp_nocase(hostname) != Ordering::Equal {
+                        self.flags |= Flags::HTP_HOST_AMBIGUOUS
+                    }
+                    if let Some((_, Some(port))) = port_nmb {
+                        // Check for different ports.
+                        if self.request_port_number != -1 && self.request_port_number != port as i32
+                        {
+                            self.flags |= Flags::HTP_HOST_AMBIGUOUS
+                        }
+                    }
+                }
+            } else if !self.request_hostname.is_null() {
+                // Invalid host information in the headers.
+                // Raise the flag, even though the host information in the headers is invalid.
+                self.flags |= Flags::HTP_HOST_AMBIGUOUS
+            }
+        } else {
+            // No host information in the headers.
+            // HTTP/1.1 requires host information in the headers.
+            if self.request_protocol_number >= Protocol::V1_1 {
+                self.flags |= Flags::HTP_HOST_MISSING
+            }
+        }
+        // Determine Content-Type.
+        if let Some((_, ct)) = self.request_headers.get_nocase_nozero("content-type") {
+            if self.request_content_type.is_null() {
+                self.request_content_type = bstr::bstr_alloc(0);
+                if self.request_content_type.is_null() {
+                    return Status::ERROR;
+                }
+            }
+
+            rc = htp_util::htp_parse_ct_header(&ct.value, &mut *self.request_content_type);
+            if rc != Status::OK {
+                return rc;
+            }
+        }
+        // Parse cookies.
+        if (*(*self.connp).cfg).parse_request_cookies != 0 {
+            rc = htp_cookies::htp_parse_cookies_v0((*self.connp).in_tx_mut());
+            if rc != Status::OK {
+                return rc;
+            }
+        }
+        // Parse authentication information.
+        if (*(*self.connp).cfg).parse_request_auth != 0 {
+            rc = htp_parsers::htp_parse_authorization(self.connp);
+            if rc == Status::DECLINED {
+                // Don't fail the stream if an authorization header is invalid, just set a flag.
+                self.flags |= Flags::HTP_AUTH_INVALID
+            } else if rc != Status::OK {
+                return rc;
+            }
+        }
+        // Finalize sending raw header data.
+        rc = htp_request::htp_connp_req_receiver_finalize_clear(self.connp);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Run hook REQUEST_HEADERS.
+        rc = (*(*self.connp).cfg).hook_request_headers.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // We cannot proceed if the request is invalid.
+        if self.flags.contains(Flags::HTP_REQUEST_INVALID) {
+            return Status::ERROR;
+        }
+        Status::OK
+    }
+
+    /// Process a chunk of request body data. This function assumes that
+    /// handling of chunked encoding is implemented by the container. When
+    /// you're done submitting body data, invoke a state change (to REQUEST)
+    /// to finalize any processing that might be pending. The supplied data is
+    /// fully consumed and there is no expectation that it will be available
+    /// afterwards. The protocol parsing code makes no copies of the data,
+    /// but some parsers might.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// data: Data pointer. Must not be NULL.
+    /// len: Data length.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    #[allow(dead_code)]
+    pub unsafe fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Status {
+        if data.as_ref().len() == 0 {
+            return Status::OK;
+        }
+        self.req_process_body_data_ex(
+            data.as_ref().as_ptr() as *const core::ffi::c_void,
+            data.as_ref().len(),
+        )
+    }
+
+    pub unsafe fn req_process_body_data_ex(
+        &mut self,
+        data: *const core::ffi::c_void,
+        len: usize,
+    ) -> Status {
+        // NULL data is allowed in this private function; it's
+        // used to indicate the end of request body.
+        // Keep track of the body length.
+        self.request_entity_len = (self.request_entity_len as u64).wrapping_add(len as u64) as i64;
+        // Send data to the callbacks.
+        let mut data = htp_tx_data_t::new(self, data as *mut u8, len, false);
+        let rc: Status = htp_util::htp_req_run_hook_body_data(self.connp, &mut data);
+        if rc != Status::OK {
+            htp_error!(
+                self.connp,
+                htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                format!("Request body data callback returned error ({:?})", rc)
+            );
+            return Status::ERROR;
+        }
+        Status::OK
+    }
+
+    /// Set request line. When used, this function should always be called first,
+    /// with more specific functions following. Must not contain line terminators.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// line: Line data pointer. Must not be NULL.
+    /// line_len: Line data length.
+    /// alloc: Desired allocation strategy.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    #[allow(dead_code)]
+    pub unsafe fn req_set_line<S: AsRef<[u8]>>(&mut self, line: S) -> Status {
+        self.request_line = bstr::bstr_dup_str(line);
+        if self.request_line.is_null() {
+            return Status::ERROR;
+        }
+        if (*self.connp).parse_request_line() != Status::OK {
+            return Status::ERROR;
+        }
+        Status::OK
+    }
+
+    /// Set parsed request URI. You don't need to use this function if you are already providing
+    /// the request line or request URI. But if your container already has this data available,
+    /// feeding it to LibHTP will minimize any potential data differences. This function assumes
+    /// management of the data provided in parsed_uri. This function will not change htp_tx_t::parsed_uri_raw
+    /// (which may have data in it from the parsing of the request URI).
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// parsed_uri: URI pointer. Must not be NULL.
+    #[allow(dead_code)]
+    pub unsafe fn req_set_parsed_uri(&mut self, parsed_uri: *mut htp_util::htp_uri_t) {
+        if parsed_uri.is_null() {
+            return;
+        }
+        if !self.parsed_uri.is_null() {
+            htp_util::htp_uri_free(self.parsed_uri);
+        }
+        self.parsed_uri = parsed_uri;
+    }
+
+    /// Set response line. Use this function is you have a single buffer containing
+    /// the entire line. If you have individual request line pieces, use the other
+    /// available functions.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// line: Line data pointer. Must not be NULL.
+    /// line_len: Line data length.
+    /// alloc: Desired allocation strategy.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    #[allow(dead_code)]
+    pub unsafe fn res_set_status_line<S: AsRef<[u8]>>(&mut self, line: S) -> Status {
+        self.response_line = bstr::bstr_dup_str(line);
+        if self.response_line.is_null() {
+            return Status::ERROR;
+        }
+        if (*self.connp).parse_response_line() != Status::OK {
+            return Status::ERROR;
+        }
+        Status::OK
+    }
+
+    /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_response_line(&mut self) -> Status {
+        // Is the response line valid?
+        let connp = self.connp;
+        if self.response_protocol_number == Protocol::INVALID {
+            htp_warn!(
+                connp,
+                htp_log_code::RESPONSE_LINE_INVALID_PROTOCOL,
+                "Invalid response line: invalid protocol"
+            );
+            self.flags |= Flags::HTP_STATUS_LINE_INVALID
+        }
+        if self.response_status_number == -1
+            || self.response_status_number < 100
+            || self.response_status_number > 999
+        {
+            htp_warn!(
+                connp,
+                htp_log_code::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
+                format!(
+                    "Invalid response line: invalid response status {}.",
+                    self.response_status_number
+                )
+            );
+            self.response_status_number = -1;
+            self.flags |= Flags::HTP_STATUS_LINE_INVALID
+        }
+        // Run hook HTP_RESPONSE_LINE
+        let rc = (*(*self.connp).cfg).hook_response_line.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        Status::OK
+    }
+
+    /// Set one response header. This function should be invoked once for
+    /// each available header, and in the order in which headers were
+    /// seen in the response.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// name: Name data pointer. Must not be NULL.
+    /// name_len: Name data length.
+    /// value: Value data pointer. Must not be NULL.
+    /// value_len: Value length.
+    /// alloc: Desired allocation strategy.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    pub unsafe fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) -> Status {
+        self.response_headers.add(
+            name.as_ref().into(),
+            htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+        );
+        Status::OK
+    }
+
+    /// Process a chunk of response body data. This function assumes that
+    /// handling of chunked encoding is implemented by the container. When
+    /// you're done submitting body data, invoking a state change (to RESPONSE)
+    /// will finalize any processing that might be pending.
+    ///
+    /// The response body data will be decompressed if two conditions are met: one,
+    /// decompression is enabled in configuration and two, if the response headers
+    /// indicate compression. Alternatively, you can control decompression from
+    /// a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
+    /// to COMPRESSION_NONE (to disable compression), or to one of the supported
+    /// decompression algorithms.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    /// data: Data pointer. Must not be NULL.
+    /// len: Data length.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    #[allow(dead_code)]
+    pub unsafe fn res_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Status {
+        if data.as_ref().len() == 0 {
+            return Status::OK;
+        }
+        self.res_process_body_data_ex(
+            data.as_ref().as_ptr() as *const core::ffi::c_void,
+            data.as_ref().len(),
+        )
+    }
+
+    pub unsafe fn res_process_body_data_ex(
+        &mut self,
+        data: *const core::ffi::c_void,
+        len: usize,
+    ) -> Status {
+        // NULL data is allowed in this private function; it's
+        // used to indicate the end of response body.
+        let mut d = htp_tx_data_t::new(self, data as *const u8, len, false);
+        // Keep track of body size before decompression.
+        self.response_message_len =
+            (self.response_message_len as u64).wrapping_add(d.len as u64) as i64;
+        let mut rc: Status = Status::DECLINED;
+        let connp = self.connp;
+        match self.response_content_encoding_processing as u32 {
+            2 | 3 | 4 => {
+                // In severe memory stress these could be NULL
+                if (*connp).out_decompressor.is_null()
+                    || (*(*connp).out_decompressor).decompress.is_none()
+                {
+                    return Status::ERROR;
+                }
+                let mut after: libc::timeval = libc::timeval {
+                    tv_sec: 0,
+                    tv_usec: 0,
+                };
+                libc::gettimeofday(
+                    &mut (*(*connp).out_decompressor).time_before,
+                    0 as *mut libc::timezone,
+                );
+                // Send data buffer to the decompressor.
+                (*(*connp).out_decompressor)
+                    .decompress
+                    .expect("non-null function pointer")(
+                    (*connp).out_decompressor, &mut d
+                );
+                libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
+                // sanity check for race condition if system time changed
+                if htp_timer_track(
+                    &mut (*(*connp).out_decompressor).time_spent,
+                    &mut after,
+                    &mut (*(*connp).out_decompressor).time_before,
+                ) == Status::OK
+                {
+                    if (*(*connp).out_decompressor).time_spent
+                        > (*(*connp).cfg).compression_time_limit
+                    {
+                        htp_error!(
+                            connp,
+                            htp_log_code::COMPRESSION_BOMB,
+                            format!(
+                                "Compression bomb: spent {} us decompressing",
+                                (*(*self.connp).out_decompressor).time_spent
+                            )
+                        );
+                        return Status::ERROR;
+                    }
+                }
+                if data == 0 as *mut core::ffi::c_void {
+                    // Shut down the decompressor, if we used one.
+                    (*self.connp).destroy_decompressors();
+                }
+            }
+            1 => {
+                // When there's no decompression, response_entity_len.
+                // is identical to response_message_len.
+                self.response_entity_len =
+                    (self.response_entity_len as u64).wrapping_add(d.len as u64) as i64;
+                rc = htp_util::htp_res_run_hook_body_data(self.connp, &mut d);
+                if rc != Status::OK {
+                    return Status::ERROR;
+                }
+            }
+            _ => {
+                // Internal error.
+                htp_error!(
+                    connp,
+                    htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
+                    format!(
+                    "[Internal Error] Invalid tx->response_content_encoding_processing value: {:?}",
+                    self.response_content_encoding_processing
+                )
+                );
+                return Status::ERROR;
+            }
+        }
+        Status::OK
+    }
+
+    pub unsafe fn state_request_complete_partial(&mut self) -> Status {
+        // Finalize request body.
+        if self.req_has_body() != 0 {
+            let rc: Status = self.req_process_body_data_ex(0 as *const core::ffi::c_void, 0);
+            if rc != Status::OK {
+                return rc;
+            }
+        }
+        self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
+        // Run hook REQUEST_COMPLETE.
+        let rc_0 = (*(*self.connp).cfg).hook_request_complete.run_all(self);
+        if rc_0 != Status::OK {
+            return rc_0;
+        }
+        // Clean-up.
+        if !(*self.connp).put_file.is_null() {
+            bstr::bstr_free((*(*self.connp).put_file).filename);
+            free((*self.connp).put_file as *mut core::ffi::c_void);
+            (*self.connp).put_file = 0 as *mut htp_util::htp_file_t
+        }
+        Status::OK
+    }
+
+    /// Change transaction state to REQUEST and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_complete(&mut self) -> Status {
+        if self.request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE {
+            let rc: Status = self.state_request_complete_partial();
+            if rc != Status::OK {
+                return rc;
+            }
+        }
+        // Make a copy of the connection parser pointer, so that
+        // we don't have to reference it via tx, which may be
+        // destroyed later.
+        let connp: *mut htp_connection_parser::htp_connp_t = self.connp;
+        // Determine what happens next, and remove this transaction from the parser.
+        if self.is_protocol_0_9 != 0 {
+            (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
+        } else {
+            (*connp).in_state = State::IDLE;
+        }
+        // Check if the entire transaction is complete. This call may
+        // destroy the transaction, if auto-destroy is enabled.
+        self.finalize();
+        // At this point, tx may no longer be valid.
+        (*connp).clear_in_tx();
+        Status::OK
+    }
+
+    /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
+    /// and invoke all registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_start(&mut self) -> Status {
+        // Run hook REQUEST_START.
+        let rc: Status = (*(*self.connp).cfg).hook_request_start.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Change state into request line parsing.
+        (*self.connp).in_state = State::LINE;
+        self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
+        Status::OK
+    }
+
+    /// Change transaction state to REQUEST_HEADERS and invoke all
+    /// registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_headers(&mut self) -> Status {
+        // If we're in HTP_REQ_HEADERS that means that this is the
+        // first time we're processing headers in a request. Otherwise,
+        // we're dealing with trailing headers.
+        if self.request_progress > htp_tx_req_progress_t::HTP_REQUEST_HEADERS {
+            // Request trailers.
+            // Run hook HTP_REQUEST_TRAILER.
+            let mut rc: Status = (*(*self.connp).cfg).hook_request_trailer.run_all(self);
+            if rc != Status::OK {
+                return rc;
+            }
+            // Finalize sending raw header data.
+            rc = htp_request::htp_connp_req_receiver_finalize_clear(self.connp);
+            if rc != Status::OK {
+                return rc;
+            }
+            // Completed parsing this request; finalize it now.
+            (*self.connp).in_state = State::FINALIZE;
+        } else if self.request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {
+            // Request headers.
+            // Did this request arrive in multiple data chunks?
+            if (*self.connp).in_chunk_count != (*self.connp).in_chunk_request_index {
+                self.flags |= Flags::HTP_MULTI_PACKET_HEAD
+            }
+            let rc_0: Status = self.process_request_headers();
+            if rc_0 != Status::OK {
+                return rc_0;
+            }
+            (*self.connp).in_state = State::CONNECT_CHECK;
+        } else {
+            htp_warn!(
+                self.connp,
+                htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
+                format!(
+                    "[Internal Error] Invalid tx progress: {:?}",
+                    self.request_progress
+                )
+            );
+            return Status::ERROR;
+        }
+        Status::OK
+    }
+
+    /// Change transaction state to REQUEST_LINE and invoke all
+    /// registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_request_line(&mut self) -> Status {
+        // Determine how to process the request URI.
+        if self.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
+            // When CONNECT is used, the request URI contains an authority string.
+            if self.request_uri.is_null() || self.parsed_uri_raw.is_null() {
+                return Status::ERROR;
+            }
+            if htp_util::htp_parse_uri_hostport(
+                &mut *self.request_uri,
+                &mut *self.parsed_uri_raw,
+                &mut self.flags,
+            ) != Status::OK
+            {
+                return Status::ERROR;
+            }
+        } else if htp_util::htp_parse_uri(self.request_uri, &mut self.parsed_uri_raw) != Status::OK
+        {
+            return Status::ERROR;
+        }
+        // Parse the request URI into htp_tx_t::parsed_uri_raw.
+        // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
+        if self.parsed_uri.is_null() {
+            self.parsed_uri = htp_util::htp_uri_alloc();
+            if self.parsed_uri.is_null() {
+                return Status::ERROR;
+            }
+            // Keep the original URI components, but create a copy which we can normalize and use internally.
+            if htp_util::htp_normalize_parsed_uri(self, self.parsed_uri_raw, self.parsed_uri) != 1 {
+                return Status::ERROR;
+            }
+        }
+        // Check parsed_uri hostname.
+        if !(*self.parsed_uri).hostname.is_null()
+            && !htp_util::htp_validate_hostname((*(*self.parsed_uri).hostname).as_slice())
+        {
+            self.flags |= Flags::HTP_HOSTU_INVALID
+        }
+        // Run hook REQUEST_URI_NORMALIZE.
+        let mut rc: Status = (*(*self.connp).cfg)
+            .hook_request_uri_normalize
+            .run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Run hook REQUEST_LINE.
+        rc = (*(*self.connp).cfg).hook_request_line.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Move on to the next phase.
+        (*self.connp).in_state = State::PROTOCOL;
+        Status::OK
+    }
+
+    /// Change transaction state to RESPONSE and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_response_complete(&mut self) -> Status {
+        self.state_response_complete_ex(1)
+    }
+
+    pub unsafe fn finalize(&mut self) -> Status {
+        if !self.is_complete() {
+            return Status::OK;
+        }
+        // Run hook TRANSACTION_COMPLETE.
+        let rc: Status = (*(*self.connp).cfg).hook_transaction_complete.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // In streaming processing, we destroy the transaction because it will not be needed any more.
+        if (*(*self.connp).cfg).tx_auto_destroy != 0 {
+            self.destroy();
+        }
+        Status::OK
+    }
+
+    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Status {
+        if self.response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE {
+            self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE;
+            // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
+            if self.response_transfer_coding != htp_transfer_coding_t::HTP_CODING_NO_BODY {
+                self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
+            }
+            // Run hook RESPONSE_COMPLETE.
+            let rc: Status = (*(*self.connp).cfg).hook_response_complete.run_all(self);
+            if rc != Status::OK {
+                return rc;
+            }
+        }
+        if hybrid_mode == 0 {
+            // Check if the inbound parser is waiting on us. If it is, that means that
+            // there might be request data that the inbound parser hasn't consumed yet.
+            // If we don't stop parsing we might encounter a response without a request,
+            // which is why we want to return straight away before processing any data.
+            //
+            // This situation will occur any time the parser needs to see the server
+            // respond to a particular situation before it can decide how to proceed. For
+            // example, when a CONNECT is sent, different paths are used when it is accepted
+            // and when it is not accepted.
+            //
+            // It is not enough to check only in_status here. Because of pipelining, it's possible
+            // that many inbound transactions have been processed, and that the parser is
+            // waiting on a response that we have not seen yet.
+            if (*self.connp).in_status
+                == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
+                && (*self.connp).in_tx() == (*self.connp).out_tx()
+            {
+                return Status::DATA_OTHER;
+            }
+            // Do we have a signal to yield to inbound processing at
+            // the end of the next transaction?
+            if (*self.connp).out_data_other_at_tx_end != 0 {
+                // We do. Let's yield then.
+                (*self.connp).out_data_other_at_tx_end = 0;
+                return Status::DATA_OTHER;
+            }
+        }
+        // Make a copy of the connection parser pointer, so that
+        // we don't have to reference it via tx, which may be destroyed later.
+        let connp: *mut htp_connection_parser::htp_connp_t = self.connp;
+        // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
+        let rc_0: Status = self.finalize();
+        if rc_0 != Status::OK {
+            return rc_0;
+        }
+        // Disconnect transaction from the parser.
+        (*connp).clear_out_tx();
+        (*connp).out_state = State::IDLE;
+        Status::OK
+    }
+
+    /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_response_headers(&mut self) -> Status {
+        // Check for compression.
+        // Determine content encoding.
+        let mut ce_multi_comp: i32 = 0;
+        self.response_content_encoding =
+            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+        if let Some((_, ce)) = self.response_headers.get_nocase_nozero("content-encoding") {
+            // fast paths: regular gzip and friends
+            if ce.value.cmp_nocase_nozero("gzip") == Ordering::Equal
+                || ce.value.cmp_nocase_nozero("x-gzip") == Ordering::Equal
+            {
+                self.response_content_encoding =
+                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+            } else if ce.value.cmp_nocase_nozero("deflate") == Ordering::Equal
+                || ce.value.cmp_nocase_nozero("x-deflate") == Ordering::Equal
+            {
+                self.response_content_encoding =
+                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+            } else if ce.value.cmp_nocase_nozero("lzma") == Ordering::Equal {
+                self.response_content_encoding =
+                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+            } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
+                // exceptional cases: enter slow path
+                ce_multi_comp = 1
+            }
+        }
+        // Configure decompression, if enabled in the configuration.
+        if (*(*self.connp).cfg).response_decompression_enabled {
+            self.response_content_encoding_processing = self.response_content_encoding
+        } else {
+            self.response_content_encoding_processing =
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+            ce_multi_comp = 0
+        }
+        // Finalize sending raw header data.
+        let mut rc: Status = htp_response::htp_connp_res_receiver_finalize_clear(self.connp);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Run hook RESPONSE_HEADERS.
+        rc = (*(*self.connp).cfg).hook_response_headers.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Initialize the decompression engine as necessary. We can deal with three
+        // scenarios:
+        //
+        // 1. Decompression is enabled, compression indicated in headers, and we decompress.
+        //
+        // 2. As above, but the user disables decompression by setting response_content_encoding
+        //    to COMPRESSION_NONE.
+        //
+        // 3. Decompression is disabled and we do not attempt to enable it, but the user
+        //    forces decompression by setting response_content_encoding to one of the
+        //    supported algorithms.
+        if self.response_content_encoding_processing
+            == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+            || self.response_content_encoding_processing
+                == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+            || self.response_content_encoding_processing
+                == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+            || ce_multi_comp != 0
+        {
+            if !(*self.connp).out_decompressor.is_null() {
+                (*self.connp).destroy_decompressors();
+            }
+            // normal case
+            if ce_multi_comp == 0 {
+                (*self.connp).out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
+                    self.connp,
+                    self.response_content_encoding_processing,
+                );
+                if (*self.connp).out_decompressor.is_null() {
+                    return Status::ERROR;
+                }
+                (*(*self.connp).out_decompressor).callback = Some(
+                    htp_tx_res_process_body_data_decompressor_callback
+                        as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
+                )
+            // multiple ce value case
+            } else if let Some((_, ce)) =
+                self.response_headers.get_nocase_nozero("content-encoding")
+            {
+                let mut layers: i32 = 0;
+                let mut comp: *mut htp_decompressors::htp_decompressor_t =
+                    0 as *mut htp_decompressors::htp_decompressor_t;
+                let tokens = ce.value.split_str_collect(", ");
+                let connp = self.connp;
+                for tok in tokens {
+                    let token = bstr::bstr_t::from(tok);
+                    let mut cetype: htp_decompressors::htp_content_encoding_t =
+                        htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+                    // check depth limit (0 means no limit)
+                    if (*(*connp).cfg).response_decompression_layer_limit != 0 && {
+                        layers += 1;
+                        (layers) > (*(*connp).cfg).response_decompression_layer_limit
+                    } {
+                        htp_warn!(
+                            connp,
+                            htp_log_code::TOO_MANY_ENCODING_LAYERS,
+                            "Too many response content encoding layers"
+                        );
+                        break;
+                    } else {
+                        if token.index_of_nocase("gzip").is_some() {
+                            if !(token.cmp("gzip") == Ordering::Equal
+                                || token.cmp("x-gzip") == Ordering::Equal)
+                            {
+                                htp_warn!(
+                                    connp,
+                                    htp_log_code::ABNORMAL_CE_HEADER,
+                                    "C-E gzip has abnormal value"
+                                );
+                            }
+                            cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+                        } else if token.index_of_nocase("deflate").is_some() {
+                            if !(token.cmp("deflate") == Ordering::Equal
+                                || token.cmp("x-deflate") == Ordering::Equal)
+                            {
+                                htp_warn!(
+                                    connp,
+                                    htp_log_code::ABNORMAL_CE_HEADER,
+                                    "C-E deflate has abnormal value"
+                                );
+                            }
+                            cetype =
+                                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                        } else if token.index_of_nocase("lzma").is_some() {
+                            cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                        } else if token.index_of_nocase("inflate").is_some() {
+                            cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+                        } else {
+                            // continue
+                            htp_warn!(
+                                connp,
+                                htp_log_code::ABNORMAL_CE_HEADER,
+                                "C-E unknown setting"
+                            );
+                        }
+                        if cetype != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+                        {
+                            if comp.is_null() {
+                                self.response_content_encoding_processing = cetype;
+                                (*self.connp).out_decompressor =
+                                    htp_decompressors::htp_gzip_decompressor_create(
+                                        self.connp,
+                                        self.response_content_encoding_processing,
+                                    );
+                                if (*self.connp).out_decompressor.is_null() {
+                                    return Status::ERROR;
+                                }
+                                (*(*self.connp).out_decompressor).callback = Some(
+                                    htp_tx_res_process_body_data_decompressor_callback
+                                        as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
+                                );
+                                comp = (*self.connp).out_decompressor
+                            } else {
+                                (*comp).next = htp_decompressors::htp_gzip_decompressor_create(
+                                    self.connp, cetype,
+                                );
+                                if (*comp).next.is_null() {
+                                    return Status::ERROR;
+                                }
+                                (*(*comp).next).callback = Some(
+                                    htp_tx_res_process_body_data_decompressor_callback
+                                        as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
+                                );
+                                comp = (*comp).next
+                            }
+                        }
+                    }
+                }
+            }
+        } else if self.response_content_encoding_processing
+            != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+        {
+            return Status::ERROR;
+        }
+        Status::OK
+    }
+
+    /// Change transaction state to RESPONSE_START and invoke registered callbacks.
+    ///
+    /// tx: Transaction pointer. Must not be NULL.
+    ///
+    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    ///         callbacks does not want to follow the transaction any more.
+    pub unsafe fn state_response_start(&mut self) -> Status {
+        (*self.connp).set_out_tx(self);
+        // Run hook RESPONSE_START.
+        let rc: Status = (*(*self.connp).cfg).hook_response_start.run_all(self);
+        if rc != Status::OK {
+            return rc;
+        }
+        // Change state into response line parsing, except if we're following
+        // a HTTP/0.9 request (no status line or response headers).
+        if self.is_protocol_0_9 != 0 {
+            self.response_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY;
+            self.response_content_encoding_processing =
+                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+            self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
+            (*self.connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
+            (*self.connp).out_body_data_left = -1
+        } else {
+            (*self.connp).out_state = State::LINE;
+            self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
+        }
+        // If at this point we have no method and no uri and our status
+        // is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
+        // or a overly long request
+        if self.request_method.is_null()
+            && self.request_uri.is_null()
+            && (*self.connp).in_state == State::LINE
+        {
+            htp_warn!(
+                self.connp,
+                htp_log_code::REQUEST_LINE_INCOMPLETE,
+                "Request line incomplete"
+            );
+        }
+        Status::OK
+    }
+
+    pub unsafe fn is_complete(&self) -> bool {
+        // A transaction is considered complete only when both the request and
+        // response are complete. (Sometimes a complete response can be seen
+        // even while the request is ongoing.)
+        self.request_progress == htp_tx_req_progress_t::HTP_REQUEST_COMPLETE
+            && self.response_progress == htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
+    }
 }
 
 impl Drop for htp_tx_t {
@@ -515,560 +1633,6 @@ impl PartialEq for htp_tx_t {
     fn eq(&self, other: &Self) -> bool {
         unsafe { (*self.connp).conn == (*other.connp).conn && self.index == other.index }
     }
-}
-
-/// Possible states of a progressing transaction. Internally, progress will change
-/// to the next state when the processing activities associated with that state
-/// begin. For example, when we start to process request line bytes, the request
-/// state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
-pub enum htp_tx_res_progress_t {
-    HTP_RESPONSE_NOT_STARTED,
-    HTP_RESPONSE_LINE,
-    HTP_RESPONSE_HEADERS,
-    HTP_RESPONSE_BODY,
-    HTP_RESPONSE_TRAILER,
-    HTP_RESPONSE_COMPLETE,
-    HTP_RESPONSE_ERROR,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub enum htp_tx_req_progress_t {
-    HTP_REQUEST_NOT_STARTED,
-    HTP_REQUEST_LINE,
-    HTP_REQUEST_HEADERS,
-    HTP_REQUEST_BODY,
-    HTP_REQUEST_TRAILER,
-    HTP_REQUEST_COMPLETE,
-    HTP_REQUEST_ERROR,
-}
-
-/// Enumerates the possible values for authentication type.
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_auth_type_t {
-    /// This is the default value that is used before
-    /// the presence of authentication is determined (e.g.,
-    /// before request headers are seen).
-    HTP_AUTH_UNKNOWN,
-    /// No authentication.
-    HTP_AUTH_NONE,
-    /// HTTP Basic authentication used.
-    HTP_AUTH_BASIC,
-    /// HTTP Digest authentication used.
-    HTP_AUTH_DIGEST,
-    /// Unrecognized authentication method.
-    HTP_AUTH_UNRECOGNIZED = 9,
-    /// Error retrieving the auth type.
-    HTP_AUTH_ERROR,
-}
-
-/// Protocol version constants
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub enum Protocol {
-    ERROR = -3,
-    INVALID = -2,
-    UNKNOWN = -1,
-    V0_9 = 9,
-    V1_0 = 100,
-    V1_1 = 101,
-}
-
-/// Destroys the supplied transaction.
-pub unsafe fn htp_tx_destroy(tx: &mut htp_tx_t) -> Status {
-    if !htp_tx_is_complete(tx) {
-        return Status::ERROR;
-    }
-    // remove the tx from the connection so it will be dropped
-    let _ = (*tx.connp).conn.remove_tx(tx.index);
-    Status::OK
-}
-
-/// Returns the user data associated with this transaction.
-pub fn htp_tx_user_data(tx: &htp_tx_t) -> *mut core::ffi::c_void {
-    tx.user_data
-}
-
-/// Associates user data with this transaction.
-pub fn htp_tx_set_user_data(tx: &mut htp_tx_t, user_data: *mut core::ffi::c_void) {
-    tx.user_data = user_data;
-}
-
-/// Adds one parameter to the request. THis function will take over the
-/// responsibility for the provided htp_param_t structure.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// param: Parameter pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_req_add_param(tx: &mut htp_tx_t, mut param: htp_param_t) -> Status {
-    if (*(*tx).cfg).parameter_processor.is_some()
-        && (*(*tx).cfg)
-            .parameter_processor
-            .expect("non-null function pointer")(&mut param)
-            != Status::OK
-    {
-        return Status::ERROR;
-    }
-    (*(*tx).request_params).add(param.name.clone(), param);
-    Status::OK
-}
-
-/// Returns the first parameter inside the given table that matches the given name, using case-insensitive matching.
-///
-/// Returns htp_param_t instance, or None if parameter not found.
-#[allow(dead_code)]
-pub fn htp_tx_req_get_param<'a, S: AsRef<[u8]>>(
-    params: &'a htp_table::htp_table_t<htp_param_t>,
-    name: S,
-) -> Option<&'a htp_param_t> {
-    if let Some((_, param)) = params.get_nocase(name) {
-        return Some(param);
-    }
-    None
-}
-
-/// Returns the first parameter inside the given table from the given source that matches the given name,
-/// using case-insensitive matching.
-///
-/// Returns htp_param_t instance, or None if parameter not found.
-#[allow(dead_code)]
-pub fn htp_tx_req_get_param_ex<'a, S: AsRef<[u8]>>(
-    params: &'a htp_table::htp_table_t<htp_param_t>,
-    source: htp_data_source_t,
-    name: S,
-) -> Option<&htp_param_t> {
-    if let Some((_, param)) = params.elements.iter().find(|x| {
-        (*x).1.source as u32 == source as u32 && (*x).0.cmp_nocase(name.as_ref()) == Ordering::Equal
-    }) {
-        return Some(&param);
-    }
-    None
-}
-
-/// Determine if the request has a body.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns 1 if there is a body, 0 otherwise.
-pub unsafe fn htp_tx_req_has_body(tx: &htp_tx_t) -> i32 {
-    if (*tx).request_transfer_coding == htp_transfer_coding_t::HTP_CODING_IDENTITY
-        || (*tx).request_transfer_coding == htp_transfer_coding_t::HTP_CODING_CHUNKED
-    {
-        return 1;
-    }
-    0
-}
-
-/// Set one request header. This function should be invoked once for
-/// each available header, and in the order in which headers were
-/// seen in the request.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// name: Name data pointer. Must not be NULL.
-/// name_len: Name data length.
-/// value: Value data pointer. Must not be NULL.
-/// value_len: Value data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-#[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_header<S: AsRef<[u8]>>(
-    tx: &mut htp_tx_t,
-    name: S,
-    value: S,
-) -> Status {
-    (*tx).request_headers.add(
-        name.as_ref().into(),
-        htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
-    );
-    Status::OK
-}
-
-unsafe fn htp_tx_process_request_headers(mut tx: &mut htp_tx_t) -> Status {
-    // Determine if we have a request body, and how it is packaged.
-    let mut rc: Status = Status::OK;
-    let cl_opt = (*tx).request_headers.get_nocase_nozero("content-length");
-    // Check for the Transfer-Encoding header, which would indicate a chunked request body.
-    if let Some((_, te)) = (*tx).request_headers.get_nocase_nozero("transfer-encoding") {
-        // Make sure it contains "chunked" only.
-        // TODO The HTTP/1.1 RFC also allows the T-E header to contain "identity", which
-        //      presumably should have the same effect as T-E header absence. However, Apache
-        //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
-        //      And it behaves strangely, too, sending a 501 and proceeding to process the request
-        //      (e.g., PHP is run), but without the body. It then closes the connection.
-        if te.value.cmp_nocase("chunked") != Ordering::Equal {
-            // Invalid T-E header value.
-            (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
-            (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
-            (*tx).flags |= Flags::HTP_REQUEST_INVALID
-        } else {
-            // Chunked encoding is a HTTP/1.1 feature, so check that an earlier protocol
-            // version is not used. The flag will also be set if the protocol could not be parsed.
-            //
-            // TODO IIS 7.0, for example, would ignore the T-E header when it
-            //      it is used with a protocol below HTTP 1.1. This should be a
-            //      personality trait.
-            if (*tx).request_protocol_number < Protocol::V1_1 {
-                (*tx).flags |= Flags::HTP_REQUEST_INVALID_T_E;
-                (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING;
-            }
-            // If the T-E header is present we are going to use it.
-            (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_CHUNKED;
-            // We are still going to check for the presence of C-L.
-            if cl_opt.is_some() {
-                // According to the HTTP/1.1 RFC (section 4.4):
-                //
-                // "The Content-Length header field MUST NOT be sent
-                //  if these two lengths are different (i.e., if a Transfer-Encoding
-                //  header field is present). If a message is received with both a
-                //  Transfer-Encoding header field and a Content-Length header field,
-                //  the latter MUST be ignored."
-                //
-                (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
-            }
-        }
-    } else if let Some((_, cl)) = cl_opt {
-        // Check for a folded C-L header.
-        if cl.flags.contains(Flags::HTP_FIELD_FOLDED) {
-            (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
-        }
-        // Check for multiple C-L headers.
-        if cl.flags.contains(Flags::HTP_FIELD_REPEATED) {
-            (*tx).flags |= Flags::HTP_REQUEST_SMUGGLING
-            // TODO Personality trait to determine which C-L header to parse.
-            //      At the moment we're parsing the combination of all instances,
-            //      which is bound to fail (because it will contain commas).
-        }
-        // Get the body length.
-        if let Some(content_length) =
-            htp_util::htp_parse_content_length((*(*cl).value).as_slice(), Some(&mut *(*tx).connp))
-        {
-            // We have a request body of known length.
-            (*tx).request_content_length = content_length;
-            (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
-        } else {
-            (*tx).request_content_length = -1;
-            (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
-            (*tx).flags |= Flags::HTP_REQUEST_INVALID_C_L;
-            (*tx).flags |= Flags::HTP_REQUEST_INVALID
-        }
-    } else {
-        // No body.
-        (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_NO_BODY
-    }
-    // If we could not determine the correct body handling,
-    // consider the request invalid.
-    if (*tx).request_transfer_coding == htp_transfer_coding_t::HTP_CODING_UNKNOWN {
-        (*tx).request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
-        (*tx).flags |= Flags::HTP_REQUEST_INVALID
-    }
-    // Check for PUT requests, which we need to treat as file uploads.
-    if (*tx).request_method_number == htp_request::htp_method_t::HTP_M_PUT
-        && htp_tx_req_has_body(tx) != 0
-    {
-        // Prepare to treat PUT request body as a file.
-        (*(*tx).connp).put_file =
-            calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>()) as *mut htp_util::htp_file_t;
-        if (*(*tx).connp).put_file.is_null() {
-            return Status::ERROR;
-        }
-        (*(*(*tx).connp).put_file).fd = -1;
-        (*(*(*tx).connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
-    }
-    // Determine hostname.
-    // Use the hostname from the URI, when available.
-    if !(*(*tx).parsed_uri).hostname.is_null() {
-        (*tx).request_hostname = bstr::bstr_dup((*(*tx).parsed_uri).hostname);
-        if (*tx).request_hostname.is_null() {
-            return Status::ERROR;
-        }
-    }
-    (*tx).request_port_number = (*(*tx).parsed_uri).port_number;
-    // Examine the Host header.
-    if let Some((_, header)) = (*tx).request_headers.get_nocase_nozero_mut("host") {
-        // Host information available in the headers.
-        if let Ok((_, (hostname, port_nmb, valid))) =
-            htp_util::htp_parse_hostport(&mut header.value)
-        {
-            if !valid {
-                (*tx).flags |= Flags::HTP_HOSTH_INVALID
-            }
-            // The host information in the headers is valid.
-            // Is there host information in the URI?
-            if (*tx).request_hostname.is_null() {
-                // There is no host information in the URI. Place the
-                // hostname from the headers into the parsed_uri structure.
-                (*tx).request_hostname = bstr::bstr_dup_str(hostname);
-                bstr::bstr_to_lowercase((*tx).request_hostname);
-                if let Some((_, Some(port))) = port_nmb {
-                    (*tx).request_port_number = port as i32;
-                }
-            } else {
-                // The host information appears in the URI and in the headers. The
-                // HTTP RFC states that we should ignore the header copy.
-                // Check for different hostnames.
-                if (*(*tx).request_hostname).cmp_nocase(hostname) != Ordering::Equal {
-                    (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
-                }
-                if let Some((_, Some(port))) = port_nmb {
-                    // Check for different ports.
-                    if (*tx).request_port_number != -1 && (*tx).request_port_number != port as i32 {
-                        (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
-                    }
-                }
-            }
-        } else if !(*tx).request_hostname.is_null() {
-            // Invalid host information in the headers.
-            // Raise the flag, even though the host information in the headers is invalid.
-            (*tx).flags |= Flags::HTP_HOST_AMBIGUOUS
-        }
-    } else {
-        // No host information in the headers.
-        // HTTP/1.1 requires host information in the headers.
-        if (*tx).request_protocol_number >= Protocol::V1_1 {
-            (*tx).flags |= Flags::HTP_HOST_MISSING
-        }
-    }
-    // Determine Content-Type.
-    if let Some((_, ct)) = (*tx).request_headers.get_nocase_nozero("content-type") {
-        if (*tx).request_content_type.is_null() {
-            (*tx).request_content_type = bstr::bstr_alloc(0);
-            if (*tx).request_content_type.is_null() {
-                return Status::ERROR;
-            }
-        }
-
-        rc = htp_util::htp_parse_ct_header(&ct.value, &mut *(*tx).request_content_type);
-        if rc != Status::OK {
-            return rc;
-        }
-    }
-    // Parse cookies.
-    if (*(*(*tx).connp).cfg).parse_request_cookies != 0 {
-        rc = htp_cookies::htp_parse_cookies_v0((*(*tx).connp).in_tx_mut());
-        if rc != Status::OK {
-            return rc;
-        }
-    }
-    // Parse authentication information.
-    if (*(*(*tx).connp).cfg).parse_request_auth != 0 {
-        rc = htp_parsers::htp_parse_authorization((*tx).connp);
-        if rc == Status::DECLINED {
-            // Don't fail the stream if an authorization header is invalid, just set a flag.
-            (*tx).flags |= Flags::HTP_AUTH_INVALID
-        } else if rc != Status::OK {
-            return rc;
-        }
-    }
-    // Finalize sending raw header data.
-    rc = htp_request::htp_connp_req_receiver_finalize_clear((*tx).connp);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Run hook REQUEST_HEADERS.
-    rc = (*(*(*tx).connp).cfg).hook_request_headers.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // We cannot proceed if the request is invalid.
-    if (*tx).flags.contains(Flags::HTP_REQUEST_INVALID) {
-        return Status::ERROR;
-    }
-    Status::OK
-}
-
-/// Process a chunk of request body data. This function assumes that
-/// handling of chunked encoding is implemented by the container. When
-/// you're done submitting body data, invoke a state change (to REQUEST)
-/// to finalize any processing that might be pending. The supplied data is
-/// fully consumed and there is no expectation that it will be available
-/// afterwards. The protocol parsing code makes no copies of the data,
-/// but some parsers might.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// data: Data pointer. Must not be NULL.
-/// len: Data length.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-#[allow(dead_code)]
-pub unsafe fn htp_tx_req_process_body_data<S: AsRef<[u8]>>(tx: &mut htp_tx_t, data: S) -> Status {
-    if data.as_ref().len() == 0 {
-        return Status::OK;
-    }
-    htp_tx_req_process_body_data_ex(
-        tx,
-        data.as_ref().as_ptr() as *const core::ffi::c_void,
-        data.as_ref().len(),
-    )
-}
-
-pub unsafe fn htp_tx_req_process_body_data_ex(
-    tx: &mut htp_tx_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> Status {
-    // NULL data is allowed in this private function; it's
-    // used to indicate the end of request body.
-    // Keep track of the body length.
-    (*tx).request_entity_len = ((*tx).request_entity_len as u64).wrapping_add(len as u64) as i64;
-    // Send data to the callbacks.
-    let mut data = htp_tx_data_t::new(tx, data as *mut u8, len, false);
-    let rc: Status = htp_util::htp_req_run_hook_body_data((*tx).connp, &mut data);
-    if rc != Status::OK {
-        htp_error!(
-            (*tx).connp,
-            htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
-            format!("Request body data callback returned error ({:?})", rc)
-        );
-        return Status::ERROR;
-    }
-    Status::OK
-}
-
-/// Set request line. When used, this function should always be called first,
-/// with more specific functions following. Must not contain line terminators.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// line: Line data pointer. Must not be NULL.
-/// line_len: Line data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-#[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Status {
-    (*tx).request_line = bstr::bstr_dup_str(line);
-    if (*tx).request_line.is_null() {
-        return Status::ERROR;
-    }
-    if (*(*tx).connp).parse_request_line() != Status::OK {
-        return Status::ERROR;
-    }
-    Status::OK
-}
-
-/// Set parsed request URI. You don't need to use this function if you are already providing
-/// the request line or request URI. But if your container already has this data available,
-/// feeding it to LibHTP will minimize any potential data differences. This function assumes
-/// management of the data provided in parsed_uri. This function will not change htp_tx_t::parsed_uri_raw
-/// (which may have data in it from the parsing of the request URI).
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// parsed_uri: URI pointer. Must not be NULL.
-#[allow(dead_code)]
-pub unsafe fn htp_tx_req_set_parsed_uri(tx: &mut htp_tx_t, parsed_uri: *mut htp_util::htp_uri_t) {
-    if parsed_uri.is_null() {
-        return;
-    }
-    if !(*tx).parsed_uri.is_null() {
-        htp_util::htp_uri_free((*tx).parsed_uri);
-    }
-    (*tx).parsed_uri = parsed_uri;
-}
-
-/// Set response line. Use this function is you have a single buffer containing
-/// the entire line. If you have individual request line pieces, use the other
-/// available functions.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// line: Line data pointer. Must not be NULL.
-/// line_len: Line data length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-#[allow(dead_code)]
-pub unsafe fn htp_tx_res_set_status_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Status {
-    (*tx).response_line = bstr::bstr_dup_str(line);
-    if (*tx).response_line.is_null() {
-        return Status::ERROR;
-    }
-    if (*(*tx).connp).parse_response_line() != Status::OK {
-        return Status::ERROR;
-    }
-    Status::OK
-}
-
-/// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_response_line(tx: &mut htp_tx_t) -> Status {
-    // Is the response line valid?
-    let connp = (*tx).connp;
-    if (*tx).response_protocol_number == Protocol::INVALID {
-        htp_warn!(
-            connp,
-            htp_log_code::RESPONSE_LINE_INVALID_PROTOCOL,
-            "Invalid response line: invalid protocol"
-        );
-        (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
-    }
-    if (*tx).response_status_number == -1
-        || (*tx).response_status_number < 100
-        || (*tx).response_status_number > 999
-    {
-        htp_warn!(
-            connp,
-            htp_log_code::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
-            format!(
-                "Invalid response line: invalid response status {}.",
-                (*tx).response_status_number
-            )
-        );
-        (*tx).response_status_number = -1;
-        (*tx).flags |= Flags::HTP_STATUS_LINE_INVALID
-    }
-    // Run hook HTP_RESPONSE_LINE
-    let rc = (*(*(*tx).connp).cfg).hook_response_line.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    Status::OK
-}
-
-/// Set one response header. This function should be invoked once for
-/// each available header, and in the order in which headers were
-/// seen in the response.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// name: Name data pointer. Must not be NULL.
-/// name_len: Name data length.
-/// value: Value data pointer. Must not be NULL.
-/// value_len: Value length.
-/// alloc: Desired allocation strategy.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_tx_res_set_header<S: AsRef<[u8]>>(
-    tx: &mut htp_tx_t,
-    name: S,
-    value: S,
-) -> Status {
-    tx.response_headers.add(
-        name.as_ref().into(),
-        htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
-    );
-    Status::OK
-}
-
-pub unsafe fn htp_connp_destroy_decompressors(connp: &mut htp_connection_parser::htp_connp_t) {
-    let mut comp: *mut htp_decompressors::htp_decompressor_t = (*connp).out_decompressor;
-    while !comp.is_null() {
-        let next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
-        (*comp).destroy.expect("non-null function pointer")(comp);
-        comp = next
-    }
-    (*connp).out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
-}
-
-/// Clean up decompressor(s).
-unsafe fn htp_tx_res_destroy_decompressors(tx: &mut htp_tx_t) {
-    htp_connp_destroy_decompressors(&mut *(*tx).connp);
 }
 
 unsafe fn htp_timer_track(
@@ -1164,612 +1728,34 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     Status::OK
 }
 
-/// Process a chunk of response body data. This function assumes that
-/// handling of chunked encoding is implemented by the container. When
-/// you're done submitting body data, invoking a state change (to RESPONSE)
-/// will finalize any processing that might be pending.
+/// Returns the first parameter inside the given table that matches the given name, using case-insensitive matching.
 ///
-/// The response body data will be decompressed if two conditions are met: one,
-/// decompression is enabled in configuration and two, if the response headers
-/// indicate compression. Alternatively, you can control decompression from
-/// a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
-/// to COMPRESSION_NONE (to disable compression), or to one of the supported
-/// decompression algorithms.
-///
-/// tx: Transaction pointer. Must not be NULL.
-/// data: Data pointer. Must not be NULL.
-/// len: Data length.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
+/// Returns htp_param_t instance, or None if parameter not found.
 #[allow(dead_code)]
-pub unsafe fn htp_tx_res_process_body_data<S: AsRef<[u8]>>(tx: &mut htp_tx_t, data: S) -> Status {
-    if data.as_ref().len() == 0 {
-        return Status::OK;
+pub fn htp_tx_req_get_param<'a, S: AsRef<[u8]>>(
+    params: &'a htp_table::htp_table_t<htp_param_t>,
+    name: S,
+) -> Option<&'a htp_param_t> {
+    if let Some((_, param)) = params.get_nocase(name) {
+        return Some(param);
     }
-    htp_tx_res_process_body_data_ex(
-        tx,
-        data.as_ref().as_ptr() as *const core::ffi::c_void,
-        data.as_ref().len(),
-    )
+    None
 }
 
-pub unsafe fn htp_tx_res_process_body_data_ex(
-    tx: &mut htp_tx_t,
-    data: *const core::ffi::c_void,
-    len: usize,
-) -> Status {
-    // NULL data is allowed in this private function; it's
-    // used to indicate the end of response body.
-    let mut d = htp_tx_data_t::new(tx, data as *const u8, len, false);
-    // Keep track of body size before decompression.
-    (*tx).response_message_len =
-        ((*tx).response_message_len as u64).wrapping_add(d.len as u64) as i64;
-    let mut rc: Status = Status::DECLINED;
-    let connp = (*tx).connp;
-    match (*tx).response_content_encoding_processing as u32 {
-        2 | 3 | 4 => {
-            // In severe memory stress these could be NULL
-            if (*connp).out_decompressor.is_null()
-                || (*(*connp).out_decompressor).decompress.is_none()
-            {
-                return Status::ERROR;
-            }
-            let mut after: libc::timeval = libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            };
-            libc::gettimeofday(
-                &mut (*(*connp).out_decompressor).time_before,
-                0 as *mut libc::timezone,
-            );
-            // Send data buffer to the decompressor.
-            (*(*connp).out_decompressor)
-                .decompress
-                .expect("non-null function pointer")((*connp).out_decompressor, &mut d);
-            libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
-            // sanity check for race condition if system time changed
-            if htp_timer_track(
-                &mut (*(*connp).out_decompressor).time_spent,
-                &mut after,
-                &mut (*(*connp).out_decompressor).time_before,
-            ) == Status::OK
-            {
-                if (*(*connp).out_decompressor).time_spent > (*(*connp).cfg).compression_time_limit
-                {
-                    htp_error!(
-                        connp,
-                        htp_log_code::COMPRESSION_BOMB,
-                        format!(
-                            "Compression bomb: spent {} us decompressing",
-                            (*(*(*tx).connp).out_decompressor).time_spent
-                        )
-                    );
-                    return Status::ERROR;
-                }
-            }
-            if data == 0 as *mut core::ffi::c_void {
-                // Shut down the decompressor, if we used one.
-                htp_tx_res_destroy_decompressors(&mut *tx);
-            }
-        }
-        1 => {
-            // When there's no decompression, response_entity_len.
-            // is identical to response_message_len.
-            (*tx).response_entity_len =
-                ((*tx).response_entity_len as u64).wrapping_add(d.len as u64) as i64;
-            rc = htp_util::htp_res_run_hook_body_data((*tx).connp, &mut d);
-            if rc != Status::OK {
-                return Status::ERROR;
-            }
-        }
-        _ => {
-            // Internal error.
-            htp_error!(
-                connp,
-                htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
-                format!(
-                    "[Internal Error] Invalid tx->response_content_encoding_processing value: {:?}",
-                    (*tx).response_content_encoding_processing
-                )
-            );
-            return Status::ERROR;
-        }
-    }
-    Status::OK
-}
-
-pub unsafe fn htp_tx_state_request_complete_partial(tx: &mut htp_tx_t) -> Status {
-    // Finalize request body.
-    if htp_tx_req_has_body(tx) != 0 {
-        let rc: Status = htp_tx_req_process_body_data_ex(tx, 0 as *const core::ffi::c_void, 0);
-        if rc != Status::OK {
-            return rc;
-        }
-    }
-    (*tx).request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
-    // Run hook REQUEST_COMPLETE.
-    let rc_0 = (*(*(*tx).connp).cfg).hook_request_complete.run_all(tx);
-    if rc_0 != Status::OK {
-        return rc_0;
-    }
-    // Clean-up.
-    if !(*(*tx).connp).put_file.is_null() {
-        bstr::bstr_free((*(*(*tx).connp).put_file).filename);
-        free((*(*tx).connp).put_file as *mut core::ffi::c_void);
-        (*(*tx).connp).put_file = 0 as *mut htp_util::htp_file_t
-    }
-    Status::OK
-}
-
-/// Change transaction state to REQUEST and invoke registered callbacks.
+/// Returns the first parameter inside the given table from the given source that matches the given name,
+/// using case-insensitive matching.
 ///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_complete(tx: &mut htp_tx_t) -> Status {
-    if (*tx).request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE {
-        let rc: Status = htp_tx_state_request_complete_partial(tx);
-        if rc != Status::OK {
-            return rc;
-        }
+/// Returns htp_param_t instance, or None if parameter not found.
+#[allow(dead_code)]
+pub fn htp_tx_req_get_param_ex<'a, S: AsRef<[u8]>>(
+    params: &'a htp_table::htp_table_t<htp_param_t>,
+    source: htp_data_source_t,
+    name: S,
+) -> Option<&htp_param_t> {
+    if let Some((_, param)) = params.elements.iter().find(|x| {
+        (*x).1.source as u32 == source as u32 && (*x).0.cmp_nocase(name.as_ref()) == Ordering::Equal
+    }) {
+        return Some(&param);
     }
-    // Make a copy of the connection parser pointer, so that
-    // we don't have to reference it via tx, which may be
-    // destroyed later.
-    let connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
-    // Determine what happens next, and remove this transaction from the parser.
-    if (*tx).is_protocol_0_9 != 0 {
-        (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
-    } else {
-        (*connp).in_state = State::IDLE;
-    }
-    // Check if the entire transaction is complete. This call may
-    // destroy the transaction, if auto-destroy is enabled.
-    htp_tx_finalize(tx);
-    // At this point, tx may no longer be valid.
-    (*connp).clear_in_tx();
-    Status::OK
-}
-
-/// Initialize hybrid parsing mode, change state to TRANSACTION_START,
-/// and invoke all registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_start(tx: &mut htp_tx_t) -> Status {
-    // Run hook REQUEST_START.
-    let rc: Status = (*(*tx.connp).cfg).hook_request_start.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Change state into request line parsing.
-    (*tx.connp).in_state = State::LINE;
-    tx.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
-    Status::OK
-}
-
-/// Change transaction state to REQUEST_HEADERS and invoke all
-/// registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_headers(tx: &mut htp_tx_t) -> Status {
-    // If we're in HTP_REQ_HEADERS that means that this is the
-    // first time we're processing headers in a request. Otherwise,
-    // we're dealing with trailing headers.
-    if (*tx).request_progress > htp_tx_req_progress_t::HTP_REQUEST_HEADERS {
-        // Request trailers.
-        // Run hook HTP_REQUEST_TRAILER.
-        let mut rc: Status = (*(*(*tx).connp).cfg).hook_request_trailer.run_all(tx);
-        if rc != Status::OK {
-            return rc;
-        }
-        // Finalize sending raw header data.
-        rc = htp_request::htp_connp_req_receiver_finalize_clear((*tx).connp);
-        if rc != Status::OK {
-            return rc;
-        }
-        // Completed parsing this request; finalize it now.
-        (*(*tx).connp).in_state = State::FINALIZE;
-    } else if (*tx).request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {
-        // Request headers.
-        // Did this request arrive in multiple data chunks?
-        if (*(*tx).connp).in_chunk_count != (*(*tx).connp).in_chunk_request_index {
-            (*tx).flags |= Flags::HTP_MULTI_PACKET_HEAD
-        }
-        let rc_0: Status = htp_tx_process_request_headers(tx);
-        if rc_0 != Status::OK {
-            return rc_0;
-        }
-        (*(*tx).connp).in_state = State::CONNECT_CHECK;
-    } else {
-        htp_warn!(
-            (*tx).connp,
-            htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
-            format!(
-                "[Internal Error] Invalid tx progress: {:?}",
-                (*tx).request_progress
-            )
-        );
-        return Status::ERROR;
-    }
-    Status::OK
-}
-
-/// Change transaction state to REQUEST_LINE and invoke all
-/// registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_request_line(tx: &mut htp_tx_t) -> Status {
-    // Determine how to process the request URI.
-    if tx.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
-        // When CONNECT is used, the request URI contains an authority string.
-        if tx.request_uri.is_null() || tx.parsed_uri_raw.is_null() {
-            return Status::ERROR;
-        }
-        if htp_util::htp_parse_uri_hostport(
-            &mut *tx.request_uri,
-            &mut *tx.parsed_uri_raw,
-            &mut tx.flags,
-        ) != Status::OK
-        {
-            return Status::ERROR;
-        }
-    } else if htp_util::htp_parse_uri(tx.request_uri, &mut tx.parsed_uri_raw) != Status::OK {
-        return Status::ERROR;
-    }
-    // Parse the request URI into htp_tx_t::parsed_uri_raw.
-    // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
-    if tx.parsed_uri.is_null() {
-        tx.parsed_uri = htp_util::htp_uri_alloc();
-        if tx.parsed_uri.is_null() {
-            return Status::ERROR;
-        }
-        // Keep the original URI components, but create a copy which we can normalize and use internally.
-        if htp_util::htp_normalize_parsed_uri(tx, tx.parsed_uri_raw, tx.parsed_uri) != 1 {
-            return Status::ERROR;
-        }
-    }
-    // Check parsed_uri hostname.
-    if !(*(*tx).parsed_uri).hostname.is_null()
-        && !htp_util::htp_validate_hostname((*(*(*tx).parsed_uri).hostname).as_slice())
-    {
-        (*tx).flags |= Flags::HTP_HOSTU_INVALID
-    }
-    // Run hook REQUEST_URI_NORMALIZE.
-    let mut rc: Status = (*(*(*tx).connp).cfg).hook_request_uri_normalize.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Run hook REQUEST_LINE.
-    rc = (*(*(*tx).connp).cfg).hook_request_line.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Move on to the next phase.
-    (*(*tx).connp).in_state = State::PROTOCOL;
-    Status::OK
-}
-
-/// Change transaction state to RESPONSE and invoke registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_response_complete(tx: &mut htp_tx_t) -> Status {
-    htp_tx_state_response_complete_ex(tx, 1)
-}
-
-pub unsafe fn htp_tx_finalize(tx: &mut htp_tx_t) -> Status {
-    if !htp_tx_is_complete(tx) {
-        return Status::OK;
-    }
-    // Run hook TRANSACTION_COMPLETE.
-    let rc: Status = (*(*(*tx).connp).cfg).hook_transaction_complete.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // In streaming processing, we destroy the transaction because it will not be needed any more.
-    if (*(*(*tx).connp).cfg).tx_auto_destroy != 0 {
-        htp_tx_destroy(tx);
-    }
-    Status::OK
-}
-
-pub unsafe fn htp_tx_state_response_complete_ex(tx: &mut htp_tx_t, hybrid_mode: i32) -> Status {
-    if (*tx).response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE {
-        (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE;
-        // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
-        if (*tx).response_transfer_coding != htp_transfer_coding_t::HTP_CODING_NO_BODY {
-            htp_tx_res_process_body_data_ex(tx, 0 as *const core::ffi::c_void, 0);
-        }
-        // Run hook RESPONSE_COMPLETE.
-        let rc: Status = (*(*(*tx).connp).cfg).hook_response_complete.run_all(tx);
-        if rc != Status::OK {
-            return rc;
-        }
-    }
-    if hybrid_mode == 0 {
-        // Check if the inbound parser is waiting on us. If it is, that means that
-        // there might be request data that the inbound parser hasn't consumed yet.
-        // If we don't stop parsing we might encounter a response without a request,
-        // which is why we want to return straight away before processing any data.
-        //
-        // This situation will occur any time the parser needs to see the server
-        // respond to a particular situation before it can decide how to proceed. For
-        // example, when a CONNECT is sent, different paths are used when it is accepted
-        // and when it is not accepted.
-        //
-        // It is not enough to check only in_status here. Because of pipelining, it's possible
-        // that many inbound transactions have been processed, and that the parser is
-        // waiting on a response that we have not seen yet.
-        if (*(*tx).connp).in_status
-            == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
-            && (*(*tx).connp).in_tx() == (*(*tx).connp).out_tx()
-        {
-            return Status::DATA_OTHER;
-        }
-        // Do we have a signal to yield to inbound processing at
-        // the end of the next transaction?
-        if (*(*tx).connp).out_data_other_at_tx_end != 0 {
-            // We do. Let's yield then.
-            (*(*tx).connp).out_data_other_at_tx_end = 0;
-            return Status::DATA_OTHER;
-        }
-    }
-    // Make a copy of the connection parser pointer, so that
-    // we don't have to reference it via tx, which may be destroyed later.
-    let connp: *mut htp_connection_parser::htp_connp_t = (*tx).connp;
-    // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
-    let rc_0: Status = htp_tx_finalize(tx);
-    if rc_0 != Status::OK {
-        return rc_0;
-    }
-    // Disconnect transaction from the parser.
-    (*connp).clear_out_tx();
-    (*connp).out_state = State::IDLE;
-    Status::OK
-}
-
-/// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_response_headers(mut tx: &mut htp_tx_t) -> Status {
-    // Check for compression.
-    // Determine content encoding.
-    let mut ce_multi_comp: i32 = 0;
-    (*tx).response_content_encoding =
-        htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-    if let Some((_, ce)) = (*tx).response_headers.get_nocase_nozero("content-encoding") {
-        // fast paths: regular gzip and friends
-        if ce.value.cmp_nocase_nozero("gzip") == Ordering::Equal
-            || ce.value.cmp_nocase_nozero("x-gzip") == Ordering::Equal
-        {
-            (*tx).response_content_encoding =
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        } else if ce.value.cmp_nocase_nozero("deflate") == Ordering::Equal
-            || ce.value.cmp_nocase_nozero("x-deflate") == Ordering::Equal
-        {
-            (*tx).response_content_encoding =
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-        } else if ce.value.cmp_nocase_nozero("lzma") == Ordering::Equal {
-            (*tx).response_content_encoding =
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-        } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
-            // exceptional cases: enter slow path
-            ce_multi_comp = 1
-        }
-    }
-    // Configure decompression, if enabled in the configuration.
-    if (*(*(*tx).connp).cfg).response_decompression_enabled {
-        (*tx).response_content_encoding_processing = (*tx).response_content_encoding
-    } else {
-        (*tx).response_content_encoding_processing =
-            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-        ce_multi_comp = 0
-    }
-    // Finalize sending raw header data.
-    let mut rc: Status = htp_response::htp_connp_res_receiver_finalize_clear((*tx).connp);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Run hook RESPONSE_HEADERS.
-    rc = (*(*(*tx).connp).cfg).hook_response_headers.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Initialize the decompression engine as necessary. We can deal with three
-    // scenarios:
-    //
-    // 1. Decompression is enabled, compression indicated in headers, and we decompress.
-    //
-    // 2. As above, but the user disables decompression by setting response_content_encoding
-    //    to COMPRESSION_NONE.
-    //
-    // 3. Decompression is disabled and we do not attempt to enable it, but the user
-    //    forces decompression by setting response_content_encoding to one of the
-    //    supported algorithms.
-    if (*tx).response_content_encoding_processing
-        == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        || (*tx).response_content_encoding_processing
-            == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-        || (*tx).response_content_encoding_processing
-            == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-        || ce_multi_comp != 0
-    {
-        if !(*(*tx).connp).out_decompressor.is_null() {
-            htp_tx_res_destroy_decompressors(&mut *tx);
-        }
-        // normal case
-        if ce_multi_comp == 0 {
-            (*(*tx).connp).out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
-                (*tx).connp,
-                (*tx).response_content_encoding_processing,
-            );
-            if (*(*tx).connp).out_decompressor.is_null() {
-                return Status::ERROR;
-            }
-            (*(*(*tx).connp).out_decompressor).callback = Some(
-                htp_tx_res_process_body_data_decompressor_callback
-                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
-            )
-        // multiple ce value case
-        } else if let Some((_, ce)) = (*tx).response_headers.get_nocase_nozero("content-encoding") {
-            let mut layers: i32 = 0;
-            let mut comp: *mut htp_decompressors::htp_decompressor_t =
-                0 as *mut htp_decompressors::htp_decompressor_t;
-            let tokens = ce.value.split_str_collect(", ");
-            let connp = (*tx).connp;
-            for tok in tokens {
-                let token = bstr::bstr_t::from(tok);
-                let mut cetype: htp_decompressors::htp_content_encoding_t =
-                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-                // check depth limit (0 means no limit)
-                if (*(*connp).cfg).response_decompression_layer_limit != 0 && {
-                    layers += 1;
-                    (layers) > (*(*connp).cfg).response_decompression_layer_limit
-                } {
-                    htp_warn!(
-                        connp,
-                        htp_log_code::TOO_MANY_ENCODING_LAYERS,
-                        "Too many response content encoding layers"
-                    );
-                    break;
-                } else {
-                    if token.index_of_nocase("gzip").is_some() {
-                        if !(token.cmp("gzip") == Ordering::Equal
-                            || token.cmp("x-gzip") == Ordering::Equal)
-                        {
-                            htp_warn!(
-                                connp,
-                                htp_log_code::ABNORMAL_CE_HEADER,
-                                "C-E gzip has abnormal value"
-                            );
-                        }
-                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-                    } else if token.index_of_nocase("deflate").is_some() {
-                        if !(token.cmp("deflate") == Ordering::Equal
-                            || token.cmp("x-deflate") == Ordering::Equal)
-                        {
-                            htp_warn!(
-                                connp,
-                                htp_log_code::ABNORMAL_CE_HEADER,
-                                "C-E deflate has abnormal value"
-                            );
-                        }
-                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-                    } else if token.index_of_nocase("lzma").is_some() {
-                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-                    } else if token.index_of_nocase("inflate").is_some() {
-                        cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
-                    } else {
-                        // continue
-                        htp_warn!(
-                            connp,
-                            htp_log_code::ABNORMAL_CE_HEADER,
-                            "C-E unknown setting"
-                        );
-                    }
-                    if cetype != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE {
-                        if comp.is_null() {
-                            (*tx).response_content_encoding_processing = cetype;
-                            (*(*tx).connp).out_decompressor =
-                                htp_decompressors::htp_gzip_decompressor_create(
-                                    (*tx).connp,
-                                    (*tx).response_content_encoding_processing,
-                                );
-                            if (*(*tx).connp).out_decompressor.is_null() {
-                                return Status::ERROR;
-                            }
-                            (*(*(*tx).connp).out_decompressor).callback = Some(
-                                htp_tx_res_process_body_data_decompressor_callback
-                                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
-                            );
-                            comp = (*(*tx).connp).out_decompressor
-                        } else {
-                            (*comp).next = htp_decompressors::htp_gzip_decompressor_create(
-                                (*tx).connp,
-                                cetype,
-                            );
-                            if (*comp).next.is_null() {
-                                return Status::ERROR;
-                            }
-                            (*(*comp).next).callback = Some(
-                                htp_tx_res_process_body_data_decompressor_callback
-                                    as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
-                            );
-                            comp = (*comp).next
-                        }
-                    }
-                }
-            }
-        }
-    } else if (*tx).response_content_encoding_processing
-        != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
-    {
-        return Status::ERROR;
-    }
-    Status::OK
-}
-
-/// Change transaction state to RESPONSE_START and invoke registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-pub unsafe fn htp_tx_state_response_start(tx: &mut htp_tx_t) -> Status {
-    (*(*tx).connp).set_out_tx(&*tx);
-    // Run hook RESPONSE_START.
-    let rc: Status = (*(*(*tx).connp).cfg).hook_response_start.run_all(tx);
-    if rc != Status::OK {
-        return rc;
-    }
-    // Change state into response line parsing, except if we're following
-    // a HTTP/0.9 request (no status line or response headers).
-    if (*tx).is_protocol_0_9 != 0 {
-        (*tx).response_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY;
-        (*tx).response_content_encoding_processing =
-            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-        (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
-        (*(*tx).connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-        (*(*tx).connp).out_body_data_left = -1
-    } else {
-        (*(*tx).connp).out_state = State::LINE;
-        (*tx).response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
-    }
-    // If at this point we have no method and no uri and our status
-    // is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
-    // or a overly long request
-    if (*tx).request_method.is_null()
-        && (*tx).request_uri.is_null()
-        && (*(*tx).connp).in_state == State::LINE
-    {
-        htp_warn!(
-            (*tx).connp,
-            htp_log_code::REQUEST_LINE_INCOMPLETE,
-            "Request line incomplete"
-        );
-    }
-    Status::OK
-}
-
-pub unsafe fn htp_tx_is_complete(tx: &htp_tx_t) -> bool {
-    // A transaction is considered complete only when both the request and
-    // response are complete. (Sometimes a complete response can be seen
-    // even while the request is ongoing.)
-    (*tx).request_progress == htp_tx_req_progress_t::HTP_REQUEST_COMPLETE
-        && (*tx).response_progress == htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
+    None
 }

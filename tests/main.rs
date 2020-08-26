@@ -543,7 +543,7 @@ fn ResponseWithoutContentLength() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
     }
 }
 
@@ -558,7 +558,7 @@ fn FailedConnectRequest() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert!((*(*tx).request_method).eq("CONNECT"));
 
@@ -577,7 +577,7 @@ fn CompressedResponseContentType() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(187, (*tx).response_message_len);
 
@@ -596,7 +596,7 @@ fn CompressedResponseChunked() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(28261, (*tx).response_message_len);
 
@@ -619,7 +619,7 @@ fn SuccessfulConnectRequest() {
         //       simulation of real traffic. At the moment, it does not
         //       invoke inbound parsing after outbound parsing returns
         //       HTP_DATA_OTHER, which is why the check below fails.
-        //assert!(htp_tx_is_complete(&*tx));
+        //assert!((*tx).is_complete());
 
         assert!((*(*tx).request_method).eq("CONNECT"));
 
@@ -638,12 +638,12 @@ fn ConnectRequestWithExtraData() {
         let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
-        assert!(htp_tx_is_complete(&*tx1));
+        assert!((*tx1).is_complete());
 
         let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
-        assert!(htp_tx_is_complete(&*tx2));
+        assert!((*tx2).is_complete());
     }
 }
 
@@ -658,7 +658,7 @@ fn Multipart() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "field1")
             .unwrap()
@@ -682,7 +682,7 @@ fn CompressedResponseDeflate() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(755, (*tx).response_message_len);
 
@@ -701,7 +701,7 @@ fn UrlEncoded() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert!((*(*tx).request_method).eq("POST"));
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
@@ -739,19 +739,19 @@ fn AmbiguousHost() {
 
         let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
-        assert!(htp_tx_is_complete(&*tx1));
+        assert!((*tx1).is_complete());
         assert!(!(*tx1).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
 
         let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
-        assert!(htp_tx_is_complete(&*tx2));
+        assert!((*tx2).is_complete());
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx2).request_hostname.is_null());
         assert!((*(*tx2).request_hostname).eq("example.com"));
 
         let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
-        assert!(htp_tx_is_complete(&*tx3));
+        assert!((*tx3).is_complete());
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx3).request_hostname.is_null());
         assert!((*(*tx3).request_hostname).eq("www.example.com"));
@@ -759,7 +759,7 @@ fn AmbiguousHost() {
 
         let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
-        assert!(htp_tx_is_complete(&*tx4));
+        assert!((*tx4).is_complete());
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx4).request_hostname.is_null());
         assert!((*(*tx4).request_hostname).eq("www.example.com"));
@@ -767,7 +767,7 @@ fn AmbiguousHost() {
 
         let tx5: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(4);
         assert!(!tx5.is_null());
-        assert!(htp_tx_is_complete(&*tx5));
+        assert!((*tx5).is_complete());
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx5).request_hostname.is_null());
         assert!((*(*tx5).request_hostname).eq("www.example.com"));
@@ -887,7 +887,7 @@ fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -904,7 +904,7 @@ fn RequestHeaderData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
+        let counter: *mut i32 = (*tx).user_data() as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -941,7 +941,7 @@ fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -959,7 +959,7 @@ fn RequestTrailerData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
+        let counter: *mut i32 = (*tx).user_data() as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(2, *counter);
     }
@@ -1008,7 +1008,7 @@ fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -1026,7 +1026,7 @@ fn ResponseHeaderData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
+        let counter: *mut i32 = (*tx).user_data() as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -1079,7 +1079,7 @@ fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut htp_tx_da
         }
 
         let counter_ptr: *mut i32 = &mut COUNTER;
-        htp_tx_set_user_data(&mut *(*d).tx(), counter_ptr as *mut core::ffi::c_void);
+        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
         Status::OK
     }
@@ -1097,7 +1097,7 @@ fn ResponseTrailerData() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        let counter: *mut i32 = htp_tx_user_data(&*tx) as *mut i32;
+        let counter: *mut i32 = (*tx).user_data() as *mut i32;
         assert!(!counter.is_null());
         assert_eq!(4, *counter);
     }
@@ -1212,7 +1212,7 @@ fn EarlyResponse() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
     }
 }
 
@@ -2382,7 +2382,7 @@ fn CompressedResponseDeflateAsGzip() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(755, (*tx).response_message_len);
 
@@ -2401,7 +2401,7 @@ fn CompressedResponseMultiple() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(51, (*tx).response_message_len);
 
@@ -2420,7 +2420,7 @@ fn CompressedResponseGzipAsDeflate() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(187, (*tx).response_message_len);
 
@@ -2439,7 +2439,7 @@ fn CompressedResponseLzma() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(htp_tx_is_complete(&*tx));
+        assert!((*tx).is_complete());
 
         assert_eq!(90, (*tx).response_message_len);
 

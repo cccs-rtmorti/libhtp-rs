@@ -455,6 +455,16 @@ impl htp_connp_t {
     pub fn res_data_consumed(&self) -> i64 {
         self.out_current_read_offset
     }
+
+    pub unsafe fn destroy_decompressors(&mut self) {
+        let mut comp: *mut htp_decompressors::htp_decompressor_t = self.out_decompressor;
+        while !comp.is_null() {
+            let next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
+            (*comp).destroy.expect("non-null function pointer")(comp);
+            comp = next
+        }
+        self.out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
+    }
 }
 
 impl Drop for htp_connp_t {
@@ -466,7 +476,7 @@ impl Drop for htp_connp_t {
             if !self.out_buf.is_null() {
                 free(self.out_buf as *mut core::ffi::c_void);
             }
-            htp_transaction::htp_connp_destroy_decompressors(&mut *self);
+            self.destroy_decompressors();
             if !self.put_file.is_null() {
                 bstr::bstr_free((*self.put_file).filename);
                 free(self.put_file as *mut core::ffi::c_void);
