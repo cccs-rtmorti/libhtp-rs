@@ -548,9 +548,6 @@ impl htp_tx_t {
     /// Adds one parameter to the request. THis function will take over the
     /// responsibility for the provided htp_param_t structure.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// param: Parameter pointer. Must not be NULL.
-    ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Status {
         if (*self.cfg).parameter_processor.is_some()
@@ -567,8 +564,6 @@ impl htp_tx_t {
 
     /// Determine if the request has a body.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
     /// Returns 1 if there is a body, 0 otherwise.
     pub unsafe fn req_has_body(&self) -> i32 {
         if self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_IDENTITY
@@ -582,13 +577,6 @@ impl htp_tx_t {
     /// Set one request header. This function should be invoked once for
     /// each available header, and in the order in which headers were
     /// seen in the request.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// name: Name data pointer. Must not be NULL.
-    /// name_len: Name data length.
-    /// value: Value data pointer. Must not be NULL.
-    /// value_len: Value data length.
-    /// alloc: Desired allocation strategy.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
@@ -803,10 +791,6 @@ impl htp_tx_t {
     /// afterwards. The protocol parsing code makes no copies of the data,
     /// but some parsers might.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// data: Data pointer. Must not be NULL.
-    /// len: Data length.
-    ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Status {
@@ -845,11 +829,6 @@ impl htp_tx_t {
     /// Set request line. When used, this function should always be called first,
     /// with more specific functions following. Must not contain line terminators.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// line: Line data pointer. Must not be NULL.
-    /// line_len: Line data length.
-    /// alloc: Desired allocation strategy.
-    ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn req_set_line<S: AsRef<[u8]>>(&mut self, line: S) -> Status {
@@ -869,7 +848,6 @@ impl htp_tx_t {
     /// management of the data provided in parsed_uri. This function will not change htp_tx_t::parsed_uri_raw
     /// (which may have data in it from the parsing of the request URI).
     ///
-    /// tx: Transaction pointer. Must not be NULL.
     /// parsed_uri: URI pointer. Must not be NULL.
     #[allow(dead_code)]
     pub unsafe fn req_set_parsed_uri(&mut self, parsed_uri: *mut htp_util::htp_uri_t) {
@@ -886,11 +864,6 @@ impl htp_tx_t {
     /// the entire line. If you have individual request line pieces, use the other
     /// available functions.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// line: Line data pointer. Must not be NULL.
-    /// line_len: Line data length.
-    /// alloc: Desired allocation strategy.
-    ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn res_set_status_line<S: AsRef<[u8]>>(&mut self, line: S) -> Status {
@@ -905,8 +878,6 @@ impl htp_tx_t {
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -948,13 +919,6 @@ impl htp_tx_t {
     /// each available header, and in the order in which headers were
     /// seen in the response.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// name: Name data pointer. Must not be NULL.
-    /// name_len: Name data length.
-    /// value: Value data pointer. Must not be NULL.
-    /// value_len: Value length.
-    /// alloc: Desired allocation strategy.
-    ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     pub unsafe fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) -> Status {
         self.response_headers.add(
@@ -975,10 +939,6 @@ impl htp_tx_t {
     /// a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
     /// to COMPRESSION_NONE (to disable compression), or to one of the supported
     /// decompression algorithms.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
-    /// data: Data pointer. Must not be NULL.
-    /// len: Data length.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
@@ -1105,8 +1065,6 @@ impl htp_tx_t {
 
     /// Change transaction state to REQUEST and invoke registered callbacks.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_complete(&mut self) -> Status {
@@ -1137,8 +1095,6 @@ impl htp_tx_t {
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
     /// and invoke all registered callbacks.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_start(&mut self) -> Status {
@@ -1155,8 +1111,6 @@ impl htp_tx_t {
 
     /// Change transaction state to REQUEST_HEADERS and invoke all
     /// registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -1205,8 +1159,6 @@ impl htp_tx_t {
 
     /// Change transaction state to REQUEST_LINE and invoke all
     /// registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -1265,8 +1217,6 @@ impl htp_tx_t {
     }
 
     /// Change transaction state to RESPONSE and invoke registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -1346,8 +1296,6 @@ impl htp_tx_t {
     }
 
     /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -1533,8 +1481,6 @@ impl htp_tx_t {
     }
 
     /// Change transaction state to RESPONSE_START and invoke registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
