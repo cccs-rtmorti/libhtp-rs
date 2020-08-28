@@ -99,3 +99,4 @@ mod utf8_decoder;
 pub mod lzma {
     pub mod LzmaDec;
 } // mod lzma
+pub mod error;

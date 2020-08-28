@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::hook::{DataHook, DataNativeCallbackFn};
 use crate::htp_connection_parser::State;
 use crate::htp_util::Flags;
@@ -450,7 +451,7 @@ pub struct htp_tx_t {
 pub type htp_txs_t = List<htp_tx_t>;
 
 impl htp_tx_t {
-    pub fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize, Status> {
+    pub fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize> {
         let tx = Self {
             connp,
             cfg: connp.cfg,
@@ -526,13 +527,13 @@ impl htp_tx_t {
     }
 
     /// Destroys the supplied transaction.
-    pub unsafe fn destroy(&mut self) -> Status {
+    pub unsafe fn destroy(&mut self) -> Result<()> {
         if !self.is_complete() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         // remove the tx from the connection so it will be dropped
         let _ = (*self.connp).conn.remove_tx(self.index);
-        Status::OK
+        Ok(())
     }
 
     /// Returns the user data associated with this transaction.
@@ -549,17 +550,17 @@ impl htp_tx_t {
     /// responsibility for the provided htp_param_t structure.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
-    pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Status {
+    pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Result<()> {
         if (*self.cfg).parameter_processor.is_some()
             && (*self.cfg)
                 .parameter_processor
                 .expect("non-null function pointer")(&mut param)
                 != Status::OK
         {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         (*self.request_params).add(param.name.clone(), param);
-        Status::OK
+        Ok(())
     }
 
     /// Determine if the request has a body.
@@ -580,15 +581,14 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
-    pub unsafe fn req_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) -> Status {
+    pub unsafe fn req_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
         self.request_headers.add(
             name.as_ref().into(),
             htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
-        );
-        Status::OK
+        )
     }
 
-    unsafe fn process_request_headers(&mut self) -> Status {
+    unsafe fn process_request_headers(&mut self) -> Result<()> {
         // Determine if we have a request body, and how it is packaged.
         let mut rc: Status = Status::OK;
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
@@ -675,7 +675,7 @@ impl htp_tx_t {
             (*self.connp).put_file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
                 as *mut htp_util::htp_file_t;
             if (*self.connp).put_file.is_null() {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
             (*(*self.connp).put_file).fd = -1;
             (*(*self.connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
@@ -685,7 +685,7 @@ impl htp_tx_t {
         if !(*self.parsed_uri).hostname.is_null() {
             self.request_hostname = bstr::bstr_dup((*self.parsed_uri).hostname);
             if self.request_hostname.is_null() {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
         }
         self.request_port_number = (*self.parsed_uri).port_number;
@@ -740,20 +740,20 @@ impl htp_tx_t {
             if self.request_content_type.is_null() {
                 self.request_content_type = bstr::bstr_alloc(0);
                 if self.request_content_type.is_null() {
-                    return Status::ERROR;
+                    return Err(Status::ERROR);
                 }
             }
 
             rc = htp_util::htp_parse_ct_header(&ct.value, &mut *self.request_content_type);
             if rc != Status::OK {
-                return rc;
+                return Err(rc);
             }
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies != 0 {
             rc = htp_cookies::htp_parse_cookies_v0((*self.connp).in_tx_mut());
             if rc != Status::OK {
-                return rc;
+                return Err(rc);
             }
         }
         // Parse authentication information.
@@ -763,24 +763,24 @@ impl htp_tx_t {
                 // Don't fail the stream if an authorization header is invalid, just set a flag.
                 self.flags |= Flags::HTP_AUTH_INVALID
             } else if rc != Status::OK {
-                return rc;
+                return Err(rc);
             }
         }
         // Finalize sending raw header data.
         rc = htp_request::htp_connp_req_receiver_finalize_clear(self.connp);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Run hook REQUEST_HEADERS.
         rc = (*(*self.connp).cfg).hook_request_headers.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // We cannot proceed if the request is invalid.
         if self.flags.contains(Flags::HTP_REQUEST_INVALID) {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Process a chunk of request body data. This function assumes that
@@ -793,9 +793,9 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
-    pub unsafe fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Status {
+    pub unsafe fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
         if data.as_ref().len() == 0 {
-            return Status::OK;
+            return Ok(());
         }
         self.req_process_body_data_ex(
             data.as_ref().as_ptr() as *const core::ffi::c_void,
@@ -807,7 +807,7 @@ impl htp_tx_t {
         &mut self,
         data: *const core::ffi::c_void,
         len: usize,
-    ) -> Status {
+    ) -> Result<()> {
         // NULL data is allowed in this private function; it's
         // used to indicate the end of request body.
         // Keep track of the body length.
@@ -821,9 +821,9 @@ impl htp_tx_t {
                 htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
                 format!("Request body data callback returned error ({:?})", rc)
             );
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Set request line. When used, this function should always be called first,
@@ -831,15 +831,15 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
-    pub unsafe fn req_set_line<S: AsRef<[u8]>>(&mut self, line: S) -> Status {
+    pub unsafe fn req_set_line<S: AsRef<[u8]>>(&mut self, line: S) -> Result<()> {
         self.request_line = bstr::bstr_dup_str(line);
         if self.request_line.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         if (*self.connp).parse_request_line() != Status::OK {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Set parsed request URI. You don't need to use this function if you are already providing
@@ -866,22 +866,22 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
-    pub unsafe fn res_set_status_line<S: AsRef<[u8]>>(&mut self, line: S) -> Status {
+    pub unsafe fn res_set_status_line<S: AsRef<[u8]>>(&mut self, line: S) -> Result<()> {
         self.response_line = bstr::bstr_dup_str(line);
         if self.response_line.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         if (*self.connp).parse_response_line() != Status::OK {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_line(&mut self) -> Status {
+    pub unsafe fn state_response_line(&mut self) -> Result<()> {
         // Is the response line valid?
         let connp = self.connp;
         if self.response_protocol_number == Protocol::INVALID {
@@ -910,9 +910,9 @@ impl htp_tx_t {
         // Run hook HTP_RESPONSE_LINE
         let rc = (*(*self.connp).cfg).hook_response_line.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Set one response header. This function should be invoked once for
@@ -920,12 +920,11 @@ impl htp_tx_t {
     /// seen in the response.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
-    pub unsafe fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) -> Status {
+    pub unsafe fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
         self.response_headers.add(
             name.as_ref().into(),
             htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
-        );
-        Status::OK
+        )
     }
 
     /// Process a chunk of response body data. This function assumes that
@@ -942,9 +941,9 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
-    pub unsafe fn res_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Status {
+    pub unsafe fn res_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
         if data.as_ref().len() == 0 {
-            return Status::OK;
+            return Ok(());
         }
         self.res_process_body_data_ex(
             data.as_ref().as_ptr() as *const core::ffi::c_void,
@@ -956,7 +955,7 @@ impl htp_tx_t {
         &mut self,
         data: *const core::ffi::c_void,
         len: usize,
-    ) -> Status {
+    ) -> Result<()> {
         // NULL data is allowed in this private function; it's
         // used to indicate the end of response body.
         let mut d = htp_tx_data_t::new(self, data as *const u8, len, false);
@@ -971,7 +970,7 @@ impl htp_tx_t {
                 if (*connp).out_decompressor.is_null()
                     || (*(*connp).out_decompressor).decompress.is_none()
                 {
-                    return Status::ERROR;
+                    return Err(Status::ERROR);
                 }
                 let mut after: libc::timeval = libc::timeval {
                     tv_sec: 0,
@@ -993,7 +992,8 @@ impl htp_tx_t {
                     &mut (*(*connp).out_decompressor).time_spent,
                     &mut after,
                     &mut (*(*connp).out_decompressor).time_before,
-                ) == Status::OK
+                )
+                .is_ok()
                 {
                     if (*(*connp).out_decompressor).time_spent
                         > (*(*connp).cfg).compression_time_limit
@@ -1006,7 +1006,7 @@ impl htp_tx_t {
                                 (*(*self.connp).out_decompressor).time_spent
                             )
                         );
-                        return Status::ERROR;
+                        return Err(Status::ERROR);
                     }
                 }
                 if data == 0 as *mut core::ffi::c_void {
@@ -1021,7 +1021,7 @@ impl htp_tx_t {
                     (self.response_entity_len as u64).wrapping_add(d.len as u64) as i64;
                 rc = htp_util::htp_res_run_hook_body_data(self.connp, &mut d);
                 if rc != Status::OK {
-                    return Status::ERROR;
+                    return Err(Status::ERROR);
                 }
             }
             _ => {
@@ -1034,25 +1034,22 @@ impl htp_tx_t {
                     self.response_content_encoding_processing
                 )
                 );
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
         }
-        Status::OK
+        Ok(())
     }
 
-    pub unsafe fn state_request_complete_partial(&mut self) -> Status {
+    pub unsafe fn state_request_complete_partial(&mut self) -> Result<()> {
         // Finalize request body.
         if self.req_has_body() != 0 {
-            let rc: Status = self.req_process_body_data_ex(0 as *const core::ffi::c_void, 0);
-            if rc != Status::OK {
-                return rc;
-            }
+            self.req_process_body_data_ex(0 as *const core::ffi::c_void, 0)?;
         }
         self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
         // Run hook REQUEST_COMPLETE.
         let rc_0 = (*(*self.connp).cfg).hook_request_complete.run_all(self);
         if rc_0 != Status::OK {
-            return rc_0;
+            return Err(rc_0);
         }
         // Clean-up.
         if !(*self.connp).put_file.is_null() {
@@ -1060,19 +1057,16 @@ impl htp_tx_t {
             free((*self.connp).put_file as *mut core::ffi::c_void);
             (*self.connp).put_file = 0 as *mut htp_util::htp_file_t
         }
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to REQUEST and invoke registered callbacks.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_complete(&mut self) -> Status {
+    pub unsafe fn state_request_complete(&mut self) -> Result<()> {
         if self.request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE {
-            let rc: Status = self.state_request_complete_partial();
-            if rc != Status::OK {
-                return rc;
-            }
+            self.state_request_complete_partial()?;
         }
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be
@@ -1086,10 +1080,10 @@ impl htp_tx_t {
         }
         // Check if the entire transaction is complete. This call may
         // destroy the transaction, if auto-destroy is enabled.
-        self.finalize();
+        let _ = self.finalize();
         // At this point, tx may no longer be valid.
         (*connp).clear_in_tx();
-        Status::OK
+        Ok(())
     }
 
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
@@ -1097,16 +1091,16 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_start(&mut self) -> Status {
+    pub unsafe fn state_request_start(&mut self) -> Result<()> {
         // Run hook REQUEST_START.
         let rc: Status = (*(*self.connp).cfg).hook_request_start.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Change state into request line parsing.
         (*self.connp).in_state = State::LINE;
         self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to REQUEST_HEADERS and invoke all
@@ -1114,7 +1108,7 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_headers(&mut self) -> Status {
+    pub unsafe fn state_request_headers(&mut self) -> Result<()> {
         // If we're in HTP_REQ_HEADERS that means that this is the
         // first time we're processing headers in a request. Otherwise,
         // we're dealing with trailing headers.
@@ -1123,12 +1117,12 @@ impl htp_tx_t {
             // Run hook HTP_REQUEST_TRAILER.
             let mut rc: Status = (*(*self.connp).cfg).hook_request_trailer.run_all(self);
             if rc != Status::OK {
-                return rc;
+                return Err(rc);
             }
             // Finalize sending raw header data.
             rc = htp_request::htp_connp_req_receiver_finalize_clear(self.connp);
             if rc != Status::OK {
-                return rc;
+                return Err(rc);
             }
             // Completed parsing this request; finalize it now.
             (*self.connp).in_state = State::FINALIZE;
@@ -1138,10 +1132,7 @@ impl htp_tx_t {
             if (*self.connp).in_chunk_count != (*self.connp).in_chunk_request_index {
                 self.flags |= Flags::HTP_MULTI_PACKET_HEAD
             }
-            let rc_0: Status = self.process_request_headers();
-            if rc_0 != Status::OK {
-                return rc_0;
-            }
+            self.process_request_headers()?;
             (*self.connp).in_state = State::CONNECT_CHECK;
         } else {
             htp_warn!(
@@ -1152,9 +1143,9 @@ impl htp_tx_t {
                     self.request_progress
                 )
             );
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to REQUEST_LINE and invoke all
@@ -1162,12 +1153,12 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_line(&mut self) -> Status {
+    pub unsafe fn state_request_line(&mut self) -> Result<()> {
         // Determine how to process the request URI.
         if self.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
             if self.request_uri.is_null() || self.parsed_uri_raw.is_null() {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
             if htp_util::htp_parse_uri_hostport(
                 &mut *self.request_uri,
@@ -1175,22 +1166,22 @@ impl htp_tx_t {
                 &mut self.flags,
             ) != Status::OK
             {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
         } else if htp_util::htp_parse_uri(self.request_uri, &mut self.parsed_uri_raw) != Status::OK
         {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         // Parse the request URI into htp_tx_t::parsed_uri_raw.
         // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
         if self.parsed_uri.is_null() {
             self.parsed_uri = htp_util::htp_uri_alloc();
             if self.parsed_uri.is_null() {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
             // Keep the original URI components, but create a copy which we can normalize and use internally.
             if htp_util::htp_normalize_parsed_uri(self, self.parsed_uri_raw, self.parsed_uri) != 1 {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
         }
         // Check parsed_uri hostname.
@@ -1204,53 +1195,53 @@ impl htp_tx_t {
             .hook_request_uri_normalize
             .run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Run hook REQUEST_LINE.
         rc = (*(*self.connp).cfg).hook_request_line.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Move on to the next phase.
         (*self.connp).in_state = State::PROTOCOL;
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to RESPONSE and invoke registered callbacks.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_complete(&mut self) -> Status {
+    pub unsafe fn state_response_complete(&mut self) -> Result<()> {
         self.state_response_complete_ex(1)
     }
 
-    pub unsafe fn finalize(&mut self) -> Status {
+    pub unsafe fn finalize(&mut self) -> Result<()> {
         if !self.is_complete() {
-            return Status::OK;
+            return Ok(());
         }
         // Run hook TRANSACTION_COMPLETE.
         let rc: Status = (*(*self.connp).cfg).hook_transaction_complete.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // In streaming processing, we destroy the transaction because it will not be needed any more.
         if (*(*self.connp).cfg).tx_auto_destroy != 0 {
-            self.destroy();
+            self.destroy()?;
         }
-        Status::OK
+        Ok(())
     }
 
-    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Status {
+    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
         if self.response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE {
             self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE;
             // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
             if self.response_transfer_coding != htp_transfer_coding_t::HTP_CODING_NO_BODY {
-                self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
+                let _ = self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
             }
             // Run hook RESPONSE_COMPLETE.
             let rc: Status = (*(*self.connp).cfg).hook_response_complete.run_all(self);
             if rc != Status::OK {
-                return rc;
+                return Err(rc);
             }
         }
         if hybrid_mode == 0 {
@@ -1271,35 +1262,32 @@ impl htp_tx_t {
                 == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
                 && (*self.connp).in_tx() == (*self.connp).out_tx()
             {
-                return Status::DATA_OTHER;
+                return Err(Status::DATA_OTHER);
             }
             // Do we have a signal to yield to inbound processing at
             // the end of the next transaction?
             if (*self.connp).out_data_other_at_tx_end != 0 {
                 // We do. Let's yield then.
                 (*self.connp).out_data_other_at_tx_end = 0;
-                return Status::DATA_OTHER;
+                return Err(Status::DATA_OTHER);
             }
         }
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be destroyed later.
         let connp: *mut htp_connection_parser::htp_connp_t = self.connp;
         // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
-        let rc_0: Status = self.finalize();
-        if rc_0 != Status::OK {
-            return rc_0;
-        }
+        self.finalize()?;
         // Disconnect transaction from the parser.
         (*connp).clear_out_tx();
         (*connp).out_state = State::IDLE;
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_headers(&mut self) -> Status {
+    pub unsafe fn state_response_headers(&mut self) -> Result<()> {
         // Check for compression.
         // Determine content encoding.
         let mut ce_multi_comp: i32 = 0;
@@ -1336,12 +1324,12 @@ impl htp_tx_t {
         // Finalize sending raw header data.
         let mut rc: Status = htp_response::htp_connp_res_receiver_finalize_clear(self.connp);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Run hook RESPONSE_HEADERS.
         rc = (*(*self.connp).cfg).hook_response_headers.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Initialize the decompression engine as necessary. We can deal with three
         // scenarios:
@@ -1372,7 +1360,7 @@ impl htp_tx_t {
                     self.response_content_encoding_processing,
                 );
                 if (*self.connp).out_decompressor.is_null() {
-                    return Status::ERROR;
+                    return Err(Status::ERROR);
                 }
                 (*(*self.connp).out_decompressor).callback = Some(
                     htp_tx_res_process_body_data_decompressor_callback
@@ -1448,7 +1436,7 @@ impl htp_tx_t {
                                         self.response_content_encoding_processing,
                                     );
                                 if (*self.connp).out_decompressor.is_null() {
-                                    return Status::ERROR;
+                                    return Err(Status::ERROR);
                                 }
                                 (*(*self.connp).out_decompressor).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
@@ -1460,7 +1448,7 @@ impl htp_tx_t {
                                     self.connp, cetype,
                                 );
                                 if (*comp).next.is_null() {
-                                    return Status::ERROR;
+                                    return Err(Status::ERROR);
                                 }
                                 (*(*comp).next).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
@@ -1475,21 +1463,21 @@ impl htp_tx_t {
         } else if self.response_content_encoding_processing
             != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
         {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
-        Status::OK
+        Ok(())
     }
 
     /// Change transaction state to RESPONSE_START and invoke registered callbacks.
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_start(&mut self) -> Status {
+    pub unsafe fn state_response_start(&mut self) -> Result<()> {
         (*self.connp).set_out_tx(self);
         // Run hook RESPONSE_START.
         let rc: Status = (*(*self.connp).cfg).hook_response_start.run_all(self);
         if rc != Status::OK {
-            return rc;
+            return Err(rc);
         }
         // Change state into response line parsing, except if we're following
         // a HTTP/0.9 request (no status line or response headers).
@@ -1517,7 +1505,7 @@ impl htp_tx_t {
                 "Request line incomplete"
             );
         }
-        Status::OK
+        Ok(())
     }
 
     pub unsafe fn is_complete(&self) -> bool {
@@ -1585,12 +1573,12 @@ unsafe fn htp_timer_track(
     time_spent: *mut i32,
     after: *mut libc::timeval,
     before: *mut libc::timeval,
-) -> Status {
+) -> Result<()> {
     if (*after).tv_sec < (*before).tv_sec {
-        return Status::ERROR;
+        return Err(Status::ERROR);
     } else if (*after).tv_sec == (*before).tv_sec {
         if (*after).tv_usec < (*before).tv_usec {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         *time_spent = *time_spent + ((*after).tv_usec - (*before).tv_usec) as i32
     } else {
@@ -1598,7 +1586,7 @@ unsafe fn htp_timer_track(
             + (((*after).tv_sec - (*before).tv_sec) * 1000000 + (*after).tv_usec
                 - (*before).tv_usec) as i32
     }
-    Status::OK
+    Ok(())
 }
 
 unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
@@ -1639,7 +1627,8 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
             &mut (*(*tx.connp).out_decompressor).time_spent,
             &mut after,
             &mut (*(*tx.connp).out_decompressor).time_before,
-        ) == Status::OK
+        )
+        .is_ok()
         {
             // updates last tracked time
             (*(*tx.connp).out_decompressor).time_before = after;

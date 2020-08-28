@@ -29,7 +29,7 @@ pub unsafe extern "C" fn htp_tx_create(
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_destroy(tx: *mut htp_transaction::htp_tx_t) -> Status {
     if let Some(tx) = tx.as_mut() {
-        tx.destroy()
+        tx.destroy().into()
     } else {
         Status::ERROR
     }
@@ -778,7 +778,7 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     if let Some(tx) = tx.as_mut() {
-        tx.state_request_complete()
+        tx.state_request_complete().into()
     } else {
         Status::ERROR
     }
@@ -795,7 +795,7 @@ pub unsafe extern "C" fn htp_tx_state_response_complete(
     tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     if let Some(tx) = tx.as_mut() {
-        tx.state_response_complete()
+        tx.state_response_complete().into()
     } else {
         Status::ERROR
     }

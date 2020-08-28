@@ -1006,7 +1006,8 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
         let rc: Status = (*connp)
             .in_tx_mut()
             .unwrap()
-            .req_process_body_data_ex(data as *const core::ffi::c_void, len);
+            .req_process_body_data_ex(data as *const core::ffi::c_void, len)
+            .into();
         htp_connp_req_clear_buffer(connp);
         return rc;
     } else {
@@ -1030,7 +1031,8 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
             let rc_0: Status = (*connp)
                 .in_tx_mut()
                 .unwrap()
-                .req_process_body_data_ex(data as *const core::ffi::c_void, len);
+                .req_process_body_data_ex(data as *const core::ffi::c_void, len)
+                .into();
             htp_connp_req_clear_buffer(connp);
             return rc_0;
         }

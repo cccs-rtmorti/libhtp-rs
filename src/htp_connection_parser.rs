@@ -545,7 +545,7 @@ impl htp_connp_t {
         len: usize,
     ) -> Status {
         if let Some(tx) = self.in_tx_mut() {
-            tx.req_process_body_data_ex(data, len)
+            tx.req_process_body_data_ex(data, len).into()
         } else {
             Status::ERROR
         }
@@ -560,7 +560,7 @@ impl htp_connp_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_start(&mut self) -> Status {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_start()
+            tx.state_request_start().into()
         } else {
             Status::ERROR
         }
@@ -575,7 +575,7 @@ impl htp_connp_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_headers(&mut self) -> Status {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_headers()
+            tx.state_request_headers().into()
         } else {
             Status::ERROR
         }
@@ -590,7 +590,7 @@ impl htp_connp_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_line(&mut self) -> Status {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_line()
+            tx.state_request_line().into()
         } else {
             Status::ERROR
         }
@@ -604,7 +604,7 @@ impl htp_connp_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_complete(&mut self) -> Status {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_complete()
+            tx.state_request_complete().into()
         } else {
             Status::ERROR
         }
@@ -616,7 +616,7 @@ impl htp_connp_t {
         len: usize,
     ) -> Status {
         if let Some(tx) = self.out_tx_mut() {
-            tx.res_process_body_data_ex(data, len)
+            tx.res_process_body_data_ex(data, len).into()
         } else {
             Status::ERROR
         }
@@ -624,7 +624,7 @@ impl htp_connp_t {
 
     pub unsafe fn state_response_start(&mut self) -> Status {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_start()
+            tx.state_response_start().into()
         } else {
             Status::ERROR
         }
@@ -638,7 +638,7 @@ impl htp_connp_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_headers(&mut self) -> Status {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_headers()
+            tx.state_response_headers().into()
         } else {
             Status::ERROR
         }
@@ -652,7 +652,7 @@ impl htp_connp_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_line(&mut self) -> Status {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_line()
+            tx.state_response_line().into()
         } else {
             Status::ERROR
         }
@@ -660,7 +660,7 @@ impl htp_connp_t {
 
     pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Status {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_complete_ex(hybrid_mode)
+            tx.state_response_complete_ex(hybrid_mode).into()
         } else {
             Status::ERROR
         }

@@ -18,6 +18,15 @@ macro_rules! cstr {
     }};
 }
 
+/// Expects a Result<T, Status> to fail and checks the error value.
+#[macro_export]
+macro_rules! assert_err {
+    ($result:expr, $expected:expr) => {{
+        let msg = format!("expected {} to fail", stringify!($result));
+        assert_eq!($result.expect_err(&msg), $expected);
+    }};
+}
+
 /// Compares a transaction's header value to an expected value.
 ///
 /// The `attr` argument is meant to be either `request_headers` or `response_headers`.

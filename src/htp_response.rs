@@ -1232,7 +1232,7 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
                 as i32
         }
         if (*connp).out_next_byte == -1 {
-            return (*connp).state_response_complete_ex(0);
+            return (*connp).state_response_complete_ex(0).into();
         }
         if (*connp).out_next_byte != '\n' as i32
             || (*connp).out_current_consume_offset >= (*connp).out_current_read_offset
@@ -1264,7 +1264,7 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     }
     if bytes_left == 0 {
         //closing
-        return (*connp).state_response_complete_ex(0);
+        return (*connp).state_response_complete_ex(0).into();
     }
     if htp_util::htp_treat_response_line_as_body(std::slice::from_raw_parts(data, bytes_left)) {
         // Interpret remaining bytes as body data
@@ -1288,7 +1288,7 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     if (*connp).out_current_read_offset < (*connp).out_current_consume_offset {
         (*connp).out_current_consume_offset = (*connp).out_current_read_offset
     }
-    (*connp).state_response_complete_ex(0)
+    (*connp).state_response_complete_ex(0).into()
 }
 
 /// The response idle state will initialize response processing, as well as
