@@ -45,7 +45,7 @@ unsafe fn htp_connp_res_receiver_send_data(
         ((*connp).out_current_read_offset - (*connp).out_current_receiver_offset) as usize,
         is_last,
     );
-    let rc: Status = hook.run_all(&mut data);
+    let rc: Status = hook.run_all(&mut data).into();
     if rc != Status::OK {
         return rc;
     }
@@ -774,7 +774,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
             // Run hook response_TRAILER.
             rc = (*(*connp).cfg)
                 .hook_response_trailer
-                .run_all((*connp).out_tx_mut_ptr());
+                .run_all((*connp).out_tx_mut_ptr())
+                .into();
             if rc != Status::OK {
                 return rc;
             }
@@ -958,7 +959,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                     // Run hook response_TRAILER.
                     rc_0 = (*(*connp).cfg)
                         .hook_response_trailer
-                        .run_all((*connp).out_tx_mut_ptr());
+                        .run_all((*connp).out_tx_mut_ptr())
+                        .into();
                     if rc_0 != Status::OK {
                         return rc_0;
                     }

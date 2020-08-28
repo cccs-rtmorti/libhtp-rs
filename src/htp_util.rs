@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_config::htp_decoder_cfg_t;
 use crate::htp_config::htp_url_encoding_handling_t;
 use crate::{
@@ -472,7 +473,9 @@ pub fn htp_parse_content_length<'a>(
 /// and after the number.
 ///
 /// Returns a chunked_length or None if empty.
-pub fn htp_parse_chunked_length<'a>(input: &'a [u8]) -> Result<Option<i32>, &'static str> {
+pub fn htp_parse_chunked_length<'a>(
+    input: &'a [u8],
+) -> std::result::Result<Option<i32>, &'static str> {
     if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
         if trailing_data.len() == 0 && chunked_length.len() == 0 {
             return Ok(None);
@@ -1774,27 +1777,18 @@ pub fn htp_treat_response_line_as_body(data: &[u8]) -> bool {
 pub unsafe fn htp_req_run_hook_body_data(
     connp: *mut htp_connection_parser::htp_connp_t,
     d: *mut htp_transaction::htp_tx_data_t,
-) -> Status {
+) -> Result<()> {
     // Do not invoke callbacks with an empty data chunk
     if !(*d).data().is_null() && (*d).len() == 0 {
-        return Status::OK;
+        return Ok(());
     }
     // Do not invoke callbacks without a transaction.
-    let mut rc = if let Some(in_tx) = (*connp).in_tx() {
+    if let Some(in_tx) = (*connp).in_tx() {
         // Run transaction hooks first
-        in_tx.hook_request_body_data.run_all(d)
-    } else {
-        return Status::OK;
-    };
-
-    if rc != Status::OK {
-        return rc;
+        in_tx.hook_request_body_data.run_all(d)?;
     }
     // Run configuration hooks second
-    rc = (*(*connp).cfg).hook_request_body_data.run_all(d);
-    if rc != Status::OK {
-        return rc;
-    }
+    (*(*connp).cfg).hook_request_body_data.run_all(d)?;
     // On PUT requests, treat request body as file
     if !(*connp).put_file.is_null() {
         let mut file_data: htp_file_data_t = htp_file_data_t {
@@ -1806,41 +1800,31 @@ pub unsafe fn htp_req_run_hook_body_data(
         file_data.len = (*d).len();
         file_data.file = (*connp).put_file;
         (*file_data.file).len = ((*file_data.file).len).wrapping_add((*d).len());
-        rc = (*(*connp).cfg)
+        (*(*connp).cfg)
             .hook_request_file_data
-            .run_all(&mut file_data);
-        if rc != Status::OK {
-            return rc;
-        }
+            .run_all(&mut file_data)?;
     }
-    Status::OK
+    Ok(())
 }
 
 /// Run the RESPONSE_BODY_DATA hook.
 pub unsafe fn htp_res_run_hook_body_data(
     connp: *mut htp_connection_parser::htp_connp_t,
     d: *mut htp_transaction::htp_tx_data_t,
-) -> Status {
+) -> Result<()> {
     let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
         out_tx
     } else {
-        return Status::ERROR;
+        return Err(Status::ERROR);
     };
     // Do not invoke callbacks with an empty data chunk.
     if !(*d).data().is_null() && (*d).len() == 0 {
-        return Status::OK;
+        return Ok(());
     }
     // Run transaction hooks first
-    let mut rc: Status = out_tx.hook_response_body_data.run_all(d);
-    if rc != Status::OK {
-        return rc;
-    }
+    out_tx.hook_response_body_data.run_all(d)?;
     // Run configuration hooks second
-    rc = (*(*connp).cfg).hook_response_body_data.run_all(d);
-    if rc != Status::OK {
-        return rc;
-    }
-    Status::OK
+    (*(*connp).cfg).hook_response_body_data.run_all(d)
 }
 
 /// Parses the content type header, trimming any leading whitespace.

@@ -154,7 +154,8 @@ pub unsafe fn htp_log(
         // Ignore messages below our log level.
         if level <= cfg.log_level {
             let mut log = htp_log_t::new(connp, file, line, level, code, msg);
-            cfg.hook_log.run_all(&mut log);
+            // Ignore if the hooks fail to run
+            let _ = cfg.hook_log.run_all(&mut log);
             connp.conn.push_message(log);
         }
     }

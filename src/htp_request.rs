@@ -79,7 +79,7 @@ unsafe fn htp_connp_req_receiver_send_data(
         ((*connp).in_current_read_offset - (*connp).in_current_receiver_offset) as usize,
         is_last,
     );
-    let rc: Status = hook.run_all(&mut data);
+    let rc: Status = hook.run_all(&mut data).into();
     if rc != Status::OK {
         return rc;
     }

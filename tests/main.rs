@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
+use htp::error::Result;
 use htp::htp_config;
 use htp::htp_config::htp_decoder_ctx_t::*;
 use htp::htp_config::htp_server_personality_t::*;
@@ -13,7 +14,6 @@ use htp::htp_transaction::htp_tx_res_progress_t::*;
 use htp::htp_transaction::*;
 use htp::htp_util::*;
 use htp::log::*;
-use htp::Status;
 use std::convert::TryInto;
 use std::env;
 use std::iter::IntoIterator;
@@ -135,7 +135,7 @@ impl Test {
         }
     }
 
-    fn run(&mut self, file: &str) -> Result<(), TestError> {
+    fn run(&mut self, file: &str) -> std::result::Result<(), TestError> {
         unsafe {
             let mut tv_start = libc::timeval {
                 tv_sec: 0,
@@ -844,7 +844,7 @@ fn SmallChunks() {
     assert!(t.run("25-small-chunks.t").is_ok());
 }
 
-fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t) -> Status {
+fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -889,7 +889,7 @@ fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t
         let counter_ptr: *mut i32 = &mut COUNTER;
         (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
-        Status::OK
+        Ok(())
     }
 }
 
@@ -910,7 +910,7 @@ fn RequestHeaderData() {
     }
 }
 
-fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data_t) -> Status {
+fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data_t) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -943,7 +943,7 @@ fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data
         let counter_ptr: *mut i32 = &mut COUNTER;
         (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
-        Status::OK
+        Ok(())
     }
 }
 
@@ -965,7 +965,7 @@ fn RequestTrailerData() {
     }
 }
 
-fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data_t) -> Status {
+fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data_t) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -1010,7 +1010,7 @@ fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data
         let counter_ptr: *mut i32 = &mut COUNTER;
         (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
-        Status::OK
+        Ok(())
     }
 }
 
@@ -1032,7 +1032,9 @@ fn ResponseHeaderData() {
     }
 }
 
-fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut htp_tx_data_t) -> Status {
+fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
+    d: *mut htp_tx_data_t,
+) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -1081,7 +1083,7 @@ fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut htp_tx_da
         let counter_ptr: *mut i32 = &mut COUNTER;
         (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
 
-        Status::OK
+        Ok(())
     }
 }
 

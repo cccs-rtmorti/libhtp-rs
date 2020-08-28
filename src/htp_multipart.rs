@@ -629,7 +629,8 @@ pub unsafe fn htp_mpartp_run_request_file_data_hook(
     // Send data to callbacks
     let rc: Status = (*(*(*part).parser).cfg)
         .hook_request_file_data
-        .run_all(&mut file_data);
+        .run_all(&mut file_data)
+        .into();
     if rc != Status::OK {
         return rc;
     }

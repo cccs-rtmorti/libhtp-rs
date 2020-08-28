@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)]
 use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
+use htp::error::Result;
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
@@ -56,69 +57,69 @@ impl HybridParsing_Get_User_Data {
     }
 }
 
-fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_START_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_LINE_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_HEADERS_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_START_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_LINE_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Status {
+fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Result<()> {
     unsafe {
         let user_data = (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data;
 
         // Don't do anything if in errored state.
         if (*user_data).response_body_correctly_received == -1 {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
 
         match (*user_data).response_body_chunks_seen {
@@ -171,23 +172,23 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Statu
             }
         }
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
-fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Status {
+fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
     }
-    Status::OK
+    Ok(())
 }
 
 struct HybridParsingTest {

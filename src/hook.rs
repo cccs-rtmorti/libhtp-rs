@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_transaction::{htp_tx_data_t, htp_tx_t};
 use crate::htp_util::htp_file_data_t;
 use crate::log::htp_log_t;
@@ -7,7 +8,7 @@ use crate::Status;
 pub type TxExternalCallbackFn = unsafe extern "C" fn(tx: *mut htp_tx_t) -> Status;
 
 /// Native (rust) callback function prototype
-pub type TxNativeCallbackFn = fn(tx: *mut htp_tx_t) -> Status;
+pub type TxNativeCallbackFn = fn(tx: *mut htp_tx_t) -> Result<()>;
 
 /// Hook for htp_tx_t
 pub type TxHook = Hook<TxExternalCallbackFn, TxNativeCallbackFn>;
@@ -16,7 +17,7 @@ pub type TxHook = Hook<TxExternalCallbackFn, TxNativeCallbackFn>;
 pub type DataExternalCallbackFn = unsafe extern "C" fn(data: *mut htp_tx_data_t) -> Status;
 
 /// Native (rust) callback function prototype
-pub type DataNativeCallbackFn = fn(data: *mut htp_tx_data_t) -> Status;
+pub type DataNativeCallbackFn = fn(data: *mut htp_tx_data_t) -> Result<()>;
 
 /// Hook for htp_tx_data_t
 pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
@@ -25,7 +26,7 @@ pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
 pub type FileDataExternalCallbackFn = unsafe extern "C" fn(data: *mut htp_file_data_t) -> Status;
 
 /// Native (rust) callback function prototype
-pub type FileDataNativeCallbackFn = fn(data: *mut htp_file_data_t) -> Status;
+pub type FileDataNativeCallbackFn = fn(data: *mut htp_file_data_t) -> Result<()>;
 
 /// Hook for htp_tx_filedata_t
 pub type FileDataHook = Hook<FileDataExternalCallbackFn, FileDataNativeCallbackFn>;
@@ -34,7 +35,7 @@ pub type FileDataHook = Hook<FileDataExternalCallbackFn, FileDataNativeCallbackF
 pub type LogExternalCallbackFn = unsafe extern "C" fn(log: *mut htp_log_t) -> Status;
 
 /// Native (rust) callback function prototype
-pub type LogNativeCallbackFn = fn(log: *mut htp_log_t) -> Status;
+pub type LogNativeCallbackFn = fn(log: *mut htp_log_t) -> Result<()>;
 
 /// Hook for htp_log_t
 pub type LogHook = Hook<LogExternalCallbackFn, LogNativeCallbackFn>;
@@ -69,18 +70,25 @@ impl TxHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, data: *mut htp_tx_t) -> Status {
+    pub fn run_all(&self, tx: *mut htp_tx_t) -> Result<()> {
         for cbk_fn in &self.callbacks {
-            let result = match cbk_fn {
-                Callback::External(cbk_fn) => unsafe { cbk_fn(data) },
-                Callback::Native(cbk_fn) => cbk_fn(data),
+            match cbk_fn {
+                Callback::External(cbk_fn) => {
+                    let result = unsafe { cbk_fn(tx) };
+                    if result != Status::OK && result != Status::DECLINED {
+                        return Err(result);
+                    }
+                }
+                Callback::Native(cbk_fn) => {
+                    if let Err(e) = cbk_fn(tx) {
+                        if e != Status::DECLINED {
+                            return Err(e);
+                        }
+                    }
+                }
             };
-
-            if result != Status::OK && result != Status::DECLINED {
-                return result;
-            }
         }
-        Status::OK
+        Ok(())
     }
 }
 
@@ -89,18 +97,25 @@ impl DataHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, data: *mut htp_tx_data_t) -> Status {
+    pub fn run_all(&self, data: *mut htp_tx_data_t) -> Result<()> {
         for cbk_fn in &self.callbacks {
-            let result = match cbk_fn {
-                Callback::External(cbk_fn) => unsafe { cbk_fn(data) },
-                Callback::Native(cbk_fn) => cbk_fn(data),
+            match cbk_fn {
+                Callback::External(cbk_fn) => {
+                    let result = unsafe { cbk_fn(data) };
+                    if result != Status::OK && result != Status::DECLINED {
+                        return Err(result);
+                    }
+                }
+                Callback::Native(cbk_fn) => {
+                    if let Err(e) = cbk_fn(data) {
+                        if e != Status::DECLINED {
+                            return Err(e);
+                        }
+                    }
+                }
             };
-
-            if result != Status::OK && result != Status::DECLINED {
-                return result;
-            }
         }
-        Status::OK
+        Ok(())
     }
 }
 
@@ -109,18 +124,25 @@ impl FileDataHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, data: *mut htp_file_data_t) -> Status {
+    pub fn run_all(&self, data: *mut htp_file_data_t) -> Result<()> {
         for cbk_fn in &self.callbacks {
-            let result = match cbk_fn {
-                Callback::External(cbk_fn) => unsafe { cbk_fn(data) },
-                Callback::Native(cbk_fn) => cbk_fn(data),
+            match cbk_fn {
+                Callback::External(cbk_fn) => {
+                    let result = unsafe { cbk_fn(data) };
+                    if result != Status::OK && result != Status::DECLINED {
+                        return Err(result);
+                    }
+                }
+                Callback::Native(cbk_fn) => {
+                    if let Err(e) = cbk_fn(data) {
+                        if e != Status::DECLINED {
+                            return Err(e);
+                        }
+                    }
+                }
             };
-
-            if result != Status::OK && result != Status::DECLINED {
-                return result;
-            }
         }
-        Status::OK
+        Ok(())
     }
 }
 
@@ -129,18 +151,25 @@ impl LogHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, log: *mut htp_log_t) -> Status {
+    pub fn run_all(&self, log: *mut htp_log_t) -> Result<()> {
         for cbk_fn in &self.callbacks {
-            let result = match cbk_fn {
-                Callback::External(cbk_fn) => unsafe { cbk_fn(log) },
-                Callback::Native(cbk_fn) => cbk_fn(log),
+            match cbk_fn {
+                Callback::External(cbk_fn) => {
+                    let result = unsafe { cbk_fn(log) };
+                    if result != Status::OK && result != Status::DECLINED {
+                        return Err(result);
+                    }
+                }
+                Callback::Native(cbk_fn) => {
+                    if let Err(e) = cbk_fn(log) {
+                        if e != Status::DECLINED {
+                            return Err(e);
+                        }
+                    }
+                }
             };
-
-            if result != Status::OK && result != Status::DECLINED {
-                return result;
-            }
         }
-        Status::OK
+        Ok(())
     }
 }
 
@@ -165,9 +194,9 @@ mod test {
         let mut hook = DataHook::new();
         let mut data = htp_tx_data_t::new(std::ptr::null_mut(), std::ptr::null_mut(), 0, false);
 
-        hook.register(|_| Status::OK);
+        hook.register(|_| Ok(()));
         hook.register_extern(foo);
 
-        assert_eq!(hook.run_all(&mut data), Status::OK);
+        assert!(hook.run_all(&mut data).is_ok());
     }
 }
