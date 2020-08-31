@@ -89,7 +89,11 @@ unsafe fn htp_urlenp_add_field_piece(
                     };
                     let value = bstr::bstr_t::new();
                     if (*urlenp).decode_url_encoding != 0 {
-                        htp_util::htp_tx_urldecode_params_inplace(&mut *(*urlenp).tx, &mut name);
+                        // Ignore result
+                        let _ = htp_util::htp_tx_urldecode_params_inplace(
+                            &mut *(*urlenp).tx,
+                            &mut name,
+                        );
                     }
                     (*urlenp).params.add(name, value);
                     (*urlenp)._name = 0 as *mut bstr::bstr_t
@@ -111,8 +115,9 @@ unsafe fn htp_urlenp_add_field_piece(
                 bstr::bstr_t::new()
             };
             if (*urlenp).decode_url_encoding != 0 {
-                htp_util::htp_tx_urldecode_params_inplace(&mut *(*urlenp).tx, &mut name_0);
-                htp_util::htp_tx_urldecode_params_inplace(&mut *(*urlenp).tx, &mut value_0);
+                // Ignore results.
+                let _ = htp_util::htp_tx_urldecode_params_inplace(&mut *(*urlenp).tx, &mut name_0);
+                let _ = htp_util::htp_tx_urldecode_params_inplace(&mut *(*urlenp).tx, &mut value_0);
             }
             (*urlenp).params.add(name_0, value_0);
         }

@@ -431,7 +431,7 @@ pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Statu
 /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
 fn htp_mpart_part_parse_c_t(part: &mut htp_multipart_part_t) -> Status {
     if let Some((_, header)) = part.headers.get_nocase_nozero("content-type") {
-        htp_util::htp_parse_ct_header(&header.value, &mut part.content_type)
+        htp_util::htp_parse_ct_header(&header.value, &mut part.content_type).into()
     } else {
         Status::DECLINED
     }

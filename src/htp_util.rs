@@ -589,18 +589,18 @@ pub unsafe fn htp_parse_uri_hostport(
     hostport: &mut bstr::bstr_t,
     uri: &mut htp_uri_t,
     flags: &mut Flags,
-) -> Status {
+) -> Result<()> {
     if let Ok((_, (host, port_nmb, mut valid))) = htp_parse_hostport(hostport) {
         (*uri).hostname = bstr::bstr_dup_str(host);
         if (*uri).hostname.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         bstr::bstr_to_lowercase((*uri).hostname);
         if let Some((port, port_nmb)) = port_nmb {
             (*uri).port = bstr::bstr_dup_str(port);
             if (*uri).port.is_null() {
                 bstr::bstr_free((*uri).hostname);
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
             if let Some(port_number) = port_nmb {
                 (*uri).port_number = port_number as i32;
@@ -612,7 +612,7 @@ pub unsafe fn htp_parse_uri_hostport(
             *flags |= Flags::HTP_HOSTU_INVALID
         }
     }
-    Status::OK
+    Ok(())
 }
 
 /// Attempts to extract the scheme from a given input URI.
@@ -795,19 +795,19 @@ pub fn parse_uri<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], uri_t> {
 /// Parses request URI, making no attempt to validate the contents.
 ///
 /// Returns HTP_ERROR on memory allocation failure, HTP_OK otherwise
-pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri_t) -> Status {
+pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri_t) -> Result<()> {
     // Allow a htp_uri_t structure to be provided on input,
     // but allocate a new one if the structure is NULL.
     if (*uri).is_null() {
         *uri = calloc(1, ::std::mem::size_of::<htp_uri_t>()) as *mut htp_uri_t;
         if (*uri).is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
     }
     if input.is_null() || bstr::bstr_len(input) == 0 {
         // The input might be NULL or empty on requests that don't actually
         // contain the URI. We allow that.
-        return Status::OK;
+        return Ok(());
     }
     if let Ok((_, parsed_uri)) = parse_uri()((*input).as_slice()) {
         if let Some(scheme) = parsed_uri.scheme {
@@ -835,7 +835,7 @@ pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri
             (*(*uri)).fragment = bstr::bstr_dup_str(fragment);
         }
     }
-    Status::OK
+    Ok(())
 }
 
 /// Convert two input bytes, pointed to by the pointer parameter,
@@ -1291,8 +1291,7 @@ fn path_decode<'a>(
 pub fn htp_decode_path_inplace(
     tx: &mut htp_transaction::htp_tx_t,
     path: &mut bstr::bstr_t,
-) -> Status {
-    let mut rc = Status::ERROR;
+) -> Result<()> {
     let decoder_cfg = unsafe {
         (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
     };
@@ -1303,16 +1302,16 @@ pub fn htp_decode_path_inplace(
         path.add(consumed.as_slice());
         tx.response_status_expected_number = expected_status_code;
         tx.flags |= flags;
-        rc = Status::OK;
+        Ok(())
+    } else {
+        Err(Status::ERROR)
     }
-    rc
 }
 
 pub fn htp_tx_urldecode_uri_inplace(
     tx: &mut htp_transaction::htp_tx_t,
     input: &mut bstr::bstr_t,
-) -> Status {
-    let mut rc = Status::ERROR;
+) -> Result<()> {
     let decoder_cfg = unsafe {
         (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize]
     };
@@ -1328,16 +1327,16 @@ pub fn htp_tx_urldecode_uri_inplace(
         if flags.contains(Flags::HTP_URLEN_RAW_NUL) {
             tx.flags |= Flags::HTP_PATH_RAW_NUL;
         }
-        rc = Status::OK;
+        Ok(())
+    } else {
+        Err(Status::ERROR)
     }
-    rc
 }
 
 pub fn htp_tx_urldecode_params_inplace(
     tx: &mut htp_transaction::htp_tx_t,
     input: &mut bstr::bstr_t,
-) -> Status {
-    let mut rc = Status::ERROR;
+) -> Result<()> {
     let decoder_cfg = unsafe {
         (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize]
     };
@@ -1348,9 +1347,10 @@ pub fn htp_tx_urldecode_params_inplace(
         input.add(consumed.as_slice());
         tx.flags |= flags;
         tx.response_status_expected_number = expected_status;
-        rc = Status::OK;
+        Ok(())
+    } else {
+        Err(Status::ERROR)
     }
-    rc
 }
 
 /// Performs in-place decoding of the input string, according to the configuration specified
@@ -1361,15 +1361,15 @@ pub fn htp_urldecode_inplace(
     cfg: htp_decoder_cfg_t,
     input: &mut bstr::bstr_t,
     flags: &mut Flags,
-) -> Status {
-    let mut rc = Status::ERROR;
+) -> Result<()> {
     if let Ok((_, (consumed, flag, _))) = htp_urldecode_ex(input.as_slice(), cfg) {
         (*input).clear();
         input.add(consumed.as_slice());
         *flags |= flag;
-        rc = Status::OK;
+        Ok(())
+    } else {
+        Err(Status::ERROR)
     }
-    rc
 }
 
 /// Decodes valid uencoded hex bytes according to the given cfg settings.
@@ -1655,7 +1655,8 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).username.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).username);
+        // Ignore result.
+        let _ = htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).username);
     }
     // Password.
     if !(*incomplete).password.is_null() {
@@ -1663,7 +1664,8 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).password.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).password);
+        // Ignore result.
+        let _ = htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).password);
     }
     // Hostname.
     if !(*incomplete).hostname.is_null() {
@@ -1673,7 +1675,8 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).hostname.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).hostname);
+        // Ignore result.
+        let _ = htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).hostname);
         htp_normalize_hostname_inplace(&mut *(*normalized).hostname);
     }
     // Port.
@@ -1698,7 +1701,8 @@ pub unsafe fn htp_normalize_parsed_uri(
         }
         // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
         // compress separators and convert backslashes.
-        htp_decode_path_inplace(&mut *tx, &mut *(*normalized).path);
+        // Ignor result.
+        let _ = htp_decode_path_inplace(&mut *tx, &mut *(*normalized).path);
         // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
         utf8_decode_and_validate_path_inplace(&mut *tx, &mut *(*normalized).path);
         // RFC normalization.
@@ -1717,7 +1721,8 @@ pub unsafe fn htp_normalize_parsed_uri(
         if (*normalized).fragment.is_null() {
             return -1;
         }
-        htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).fragment);
+        // Ignore result.
+        let _ = htp_tx_urldecode_uri_inplace(&mut *tx, &mut *(*normalized).fragment);
     }
     1
 }
@@ -1844,15 +1849,15 @@ fn content_type_header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
 /// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
 ///
 /// Returns Status::OK if successful; Status::ERROR if not
-pub fn htp_parse_ct_header<'a>(header: &'a bstr::bstr_t, ct: &mut bstr::bstr_t) -> Status {
-    let mut rc = Status::ERROR;
+pub fn htp_parse_ct_header<'a>(header: &'a bstr::bstr_t, ct: &mut bstr::bstr_t) -> Result<()> {
     if let Ok((_, content_type)) = content_type_header()(header.as_slice()) {
         ct.clear();
         ct.add(content_type);
         ct.make_ascii_lowercase();
-        rc = Status::OK;
+        Ok(())
+    } else {
+        Err(Status::ERROR)
     }
-    rc
 }
 
 /// Implements relaxed (not strictly RFC) hostname validation.

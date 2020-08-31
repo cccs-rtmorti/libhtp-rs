@@ -872,7 +872,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     let res =
         htp_util::htp_urldecode_inplace((*cfg).decoder_cfgs[ctx as usize], &mut *input, &mut f);
     *flags = f.bits();
-    res
+    res.into()
 }
 
 /// Configures whether transactions will be automatically destroyed once they

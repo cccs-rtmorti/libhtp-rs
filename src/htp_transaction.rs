@@ -744,10 +744,7 @@ impl htp_tx_t {
                 }
             }
 
-            rc = htp_util::htp_parse_ct_header(&ct.value, &mut *self.request_content_type);
-            if rc != Status::OK {
-                return Err(rc);
-            }
+            htp_util::htp_parse_ct_header(&ct.value, &mut *self.request_content_type)?;
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies != 0 {
@@ -1138,17 +1135,13 @@ impl htp_tx_t {
             if self.request_uri.is_null() || self.parsed_uri_raw.is_null() {
                 return Err(Status::ERROR);
             }
-            if htp_util::htp_parse_uri_hostport(
+            htp_util::htp_parse_uri_hostport(
                 &mut *self.request_uri,
                 &mut *self.parsed_uri_raw,
                 &mut self.flags,
-            ) != Status::OK
-            {
-                return Err(Status::ERROR);
-            }
-        } else if htp_util::htp_parse_uri(self.request_uri, &mut self.parsed_uri_raw) != Status::OK
-        {
-            return Err(Status::ERROR);
+            )?;
+        } else {
+            htp_util::htp_parse_uri(self.request_uri, &mut self.parsed_uri_raw)?
         }
         // Parse the request URI into htp_tx_t::parsed_uri_raw.
         // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.

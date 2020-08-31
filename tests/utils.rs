@@ -15,7 +15,6 @@ use htp::htp_transaction::*;
 use htp::htp_urlencoded::*;
 use htp::htp_util::*;
 use htp::list::List;
-use htp::Status;
 use nom::error::ErrorKind::TakeUntil;
 use nom::Err::Error;
 use std::net::{IpAddr, Ipv4Addr};
@@ -431,7 +430,7 @@ fn HtpParseUri() {
         let mut uri: *mut htp_uri_t = std::ptr::null_mut();
 
         input = bstr_dup_str("");
-        assert_eq!(Status::OK, htp_parse_uri(input, &mut uri));
+        htp_parse_uri(input, &mut uri).unwrap();
         bstr_free(input);
         free_htp_uri_t(&mut uri);
 
@@ -440,7 +439,7 @@ fn HtpParseUri() {
             if test.uri != std::ptr::null() {
                 //println!("test.uri: {:?}", *(test.uri));
                 input = bstr_dup_c(test.uri);
-                assert_eq!(Status::OK, htp_parse_uri(input, &mut uri));
+                htp_parse_uri(input, &mut uri).unwrap();
                 if let Err(x) = UriIsExpected(test.expected, uri) {
                     println!("{}", x);
                     println!(
@@ -851,7 +850,7 @@ fn ParseContentType_1() {
     let e = "multipart/form-data";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -861,7 +860,7 @@ fn ParseContentType_2() {
     let e = "multipart/form-data";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -871,7 +870,7 @@ fn ParseContentType_3() {
     let e = "multipart/form-data";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -881,7 +880,7 @@ fn ParseContentType_4() {
     let e = "multipart/form-data";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -891,7 +890,7 @@ fn ParseContentType_5() {
     let e = "multipart/form-data";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -901,7 +900,7 @@ fn ParseContentType_6() {
     let e = "multipart/form-data\t";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -911,7 +910,7 @@ fn ParseContentType_7() {
     let e = "multipart/form-data";
     let mut ct = bstr_t::new();
 
-    assert_eq!(Status::OK, htp_parse_ct_header(&i, &mut ct));
+    htp_parse_ct_header(&i, &mut ct).unwrap();
     assert!(ct.eq(e));
 }
 
@@ -1028,7 +1027,7 @@ fn DecodingTest_DecodeUrlencodedInplace1_Identity() {
     let e = bstr_t::from("/dest");
     unsafe {
         let test = DecodingTest::new();
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1039,7 +1038,7 @@ fn DecodingTest_DecodeUrlencodedInplace2_Urlencoded() {
     let e = bstr_t::from("/dest");
     unsafe {
         let test = DecodingTest::new();
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1054,7 +1053,7 @@ fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1069,7 +1068,7 @@ fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1084,7 +1083,7 @@ fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1095,7 +1094,7 @@ fn DecodingTest_DecodeUrlencodedInplace6_UrlencodedInvalidNotEnoughBytes() {
     let e = bstr_t::from("/%a");
     unsafe {
         let test = DecodingTest::new();
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1106,7 +1105,7 @@ fn DecodingTest_DecodeUrlencodedInplace7_UrlencodedInvalidNotEnoughBytes() {
     let e = bstr_t::from("/%");
     unsafe {
         let test = DecodingTest::new();
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1119,7 +1118,7 @@ fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1136,7 +1135,7 @@ fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1153,7 +1152,7 @@ fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1170,7 +1169,7 @@ fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1187,7 +1186,7 @@ fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1204,7 +1203,7 @@ fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1221,7 +1220,7 @@ fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1238,7 +1237,7 @@ fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1255,7 +1254,7 @@ fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1266,7 +1265,7 @@ fn DecodingTest_DecodeUrlencodedInplace17_UrlencodedNul() {
     let e = bstr_t::from("/\0");
     unsafe {
         let test = DecodingTest::new();
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1279,7 +1278,7 @@ fn DecodingTest_DecodeUrlencodedInplace18_UrlencodedNulTerminates() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1292,7 +1291,7 @@ fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1305,7 +1304,7 @@ fn DecodingTes_DecodeUrlencodedInplace20_UencodedBestFit() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1319,8 +1318,8 @@ fn DecodingTest_DecodeUrlencodedInplace21_UencodedCaseInsensitive() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_u_encoding_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i_lower);
-        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i_upper);
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i_lower).unwrap();
+        htp_tx_urldecode_params_inplace(&mut *test.tx, &mut i_upper).unwrap();
     }
     assert_eq!(i_upper, e);
     assert_eq!(i_lower, e);
@@ -1336,7 +1335,7 @@ fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1354,7 +1353,7 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1372,7 +1371,7 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1389,7 +1388,7 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1407,7 +1406,7 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1425,7 +1424,7 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1443,7 +1442,7 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
     }
     assert_eq!(i, e);
@@ -1461,7 +1460,7 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1479,7 +1478,7 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1491,7 +1490,7 @@ fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
     let e = bstr_t::from("/\x00123");
     unsafe {
         let test = DecodingTest::new();
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
     }
     assert_eq!(i, e);
@@ -1505,7 +1504,7 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
     }
     assert_eq!(i, e);
@@ -1519,7 +1518,7 @@ fn DecodingTest_DecodePathInplace12_EncodedSlash() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
     }
     assert_eq!(i, e);
@@ -1533,7 +1532,7 @@ fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
     }
     assert_eq!(i, e);
@@ -1549,7 +1548,7 @@ fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1565,7 +1564,7 @@ fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1581,7 +1580,7 @@ fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1597,7 +1596,7 @@ fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1613,7 +1612,7 @@ fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1629,7 +1628,7 @@ fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
@@ -1643,7 +1642,7 @@ fn DecodingTest_DecodePathInplace20_RawNul1() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1656,7 +1655,7 @@ fn DecodingTest_DecodePathInplace21_RawNul1() {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1671,7 +1670,7 @@ fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             true,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1686,7 +1685,7 @@ fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             false,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -1701,7 +1700,7 @@ fn DecodingTest_DecodePathInplace24_CompressSeparators() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
             true,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i);
+        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
     }
     assert_eq!(i, e);
 }
@@ -2193,7 +2192,8 @@ fn UrlencodedParser_UrlDecode1() {
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
-        );
+        )
+        .unwrap();
         assert_eq!(e, s);
 
         s = bstr_t::from("/one/tw%u006f/three/%uXXXX");
@@ -2209,7 +2209,8 @@ fn UrlencodedParser_UrlDecode1() {
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
-        );
+        )
+        .unwrap();
         assert_eq!(e, s);
 
         s = bstr_t::from("/one/tw%u006f/three/%u123");
@@ -2225,7 +2226,8 @@ fn UrlencodedParser_UrlDecode1() {
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
-        );
+        )
+        .unwrap();
         assert_eq!(e, s);
 
         s = bstr_t::from("/one/tw%u006f/three/%3");
@@ -2241,7 +2243,8 @@ fn UrlencodedParser_UrlDecode1() {
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
-        );
+        )
+        .unwrap();
         assert_eq!(e, s);
 
         s = bstr_t::from("/one/tw%u006f/three/%3");
@@ -2257,7 +2260,8 @@ fn UrlencodedParser_UrlDecode1() {
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
-        );
+        )
+        .unwrap();
         assert_eq!(e, s);
     }
 }
