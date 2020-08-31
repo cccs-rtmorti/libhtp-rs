@@ -751,13 +751,15 @@ impl htp_tx_t {
         }
         // Parse authentication information.
         if (*(*self.connp).cfg).parse_request_auth != 0 {
-            rc = htp_parsers::htp_parse_authorization(self.connp);
-            if rc == Status::DECLINED {
-                // Don't fail the stream if an authorization header is invalid, just set a flag.
-                self.flags |= Flags::HTP_AUTH_INVALID
-            } else if rc != Status::OK {
-                return Err(rc);
-            }
+            htp_parsers::htp_parse_authorization(self.connp).or_else(|rc| {
+                if rc == Status::DECLINED {
+                    // Don't fail the stream if an authorization header is invalid, just set a flag.
+                    self.flags |= Flags::HTP_AUTH_INVALID;
+                    Ok(())
+                } else {
+                    Err(rc)
+                }
+            })?;
         }
         // Finalize sending raw header data.
         htp_request::htp_connp_req_receiver_finalize_clear(self.connp)?;
