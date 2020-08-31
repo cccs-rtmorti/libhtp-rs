@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::htp_util::*;
@@ -18,19 +19,11 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
-) -> Status {
-    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
-        in_tx
-    } else {
-        return Status::ERROR;
-    };
+) -> Result<()> {
+    let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
     // Try to parse the header.
     let data: &[u8] = std::slice::from_raw_parts(data as *const u8, len);
-    let header = if let Ok(header) = htp_parse_request_header_generic(connp, data) {
-        header
-    } else {
-        return Status::ERROR;
-    };
+    let header = htp_parse_request_header_generic(connp, data)?;
     // Do we already have a header with the same name?
     if let Some((_, h_existing)) = in_tx.request_headers.get_nocase_mut(header.name.as_slice()) {
         // TODO Do we want to have a list of the headers that are
@@ -45,7 +38,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
         } else if (in_tx.req_header_repetitions) < 64 {
             in_tx.req_header_repetitions = in_tx.req_header_repetitions.wrapping_add(1)
         } else {
-            return Status::OK;
+            return Ok(());
         }
         // For simplicity reasons, we count the repetitions of all headers
         // Keep track of repeated same-name headers.
@@ -73,14 +66,14 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
     } else {
         in_tx.request_headers.add(header.name.clone(), header);
     }
-    Status::OK
+    Ok(())
 }
 
 /// Generic request header parser.
 pub unsafe fn htp_parse_request_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
     data: &[u8],
-) -> Result<htp_transaction::htp_header_t, Status> {
+) -> Result<htp_transaction::htp_header_t> {
     let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
     let mut flags = Flags::empty();
     let data = htp_util::htp_chomp(&data);
@@ -173,19 +166,15 @@ pub unsafe fn htp_parse_request_header_generic(
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_line_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
-) -> Status {
+) -> Result<()> {
     htp_parse_request_line_generic_ex(connp, 0)
 }
 
 pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     connp: *mut htp_connection_parser::htp_connp_t,
     nul_terminates: i32,
-) -> Status {
-    let in_tx = if let Some(in_tx) = (*connp).in_tx_mut() {
-        in_tx
-    } else {
-        return Status::ERROR;
-    };
+) -> Result<()> {
+    let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
 
     let mut mstart: bool = false;
     let mut data = (*in_tx.request_line).as_ref();
@@ -234,7 +223,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
         }
 
         if in_tx.request_method.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
         in_tx.request_method_number = htp_util::htp_convert_bstr_to_method(&*in_tx.request_method);
 
@@ -258,7 +247,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                     "Request line: unknown method only"
                 );
             }
-            return Status::OK;
+            return Ok(());
         }
 
         let uri_protocol_parser = tuple::<_, _, (_, ErrorKind), _>
@@ -287,7 +276,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
 
             in_tx.request_uri = bstr::bstr_dup_str(uri);
             if in_tx.request_uri.is_null() {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
 
             // Is there protocol information available?
@@ -302,12 +291,12 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                         "Request line: unknown method and no protocol"
                     );
                 }
-                return Status::OK;
+                return Ok(());
             }
             // The protocol information continues until the end of the line.
             in_tx.request_protocol = bstr::bstr_dup_str(protocol);
             if in_tx.request_protocol.is_null() {
-                return Status::ERROR;
+                return Err(Status::ERROR);
             }
             in_tx.request_protocol_number =
                 htp_parsers::htp_parse_protocol(&mut *in_tx.request_protocol, &mut *connp);
@@ -322,5 +311,5 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
             }
         }
     }
-    Status::OK
+    Ok(())
 }

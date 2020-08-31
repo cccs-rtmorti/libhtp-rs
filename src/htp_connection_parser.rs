@@ -346,32 +346,26 @@ impl htp_connp_t {
         unsafe {
             match self.in_state {
                 State::NONE => Err(Status::ERROR),
-                State::IDLE => htp_request::htp_connp_REQ_IDLE(self).into(),
+                State::IDLE => htp_request::htp_connp_REQ_IDLE(self),
                 State::IGNORE_DATA_AFTER_HTTP_0_9 => {
-                    htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(self).into()
+                    htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(self)
                 }
-                State::LINE => htp_request::htp_connp_REQ_LINE(self).into(),
-                State::PROTOCOL => htp_request::htp_connp_REQ_PROTOCOL(self).into(),
-                State::HEADERS => htp_request::htp_connp_REQ_HEADERS(self).into(),
+                State::LINE => htp_request::htp_connp_REQ_LINE(self),
+                State::PROTOCOL => htp_request::htp_connp_REQ_PROTOCOL(self),
+                State::HEADERS => htp_request::htp_connp_REQ_HEADERS(self),
                 State::CONNECT_WAIT_RESPONSE => {
-                    htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE(self).into()
+                    htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE(self)
                 }
-                State::CONNECT_CHECK => htp_request::htp_connp_REQ_CONNECT_CHECK(self).into(),
-                State::CONNECT_PROBE_DATA => {
-                    htp_request::htp_connp_REQ_CONNECT_PROBE_DATA(self).into()
-                }
-                State::BODY_DETERMINE => htp_request::htp_connp_REQ_BODY_DETERMINE(self).into(),
-                State::BODY_CHUNKED_DATA => {
-                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA(self).into()
-                }
-                State::BODY_CHUNKED_LENGTH => {
-                    htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH(self).into()
-                }
+                State::CONNECT_CHECK => htp_request::htp_connp_REQ_CONNECT_CHECK(self),
+                State::CONNECT_PROBE_DATA => htp_request::htp_connp_REQ_CONNECT_PROBE_DATA(self),
+                State::BODY_DETERMINE => htp_request::htp_connp_REQ_BODY_DETERMINE(self),
+                State::BODY_CHUNKED_DATA => htp_request::htp_connp_REQ_BODY_CHUNKED_DATA(self),
+                State::BODY_CHUNKED_LENGTH => htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH(self),
                 State::BODY_CHUNKED_DATA_END => {
-                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END(self).into()
+                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END(self)
                 }
-                State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self).into(),
-                State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self).into(),
+                State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self),
+                State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self),
                 // These are only used by out_state
                 State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => {
                     Err(Status::ERROR)
@@ -420,9 +414,9 @@ impl htp_connp_t {
     pub fn parse_request_line(&mut self) -> Result<()> {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                htp_request_apache_2_2::htp_parse_request_line_apache_2_2(self).into()
+                htp_request_apache_2_2::htp_parse_request_line_apache_2_2(self)
             } else {
-                htp_request_generic::htp_parse_request_line_generic(self).into()
+                htp_request_generic::htp_parse_request_line_generic(self)
             }
         }
     }
@@ -436,9 +430,8 @@ impl htp_connp_t {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
                 htp_request_apache_2_2::htp_process_request_header_apache_2_2(self, data, len)
-                    .into()
             } else {
-                htp_request_generic::htp_process_request_header_generic(self, data, len).into()
+                htp_request_generic::htp_process_request_header_generic(self, data, len)
             }
         }
     }
