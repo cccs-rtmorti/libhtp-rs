@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_transaction::Protocol;
 use crate::htp_util::Flags;
 use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util, Status};
@@ -14,12 +15,8 @@ extern "C" {
 /// Generic response line parser.
 pub unsafe extern "C" fn htp_parse_response_line_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
-) -> Status {
-    let tx = if let Some(out_tx) = (*connp).out_tx_mut() {
-        out_tx
-    } else {
-        return Status::ERROR;
-    };
+) -> Result<()> {
+    let tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
     let len: usize = bstr::bstr_len((*tx).response_line);
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
@@ -42,23 +39,23 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         response_line_parser(data_slice)
     {
         if response_protocol.len() == 0 {
-            return Status::OK;
+            return Ok(());
         }
         (*tx).response_protocol = bstr::bstr_dup_str(response_protocol);
         if (*tx).response_protocol.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
 
         (*tx).response_protocol_number =
             htp_parsers::htp_parse_protocol(response_protocol, &mut *connp);
 
         if ws1.len() == 0 || status_code.len() == 0 {
-            return Status::OK;
+            return Ok(());
         }
 
         (*tx).response_status = bstr::bstr_dup_str(status_code);
         if (*tx).response_status.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
 
         if let Some(status_number) = htp_parsers::htp_parse_status(status_code) {
@@ -68,18 +65,17 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         }
 
         if ws2.len() == 0 {
-            return Status::OK;
+            return Ok(());
         }
 
         (*tx).response_message = bstr::bstr_dup_str(message);
         if (*tx).response_message.is_null() {
-            return Status::ERROR;
+            return Err(Status::ERROR);
         }
     } else {
-        return Status::ERROR;
+        return Err(Status::ERROR);
     }
-
-    Status::OK
+    Ok(())
 }
 
 /// Generic response header parser.
@@ -87,7 +83,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
-) -> Result<htp_transaction::htp_header_t, Status> {
+) -> Result<htp_transaction::htp_header_t> {
     let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
         out_tx
     } else {
@@ -203,16 +199,12 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
     connp: *mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
-) -> Status {
-    let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
-        out_tx
-    } else {
-        return Status::ERROR;
-    };
+) -> Result<()> {
+    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     let header = if let Ok(header) = htp_parse_response_header_generic(connp, data, len) {
         header
     } else {
-        return Status::ERROR;
+        return Err(Status::ERROR);
     };
     // Do we already have a header with the same name?
     if let Some((_, h_existing)) = out_tx
@@ -230,7 +222,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
         } else if (out_tx.res_header_repetitions) < 64 {
             out_tx.res_header_repetitions = out_tx.res_header_repetitions.wrapping_add(1)
         } else {
-            return Status::OK;
+            return Ok(());
         }
         h_existing.flags |= Flags::HTP_FIELD_REPEATED;
         // For simplicity reasons, we count the repetitions of all headers
@@ -257,5 +249,5 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
     } else {
         out_tx.response_headers.add(header.name.clone(), header);
     }
-    Status::OK
+    Ok(())
 }

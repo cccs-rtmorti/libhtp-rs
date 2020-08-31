@@ -379,25 +379,21 @@ impl htp_connp_t {
         unsafe {
             match self.out_state {
                 State::NONE => Err(Status::ERROR),
-                State::IDLE => htp_response::htp_connp_RES_IDLE(self).into(),
-                State::LINE => htp_response::htp_connp_RES_LINE(self).into(),
-                State::HEADERS => htp_response::htp_connp_RES_HEADERS(self).into(),
-                State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self).into(),
-                State::BODY_CHUNKED_DATA => {
-                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self).into()
-                }
-                State::BODY_CHUNKED_LENGTH => {
-                    htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self).into()
-                }
+                State::IDLE => htp_response::htp_connp_RES_IDLE(self),
+                State::LINE => htp_response::htp_connp_RES_LINE(self),
+                State::HEADERS => htp_response::htp_connp_RES_HEADERS(self),
+                State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self),
+                State::BODY_CHUNKED_DATA => htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self),
+                State::BODY_CHUNKED_LENGTH => htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self),
                 State::BODY_CHUNKED_DATA_END => {
-                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self).into()
+                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self)
                 }
-                State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self).into(),
+                State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self),
                 State::BODY_IDENTITY_STREAM_CLOSE => {
-                    htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self).into()
+                    htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self)
                 }
                 State::BODY_IDENTITY_CL_KNOWN => {
-                    htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self).into()
+                    htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self)
                 }
                 // These are only used by in_state
                 State::PROTOCOL
@@ -423,7 +419,7 @@ impl htp_connp_t {
 
     /// The function used for response line parsing. Depends on the personality.
     pub fn parse_response_line(&mut self) -> Result<()> {
-        unsafe { htp_response_generic::htp_parse_response_line_generic(self).into() }
+        unsafe { htp_response_generic::htp_parse_response_line_generic(self) }
     }
 
     pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
@@ -437,7 +433,7 @@ impl htp_connp_t {
     }
 
     pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
-        unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len).into() }
+        unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len) }
     }
 
     /// Closes the connection associated with the supplied parser.
