@@ -442,7 +442,7 @@ impl htp_cfg_t {
     /// stored in request bodies, when they are in multipart/form-data format.
     pub fn register_multipart_parser(&mut self) {
         self.hook_request_headers
-            .register_extern(htp_content_handlers::htp_ch_multipart_callback_request_headers)
+            .register(htp_content_handlers::htp_ch_multipart_callback_request_headers)
     }
 
     /// Registers a REQUEST_COMPLETE callback.
@@ -538,9 +538,9 @@ impl htp_cfg_t {
     #[allow(dead_code)]
     pub fn register_urlencoded_parser(&mut self) {
         self.hook_request_line
-            .register_extern(htp_content_handlers::htp_ch_urlencoded_callback_request_line);
+            .register(htp_content_handlers::htp_ch_urlencoded_callback_request_line);
         self.hook_request_headers
-            .register_extern(htp_content_handlers::htp_ch_urlencoded_callback_request_headers)
+            .register(htp_content_handlers::htp_ch_urlencoded_callback_request_headers)
     }
 
     /// Configures the maximum size of the buffer LibHTP will use when all data is not available
