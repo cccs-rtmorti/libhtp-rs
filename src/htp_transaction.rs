@@ -672,13 +672,10 @@ impl htp_tx_t {
             && self.req_has_body() != 0
         {
             // Prepare to treat PUT request body as a file.
-            (*self.connp).put_file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
-                as *mut htp_util::htp_file_t;
-            if (*self.connp).put_file.is_null() {
-                return Err(Status::ERROR);
-            }
-            (*(*self.connp).put_file).fd = -1;
-            (*(*self.connp).put_file).source = htp_util::htp_file_source_t::HTP_FILE_PUT
+            (*self.connp).put_file = Some(htp_util::htp_file_t::new(
+                htp_util::htp_file_source_t::HTP_FILE_PUT,
+                None,
+            ));
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
@@ -1026,12 +1023,6 @@ impl htp_tx_t {
         self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
         // Run hook REQUEST_COMPLETE.
         (*(*self.connp).cfg).hook_request_complete.run_all(self)?;
-        // Clean-up.
-        if !(*self.connp).put_file.is_null() {
-            bstr::bstr_free((*(*self.connp).put_file).filename);
-            free((*self.connp).put_file as *mut core::ffi::c_void);
-            (*self.connp).put_file = 0 as *mut htp_util::htp_file_t
-        }
         Ok(())
     }
 

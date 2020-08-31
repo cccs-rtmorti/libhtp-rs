@@ -172,7 +172,7 @@ pub struct htp_connp_t {
     /// Response decompressor used to decompress response body data.
     pub out_decompressor: *mut htp_decompressors::htp_decompressor_t,
     /// On a PUT request, this field contains additional file data.
-    pub put_file: *mut htp_util::htp_file_t,
+    pub put_file: Option<htp_util::htp_file_t>,
 }
 
 impl htp_connp_t {
@@ -230,7 +230,7 @@ impl htp_connp_t {
             out_state_previous: State::NONE,
             out_data_receiver_hook: None,
             out_decompressor: std::ptr::null_mut(),
-            put_file: std::ptr::null_mut(),
+            put_file: None,
         }
     }
 
@@ -691,10 +691,6 @@ impl Drop for htp_connp_t {
                 free(self.out_buf as *mut core::ffi::c_void);
             }
             self.destroy_decompressors();
-            if !self.put_file.is_null() {
-                bstr::bstr_free((*self.put_file).filename);
-                free(self.put_file as *mut core::ffi::c_void);
-            }
             if !self.in_header.is_null() {
                 bstr::bstr_free(self.in_header);
                 self.in_header = std::ptr::null_mut()

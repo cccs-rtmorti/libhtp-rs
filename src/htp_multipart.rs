@@ -1,8 +1,6 @@
 use crate::htp_util::{take_ascii_whitespace, Flags};
 use crate::{bstr, htp_config, htp_table, htp_transaction, htp_util, list, Status};
 use bitflags;
-use std::cmp::Ordering;
-
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take, take_till, take_until, take_while, take_while1},
@@ -14,6 +12,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use std::cmp::Ordering;
 
 bitflags::bitflags! {
     pub struct MultipartFlags: u64 {
@@ -131,9 +130,9 @@ extern "C" {
 pub struct htp_mpartp_t {
     pub multipart: htp_multipart_t,
     pub cfg: *mut htp_config::htp_cfg_t,
-    pub extract_files: i32,
+    pub extract_files: bool,
     pub extract_limit: i32,
-    pub extract_dir: *mut i8,
+    pub extract_dir: String,
     pub file_count: i32,
     // Parsing callbacks
     pub handle_data: Option<fn(_: &mut htp_mpartp_t, _: bool) -> Status>,
@@ -191,7 +190,6 @@ pub struct htp_mpartp_t {
 }
 
 /// Holds information related to a part.
-#[derive(Clone)]
 pub struct htp_multipart_part_t {
     /// Pointer to the parser.
     pub parser: *mut htp_mpartp_t,
@@ -212,7 +210,7 @@ pub struct htp_multipart_part_t {
     /// Part headers (htp_header_t instances), using header name as the key.
     pub headers: htp_transaction::htp_headers_t,
     /// File data, available only for MULTIPART_PART_FILE parts.
-    pub file: *mut htp_util::htp_file_t,
+    pub file: Option<htp_util::htp_file_t>,
 }
 
 #[repr(C)]
@@ -393,23 +391,19 @@ pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Statu
                 }
                 b"filename" => {
                     // Check that we have not seen the filename parameter already.
-                    if !part.file.is_null() {
-                        (*part.parser).multipart.flags |=
-                            MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                        return Status::DECLINED;
-                    }
-                    part.file = calloc(1, ::std::mem::size_of::<htp_util::htp_file_t>())
-                        as *mut htp_util::htp_file_t;
-                    if part.file.is_null() {
-                        return Status::ERROR;
-                    }
-                    (*part.file).fd = -1;
-                    (*part.file).source = htp_util::htp_file_source_t::HTP_FILE_MULTIPART;
-                    (*part.file).filename = bstr::bstr_dup_str(param_value);
-                    if (*part.file).filename.is_null() {
-                        free(part.file as *mut core::ffi::c_void);
-                        return Status::ERROR;
-                    }
+                    match part.file {
+                        Some(_) => {
+                            (*part.parser).multipart.flags |=
+                                MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
+                            return Status::DECLINED;
+                        }
+                        None => {
+                            part.file = Some(htp_util::htp_file_t::new(
+                                htp_util::htp_file_source_t::HTP_FILE_MULTIPART,
+                                Some(bstr::bstr_t::from(param_value)),
+                            ));
+                        }
+                    };
                 }
                 _ => {
                     // Unknown parameter.
@@ -528,6 +522,7 @@ pub unsafe extern "C" fn htp_mpart_part_create(
     (*part).headers = htp_table::htp_table_t::with_capacity(4);
     (*part).name = bstr::bstr_t::with_capacity(64);
     (*part).value = bstr::bstr_t::with_capacity(64);
+    (*part).file = None;
     (*part).parser = parser;
     (*parser).part_data_pieces.clear();
     (*parser).part_header.clear();
@@ -535,19 +530,11 @@ pub unsafe extern "C" fn htp_mpart_part_create(
 }
 
 /// Destroys a part.
-pub unsafe extern "C" fn htp_mpart_part_destroy(mut part: *mut htp_multipart_part_t) {
+pub unsafe extern "C" fn htp_mpart_part_destroy(part: *mut htp_multipart_part_t) {
     if part.is_null() {
         return;
     }
-    if !(*part).file.is_null() {
-        bstr::bstr_free((*(*part).file).filename);
-        if !(*(*part).file).tmpname.is_null() {
-            unlink((*(*part).file).tmpname);
-            free((*(*part).file).tmpname as *mut core::ffi::c_void);
-        }
-        free((*part).file as *mut core::ffi::c_void);
-        (*part).file = 0 as *mut htp_util::htp_file_t
-    }
+    (*part).file = None;
     (*part).headers.elements.clear();
     free(part as *mut core::ffi::c_void);
 }
@@ -595,10 +582,6 @@ pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> S
     if part.type_0 == htp_multipart_type_t::MULTIPART_PART_FILE {
         // Notify callbacks about the end of the file.
         htp_mpartp_run_request_file_data_hook(part, b"");
-        // If we are storing the file to disk, close the file descriptor.
-        if (*part.file).fd != -1 {
-            close((*part.file).fd);
-        }
     } else if (*part.parser).part_data_pieces.len() > 0 {
         part.value.clear();
         part.value.add((*part.parser).part_data_pieces.as_slice());
@@ -608,33 +591,23 @@ pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> S
 }
 
 pub unsafe fn htp_mpartp_run_request_file_data_hook(
-    mut part: &mut htp_multipart_part_t,
+    part: &mut htp_multipart_part_t,
     data: &[u8],
 ) -> Status {
     if (*part.parser).cfg.is_null() {
         return Status::OK;
     }
-    // Combine value pieces into a single buffer.
-    // Keep track of the file length.
-    (*part.file).len = ((*part.file).len).wrapping_add(data.len());
-    // Package data for the callbacks.
-    let mut file_data: htp_util::htp_file_data_t = htp_util::htp_file_data_t {
-        file: 0 as *mut htp_util::htp_file_t,
-        data: 0 as *const u8,
-        len: 0,
-    };
-    file_data.file = part.file;
-    file_data.data = data.as_ptr();
-    file_data.len = data.len();
-    // Send data to callbacks
-    let rc: Status = (*(*(*part).parser).cfg)
-        .hook_request_file_data
-        .run_all(&mut file_data)
-        .into();
-    if rc != Status::OK {
-        return rc;
+
+    match &mut (*part).file {
+        // Combine value pieces into a single buffer.
+        // Keep track of the file length.
+        Some(file) => {
+            // Send data to callbacks
+            file.handle_file_data((*(*part).parser).cfg, data.as_ptr(), data.len())
+                .into()
+        }
+        None => Status::OK,
     }
-    Status::OK
 }
 
 /// Handles part data.
@@ -702,39 +675,28 @@ pub unsafe fn htp_mpart_part_handle_data(
                 }
                 (*part.parser).current_part_mode = htp_part_mode_t::MODE_DATA;
                 (*part.parser).part_header.clear();
-                if !part.file.is_null() {
-                    // Changing part type because we have a filename.
-                    part.type_0 = htp_multipart_type_t::MULTIPART_PART_FILE;
-                    if (*part.parser).extract_files != 0
-                        && (*part.parser).file_count < (*part.parser).extract_limit
-                    {
-                        let mut buf: [i8; 255] = [0; 255];
-                        strncpy(buf.as_mut_ptr(), (*part.parser).extract_dir, 254);
-                        strncat(
-                            buf.as_mut_ptr(),
-                            b"/libhtp-multipart-file-XXXXXX\x00" as *const u8 as *const i8,
-                            (254 as usize).wrapping_sub(strlen(buf.as_mut_ptr())),
-                        );
-                        (*part.file).tmpname = libc::strdup(buf.as_mut_ptr());
-                        if (*part.file).tmpname.is_null() {
-                            return Status::ERROR;
+
+                match &mut (*part).file {
+                    Some(file) => {
+                        // Changing part type because we have a filename.
+                        part.type_0 = htp_multipart_type_t::MULTIPART_PART_FILE;
+                        if (*part.parser).extract_files
+                            && (*part.parser).file_count < (*part.parser).extract_limit
+                        {
+                            let rc = file.create(&(*part.parser).extract_dir);
+                            if rc == Status::ERROR {
+                                return rc;
+                            }
+                            (*part.parser).file_count += 1;
                         }
-                        let previous_mask: u32 = umask(
-                            0o100
-                                | (0o400 | 0o200 | 0o100) >> 3
-                                | (0o400 | 0o200 | 0o100) >> 3 >> 3,
-                        );
-                        (*part.file).fd = mkstemp((*part.file).tmpname);
-                        umask(previous_mask);
-                        if (*part.file).fd < 0 {
-                            return Status::ERROR;
-                        }
-                        (*part.parser).file_count += 1
                     }
-                } else if part.name.len() > 0 {
-                    // Changing part type because we have a name.
-                    part.type_0 = htp_multipart_type_t::MULTIPART_PART_TEXT;
-                    (*part.parser).part_data_pieces.clear();
+                    None => {
+                        if part.name.len() > 0 {
+                            // Changing part type because we have a name.
+                            part.type_0 = htp_multipart_type_t::MULTIPART_PART_TEXT;
+                            (*part.parser).part_data_pieces.clear();
+                        }
+                    }
                 }
             } else if (*part.parser).pending_header_line.len() == 0 {
                 if let Some(header) = line {
@@ -775,14 +737,8 @@ pub unsafe fn htp_mpart_part_handle_data(
                 // Invoke file data callbacks.
                 htp_mpartp_run_request_file_data_hook(part, data);
                 // Optionally, store the data in a file.
-                if (*part.file).fd != -1
-                    && write(
-                        (*part.file).fd,
-                        data.as_ptr() as *const core::ffi::c_void,
-                        data.len(),
-                    ) < 0
-                {
-                    return Status::ERROR;
+                if let Some(file) = &mut (*part).file {
+                    return file.write(data);
                 }
             }
             _ => {
@@ -893,7 +849,7 @@ pub unsafe extern "C" fn htp_mpartp_create(
     (*parser).multipart.flags = flags;
     (*parser).parser_state = htp_multipart_state_t::STATE_INIT;
     (*parser).extract_files = (*cfg).extract_request_files;
-    (*parser).extract_dir = (*cfg).tmpdir;
+    (*parser).extract_dir = (*cfg).tmpdir.clone();
     if (*cfg).extract_request_files_limit >= 0 {
         (*parser).extract_limit = (*cfg).extract_request_files_limit
     } else {

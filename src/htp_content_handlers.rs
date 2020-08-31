@@ -172,7 +172,7 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
 ///         is not appropriate for this parser, and HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
-    mut tx: *mut htp_transaction::htp_tx_t,
+    tx: *mut htp_transaction::htp_tx_t,
 ) -> Status {
     // The field request_content_type does not contain the entire C-T
     // value and so we cannot use it to look for a boundary, but we can
@@ -195,11 +195,6 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
             htp_multipart::htp_mpartp_create((*(*tx).connp).cfg, boundary, flags);
         if (*tx).request_mpartp.is_null() {
             return Status::ERROR;
-        }
-        // Configure file extraction.
-        if (*(*tx).cfg).extract_request_files != 0 {
-            (*(*tx).request_mpartp).extract_files = 1;
-            (*(*tx).request_mpartp).extract_dir = (*(*(*tx).connp).cfg).tmpdir
         }
         // Register a request body data callback.
         (*tx)

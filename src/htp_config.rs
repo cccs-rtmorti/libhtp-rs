@@ -40,11 +40,11 @@ pub struct htp_cfg_t {
     /// Whether to parse HTTP Authentication headers.
     pub parse_request_auth: i32,
     /// Whether to extract files from requests using Multipart encoding.
-    pub extract_request_files: i32,
+    pub extract_request_files: bool,
     /// How many extracted files are allowed in a single Multipart request?
     pub extract_request_files_limit: i32,
     /// The location on disk where temporary files will be created.
-    pub tmpdir: *mut i8,
+    pub tmpdir: String,
     /// Request start hook, invoked when the parser receives the first byte of a new
     /// request. Because in HTTP a transaction always starts with a request, this hook
     /// doubles as a transaction start hook.
@@ -148,9 +148,9 @@ impl Default for htp_cfg_t {
             internal_encoding: std::ptr::null_mut(),
             parse_request_cookies: 1,
             parse_request_auth: 1,
-            extract_request_files: 0,
+            extract_request_files: false,
             extract_request_files_limit: -1,
-            tmpdir: std::ptr::null_mut(),
+            tmpdir: "/tmp".to_string(),
             hook_request_start: TxHook::new(),
             hook_request_line: TxHook::new(),
             hook_request_uri_normalize: TxHook::new(),

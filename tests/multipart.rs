@@ -9,7 +9,6 @@ use htp::htp_table::*;
 use htp::htp_transaction::*;
 use htp::Status;
 use libc::calloc;
-use std::ffi::CStr;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -139,8 +138,12 @@ impl Test {
                 (*(*file1)).type_0
             );
             assert!((*(*(*file1)).name).eq("file1"));
-            assert!(!(*(*(*file1)).file).filename.is_null());
-            assert!((*(*(*(*file1)).file).filename).eq("file.bin"));
+
+            assert!((*(*file1)).file.is_some());
+            let file = (*(*file1)).file.as_ref().unwrap();
+            assert!(file.filename.is_some());
+            let filename = file.filename.as_ref().unwrap();
+            assert!(filename.eq("file.bin"));
 
             // Field 2
             let field2 = (*self.body).parts.get(2);
@@ -1105,57 +1108,64 @@ fn WithFile() {
         let part = part.unwrap();
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
         assert!((*(*(*part)).content_type).eq("application/octet-stream"));
-        assert!(!(*(*part)).file.is_null());
-        assert!((*(*(*(*part)).file).filename).eq("test.bin"));
-        assert_eq!(6, (*(*(*part)).file).len);
+        assert!((*(*part)).file.is_some());
+        let file = (*(*part)).file.as_ref().unwrap();
+        assert!(file.filename.is_some());
+        let filename = file.filename.as_ref().unwrap();
+        assert!(filename.eq("test.bin"));
+        assert_eq!(6, file.len);
     }
 }
 
 #[test]
 fn WithFileExternallyStored() {
-    let mut t = Test::new();
-    let parts = vec![
-        "--0123456789\r\n\
-         Content-Disposition: form-data; name=\"field1\"\r\n\
-         \r\n\
-         ABCDEF\
-         \r\n--0123456789\r\n\
-         Content-Disposition: form-data; name=\"field2\"; filename=\"test.bin\"\r\n\
-         Content-Type: application/octet-stream \r\n\
-         \r\n\
-         GHIJKL\
-         \r\n--0123456789--",
-    ];
+    let tmpfile = {
+        let mut t = Test::new();
+        let parts = vec![
+            "--0123456789\r\n\
+             Content-Disposition: form-data; name=\"field1\"\r\n\
+             \r\n\
+             ABCDEF\
+             \r\n--0123456789\r\n\
+             Content-Disposition: form-data; name=\"field2\"; filename=\"test.bin\"\r\n\
+             Content-Type: application/octet-stream \r\n\
+             \r\n\
+             GHIJKL\
+             \r\n--0123456789--",
+        ];
 
-    unsafe {
-        (*t.cfg).extract_request_files = 1;
-        (*t.cfg).tmpdir = "/tmp\0".as_ptr() as *mut i8;
+        unsafe {
+            (*t.cfg).extract_request_files = true;
+            (*t.cfg).tmpdir = "/tmp".to_string();
 
-        t.parseParts(&parts);
+            t.parseParts(&parts);
 
-        assert!(!t.body.is_null());
-        assert_eq!(2, (*t.body).parts.len());
+            assert!(!t.body.is_null());
+            assert_eq!(2, (*t.body).parts.len());
 
-        let part = (*t.body).parts.get(1);
-        assert!(part.is_some());
-        let part = part.unwrap();
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
+            let part = (*t.body).parts.get(1);
+            assert!(part.is_some());
+            let part = part.unwrap();
+            assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
 
-        assert!((*(*(*part)).content_type).eq("application/octet-stream"));
-        assert!(!(*(*part)).file.is_null());
-        assert!((*(*(*(*part)).file).filename).eq("test.bin"));
-        assert_eq!(6, (*(*(*part)).file).len);
+            assert!((*(*(*part)).content_type).eq("application/octet-stream"));
+            assert!((*(*part)).file.is_some());
+            let file = (*(*part)).file.as_ref().unwrap();
+            assert!(file.filename.is_some());
+            let filename = file.filename.as_ref().unwrap();
+            assert!(filename.eq("test.bin"));
+            assert_eq!(6, file.len);
 
-        assert!(!(*(*(*part)).file).tmpname.is_null());
-        let contents = fs::read_to_string(
-            CStr::from_ptr((*(*(*part)).file).tmpname as *mut i8)
-                .to_str()
-                .unwrap(),
-        )
-        .unwrap();
-        assert_eq!(6, contents.chars().count());
-        assert_eq!(contents, "GHIJKL");
-    }
+            assert!(file.tmpfile.is_some());
+            let name = file.tmpfile.as_ref().unwrap().path().to_path_buf();
+
+            let contents = fs::read_to_string(&name).unwrap();
+            assert_eq!(6, contents.chars().count());
+            assert_eq!(contents, "GHIJKL");
+            name
+        }
+    };
+    assert!(!tmpfile.exists());
 }
 
 #[test]

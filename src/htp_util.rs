@@ -1,6 +1,5 @@
 use crate::error::Result;
-use crate::htp_config::htp_decoder_cfg_t;
-use crate::htp_config::htp_url_encoding_handling_t;
+use crate::htp_config::{htp_cfg_t, htp_decoder_cfg_t, htp_url_encoding_handling_t};
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_request, htp_transaction, utf8_decoder, Status,
 };
@@ -21,6 +20,9 @@ use nom::{
 };
 
 use std::cmp::Ordering;
+use std::io::Write;
+use tempfile::Builder;
+use tempfile::NamedTempFile;
 
 pub const HTP_VERSION_STRING_FULL: &'static str =
     concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
@@ -102,18 +104,70 @@ pub enum htp_file_source_t {
 /// Used to represent files that are seen during the processing of HTTP traffic. Most
 /// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
 /// request bodies can be treated as files.
-#[derive(Copy, Clone)]
+#[derive(Debug)]
 pub struct htp_file_t {
     /// Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT.
     pub source: htp_file_source_t,
     /// File name, as provided (e.g., in the Content-Disposition multipart part header.
-    pub filename: *mut bstr::bstr_t,
+    pub filename: Option<bstr::bstr_t>,
     /// File length.
     pub len: usize,
-    /// The unique filename in which this file is stored on the filesystem, when applicable.
-    pub tmpname: *mut i8,
-    /// The file descriptor used for external storage, or -1 if unused.
-    pub fd: i32,
+    /// The file used for external storage.
+    pub tmpfile: Option<NamedTempFile>,
+}
+
+impl htp_file_t {
+    pub fn new(source: htp_file_source_t, filename: Option<bstr::bstr_t>) -> htp_file_t {
+        htp_file_t {
+            source,
+            filename,
+            len: 0,
+            tmpfile: None,
+        }
+    }
+
+    /// Create new tempfile
+    pub fn create(&mut self, tmpfile: &str) -> Status {
+        let tempfile = Builder::new()
+            .prefix("libhtp-multipart-file-")
+            .rand_bytes(5)
+            .tempfile_in(tmpfile);
+
+        match tempfile {
+            Ok(file) => {
+                self.tmpfile = Some(file);
+                Status::OK
+            }
+            Err(_) => Status::ERROR,
+        }
+    }
+
+    /// Write data to tempfile
+    pub fn write(&mut self, data: &[u8]) -> Status {
+        match &mut self.tmpfile {
+            Some(tmpfile) => match tmpfile.write_all(data) {
+                Ok(_) => Status::OK,
+                Err(_) => Status::ERROR,
+            },
+            None => Status::OK,
+        }
+    }
+
+    /// Update file length and invoke any file data callbacks on the provided cfg
+    pub fn handle_file_data(
+        &mut self,
+        cfg: *mut htp_cfg_t,
+        data: *const u8,
+        len: usize,
+    ) -> Result<()> {
+        self.len = self.len.wrapping_add(len);
+        // Package data for the callbacks.
+        let mut file_data = htp_file_data_t::new(&self, data, len);
+        unsafe {
+            // Send data to callbacks
+            (*cfg).hook_request_file_data.run_all(&mut file_data)
+        }
+    }
 }
 
 /// URI structure. Each of the fields provides access to a single
@@ -157,14 +211,19 @@ pub struct uri_t<'a> {
 }
 
 /// Represents a chunk of file data.
-#[derive(Copy, Clone)]
-pub struct htp_file_data_t {
+pub struct htp_file_data_t<'a> {
     /// File information.
-    pub file: *mut htp_file_t,
+    pub file: &'a htp_file_t,
     /// Pointer to the data buffer.
     pub data: *const u8,
     /// Buffer length.
     pub len: usize,
+}
+
+impl htp_file_data_t<'_> {
+    pub fn new(file: &htp_file_t, data: *const u8, len: usize) -> htp_file_data_t {
+        htp_file_data_t { file, data, len }
+    }
 }
 
 /// Is character a linear white space character?
@@ -1795,19 +1854,8 @@ pub unsafe fn htp_req_run_hook_body_data(
     // Run configuration hooks second
     (*(*connp).cfg).hook_request_body_data.run_all(d)?;
     // On PUT requests, treat request body as file
-    if !(*connp).put_file.is_null() {
-        let mut file_data: htp_file_data_t = htp_file_data_t {
-            file: 0 as *mut htp_file_t,
-            data: 0 as *const u8,
-            len: 0,
-        };
-        file_data.data = (*d).data();
-        file_data.len = (*d).len();
-        file_data.file = (*connp).put_file;
-        (*file_data.file).len = ((*file_data.file).len).wrapping_add((*d).len());
-        (*(*connp).cfg)
-            .hook_request_file_data
-            .run_all(&mut file_data)?;
+    if let Some(file) = &mut (*connp).put_file {
+        file.handle_file_data((*connp).cfg, (*d).data(), (*d).len())?;
     }
     Ok(())
 }
