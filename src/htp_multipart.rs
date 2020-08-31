@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_util::{take_ascii_whitespace, Flags};
 use crate::{bstr, htp_config, htp_table, htp_transaction, htp_util, list, Status};
 use bitflags;
@@ -226,7 +227,7 @@ impl htp_mpartp_t {
     fn handle_boundary(&mut self) {
         if let Some(part) = self.get_current_part() {
             unsafe {
-                if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
+                if htp_mpart_part_finalize_data(&mut *part).is_err() {
                     return;
                 }
             }
@@ -240,9 +241,9 @@ impl htp_mpartp_t {
     /// Handles data, creating new parts as necessary.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
-    fn handle_data(&mut self, is_line: bool) -> Status {
+    fn handle_data(&mut self, is_line: bool) -> Result<()> {
         if self.to_consume.len() == 0 {
-            return Status::OK;
+            return Ok(());
         }
         // Do we have a part already?
         if self.current_part_idx.is_none() {
@@ -267,7 +268,7 @@ impl htp_mpartp_t {
                 htp_mpart_part_handle_data(&mut *current_part, self.to_consume.as_slice(), is_line)
             }
         } else {
-            Status::OK
+            Ok(())
         };
 
         self.to_consume.clear();
@@ -298,7 +299,8 @@ impl htp_mpartp_t {
                     self.to_consume.add("\r");
                 }
             }
-            self.handle_data(self.current_part_mode == htp_part_mode_t::MODE_LINE);
+            // Ignore result.
+            let _ = self.handle_data(self.current_part_mode == htp_part_mode_t::MODE_LINE);
             self.cr_aside = false;
             // We know that we went to match a boundary because
             // we saw a new line. Now we have to find that line and
@@ -310,7 +312,8 @@ impl htp_mpartp_t {
             // This should be unnecessary, but as a precaution check for min value:
             let pos = std::cmp::min(self.boundary_candidate_pos, self.boundary_candidate.len());
             self.to_consume.add(&self.boundary_candidate[..pos]);
-            self.handle_data(!matched);
+            // Ignore result.
+            let _ = self.handle_data(!matched);
             // The second part of the split chunks belongs to the boundary
             // when matched, data otherwise.
             if !matched {
@@ -331,19 +334,20 @@ impl htp_mpartp_t {
             self.to_consume.add(self.boundary_candidate.as_slice());
         }
         self.boundary_candidate.clear();
-        self.handle_data(false);
+        // Ignore result.
+        let _ = self.handle_data(false);
     }
 
     /// Finalize parsing.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
-    pub unsafe fn finalize(&mut self) -> Status {
+    pub unsafe fn finalize(&mut self) -> Result<()> {
         if let Some(part) = self.get_current_part() {
             // Process buffered data, if any.
             self.process_aside(false);
             // Finalize the last part.
-            if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
-                return Status::ERROR;
+            if htp_mpart_part_finalize_data(&mut *part).is_err() {
+                return Err(Status::ERROR);
             }
             // It is OK to end abruptly in the epilogue part, but not in any other.
             if (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
@@ -351,7 +355,7 @@ impl htp_mpartp_t {
             }
         }
         (*self).boundary_candidate.clear();
-        Status::OK
+        Ok(())
     }
 
     /// Returns the multipart structure created by the parser.
@@ -415,7 +419,8 @@ impl htp_mpartp_t {
                 self.cr_aside = false;
             }
             (self.to_consume).add(consumed);
-            self.handle_data(false);
+            // Ignore result.
+            let _ = self.handle_data(false);
             remaining
         } else {
             input
@@ -757,14 +762,14 @@ fn content_disposition<'a>(input: &'a [u8]) -> IResult<&'a [u8], Vec<(&'a [u8], 
 ///
 /// Returns HTP_OK on success (header found and parsed), HTP_DECLINED if there is no C-D header or if
 ///         it could not be processed, and HTP_ERROR on fatal error.
-pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Status {
+pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Result<()> {
     // Find the C-D header.
     let header = {
         if let Some((_, header)) = part.headers.get_nocase_nozero_mut("content-disposition") {
             header
         } else {
             (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_UNKNOWN;
-            return Status::DECLINED;
+            return Err(Status::DECLINED);
         }
     };
 
@@ -782,7 +787,7 @@ pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Statu
                     if part.name.len() > 0 {
                         (*part.parser).multipart.flags |=
                             MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                        return Status::DECLINED;
+                        return Err(Status::DECLINED);
                     }
                     part.name.clear();
                     part.name.add(param_value);
@@ -793,7 +798,7 @@ pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Statu
                         Some(_) => {
                             (*part.parser).multipart.flags |=
                                 MultipartFlags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                            return Status::DECLINED;
+                            return Err(Status::DECLINED);
                         }
                         None => {
                             part.file = Some(htp_util::htp_file_t::new(
@@ -807,41 +812,41 @@ pub unsafe fn htp_mpart_part_parse_c_d(part: &mut htp_multipart_part_t) -> Statu
                     // Unknown parameter.
                     (*part.parser).multipart.flags |=
                         MultipartFlags::HTP_MULTIPART_CD_PARAM_UNKNOWN;
-                    return Status::DECLINED;
+                    return Err(Status::DECLINED);
                 }
             }
         }
     } else {
         (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-        return Status::DECLINED;
+        return Err(Status::DECLINED);
     }
-    Status::OK
+    Ok(())
 }
 
 /// Parses the Content-Type part header, if present.
 ///
 /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
-fn htp_mpart_part_parse_c_t(part: &mut htp_multipart_part_t) -> Status {
+fn htp_mpart_part_parse_c_t(part: &mut htp_multipart_part_t) -> Result<()> {
     if let Some((_, header)) = part.headers.get_nocase_nozero("content-type") {
-        htp_util::htp_parse_ct_header(&header.value, &mut part.content_type).into()
+        htp_util::htp_parse_ct_header(&header.value, &mut part.content_type)
     } else {
-        Status::DECLINED
+        Err(Status::DECLINED)
     }
 }
 
 /// Processes part headers.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub fn htp_mpart_part_process_headers(part: &mut htp_multipart_part_t) -> Status {
+pub fn htp_mpart_part_process_headers(part: &mut htp_multipart_part_t) -> Result<()> {
     unsafe {
-        if htp_mpart_part_parse_c_d(part) == Status::ERROR {
-            return Status::ERROR;
+        if htp_mpart_part_parse_c_d(part) == Err(Status::ERROR) {
+            return Err(Status::ERROR);
         }
     }
-    if htp_mpart_part_parse_c_t(part) == Status::ERROR {
-        return Status::ERROR;
+    if htp_mpart_part_parse_c_t(part) == Err(Status::ERROR) {
+        return Err(Status::ERROR);
     }
-    Status::OK
+    Ok(())
 }
 /// Parses header, extracting a valid name and valid value.
 /// Does not allow leading or trailing whitespace for a name, but allows leading and trailing whitespace for the value.
@@ -866,11 +871,11 @@ fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> 
 /// Parses one part header.
 ///
 /// Returns HTP_OK on success, HTP_DECLINED on parsing error, HTP_ERROR on fatal error.
-pub unsafe fn htp_mpartp_parse_header(part: &mut htp_multipart_part_t, input: &[u8]) -> Status {
+pub unsafe fn htp_mpartp_parse_header(part: &mut htp_multipart_part_t, input: &[u8]) -> Result<()> {
     // We do not allow NUL bytes here.
     if input.contains(&('\0' as u8)) {
         (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_NUL_BYTE;
-        return Status::DECLINED;
+        return Err(Status::DECLINED);
     }
     // Extract the name and the value
     if let Ok((_, (name, value))) = header()(input) {
@@ -898,15 +903,15 @@ pub unsafe fn htp_mpartp_parse_header(part: &mut htp_multipart_part_t, input: &[
     } else {
         // Invalid name and/or value found
         (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_HEADER_INVALID;
-        return Status::DECLINED;
+        return Err(Status::DECLINED);
     }
-    Status::OK
+    Ok(())
 }
 
 /// Finalizes part processing.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> Status {
+pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> Result<()> {
     // Determine if this part is the epilogue.
     if (*part.parser)
         .multipart
@@ -949,21 +954,22 @@ pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> S
     // Finalize part value.
     if part.type_0 == htp_multipart_type_t::MULTIPART_PART_FILE {
         // Notify callbacks about the end of the file.
-        htp_mpartp_run_request_file_data_hook(part, b"");
+        // Ignore result.
+        let _ = htp_mpartp_run_request_file_data_hook(part, b"");
     } else if (*part.parser).part_data_pieces.len() > 0 {
         part.value.clear();
         part.value.add((*part.parser).part_data_pieces.as_slice());
         (*part.parser).part_data_pieces.clear();
     }
-    Status::OK
+    Ok(())
 }
 
 pub unsafe fn htp_mpartp_run_request_file_data_hook(
     part: &mut htp_multipart_part_t,
     data: &[u8],
-) -> Status {
+) -> Result<()> {
     if (*part.parser).cfg.is_null() {
-        return Status::OK;
+        return Ok(());
     }
 
     match &mut (*part).file {
@@ -974,7 +980,7 @@ pub unsafe fn htp_mpartp_run_request_file_data_hook(
             file.handle_file_data((*(*part).parser).cfg, data.as_ptr(), data.len())
                 .into()
         }
-        None => Status::OK,
+        None => Ok(()),
     }
 }
 
@@ -985,7 +991,7 @@ pub unsafe fn htp_mpart_part_handle_data(
     part: &mut htp_multipart_part_t,
     data: &[u8],
     is_line: bool,
-) -> Status {
+) -> Result<()> {
     let mut data = data;
     // End of the line.
     let mut line: Option<bstr::bstr_t> = None;
@@ -1032,14 +1038,14 @@ pub unsafe fn htp_mpart_part_handle_data(
                     if htp_mpartp_parse_header(
                         part,
                         &(*(*part.parser).pending_header_line).as_slice(),
-                    ) == Status::ERROR
+                    ) == Err(Status::ERROR)
                     {
-                        return Status::ERROR;
+                        return Err(Status::ERROR);
                     }
                     (*part.parser).pending_header_line.clear()
                 }
-                if htp_mpart_part_process_headers(part) == Status::ERROR {
-                    return Status::ERROR;
+                if htp_mpart_part_process_headers(part) == Err(Status::ERROR) {
+                    return Err(Status::ERROR);
                 }
                 (*part.parser).current_part_mode = htp_part_mode_t::MODE_DATA;
                 (*part.parser).part_header.clear();
@@ -1051,10 +1057,7 @@ pub unsafe fn htp_mpart_part_handle_data(
                         if (*part.parser).extract_files
                             && (*part.parser).file_count < (*part.parser).extract_limit
                         {
-                            let rc = file.create(&(*part.parser).extract_dir);
-                            if rc == Status::ERROR {
-                                return rc;
-                            }
+                            file.create(&(*part.parser).extract_dir)?;
                             (*part.parser).file_count += 1;
                         }
                     }
@@ -1083,9 +1086,9 @@ pub unsafe fn htp_mpart_part_handle_data(
             } else {
                 // Process the pending header line.
                 if htp_mpartp_parse_header(part, &(*(*part.parser).pending_header_line).as_slice())
-                    == Status::ERROR
+                    == Err(Status::ERROR)
                 {
-                    return Status::ERROR;
+                    return Err(Status::ERROR);
                 }
                 (*part.parser).pending_header_line.clear();
                 if let Some(header) = line {
@@ -1103,7 +1106,8 @@ pub unsafe fn htp_mpart_part_handle_data(
         match part.type_0 {
             htp_multipart_type_t::MULTIPART_PART_FILE => {
                 // Invoke file data callbacks.
-                htp_mpartp_run_request_file_data_hook(part, data);
+                // Ignore error.
+                let _ = htp_mpartp_run_request_file_data_hook(part, data);
                 // Optionally, store the data in a file.
                 if let Some(file) = &mut (*part).file {
                     return file.write(data);
@@ -1115,7 +1119,7 @@ pub unsafe fn htp_mpart_part_handle_data(
             }
         }
     }
-    Status::OK
+    Ok(())
 }
 
 /// Validates a multipart boundary according to RFC 1341:

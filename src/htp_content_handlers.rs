@@ -127,7 +127,8 @@ pub fn htp_ch_multipart_callback_request_body_data(
                 parser.parse(data);
             } else {
                 // Finalize parsing.
-                parser.finalize();
+                // Ignore result.
+                let _ = parser.finalize();
                 let body: *mut htp_multipart::htp_multipart_t = parser.get_multipart();
                 for part in &(*body).parts {
                     // Use text parameters.

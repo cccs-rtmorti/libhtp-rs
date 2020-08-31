@@ -129,30 +129,23 @@ impl htp_file_t {
     }
 
     /// Create new tempfile
-    pub fn create(&mut self, tmpfile: &str) -> Status {
-        let tempfile = Builder::new()
-            .prefix("libhtp-multipart-file-")
-            .rand_bytes(5)
-            .tempfile_in(tmpfile);
-
-        match tempfile {
-            Ok(file) => {
-                self.tmpfile = Some(file);
-                Status::OK
-            }
-            Err(_) => Status::ERROR,
-        }
+    pub fn create(&mut self, tmpfile: &str) -> Result<()> {
+        self.tmpfile = Some(
+            Builder::new()
+                .prefix("libhtp-multipart-file-")
+                .rand_bytes(5)
+                .tempfile_in(tmpfile)?,
+        );
+        Ok(())
     }
 
     /// Write data to tempfile
-    pub fn write(&mut self, data: &[u8]) -> Status {
+    pub fn write(&mut self, data: &[u8]) -> Result<()> {
         match &mut self.tmpfile {
-            Some(tmpfile) => match tmpfile.write_all(data) {
-                Ok(_) => Status::OK,
-                Err(_) => Status::ERROR,
-            },
-            None => Status::OK,
+            Some(tmpfile) => tmpfile.write_all(data)?,
+            None => (),
         }
+        Ok(())
     }
 
     /// Update file length and invoke any file data callbacks on the provided cfg

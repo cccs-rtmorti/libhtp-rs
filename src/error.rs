@@ -21,3 +21,9 @@ impl Into<Result<()>> for Status {
         }
     }
 }
+
+impl From<std::io::Error> for Status {
+    fn from(_: std::io::Error) -> Self {
+        Status::ERROR
+    }
+}

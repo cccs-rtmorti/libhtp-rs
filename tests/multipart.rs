@@ -163,7 +163,7 @@ impl Test {
                 self.mpartp.as_mut().unwrap().parse(part.as_bytes());
             }
 
-            self.mpartp.as_mut().unwrap().finalize();
+            self.mpartp.as_mut().unwrap().finalize().unwrap();
             self.body = self.mpartp.as_mut().unwrap().get_multipart();
             assert!(!self.body.is_null());
         }
@@ -249,7 +249,7 @@ fn Test1() {
             t.mpartp.as_mut().unwrap().parse(part.as_bytes());
         }
 
-        t.mpartp.as_mut().unwrap().finalize();
+        t.mpartp.as_mut().unwrap().finalize().unwrap();
 
         // Examine the result
         t.body = t.mpartp.as_mut().unwrap().get_multipart();
@@ -317,7 +317,7 @@ fn Test2() {
             t.mpartp.as_mut().unwrap().parse(part.as_bytes());
         }
 
-        t.mpartp.as_mut().unwrap().finalize();
+        t.mpartp.as_mut().unwrap().finalize().unwrap();
 
         t.body = t.mpartp.as_mut().unwrap().get_multipart();
         assert!(!t.body.is_null());
@@ -1481,7 +1481,7 @@ fn NullByte() {
         t.mpartp.as_mut().unwrap().parse(i1.as_bytes());
         t.mpartp.as_mut().unwrap().parse(i2.as_bytes());
         t.mpartp.as_mut().unwrap().parse(i3.as_bytes());
-        t.mpartp.as_mut().unwrap().finalize();
+        t.mpartp.as_mut().unwrap().finalize().unwrap();
 
         t.body = t.mpartp.as_mut().unwrap().get_multipart();
         assert!(!t.body.is_null());
@@ -2059,9 +2059,7 @@ fn InvalidContentDispositionSyntax() {
                 htp_multipart_part_t::new(t.mpartp.as_mut().unwrap());
             let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
             part.headers.add(header.name.clone(), header);
-            let rc: Status = htp_mpart_part_parse_c_d(&mut part);
-
-            assert_eq!(Status::DECLINED, rc);
+            assert_err!(htp_mpart_part_parse_c_d(&mut part), Status::DECLINED);
 
             t.body = t.mpartp.as_mut().unwrap().get_multipart();
             assert!((*t.body)
