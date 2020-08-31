@@ -828,10 +828,7 @@ impl htp_tx_t {
         if self.request_line.is_null() {
             return Err(Status::ERROR);
         }
-        if (*self.connp).parse_request_line() != Status::OK {
-            return Err(Status::ERROR);
-        }
-        Ok(())
+        (*self.connp).parse_request_line()
     }
 
     /// Set parsed request URI. You don't need to use this function if you are already providing
@@ -863,10 +860,7 @@ impl htp_tx_t {
         if self.response_line.is_null() {
             return Err(Status::ERROR);
         }
-        if (*self.connp).parse_response_line() != Status::OK {
-            return Err(Status::ERROR);
-        }
-        Ok(())
+        (*self.connp).parse_response_line()
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.

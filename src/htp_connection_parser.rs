@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_config::htp_server_personality_t;
 use crate::htp_request_apache_2_2;
 use crate::htp_request_generic;
@@ -236,7 +237,7 @@ impl htp_connp_t {
     /// Creates a transaction and attaches it to this connection.
     ///
     /// Also sets the in_tx to the newly created one.
-    pub fn create_tx(&mut self) -> Result<usize, Status> {
+    pub fn create_tx(&mut self) -> Result<usize> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
             self.conn.flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
@@ -341,56 +342,68 @@ impl htp_connp_t {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_in_state(&mut self) -> Status {
+    pub fn handle_in_state(&mut self) -> Result<()> {
         unsafe {
             match self.in_state {
-                State::NONE => return Status::ERROR,
-                State::IDLE => return htp_request::htp_connp_REQ_IDLE(self),
+                State::NONE => Err(Status::ERROR),
+                State::IDLE => htp_request::htp_connp_REQ_IDLE(self).into(),
                 State::IGNORE_DATA_AFTER_HTTP_0_9 => {
-                    return htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(self)
+                    htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(self).into()
                 }
-                State::LINE => htp_request::htp_connp_REQ_LINE(self),
-                State::PROTOCOL => htp_request::htp_connp_REQ_PROTOCOL(self),
-                State::HEADERS => htp_request::htp_connp_REQ_HEADERS(self),
+                State::LINE => htp_request::htp_connp_REQ_LINE(self).into(),
+                State::PROTOCOL => htp_request::htp_connp_REQ_PROTOCOL(self).into(),
+                State::HEADERS => htp_request::htp_connp_REQ_HEADERS(self).into(),
                 State::CONNECT_WAIT_RESPONSE => {
-                    htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE(self)
+                    htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE(self).into()
                 }
-                State::CONNECT_CHECK => htp_request::htp_connp_REQ_CONNECT_CHECK(self),
-                State::CONNECT_PROBE_DATA => htp_request::htp_connp_REQ_CONNECT_PROBE_DATA(self),
-                State::BODY_DETERMINE => htp_request::htp_connp_REQ_BODY_DETERMINE(self),
-                State::BODY_CHUNKED_DATA => htp_request::htp_connp_REQ_BODY_CHUNKED_DATA(self),
-                State::BODY_CHUNKED_LENGTH => htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH(self),
+                State::CONNECT_CHECK => htp_request::htp_connp_REQ_CONNECT_CHECK(self).into(),
+                State::CONNECT_PROBE_DATA => {
+                    htp_request::htp_connp_REQ_CONNECT_PROBE_DATA(self).into()
+                }
+                State::BODY_DETERMINE => htp_request::htp_connp_REQ_BODY_DETERMINE(self).into(),
+                State::BODY_CHUNKED_DATA => {
+                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA(self).into()
+                }
+                State::BODY_CHUNKED_LENGTH => {
+                    htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH(self).into()
+                }
                 State::BODY_CHUNKED_DATA_END => {
-                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END(self)
+                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END(self).into()
                 }
-                State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self),
-                State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self),
+                State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self).into(),
+                State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self).into(),
                 // These are only used by out_state
-                State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => Status::ERROR,
+                State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => {
+                    Err(Status::ERROR)
+                }
             }
         }
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_out_state(&mut self) -> Status {
+    pub fn handle_out_state(&mut self) -> Result<()> {
         unsafe {
             match self.out_state {
-                State::NONE => Status::ERROR,
-                State::IDLE => htp_response::htp_connp_RES_IDLE(self),
-                State::LINE => htp_response::htp_connp_RES_LINE(self),
-                State::HEADERS => htp_response::htp_connp_RES_HEADERS(self),
-                State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self),
-                State::BODY_CHUNKED_DATA => htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self),
-                State::BODY_CHUNKED_LENGTH => htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self),
-                State::BODY_CHUNKED_DATA_END => {
-                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self)
+                State::NONE => Err(Status::ERROR),
+                State::IDLE => htp_response::htp_connp_RES_IDLE(self).into(),
+                State::LINE => htp_response::htp_connp_RES_LINE(self).into(),
+                State::HEADERS => htp_response::htp_connp_RES_HEADERS(self).into(),
+                State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self).into(),
+                State::BODY_CHUNKED_DATA => {
+                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self).into()
                 }
-                State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self),
+                State::BODY_CHUNKED_LENGTH => {
+                    htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self).into()
+                }
+                State::BODY_CHUNKED_DATA_END => {
+                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self).into()
+                }
+                State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self).into(),
                 State::BODY_IDENTITY_STREAM_CLOSE => {
-                    htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self)
+                    htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self).into()
                 }
                 State::BODY_IDENTITY_CL_KNOWN => {
-                    htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self)
+                    htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self).into()
                 }
                 // These are only used by in_state
                 State::PROTOCOL
@@ -398,39 +411,40 @@ impl htp_connp_t {
                 | State::CONNECT_PROBE_DATA
                 | State::CONNECT_WAIT_RESPONSE
                 | State::BODY_IDENTITY
-                | State::IGNORE_DATA_AFTER_HTTP_0_9 => Status::ERROR,
+                | State::IGNORE_DATA_AFTER_HTTP_0_9 => Err(Status::ERROR),
             }
         }
     }
 
     /// The function used for request line parsing. Depends on the personality.
-    pub fn parse_request_line(&mut self) -> Status {
+    pub fn parse_request_line(&mut self) -> Result<()> {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                htp_request_apache_2_2::htp_parse_request_line_apache_2_2(self)
+                htp_request_apache_2_2::htp_parse_request_line_apache_2_2(self).into()
             } else {
-                htp_request_generic::htp_parse_request_line_generic(self)
+                htp_request_generic::htp_parse_request_line_generic(self).into()
             }
         }
     }
 
     /// The function used for response line parsing. Depends on the personality.
-    pub fn parse_response_line(&mut self) -> Status {
-        unsafe { htp_response_generic::htp_parse_response_line_generic(self) }
+    pub fn parse_response_line(&mut self) -> Result<()> {
+        unsafe { htp_response_generic::htp_parse_response_line_generic(self).into() }
     }
 
-    pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Status {
+    pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
                 htp_request_apache_2_2::htp_process_request_header_apache_2_2(self, data, len)
+                    .into()
             } else {
-                htp_request_generic::htp_process_request_header_generic(self, data, len)
+                htp_request_generic::htp_process_request_header_generic(self, data, len).into()
             }
         }
     }
 
-    pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Status {
-        unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len) }
+    pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
+        unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len).into() }
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -543,11 +557,11 @@ impl htp_connp_t {
         &mut self,
         data: *const core::ffi::c_void,
         len: usize,
-    ) -> Status {
+    ) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
-            tx.req_process_body_data_ex(data, len).into()
+            tx.req_process_body_data_ex(data, len)
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -558,11 +572,11 @@ impl htp_connp_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_start(&mut self) -> Status {
+    pub unsafe fn state_request_start(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_start().into()
+            tx.state_request_start()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -573,11 +587,11 @@ impl htp_connp_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_headers(&mut self) -> Status {
+    pub unsafe fn state_request_headers(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_headers().into()
+            tx.state_request_headers()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -588,11 +602,11 @@ impl htp_connp_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_line(&mut self) -> Status {
+    pub unsafe fn state_request_line(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_line().into()
+            tx.state_request_line()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -602,11 +616,11 @@ impl htp_connp_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_complete(&mut self) -> Status {
+    pub unsafe fn state_request_complete(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_complete().into()
+            tx.state_request_complete()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -614,19 +628,19 @@ impl htp_connp_t {
         &mut self,
         data: *const core::ffi::c_void,
         len: usize,
-    ) -> Status {
+    ) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
-            tx.res_process_body_data_ex(data, len).into()
+            tx.res_process_body_data_ex(data, len)
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
-    pub unsafe fn state_response_start(&mut self) -> Status {
+    pub unsafe fn state_response_start(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_start().into()
+            tx.state_response_start()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -636,11 +650,11 @@ impl htp_connp_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_headers(&mut self) -> Status {
+    pub unsafe fn state_response_headers(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_headers().into()
+            tx.state_response_headers()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
@@ -650,19 +664,19 @@ impl htp_connp_t {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_line(&mut self) -> Status {
+    pub unsafe fn state_response_line(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_line().into()
+            tx.state_response_line()
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 
-    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Status {
+    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_complete_ex(hybrid_mode).into()
+            tx.state_response_complete_ex(hybrid_mode)
         } else {
-            Status::ERROR
+            Err(Status::ERROR)
         }
     }
 }

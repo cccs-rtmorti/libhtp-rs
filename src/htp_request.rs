@@ -364,7 +364,7 @@ pub unsafe extern "C" fn htp_connp_REQ_CONNECT_PROBE_DATA(
         bstr::bstr_free(method);
     }
     if method_type != htp_method_t::HTP_M_UNKNOWN {
-        return (*connp).state_request_complete();
+        return (*connp).state_request_complete().into();
     } else {
         (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
         (*connp).out_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL
@@ -468,12 +468,15 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_CHUNKED_DATA(
         return Status::DATA;
     }
     // Consume the data.
-    let rc: Status = (*connp).req_process_body_data_ex(
-        (*connp)
-            .in_current_data
-            .offset((*connp).in_current_read_offset as isize) as *const core::ffi::c_void,
-        bytes_to_consume,
-    );
+    let rc: Status = (*connp)
+        .req_process_body_data_ex(
+            (*connp)
+                .in_current_data
+                .offset((*connp).in_current_read_offset as isize)
+                as *const core::ffi::c_void,
+            bytes_to_consume,
+        )
+        .into();
     if rc != Status::OK {
         return rc;
     }
@@ -582,12 +585,15 @@ pub unsafe extern "C" fn htp_connp_REQ_BODY_IDENTITY(
         return Status::DATA;
     }
     // Consume data.
-    let rc: Status = (*connp).req_process_body_data_ex(
-        (*connp)
-            .in_current_data
-            .offset((*connp).in_current_read_offset as isize) as *const core::ffi::c_void,
-        bytes_to_consume,
-    );
+    let rc: Status = (*connp)
+        .req_process_body_data_ex(
+            (*connp)
+                .in_current_data
+                .offset((*connp).in_current_read_offset as isize)
+                as *const core::ffi::c_void,
+            bytes_to_consume,
+        )
+        .into();
     if rc != Status::OK {
         return rc;
     }
@@ -669,10 +675,12 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
         if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
             // Parse previous header, if any.
             if !(*connp).in_header.is_null() {
-                if (*connp).process_request_header(
-                    bstr_ptr((*connp).in_header),
-                    bstr_len((*connp).in_header),
-                ) != Status::OK
+                if (*connp)
+                    .process_request_header(
+                        bstr_ptr((*connp).in_header),
+                        bstr_len((*connp).in_header),
+                    )
+                    .is_err()
                 {
                     return Status::ERROR;
                 }
@@ -682,7 +690,7 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
             htp_connp_req_clear_buffer(connp);
             in_tx.request_progress = htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER;
             // We've seen all the request headers.
-            return (*connp).state_request_headers();
+            return (*connp).state_request_headers().into();
         }
         if (*connp).in_current_read_offset < (*connp).in_current_len {
             (*connp).in_next_byte = *(*connp)
@@ -711,10 +719,12 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
             {
                 // Parse previous header, if any.
                 if !(*connp).in_header.is_null() {
-                    if (*connp).process_request_header(
-                        bstr_ptr((*connp).in_header),
-                        bstr_len((*connp).in_header),
-                    ) != Status::OK
+                    if (*connp)
+                        .process_request_header(
+                            bstr_ptr((*connp).in_header),
+                            bstr_len((*connp).in_header),
+                        )
+                        .is_err()
                     {
                         return Status::ERROR;
                     }
@@ -723,7 +733,7 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 }
                 htp_connp_req_clear_buffer(connp);
                 // We've seen all the request headers.
-                return (*connp).state_request_headers();
+                return (*connp).state_request_headers().into();
             }
             let s = std::slice::from_raw_parts(data as *const u8, len);
             let s = htp_util::htp_chomp(&s);
@@ -735,10 +745,12 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                 // New header line.
                 // Parse previous header, if any.
                 if !(*connp).in_header.is_null() {
-                    if (*connp).process_request_header(
-                        bstr_ptr((*connp).in_header),
-                        bstr_len((*connp).in_header),
-                    ) != Status::OK
+                    if (*connp)
+                        .process_request_header(
+                            bstr_ptr((*connp).in_header),
+                            bstr_len((*connp).in_header),
+                        )
+                        .is_err()
                     {
                         return Status::ERROR;
                     }
@@ -757,7 +769,7 @@ pub unsafe extern "C" fn htp_connp_REQ_HEADERS(
                     && !htp_util::htp_is_folding_char((*connp).in_next_byte as u8)
                 {
                     // Because we know this header is not folded, we can process the buffer straight away.
-                    if (*connp).process_request_header(data, len) != Status::OK {
+                    if (*connp).process_request_header(data, len).is_err() {
                         return Status::ERROR;
                     }
                 } else {
@@ -889,11 +901,11 @@ pub unsafe extern "C" fn htp_connp_REQ_LINE_complete(
     if in_tx.request_line.is_null() {
         return Status::ERROR;
     }
-    if (*connp).parse_request_line() != Status::OK {
+    if (*connp).parse_request_line().is_err() {
         return Status::ERROR;
     }
     // Finalize request line parsing.
-    if (*connp).state_request_line() != Status::OK {
+    if (*connp).state_request_line().is_err() {
         return Status::ERROR;
     }
     htp_connp_req_clear_buffer(connp);
@@ -953,7 +965,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
                 as i32
         }
         if (*connp).in_next_byte == -1 {
-            return (*connp).state_request_complete();
+            return (*connp).state_request_complete().into();
         }
         if (*connp).in_next_byte != '\n' as i32
             || (*connp).in_current_consume_offset >= (*connp).in_current_read_offset
@@ -985,7 +997,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     }
     if len == 0 {
         //closing
-        return (*connp).state_request_complete();
+        return (*connp).state_request_complete().into();
     }
     let mut pos: usize = 0;
     let mut mstart: usize = 0;
@@ -1047,7 +1059,7 @@ pub unsafe extern "C" fn htp_connp_REQ_FINALIZE(
     if (*connp).in_current_read_offset < (*connp).in_current_consume_offset {
         (*connp).in_current_consume_offset = (*connp).in_current_read_offset
     }
-    (*connp).state_request_complete()
+    (*connp).state_request_complete().into()
 }
 
 #[no_mangle]
@@ -1092,7 +1104,8 @@ pub unsafe extern "C" fn htp_connp_REQ_IDLE(
     }
 
     // Change state to TRANSACTION_START
-    (*connp).state_request_start();
+    // Ignore the result.
+    let _ = (*connp).state_request_start();
     Status::OK
 }
 
@@ -1175,7 +1188,7 @@ pub unsafe fn htp_connp_req_data(
     // Return if there's been an error or if we've run out of data. We are relying
     // on processors to supply error messages, so we'll keep quiet here.
     {
-        let mut rc: Status = (*connp).handle_in_state();
+        let mut rc: Status = (*connp).handle_in_state().into();
         if rc == Status::OK {
             if (*connp).in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {
                 return htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
