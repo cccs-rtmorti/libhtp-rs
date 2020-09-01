@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::htp_util::take_ascii_whitespace;
 use crate::{bstr, htp_table, htp_transaction, Status};
 
@@ -16,12 +17,7 @@ pub fn htp_parse_single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
 /// Parses the Cookie request header in v0 format and places the results into tx->request_cookies.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on error
-pub fn htp_parse_cookies_v0(in_tx: Option<&mut htp_transaction::htp_tx_t>) -> Status {
-    let in_tx = match in_tx {
-        Some(in_tx) => in_tx,
-        None => return Status::ERROR,
-    };
-
+pub fn htp_parse_cookies_v0(in_tx: &mut htp_transaction::htp_tx_t) -> Result<()> {
     if let Some((_, cookie_header)) = in_tx.request_headers.get_nocase_nozero_mut("cookie") {
         let data: &[u8] = cookie_header.value.as_ref();
         // Create a new table to store cookies.
@@ -37,7 +33,7 @@ pub fn htp_parse_cookies_v0(in_tx: Option<&mut htp_transaction::htp_tx_t>) -> St
                     unsafe {
                         let value = bstr::bstr_dup_str(value);
                         if value.is_null() {
-                            return Status::ERROR;
+                            return Err(Status::ERROR);
                         }
                         (*in_tx.request_cookies).add(bstr::bstr_t::from(name), value);
                     }
@@ -46,5 +42,5 @@ pub fn htp_parse_cookies_v0(in_tx: Option<&mut htp_transaction::htp_tx_t>) -> St
         }
     }
 
-    Status::OK
+    Ok(())
 }

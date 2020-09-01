@@ -587,7 +587,6 @@ impl htp_tx_t {
 
     unsafe fn process_request_headers(&mut self) -> Result<()> {
         // Determine if we have a request body, and how it is packaged.
-        let mut rc: Status = Status::OK;
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
         // Check for the Transfer-Encoding header, which would indicate a chunked request body.
         if let Some((_, te)) = self.request_headers.get_nocase_nozero("transfer-encoding") {
@@ -741,10 +740,7 @@ impl htp_tx_t {
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies != 0 {
-            rc = htp_cookies::htp_parse_cookies_v0((*self.connp).in_tx_mut());
-            if rc != Status::OK {
-                return Err(rc);
-            }
+            htp_cookies::htp_parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
         }
         // Parse authentication information.
         if (*(*self.connp).cfg).parse_request_auth != 0 {
