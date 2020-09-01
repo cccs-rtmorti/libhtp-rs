@@ -523,16 +523,13 @@ impl htp_connp_t {
             );
             return;
         }
-        if self.conn.open(
+        self.conn.open(
             client_addr,
             client_port,
             server_addr,
             server_port,
             timestamp,
-        ) != Status::OK
-        {
-            return;
-        }
+        );
         self.in_status = htp_stream_state_t::HTP_STREAM_OPEN;
         self.out_status = htp_stream_state_t::HTP_STREAM_OPEN;
     }

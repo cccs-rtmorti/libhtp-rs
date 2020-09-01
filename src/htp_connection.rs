@@ -1,4 +1,5 @@
-use crate::{htp_transaction, htp_util, list::List, log, Status};
+use crate::error::Result;
+use crate::{htp_transaction, htp_util, list::List, log};
 use std::net::IpAddr;
 
 pub type htp_time_t = libc::timeval;
@@ -60,7 +61,7 @@ impl htp_conn_t {
     }
 
     /// Remove a transaction from this connection's tx list.
-    pub fn remove_tx(&mut self, tx_id: usize) -> Result<(), Status> {
+    pub fn remove_tx(&mut self, tx_id: usize) -> Result<()> {
         self.transactions.remove(tx_id)
     }
 
@@ -134,7 +135,7 @@ impl htp_conn_t {
         server_addr: Option<IpAddr>,
         server_port: i32,
         timestamp: Option<htp_time_t>,
-    ) -> Status {
+    ) {
         self.client_addr = client_addr;
         self.client_port = client_port;
         self.server_addr = server_addr;
@@ -144,8 +145,6 @@ impl htp_conn_t {
         if let Some(timestamp) = timestamp {
             self.open_timestamp = timestamp;
         }
-
-        Status::OK
     }
 
     /// Closes the connection.
