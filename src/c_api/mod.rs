@@ -390,7 +390,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
     personality: htp_config::htp_server_personality_t,
 ) -> Status {
     if !cfg.is_null() {
-        (*cfg).set_server_personality(personality)
+        (*cfg).set_server_personality(personality).into()
     } else {
         Status::ERROR
     }

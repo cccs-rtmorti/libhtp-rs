@@ -551,13 +551,10 @@ impl htp_tx_t {
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Result<()> {
-        if (*self.cfg).parameter_processor.is_some()
-            && (*self.cfg)
-                .parameter_processor
-                .expect("non-null function pointer")(&mut param)
-                != Status::OK
-        {
-            return Err(Status::ERROR);
+        if let Some(parameter_processor_fn) = (*self.cfg).parameter_processor {
+            if parameter_processor_fn(&mut param).is_err() {
+                return Err(Status::ERROR);
+            }
         }
         (*self.request_params).add(param.name.clone(), param);
         Ok(())

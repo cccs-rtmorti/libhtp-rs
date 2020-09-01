@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::hook::{
     DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
     TxNativeCallbackFn,
@@ -23,8 +24,7 @@ pub struct htp_cfg_t {
     /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
     /// The function to use to transform parameters after parsing.
-    pub parameter_processor:
-        Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> Status>,
+    pub parameter_processor: Option<fn(_: &mut htp_transaction::htp_param_t) -> Result<()>>,
     /// Decoder configuration array, one per context.
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
     /// Whether to decompress compressed response bodies.
@@ -185,7 +185,8 @@ impl Default for htp_cfg_t {
         cfg.set_nul_encoded_terminates(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
         cfg.set_u_encoding_decode(htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
         cfg.set_plusspace_decode(htp_decoder_ctx_t::HTP_DECODER_URLENCODED, true);
-        cfg.set_server_personality(htp_server_personality_t::HTP_SERVER_MINIMAL);
+        // Ignore result.
+        let _ = cfg.set_server_personality(htp_server_personality_t::HTP_SERVER_MINIMAL);
         cfg
     }
 }
@@ -326,7 +327,6 @@ pub enum htp_url_encoding_handling_t {
     HTP_URL_DECODE_PROCESS_INVALID,
 }
 
-pub type htp_callback_fn_t = Option<unsafe extern "C" fn(_: *mut core::ffi::c_void) -> Status>;
 /// This map is used by default for best-fit mapping from the Unicode
 /// values U+0100-FFFF.
 static bestfit_1252: [u8; 1173] = [
@@ -572,8 +572,8 @@ impl htp_cfg_t {
     }
 
     /// Configure desired server personality.
-    /// Returns Status::OK if the personality is supported, Status::ERROR if it isn't.
-    pub fn set_server_personality(&mut self, personality: htp_server_personality_t) -> Status {
+    /// Returns an error if the personality is not supported.
+    pub fn set_server_personality(&mut self, personality: htp_server_personality_t) -> Result<()> {
         match personality {
             htp_server_personality_t::HTP_SERVER_MINIMAL => {}
             htp_server_personality_t::HTP_SERVER_GENERIC => {
@@ -678,11 +678,11 @@ impl htp_cfg_t {
                     htp_unwanted_t::HTP_UNWANTED_IGNORE,
                 );
             }
-            _ => return Status::ERROR,
+            _ => return Err(Status::ERROR),
         }
         // Remember the personality
         self.server_personality = personality;
-        return Status::OK;
+        Ok(())
     }
 
     /// Configures whether transactions will be automatically destroyed once they

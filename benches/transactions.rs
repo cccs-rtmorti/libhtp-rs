@@ -53,7 +53,7 @@ impl Test {
     fn new() -> Self {
         unsafe {
             let cfg = htp_config::create();
-            (*cfg).set_server_personality(HTP_SERVER_APACHE_2);
+            (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
