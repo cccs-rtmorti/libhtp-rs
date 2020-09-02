@@ -30,14 +30,9 @@ pub type htp_time_t = libc::timeval;
 ///
 /// Returns HTP_OK, or a value returned from a callback.
 unsafe fn htp_connp_res_receiver_send_data(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     is_last: bool,
 ) -> Result<()> {
-    let hook = if let Some(hook) = &(*connp).out_data_receiver_hook {
-        hook
-    } else {
-        return Ok(());
-    };
     let mut data = htp_transaction::htp_tx_data_t::new(
         (*connp).out_tx_mut_ptr(),
         (*connp)
@@ -46,7 +41,11 @@ unsafe fn htp_connp_res_receiver_send_data(
         ((*connp).out_current_read_offset - (*connp).out_current_receiver_offset) as usize,
         is_last,
     );
-    hook.run_all(&mut data)?;
+    if let Some(hook) = &(*connp).out_data_receiver_hook {
+        hook.run_all(&mut data)?;
+    } else {
+        return Ok(());
+    };
     (*connp).out_current_receiver_offset = (*connp).out_current_read_offset;
     Ok(())
 }
@@ -56,7 +55,7 @@ unsafe fn htp_connp_res_receiver_send_data(
 ///
 /// Returns HTP_OK, or a value returned from a callback.
 pub unsafe fn htp_connp_res_receiver_finalize_clear(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     if (*connp).out_data_receiver_hook.is_none() {
         return Ok(());
@@ -70,7 +69,7 @@ pub unsafe fn htp_connp_res_receiver_finalize_clear(
 ///
 /// Returns HTP_OK, or a value returned from a callback.
 unsafe fn htp_connp_res_receiver_set(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     data_receiver_hook: Option<DataHook>,
 ) -> Result<()> {
     // Ignore result.
@@ -85,22 +84,25 @@ unsafe fn htp_connp_res_receiver_set(
 ///
 /// Returns HTP_OK, or a value returned from a callback.
 unsafe fn htp_res_handle_state_change(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     if (*connp).out_state_previous == (*connp).out_state {
         return Ok(());
     }
     if (*connp).out_state == State::HEADERS {
-        let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
-        match out_tx.response_progress as u32 {
-            2 => htp_connp_res_receiver_set(
-                connp,
-                Some((*out_tx.cfg).hook_response_header_data.clone()),
-            ),
-            4 => htp_connp_res_receiver_set(
-                connp,
-                Some((*out_tx.cfg).hook_response_trailer_data.clone()),
-            ),
+        let header_fn = Some(
+            (*connp.out_tx_mut_ok()?.cfg)
+                .hook_response_header_data
+                .clone(),
+        );
+        let trailer_fn = Some(
+            (*connp.out_tx_mut_ok()?.cfg)
+                .hook_response_trailer_data
+                .clone(),
+        );
+        match connp.out_tx_mut_ok()?.response_progress as u32 {
+            2 => htp_connp_res_receiver_set(connp, header_fn),
+            4 => htp_connp_res_receiver_set(connp, trailer_fn),
             _ => Ok(()),
         }?;
     }
@@ -120,8 +122,7 @@ unsafe fn htp_res_handle_state_change(
 /// by htp_config_t::field_limit_hard.
 ///
 /// Returns HTP_OK, or HTP_ERROR on fatal failure.
-unsafe fn htp_connp_res_buffer(connp: *mut htp_connection_parser::htp_connp_t) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
+unsafe fn htp_connp_res_buffer(connp: &mut htp_connection_parser::htp_connp_t) -> Result<()> {
     if (*connp).out_current_data.is_null() {
         return Ok(());
     }
@@ -137,14 +138,14 @@ unsafe fn htp_connp_res_buffer(connp: *mut htp_connection_parser::htp_connp_t) -
     if !(*connp).out_header.is_null() {
         newlen = newlen.wrapping_add(bstr_len((*connp).out_header))
     }
-    if newlen > (*out_tx.cfg).field_limit_hard {
+    if newlen > (*connp.out_tx_mut_ok()?.cfg).field_limit_hard {
         htp_error!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::RESPONSE_FIELD_TOO_LONG,
             format!(
                 "Response the buffer limit: size {} limit {}.",
                 newlen,
-                (*out_tx.cfg).field_limit_hard
+                (*connp.out_tx_mut_ok()?.cfg).field_limit_hard
             )
         );
         return Err(Status::ERROR);
@@ -187,7 +188,7 @@ unsafe fn htp_connp_res_buffer(connp: *mut htp_connection_parser::htp_connp_t) -
 ///
 /// Returns HTP_OK
 unsafe fn htp_connp_res_consolidate_data(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     data: *mut *mut u8,
     len: *mut usize,
 ) -> Result<()> {
@@ -208,7 +209,7 @@ unsafe fn htp_connp_res_consolidate_data(
 }
 
 /// Clears buffered outbound data and resets the consumer position to the reader position.
-unsafe fn htp_connp_res_clear_buffer(connp: *mut htp_connection_parser::htp_connp_t) {
+unsafe fn htp_connp_res_clear_buffer(connp: &mut htp_connection_parser::htp_connp_t) {
     (*connp).out_current_consume_offset = (*connp).out_current_read_offset;
     if !(*connp).out_buf.is_null() {
         free((*connp).out_buf as *mut core::ffi::c_void);
@@ -221,9 +222,8 @@ unsafe fn htp_connp_res_clear_buffer(connp: *mut htp_connection_parser::htp_conn
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA_END(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     loop
     // TODO We shouldn't really see anything apart from CR and LF,
     //      so we should warn about anything else.
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA_END(
         } else {
             return Err(Status::DATA);
         }
-        out_tx.response_message_len += 1;
+        connp.out_tx_mut_ok()?.response_message_len += 1;
         if (*connp).out_next_byte == '\n' as i32 {
             (*connp).out_state = State::BODY_CHUNKED_LENGTH;
             return Ok(());
@@ -251,7 +251,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA_END(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     let mut bytes_to_consume: usize = 0;
     // Determine how many bytes we can consume.
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_DATA(
 ///
 /// Returns 1 if it looks valid, 0 if it looks invalid
 #[inline]
-unsafe fn data_probe_chunk_length(connp: *mut htp_connection_parser::htp_connp_t) -> i32 {
+unsafe fn data_probe_chunk_length(connp: &mut htp_connection_parser::htp_connp_t) -> i32 {
     if (*connp).out_current_read_offset - (*connp).out_current_consume_offset < 8 {
         // not enough data so far, consider valid still
         return 1;
@@ -325,9 +325,8 @@ unsafe fn data_probe_chunk_length(connp: *mut htp_connection_parser::htp_connp_t
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     loop {
         if (*connp).out_current_read_offset < (*connp).out_current_len {
             (*connp).out_next_byte = *(*connp)
@@ -346,8 +345,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
         let mut data: *mut u8 = 0 as *mut u8;
         let mut len: usize = 0;
         htp_connp_res_consolidate_data(connp, &mut data, &mut len)?;
-        out_tx.response_message_len =
-            (out_tx.response_message_len as u64).wrapping_add(len as u64) as i64;
+        connp.out_tx_mut_ok()?.response_message_len =
+            (connp.out_tx_mut_ok()?.response_message_len as u64).wrapping_add(len as u64) as i64;
 
         let buf: &mut [u8] = std::slice::from_raw_parts_mut(data, len);
         if let Ok(chunked_length) = htp_util::htp_parse_chunked_length(buf) {
@@ -370,10 +369,10 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
                     ((*connp).out_current_read_offset as u64).wrapping_sub(len as u64) as i64
             }
             (*connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-            out_tx.response_transfer_coding =
+            connp.out_tx_mut_ok()?.response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
             htp_error!(
-                connp,
+                connp as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::INVALID_RESPONSE_CHUNK_LEN,
                 format!(
                     "Response chunk encoding: Invalid chunk length: {}",
@@ -390,7 +389,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
         } else if (*connp).out_chunked_length == 0 {
             // End of data
             (*connp).out_state = State::HEADERS;
-            out_tx.response_progress = htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_TRAILER
+            connp.out_tx_mut_ok()?.response_progress =
+                htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_TRAILER
         }
         return Ok(());
     }
@@ -400,7 +400,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_CHUNKED_LENGTH(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_CL_KNOWN(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     let mut bytes_to_consume: usize = 0;
     // Determine how many bytes we can consume.
@@ -447,7 +447,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_CL_KNOWN(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     // Consume all data from the input buffer.
     let bytes_to_consume: usize =
@@ -481,14 +481,15 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     // If the request uses the CONNECT method, then not only are we
     // to assume there's no body, but we need to ignore all
     // subsequent data in the stream.
-    if out_tx.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
-        if out_tx.response_status_number >= 200 && out_tx.response_status_number <= 299 {
+    if connp.out_tx_mut_ok()?.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
+        if connp.out_tx_mut_ok()?.response_status_number >= 200
+            && connp.out_tx_mut_ok()?.response_status_number <= 299
+        {
             // This is a successful CONNECT stream, which means
             // we need to switch into tunneling mode: on the
             // request side we'll now probe the tunnel data to see
@@ -497,7 +498,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*connp).out_state = State::FINALIZE;
             // we may have response headers
             return (*connp).state_response_headers().into();
-        } else if out_tx.response_status_number == 407 {
+        } else if connp.out_tx_mut_ok()?.response_status_number == 407 {
             // proxy telling us to auth
             (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA
         } else {
@@ -510,17 +511,23 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             (*connp).out_data_other_at_tx_end = 1
         }
     }
-    let cl_opt = out_tx.response_headers.get_nocase_nozero("content-length");
-    let te_opt = out_tx
+    let cl_opt = connp
+        .out_tx_mut_ok()?
         .response_headers
-        .get_nocase_nozero("transfer-encoding");
+        .get_nocase_nozero("content-length")
+        .map(|(_, val)| val.clone());
+    let te_opt = connp
+        .out_tx_mut_ok()?
+        .response_headers
+        .get_nocase_nozero("transfer-encoding")
+        .map(|(_, val)| val.clone());
     // Check for "101 Switching Protocol" response.
     // If it's seen, it means that traffic after empty line following headers
     // is no longer HTTP. We can treat it similarly to CONNECT.
     // Unlike CONNECT, however, upgrades from HTTP to HTTP seem
     // rather unlikely, so don't try to probe tunnel for nested HTTP,
     // and switch to tunnel mode right away.
-    if out_tx.response_status_number == 101 {
+    if connp.out_tx_mut_ok()?.response_status_number == 101 {
         if te_opt.is_none() && cl_opt.is_none() {
             (*connp).out_state = State::FINALIZE;
             (*connp).in_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
@@ -529,28 +536,30 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             return (*connp).state_response_headers().into();
         } else {
             htp_warn!(
-                connp,
+                connp as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::SWITCHING_PROTO_WITH_CONTENT_LENGTH,
                 "Switching Protocol with Content-Length"
             );
         }
     }
     // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
-    if out_tx.response_status_number == 100 && te_opt.is_none() && cl_opt.is_none() {
-        if out_tx.seen_100continue != 0 {
+    if connp.out_tx_mut_ok()?.response_status_number == 100 && te_opt.is_none() && cl_opt.is_none()
+    {
+        if connp.out_tx_mut_ok()?.seen_100continue != 0 {
             htp_error!(
-                connp,
+                connp as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::CONTINUE_ALREADY_SEEN,
                 "Already seen 100-Continue."
             );
             return Err(Status::ERROR);
         }
         // Ignore any response headers seen so far.
-        out_tx.response_headers.elements.clear();
+        connp.out_tx_mut_ok()?.response_headers.elements.clear();
         // Expecting to see another response line next.
         (*connp).out_state = State::LINE;
-        out_tx.response_progress = htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_LINE;
-        out_tx.seen_100continue += 1;
+        connp.out_tx_mut_ok()?.response_progress =
+            htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_LINE;
+        connp.out_tx_mut_ok()?.seen_100continue += 1;
         return Ok(());
     }
     // 1. Any response message which MUST NOT include a message-body
@@ -558,24 +567,25 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     //  request) is always terminated by the first empty line after the
     //  header fields, regardless of the entity-header fields present in the
     //  message.
-    if out_tx.request_method_number == htp_request::htp_method_t::HTP_M_HEAD {
+    if connp.out_tx_mut_ok()?.request_method_number == htp_request::htp_method_t::HTP_M_HEAD {
         // There's no response body whatsoever
-        out_tx.response_transfer_coding =
+        connp.out_tx_mut_ok()?.response_transfer_coding =
             htp_transaction::htp_transfer_coding_t::HTP_CODING_NO_BODY;
         (*connp).out_state = State::FINALIZE
-    } else if out_tx.response_status_number >= 100 && out_tx.response_status_number <= 199
-        || out_tx.response_status_number == 204
-        || out_tx.response_status_number == 304
+    } else if connp.out_tx_mut_ok()?.response_status_number >= 100
+        && connp.out_tx_mut_ok()?.response_status_number <= 199
+        || connp.out_tx_mut_ok()?.response_status_number == 204
+        || connp.out_tx_mut_ok()?.response_status_number == 304
     {
         // There should be no response body
         // but browsers interpret content sent by the server as such
         if te_opt.is_none() && cl_opt.is_none() {
-            out_tx.response_transfer_coding =
+            connp.out_tx_mut_ok()?.response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_NO_BODY;
             (*connp).out_state = State::FINALIZE
         } else {
             htp_warn!(
-                connp,
+                connp as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::RESPONSE_BODY_UNEXPECTED,
                 "Unexpected Response body"
             );
@@ -584,14 +594,18 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
     // Hack condition to check that we do not assume "no body"
     if (*connp).out_state != State::FINALIZE {
         // We have a response body
-        let ct_opt = out_tx.response_headers.get_nocase_nozero("content-type");
-        if let Some((_, ct)) = ct_opt {
-            out_tx.response_content_type = bstr::bstr_dup_lower(&ct.value);
-            if out_tx.response_content_type.is_null() {
+        let ct_opt = connp
+            .out_tx_mut_ok()?
+            .response_headers
+            .get_nocase_nozero("content-type")
+            .map(|(_, val)| val.clone());
+        if let Some(ct) = &ct_opt {
+            connp.out_tx_mut_ok()?.response_content_type = bstr::bstr_dup_lower(&ct.value);
+            if connp.out_tx_mut_ok()?.response_content_type.is_null() {
                 return Err(Status::ERROR);
             }
             // Ignore parameters
-            let data: *mut u8 = (*out_tx.response_content_type).as_mut_ptr();
+            let data: *mut u8 = (*connp.out_tx_mut_ok()?.response_content_type).as_mut_ptr();
             let len: usize = ct.value.len();
             let mut newlen: usize = 0;
             while newlen < len {
@@ -599,7 +613,7 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                 if htp_util::htp_is_space(*data.offset(newlen as isize))
                     || *data.offset(newlen as isize) as i32 == ';' as i32
                 {
-                    bstr::bstr_adjust_len(out_tx.response_content_type, newlen);
+                    bstr::bstr_adjust_len(connp.out_tx_mut_ok()?.response_content_type, newlen);
                     break;
                 } else {
                     newlen = newlen.wrapping_add(1)
@@ -610,11 +624,11 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
         //   indicates that the "chunked" transfer coding has been applied, then
         //   the length is defined by the chunked encoding (section 3.6).
         if let Some(te) =
-            te_opt.and_then(|(_, te)| te.value.index_of_nocase_nozero("chunked").and(Some(te)))
+            te_opt.and_then(|te| te.value.index_of_nocase_nozero("chunked").and(Some(te)))
         {
             if te.value.cmp_nocase("chunked") != Ordering::Equal {
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::RESPONSE_ABNORMAL_TRANSFER_ENCODING,
                     "Transfer-encoding has abnormal chunked value"
                 );
@@ -622,53 +636,54 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             // 3. If a Content-Length header field (section 14.14) is present, its
             // spec says chunked is HTTP/1.1 only, but some browsers accept it
             // with 1.0 as well
-            if out_tx.response_protocol_number < Protocol::V1_1 {
+            if connp.out_tx_mut_ok()?.response_protocol_number < Protocol::V1_1 {
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::RESPONSE_CHUNKED_OLD_PROTO,
                     "Chunked transfer-encoding on HTTP/0.9 or HTTP/1.0"
                 );
             }
             // If the T-E header is present we are going to use it.
-            out_tx.response_transfer_coding =
+            connp.out_tx_mut_ok()?.response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_CHUNKED;
             // We are still going to check for the presence of C-L
             if cl_opt.is_some() {
                 // This is a violation of the RFC
-                out_tx.flags |= Flags::HTP_REQUEST_SMUGGLING
+                connp.out_tx_mut_ok()?.flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             (*connp).out_state = State::BODY_CHUNKED_LENGTH;
-            out_tx.response_progress = htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY
-        } else if let Some((_, cl)) = cl_opt {
+            connp.out_tx_mut_ok()?.response_progress =
+                htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY
+        } else if let Some(cl) = cl_opt {
             //   value in bytes represents the length of the message-body.
             // We know the exact length
-            out_tx.response_transfer_coding =
+            connp.out_tx_mut_ok()?.response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
             // Check for multiple C-L headers
             if cl.flags.contains(Flags::HTP_FIELD_REPEATED) {
-                out_tx.flags |= Flags::HTP_REQUEST_SMUGGLING
+                connp.out_tx_mut_ok()?.flags |= Flags::HTP_REQUEST_SMUGGLING
             }
             // Get body length
             if let Some(content_length) =
-                htp_util::htp_parse_content_length((*(*cl).value).as_slice(), Some(&mut *connp))
+                htp_util::htp_parse_content_length((*cl.value).as_slice(), Some(&mut *connp))
             {
-                out_tx.response_content_length = content_length;
-                (*connp).out_content_length = out_tx.response_content_length;
+                connp.out_tx_mut_ok()?.response_content_length = content_length;
+                (*connp).out_content_length = connp.out_tx_mut_ok()?.response_content_length;
                 (*connp).out_body_data_left = (*connp).out_content_length;
                 if (*connp).out_content_length != 0 {
                     (*connp).out_state = State::BODY_IDENTITY_CL_KNOWN;
-                    out_tx.response_progress =
+                    connp.out_tx_mut_ok()?.response_progress =
                         htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY
                 } else {
                     (*connp).out_state = State::FINALIZE
                 }
             } else {
                 htp_error!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                     format!(
                         "Invalid C-L field in response: {}",
-                        out_tx.response_content_length
+                        connp.out_tx_mut_ok()?.response_content_length
                     )
                 );
                 return Err(Status::ERROR);
@@ -680,11 +695,11 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             //   the presence in a request of a Range header with multiple byte-range
             //   specifiers implies that the client can parse multipart/byteranges
             //   responses.
-            if let Some((_, ct)) = ct_opt {
+            if let Some(ct) = &ct_opt {
                 // TODO Handle multipart/byteranges
                 if ct.value.index_of_nocase("multipart/byteranges").is_some() {
                     htp_error!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::RESPONSE_MULTIPART_BYTERANGES,
                         "C-T multipart/byteranges in responses not supported"
                     );
@@ -695,9 +710,10 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             //   cannot be used to indicate the end of a request body, since that
             //   would leave no possibility for the server to send back a response.)
             (*connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-            out_tx.response_transfer_coding =
+            connp.out_tx_mut_ok()?.response_transfer_coding =
                 htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
-            out_tx.response_progress = htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY;
+            connp.out_tx_mut_ok()?.response_progress =
+                htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY;
             (*connp).out_body_data_left = -1
         }
     }
@@ -710,9 +726,8 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_HEADERS(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     let mut endwithcr: i32 = 0;
     let mut lfcrending: i32 = 0;
     loop {
@@ -808,7 +823,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                                     }
                                     (*connp).out_current_consume_offset += 1;
                                     htp_warn!(
-                                        connp,
+                                        connp as *mut htp_connection_parser::htp_connp_t,
                                         htp_log_code::DEFORMED_EOL,
                                         "Weird response end of lines mix"
                                     );
@@ -887,7 +902,7 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 htp_connp_res_clear_buffer(connp);
                 // We've seen all response headers.
-                if out_tx.response_progress
+                if connp.out_tx_mut_ok()?.response_progress
                     == htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_HEADERS
                 {
                     // Response headers.
@@ -952,10 +967,14 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 // Folding; check that there's a previous header line to add to.
                 // Invalid folding.
                 // Warn only once per transaction.
-                if !out_tx.flags.contains(Flags::HTP_INVALID_FOLDING) {
-                    out_tx.flags |= Flags::HTP_INVALID_FOLDING;
+                if !connp
+                    .out_tx_mut_ok()?
+                    .flags
+                    .contains(Flags::HTP_INVALID_FOLDING)
+                {
+                    connp.out_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
                     htp_warn!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::INVALID_RESPONSE_FIELD_FOLDING,
                         "Invalid response field folding"
                     );
@@ -972,13 +991,17 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 if colon_pos < len
                     && bstr::bstr_chr((*connp).out_header, ':' as i32) >= 0
-                    && out_tx.response_protocol_number == Protocol::V1_1
+                    && connp.out_tx_mut_ok()?.response_protocol_number == Protocol::V1_1
                 {
                     // Warn only once per transaction.
-                    if !out_tx.flags.contains(Flags::HTP_INVALID_FOLDING) {
-                        out_tx.flags |= Flags::HTP_INVALID_FOLDING;
+                    if !connp
+                        .out_tx_mut_ok()?
+                        .flags
+                        .contains(Flags::HTP_INVALID_FOLDING)
+                    {
+                        connp.out_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
                         htp_warn!(
-                            connp,
+                            connp as *mut htp_connection_parser::htp_connp_t,
                             htp_log_code::INVALID_RESPONSE_FIELD_FOLDING,
                             "Invalid response field folding"
                         );
@@ -1022,9 +1045,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_LINE(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
     loop {
         // Don't try to get more data if the stream is closed. If we do, we'll return, asking for more data.
         if (*connp).out_status != htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
@@ -1080,28 +1102,31 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                     (*connp).out_state = State::FINALIZE
                 }
                 // We have an empty/whitespace line, which we'll note, ignore and move on
-                out_tx.response_ignored_lines = out_tx.response_ignored_lines.wrapping_add(1);
+                connp.out_tx_mut_ok()?.response_ignored_lines = connp
+                    .out_tx_mut_ok()?
+                    .response_ignored_lines
+                    .wrapping_add(1);
                 // TODO How many lines are we willing to accept?
                 // Start again
                 htp_connp_res_clear_buffer(connp);
                 return Ok(());
             }
             // Deallocate previous response line allocations, which we would have on a 100 response.
-            if !out_tx.response_line.is_null() {
-                bstr::bstr_free(out_tx.response_line);
-                out_tx.response_line = 0 as *mut bstr::bstr_t
+            if !connp.out_tx_mut_ok()?.response_line.is_null() {
+                bstr::bstr_free(connp.out_tx_mut_ok()?.response_line);
+                connp.out_tx_mut_ok()?.response_line = 0 as *mut bstr::bstr_t
             }
-            if !out_tx.response_protocol.is_null() {
-                bstr::bstr_free(out_tx.response_protocol);
-                out_tx.response_protocol = 0 as *mut bstr::bstr_t
+            if !connp.out_tx_mut_ok()?.response_protocol.is_null() {
+                bstr::bstr_free(connp.out_tx_mut_ok()?.response_protocol);
+                connp.out_tx_mut_ok()?.response_protocol = 0 as *mut bstr::bstr_t
             }
-            if !out_tx.response_status.is_null() {
-                bstr::bstr_free(out_tx.response_status);
-                out_tx.response_status = 0 as *mut bstr::bstr_t
+            if !connp.out_tx_mut_ok()?.response_status.is_null() {
+                bstr::bstr_free(connp.out_tx_mut_ok()?.response_status);
+                connp.out_tx_mut_ok()?.response_status = 0 as *mut bstr::bstr_t
             }
-            if !out_tx.response_message.is_null() {
-                bstr::bstr_free(out_tx.response_message);
-                out_tx.response_message = 0 as *mut bstr::bstr_t
+            if !connp.out_tx_mut_ok()?.response_message.is_null() {
+                bstr::bstr_free(connp.out_tx_mut_ok()?.response_message);
+                connp.out_tx_mut_ok()?.response_message = 0 as *mut bstr::bstr_t
             }
             // Process response line.
             let s = std::slice::from_raw_parts(data as *const u8, len);
@@ -1112,7 +1137,7 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
             // a response line. If it does not look like a line, process the
             // data as a response body because that is what browsers do.
             if htp_util::htp_treat_response_line_as_body(std::slice::from_raw_parts(data, len)) {
-                out_tx.response_content_encoding_processing =
+                connp.out_tx_mut_ok()?.response_content_encoding_processing =
                     htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                 (*connp).out_current_consume_offset = (*connp).out_current_read_offset;
                 (*connp).res_process_body_data_ex(
@@ -1124,17 +1149,18 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                 // the end of the stream.
                 // Have we seen the entire response body?
                 if (*connp).out_current_len <= (*connp).out_current_read_offset {
-                    out_tx.response_transfer_coding =
+                    connp.out_tx_mut_ok()?.response_transfer_coding =
                         htp_transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
-                    out_tx.response_progress =
+                    connp.out_tx_mut_ok()?.response_progress =
                         htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_BODY;
                     (*connp).out_body_data_left = -1;
                     (*connp).out_state = State::FINALIZE
                 }
                 return Ok(());
             }
-            out_tx.response_line = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-            if out_tx.response_line.is_null() {
+            connp.out_tx_mut_ok()?.response_line =
+                bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
+            if connp.out_tx_mut_ok()?.response_line.is_null() {
                 return Err(Status::ERROR);
             }
             if (*connp).parse_response_line().is_err() {
@@ -1144,14 +1170,15 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
             htp_connp_res_clear_buffer(connp);
             // Move on to the next phase.
             (*connp).out_state = State::HEADERS;
-            out_tx.response_progress = htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_HEADERS;
+            connp.out_tx_mut_ok()?.response_progress =
+                htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_HEADERS;
             return Ok(());
         }
     }
 }
 
 pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     if (*connp).out_status != htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
         if (*connp).out_current_read_offset >= (*connp).out_current_len {
@@ -1198,7 +1225,7 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
     if htp_util::htp_treat_response_line_as_body(std::slice::from_raw_parts(data, bytes_left)) {
         // Interpret remaining bytes as body data
         htp_warn!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::RESPONSE_BODY_UNEXPECTED,
             "Unexpected response body"
         );
@@ -1224,7 +1251,7 @@ pub unsafe extern "C" fn htp_connp_RES_FINALIZE(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
 pub unsafe extern "C" fn htp_connp_RES_IDLE(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     // We want to start parsing the next response (and change
     // the state from IDLE) only if there's at least one
@@ -1247,7 +1274,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
 
     if (*connp).out_tx().is_none() {
         htp_error!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::UNABLE_TO_MATCH_RESPONSE_TO_REQUEST,
             "Unable to match response to request"
         );
@@ -1256,22 +1283,17 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
             // Ignore result.
             let _ = (*connp).state_request_complete();
         }
-        if let Ok(Some(out_tx)) = (*connp)
-            .create_tx()
-            .map(|tx_id| (*connp).conn.tx_mut(tx_id))
-        {
-            (*connp).set_out_tx(out_tx);
+        let tx_id = (*connp).create_tx()?;
+        (*connp).set_out_tx_id(Some(tx_id));
+        let mut out_tx = connp.out_tx_mut_ok()?;
 
-            out_tx.parsed_uri = htp_util::htp_uri_alloc();
-            if out_tx.parsed_uri.is_null() {
-                return Err(Status::ERROR);
-            }
-            (*out_tx.parsed_uri).path = Some(bstr::bstr_t::from("/libhtp::request_uri_not_seen"));
-            out_tx.request_uri = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
-            if out_tx.request_uri.is_null() {
-                return Err(Status::ERROR);
-            }
-        } else {
+        out_tx.parsed_uri = htp_util::htp_uri_alloc();
+        if out_tx.parsed_uri.is_null() {
+            return Err(Status::ERROR);
+        }
+        (*out_tx.parsed_uri).path = Some(bstr::bstr_t::from("/libhtp::request_uri_not_seen"));
+        out_tx.request_uri = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
+        if out_tx.request_uri.is_null() {
             return Err(Status::ERROR);
         }
         (*connp).in_state = State::FINALIZE;
@@ -1293,7 +1315,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
 ///
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed
 pub unsafe fn htp_connp_res_data(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     timestamp: Option<htp_time_t>,
     data: *const core::ffi::c_void,
     len: usize,
@@ -1301,7 +1323,7 @@ pub unsafe fn htp_connp_res_data(
     // Return if the connection is in stop state
     if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
         htp_info!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::PARSER_STATE_ERROR,
             "Outbound parser is in HTP_STREAM_STOP"
         );
@@ -1310,7 +1332,7 @@ pub unsafe fn htp_connp_res_data(
     // Return if the connection has had a fatal error
     if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
         htp_error!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::PARSER_STATE_ERROR,
             "Outbound parser is in HTP_STREAM_ERROR"
         );
@@ -1320,7 +1342,7 @@ pub unsafe fn htp_connp_res_data(
     if (*connp).out_tx().is_none() && (*connp).out_state != State::IDLE {
         (*connp).out_status = htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
         htp_error!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::MISSING_OUTBOUND_TRANSACTION_DATA,
             "Missing outbound transaction data"
         );
@@ -1334,7 +1356,7 @@ pub unsafe fn htp_connp_res_data(
         && (*connp).out_status != htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
     {
         htp_error!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
             "Zero-length data chunks are not allowed"
         );
@@ -1371,7 +1393,7 @@ pub unsafe fn htp_connp_res_data(
             if (*connp).out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {
                 return htp_connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
             }
-            rc = htp_res_handle_state_change(connp)
+            rc = htp_res_handle_state_change(connp);
         }
         match rc {
             // Continue looping.

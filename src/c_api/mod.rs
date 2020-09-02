@@ -583,7 +583,16 @@ pub unsafe extern "C" fn htp_connp_res_data(
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> htp_connection_parser::htp_stream_state_t {
-    htp_response::htp_connp_res_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
+    if let Some(connp) = connp.as_mut() {
+        htp_response::htp_connp_res_data(
+            connp,
+            timestamp.as_ref().map(|val| val.clone()),
+            data,
+            len,
+        )
+    } else {
+        htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR
+    }
 }
 
 /// Associate user data with the supplied parser.

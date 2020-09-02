@@ -14,9 +14,9 @@ extern "C" {
 
 /// Generic response line parser.
 pub unsafe extern "C" fn htp_parse_response_line_generic(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
-    let tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
+    let tx = (*connp).out_tx_mut_ok()?;
     let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
     let len: usize = bstr::bstr_len((*tx).response_line);
     (*tx).response_protocol = 0 as *mut bstr::bstr_t;
@@ -41,35 +41,38 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
         if response_protocol.len() == 0 {
             return Ok(());
         }
-        (*tx).response_protocol = bstr::bstr_dup_str(response_protocol);
-        if (*tx).response_protocol.is_null() {
+
+        let out_tx = (*connp).out_tx_mut_ok()?;
+        out_tx.response_protocol = bstr::bstr_dup_str(response_protocol);
+        if out_tx.response_protocol.is_null() {
             return Err(Status::ERROR);
         }
 
-        (*tx).response_protocol_number =
-            htp_parsers::htp_parse_protocol(response_protocol, &mut *connp);
+        (*connp).out_tx_mut_ok()?.response_protocol_number =
+            htp_parsers::htp_parse_protocol(response_protocol, connp);
 
         if ws1.len() == 0 || status_code.len() == 0 {
             return Ok(());
         }
 
-        (*tx).response_status = bstr::bstr_dup_str(status_code);
-        if (*tx).response_status.is_null() {
+        let out_tx = (*connp).out_tx_mut_ok()?;
+        out_tx.response_status = bstr::bstr_dup_str(status_code);
+        if out_tx.response_status.is_null() {
             return Err(Status::ERROR);
         }
 
         if let Some(status_number) = htp_parsers::htp_parse_status(status_code) {
-            (*tx).response_status_number = status_number as i32;
+            out_tx.response_status_number = status_number as i32;
         } else {
-            (*tx).response_status_number = -1;
+            out_tx.response_status_number = -1;
         }
 
         if ws2.len() == 0 {
             return Ok(());
         }
 
-        (*tx).response_message = bstr::bstr_dup_str(message);
-        if (*tx).response_message.is_null() {
+        out_tx.response_message = bstr::bstr_dup_str(message);
+        if out_tx.response_message.is_null() {
             return Err(Status::ERROR);
         }
     } else {
@@ -80,16 +83,10 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
 
 /// Generic response header parser.
 pub unsafe extern "C" fn htp_parse_response_header_generic(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
 ) -> Result<htp_transaction::htp_header_t> {
-    let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
-        out_tx
-    } else {
-        return Err(Status::ERROR);
-    };
-
     let data_slice = std::slice::from_raw_parts(data as *const u8, len);
     let data_slice = htp_util::htp_chomp(&data_slice);
     let mut flags = Flags::empty();
@@ -104,11 +101,15 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             let name_len = name.len();
             if name_len == 0 {
                 flags |= Flags::HTP_FIELD_INVALID;
-                if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                if !connp
+                    .out_tx_mut_ok()?
+                    .flags
+                    .contains(Flags::HTP_FIELD_INVALID)
+                {
                     // Only once per transaction.
-                    out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                    connp.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
                         "Response field invalid: empty name."
                     );
@@ -120,11 +121,15 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             for item in name.iter().rev() {
                 if item <= &0x20 {
                     flags |= Flags::HTP_FIELD_INVALID;
-                    if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                    if !connp
+                        .out_tx_mut_ok()?
+                        .flags
+                        .contains(Flags::HTP_FIELD_INVALID)
+                    {
                         // Only once per transaction.
-                        out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                        connp.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_log!(
-                            connp,
+                            connp as *mut htp_connection_parser::htp_connp_t,
                             htp_log_level_t::HTP_LOG_WARNING,
                             htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
                             "Response field invalid: LWS after name"
@@ -143,10 +148,14 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             // Check header is a token
             if !htp_util::is_word_token(name) {
                 flags |= Flags::HTP_FIELD_INVALID;
-                if !out_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-                    out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                if !connp
+                    .out_tx_mut_ok()?
+                    .flags
+                    .contains(Flags::HTP_FIELD_INVALID)
+                {
+                    connp.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
                         "Response header name is not a token."
                     );
@@ -161,12 +170,16 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
             flags |= Flags::HTP_FIELD_UNPARSEABLE;
             flags |= Flags::HTP_FIELD_INVALID;
             // clean up
-            if !out_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
+            if !connp
+                .out_tx_mut_ok()?
+                .flags
+                .contains(Flags::HTP_FIELD_UNPARSEABLE)
+            {
                 // Only once per transaction.
-                out_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
-                out_tx.flags |= Flags::HTP_FIELD_INVALID;
+                connp.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
+                connp.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::RESPONSE_FIELD_MISSING_COLON,
                     "Response field invalid: missing colon."
                 );
@@ -179,7 +192,7 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
     // No null char in val
     if value.contains(&0) {
         htp_log!(
-            connp,
+            connp as *mut htp_connection_parser::htp_connp_t,
             htp_log_level_t::HTP_LOG_WARNING,
             htp_log_code::REQUEST_HEADER_INVALID,
             "Response header value contains null."
@@ -196,31 +209,26 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
 /// Generic response header line(s) processor, which assembles folded lines
 /// into a single buffer before invoking the parsing function.
 pub unsafe extern "C" fn htp_process_response_header_generic(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
 ) -> Result<()> {
-    let out_tx = (*connp).out_tx_mut().ok_or(Status::ERROR)?;
-    let header = if let Ok(header) = htp_parse_response_header_generic(connp, data, len) {
-        header
-    } else {
-        return Err(Status::ERROR);
-    };
+    let header = htp_parse_response_header_generic(connp, data, len)?;
+    let mut repeated = false;
+    let reps = connp.out_tx_mut_ok()?.res_header_repetitions;
+    let mut update_reps = false;
     // Do we already have a header with the same name?
-    if let Some((_, h_existing)) = out_tx
+    if let Some((_, h_existing)) = connp
+        .out_tx_mut_ok()?
         .response_headers
         .get_nocase_mut(header.name.as_slice())
     {
         // Keep track of repeated same-name headers.
         if !h_existing.flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
-            htp_warn!(
-                connp,
-                htp_log_code::RESPONSE_HEADER_REPETITION,
-                "Repetition for header"
-            );
-        } else if (out_tx.res_header_repetitions) < 64 {
-            out_tx.res_header_repetitions = out_tx.res_header_repetitions.wrapping_add(1)
+            repeated = true;
+        } else if reps < 64 {
+            update_reps = true;
         } else {
             return Ok(());
         }
@@ -236,7 +244,7 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                 // Ambiguous response C-L value.
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                     "Ambiguous response C-L value"
                 );
@@ -247,7 +255,23 @@ pub unsafe extern "C" fn htp_process_response_header_generic(
             h_existing.value.extend_from_slice(header.value.as_slice());
         }
     } else {
-        out_tx.response_headers.add(header.name.clone(), header);
+        connp
+            .out_tx_mut_ok()?
+            .response_headers
+            .add(header.name.clone(), header);
+    }
+    if update_reps {
+        connp.out_tx_mut_ok()?.res_header_repetitions = connp
+            .out_tx_mut_ok()?
+            .res_header_repetitions
+            .wrapping_add(1)
+    }
+    if repeated {
+        htp_warn!(
+            connp as *mut htp_connection_parser::htp_connp_t,
+            htp_log_code::RESPONSE_HEADER_REPETITION,
+            "Repetition for header"
+        );
     }
     Ok(())
 }

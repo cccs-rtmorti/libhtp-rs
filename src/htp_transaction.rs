@@ -1260,7 +1260,7 @@ impl htp_tx_t {
             ce_multi_comp = 0
         }
         // Finalize sending raw header data.
-        htp_response::htp_connp_res_receiver_finalize_clear(self.connp)?;
+        htp_response::htp_connp_res_receiver_finalize_clear(&mut *self.connp)?;
         // Run hook RESPONSE_HEADERS.
         (*(*self.connp).cfg).hook_response_headers.run_all(self)?;
         // Initialize the decompression engine as necessary. We can deal with three

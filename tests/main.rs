@@ -183,7 +183,7 @@ impl Test {
                         // If we have leftover data from before then use it first
                         if let Some(out_remaining) = out_buf {
                             let rc = htp_connp_res_data(
-                                self.connp,
+                                &mut *self.connp,
                                 Some(tv_start),
                                 out_remaining.as_ptr() as *const core::ffi::c_void,
                                 out_remaining.len(),
@@ -196,7 +196,7 @@ impl Test {
 
                         // Now use up this data chunk
                         let rc = htp_connp_res_data(
-                            self.connp,
+                            &mut *self.connp,
                             Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
@@ -235,7 +235,7 @@ impl Test {
             // Clean up any remaining server data
             if let Some(out_remaining) = out_buf {
                 let rc = htp_connp_res_data(
-                    self.connp,
+                    &mut *self.connp,
                     Some(tv_start),
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
@@ -2049,8 +2049,11 @@ fn ResponseMultipleClMismatch() {
         assert_response_header_flag_contains!(tx, "Content-Length", Flags::HTP_FIELD_REPEATED);
 
         assert_eq!(2, (*(*tx).connp).conn.message_size());
-        let log = (*(*tx).connp).conn.message(1).unwrap();
+        let log = (*(*tx).connp).conn.message(0).unwrap();
         assert_eq!(log.msg, "Ambiguous response C-L value");
+        assert_eq!(htp_log_level_t::HTP_LOG_WARNING, log.level);
+        let log = (*(*tx).connp).conn.message(1).unwrap();
+        assert_eq!(log.msg, "Repetition for header");
         assert_eq!(htp_log_level_t::HTP_LOG_WARNING, log.level);
     }
 }

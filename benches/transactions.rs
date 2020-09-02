@@ -108,7 +108,7 @@ impl Test {
                         // If we have leftover data from before then use it first
                         if let Some(out_remaining) = out_buf {
                             let rc = htp_connp_res_data(
-                                self.connp,
+                                &mut *self.connp,
                                 Some(tv_start),
                                 out_remaining.as_ptr() as *const core::ffi::c_void,
                                 out_remaining.len(),
@@ -121,7 +121,7 @@ impl Test {
 
                         // Now use up this data chunk
                         let rc = htp_connp_res_data(
-                            self.connp,
+                            &mut *self.connp,
                             Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
@@ -160,7 +160,7 @@ impl Test {
             // Clean up any remaining server data
             if let Some(out_remaining) = out_buf {
                 let rc = htp_connp_res_data(
-                    self.connp,
+                    &mut *self.connp,
                     Some(tv_start),
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
