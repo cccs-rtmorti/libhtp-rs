@@ -565,7 +565,11 @@ pub unsafe extern "C" fn htp_connp_req_data(
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> htp_connection_parser::htp_stream_state_t {
-    htp_request::htp_connp_req_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
+    if let Some(connp) = connp.as_mut() {
+        htp_request::htp_connp_req_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
+    } else {
+        htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR
+    }
 }
 
 /// Process a chunk of outbound (server or response) data.

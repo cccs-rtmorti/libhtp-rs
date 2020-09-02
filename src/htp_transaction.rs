@@ -755,7 +755,7 @@ impl htp_tx_t {
             })?;
         }
         // Finalize sending raw header data.
-        htp_request::htp_connp_req_receiver_finalize_clear(self.connp)?;
+        htp_request::htp_connp_req_receiver_finalize_clear(&mut *self.connp)?;
         // Run hook REQUEST_HEADERS.
         (*(*self.connp).cfg).hook_request_headers.run_all(self)?;
         // We cannot proceed if the request is invalid.
@@ -1071,7 +1071,7 @@ impl htp_tx_t {
             // Run hook HTP_REQUEST_TRAILER.
             (*(*self.connp).cfg).hook_request_trailer.run_all(self)?;
             // Finalize sending raw header data.
-            htp_request::htp_connp_req_receiver_finalize_clear(self.connp)?;
+            htp_request::htp_connp_req_receiver_finalize_clear(&mut *self.connp)?;
             // Completed parsing this request; finalize it now.
             (*self.connp).in_state = State::FINALIZE;
         } else if self.request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {

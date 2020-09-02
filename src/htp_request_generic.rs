@@ -16,27 +16,29 @@ use std::cmp::Ordering;
 ///
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_process_request_header_generic(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
 ) -> Result<()> {
-    let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
     // Try to parse the header.
     let data: &[u8] = std::slice::from_raw_parts(data as *const u8, len);
     let header = htp_parse_request_header_generic(connp, data)?;
+    let mut repeated = false;
+    let reps = connp.in_tx_mut_ok()?.req_header_repetitions;
+    let mut update_reps = false;
     // Do we already have a header with the same name?
-    if let Some((_, h_existing)) = in_tx.request_headers.get_nocase_mut(header.name.as_slice()) {
+    if let Some((_, h_existing)) = connp
+        .in_tx_mut_ok()?
+        .request_headers
+        .get_nocase_mut(header.name.as_slice())
+    {
         // TODO Do we want to have a list of the headers that are
         //      allowed to be combined in this way?
         if !h_existing.flags.contains(Flags::HTP_FIELD_REPEATED) {
             // This is the second occurence for this header.
-            htp_warn!(
-                connp,
-                htp_log_code::REQUEST_HEADER_REPETITION,
-                "Repetition for header"
-            );
-        } else if (in_tx.req_header_repetitions) < 64 {
-            in_tx.req_header_repetitions = in_tx.req_header_repetitions.wrapping_add(1)
+            repeated = true;
+        } else if reps < 64 {
+            update_reps = true;
         } else {
             return Ok(());
         }
@@ -53,7 +55,7 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
             // Ambiguous response C-L value.
             if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
                     "Ambiguous request C-L value"
                 );
@@ -64,17 +66,30 @@ pub unsafe extern "C" fn htp_process_request_header_generic(
             h_existing.value.extend_from_slice(header.value.as_slice());
         }
     } else {
-        in_tx.request_headers.add(header.name.clone(), header);
+        connp
+            .in_tx_mut_ok()?
+            .request_headers
+            .add(header.name.clone(), header);
+    }
+    if update_reps {
+        connp.in_tx_mut_ok()?.req_header_repetitions =
+            connp.in_tx_mut_ok()?.req_header_repetitions.wrapping_add(1)
+    }
+    if repeated {
+        htp_warn!(
+            connp as *mut htp_connection_parser::htp_connp_t,
+            htp_log_code::REQUEST_HEADER_REPETITION,
+            "Repetition for header"
+        );
     }
     Ok(())
 }
 
 /// Generic request header parser.
 pub unsafe fn htp_parse_request_header_generic(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     data: &[u8],
 ) -> Result<htp_transaction::htp_header_t> {
-    let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
     let mut flags = Flags::empty();
     let data = htp_util::htp_chomp(&data);
 
@@ -84,10 +99,14 @@ pub unsafe fn htp_parse_request_header_generic(
             if name.is_empty() {
                 flags |= Flags::HTP_FIELD_INVALID;
                 // Log only once per transaction.
-                if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                if !connp
+                    .in_tx_mut_ok()?
+                    .flags
+                    .contains(Flags::HTP_FIELD_INVALID)
+                {
                     flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::REQUEST_INVALID_EMPTY_NAME,
                         "Request field invalid: empty name"
                     );
@@ -98,10 +117,14 @@ pub unsafe fn htp_parse_request_header_generic(
                 flags |= Flags::HTP_FIELD_INVALID;
                 if !tws.is_empty() {
                     // Log only once per transaction.
-                    if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
+                    if !connp
+                        .in_tx_mut_ok()?
+                        .flags
+                        .contains(Flags::HTP_FIELD_INVALID)
+                    {
                         flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            connp,
+                            connp as *mut htp_connection_parser::htp_connp_t,
                             htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
                             "Request field invalid: LWS after name"
                         );
@@ -123,10 +146,14 @@ pub unsafe fn htp_parse_request_header_generic(
                 // Incorrectly formed header name.
                 flags |= Flags::HTP_FIELD_INVALID;
                 // Log only once per transaction.
-                if !in_tx.flags.contains(Flags::HTP_FIELD_INVALID) {
-                    in_tx.flags |= Flags::HTP_FIELD_INVALID;
+                if !connp
+                    .in_tx_mut_ok()?
+                    .flags
+                    .contains(Flags::HTP_FIELD_INVALID)
+                {
+                    connp.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::REQUEST_HEADER_INVALID,
                         "Request header name is not a token"
                     );
@@ -138,10 +165,14 @@ pub unsafe fn htp_parse_request_header_generic(
             // No colon
             flags |= Flags::HTP_FIELD_UNPARSEABLE;
             // Log only once per transaction.
-            if !in_tx.flags.contains(Flags::HTP_FIELD_UNPARSEABLE) {
-                in_tx.flags |= Flags::HTP_FIELD_UNPARSEABLE;
+            if !connp
+                .in_tx_mut_ok()?
+                .flags
+                .contains(Flags::HTP_FIELD_UNPARSEABLE)
+            {
+                connp.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::REQUEST_FIELD_MISSING_COLON,
                     "Request field invalid: colon missing"
                 );
@@ -165,19 +196,17 @@ pub unsafe fn htp_parse_request_header_generic(
 ///
 /// Returns HTP_OK or HTP_ERROR
 pub unsafe extern "C" fn htp_parse_request_line_generic(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     htp_parse_request_line_generic_ex(connp, 0)
 }
 
 pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
-    connp: *mut htp_connection_parser::htp_connp_t,
+    connp: &mut htp_connection_parser::htp_connp_t,
     nul_terminates: i32,
 ) -> Result<()> {
-    let in_tx = (*connp).in_tx_mut().ok_or(Status::ERROR)?;
-
     let mut mstart: bool = false;
-    let mut data = (*in_tx.request_line).as_ref();
+    let mut data = (*connp.in_tx_mut_ok()?.request_line).as_ref();
     if nul_terminates != 0 {
         if let Ok((_, before_null)) = htp_util::take_until_null(data) {
             data = before_null
@@ -200,7 +229,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
     if let Ok((remaining, (ls, method, ws))) = method_parser(data) {
         if !ls.is_empty() {
             htp_warn!(
-                connp,
+                connp as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
                 "Request line: leading whitespace"
             );
@@ -211,26 +240,28 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                 // reset mstart so that we copy the whitespace into the method
                 mstart = true;
                 // set expected response code to this anomaly
-                in_tx.response_status_expected_number =
+                connp.in_tx_mut_ok()?.response_status_expected_number =
                     (*(*connp).cfg).requestline_leading_whitespace_unwanted as i32
             }
         }
 
         if mstart {
-            in_tx.request_method = bstr::bstr_dup_str([&ls[..], &method[..]].concat());
+            connp.in_tx_mut_ok()?.request_method =
+                bstr::bstr_dup_str([&ls[..], &method[..]].concat());
         } else {
-            in_tx.request_method = bstr::bstr_dup_str(method);
+            connp.in_tx_mut_ok()?.request_method = bstr::bstr_dup_str(method);
         }
 
-        if in_tx.request_method.is_null() {
+        if connp.in_tx_mut_ok()?.request_method.is_null() {
             return Err(Status::ERROR);
         }
-        in_tx.request_method_number = htp_util::htp_convert_bstr_to_method(&*in_tx.request_method);
+        connp.in_tx_mut_ok()?.request_method_number =
+            htp_util::htp_convert_bstr_to_method(&*connp.in_tx_mut_ok()?.request_method);
 
         // Too much performance overhead for fuzzing
         if ws.iter().any(|&c| c != 0x20) {
             htp_warn!(
-                connp,
+                connp as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::METHOD_DELIM_NON_COMPLIANT,
                 "Request line: non-compliant delimiter between Method and URI"
             );
@@ -238,11 +269,13 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
 
         if remaining.is_empty() {
             // No, this looks like a HTTP/0.9 request.
-            in_tx.is_protocol_0_9 = 1;
-            in_tx.request_protocol_number = Protocol::V0_9;
-            if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
+            connp.in_tx_mut_ok()?.is_protocol_0_9 = 1;
+            connp.in_tx_mut_ok()?.request_protocol_number = Protocol::V0_9;
+            if connp.in_tx_mut_ok()?.request_method_number
+                == htp_request::htp_method_t::HTP_M_UNKNOWN
+            {
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
                     "Request line: unknown method only"
                 );
@@ -261,7 +294,7 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
             if uri.len() == remaining.len() && uri.iter().any(|&c| htp_is_space(c)) {
                 // warn regardless if we've seen non-compliant chars
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::URI_DELIM_NON_COMPLIANT,
                     "Request line: URI contains non-compliant delimiter"
                 );
@@ -274,19 +307,21 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                 }
             }
 
-            in_tx.request_uri = bstr::bstr_dup_str(uri);
-            if in_tx.request_uri.is_null() {
+            connp.in_tx_mut_ok()?.request_uri = bstr::bstr_dup_str(uri);
+            if connp.in_tx_mut_ok()?.request_uri.is_null() {
                 return Err(Status::ERROR);
             }
 
             // Is there protocol information available?
             if protocol.is_empty() {
                 // No, this looks like a HTTP/0.9 request.
-                in_tx.is_protocol_0_9 = 1;
-                in_tx.request_protocol_number = Protocol::V0_9;
-                if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN {
+                connp.in_tx_mut_ok()?.is_protocol_0_9 = 1;
+                connp.in_tx_mut_ok()?.request_protocol_number = Protocol::V0_9;
+                if connp.in_tx_mut_ok()?.request_method_number
+                    == htp_request::htp_method_t::HTP_M_UNKNOWN
+                {
                     htp_warn!(
-                        connp,
+                        connp as *mut htp_connection_parser::htp_connp_t,
                         htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
                         "Request line: unknown method and no protocol"
                     );
@@ -294,17 +329,20 @@ pub unsafe extern "C" fn htp_parse_request_line_generic_ex(
                 return Ok(());
             }
             // The protocol information continues until the end of the line.
-            in_tx.request_protocol = bstr::bstr_dup_str(protocol);
-            if in_tx.request_protocol.is_null() {
+            connp.in_tx_mut_ok()?.request_protocol = bstr::bstr_dup_str(protocol);
+            if connp.in_tx_mut_ok()?.request_protocol.is_null() {
                 return Err(Status::ERROR);
             }
-            in_tx.request_protocol_number =
-                htp_parsers::htp_parse_protocol(&mut *in_tx.request_protocol, &mut *connp);
-            if in_tx.request_method_number == htp_request::htp_method_t::HTP_M_UNKNOWN
-                && in_tx.request_protocol_number == Protocol::INVALID
+            connp.in_tx_mut_ok()?.request_protocol_number = htp_parsers::htp_parse_protocol(
+                &mut *connp.in_tx_mut_ok()?.request_protocol,
+                &mut *connp,
+            );
+            if connp.in_tx_mut_ok()?.request_method_number
+                == htp_request::htp_method_t::HTP_M_UNKNOWN
+                && connp.in_tx_mut_ok()?.request_protocol_number == Protocol::INVALID
             {
                 htp_warn!(
-                    connp,
+                    connp as *mut htp_connection_parser::htp_connp_t,
                     htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
                     "Request line: unknown method and invalid protocol"
                 );

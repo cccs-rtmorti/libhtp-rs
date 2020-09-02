@@ -273,6 +273,13 @@ impl htp_connp_t {
         self.in_tx.and_then(move |in_tx| self.conn.tx_mut(in_tx))
     }
 
+    /// Get the in_tx as a mutable reference or Status::ERROR if not set.
+    pub fn in_tx_mut_ok(&mut self) -> Result<&mut htp_transaction::htp_tx_t> {
+        self.in_tx
+            .and_then(move |in_tx| self.conn.tx_mut(in_tx))
+            .ok_or(Status::ERROR)
+    }
+
     /// Get the in_tx as a pointer or NULL if not set.
     pub fn in_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
         self.in_tx()

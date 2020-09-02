@@ -57,7 +57,7 @@ impl Test {
             // Send headers
             for header in headers {
                 htp_connp_req_data(
-                    self.connp,
+                    &mut *self.connp,
                     None,
                     header.as_ptr() as *const core::ffi::c_void,
                     header.chars().count(),
@@ -72,14 +72,14 @@ impl Test {
 
             let contentStr = format!("Content-Length: {}\r\n", bodyLen);
             htp_connp_req_data(
-                self.connp,
+                &mut *self.connp,
                 None,
                 contentStr.as_ptr() as *const core::ffi::c_void,
                 contentStr.chars().count(),
             );
 
             htp_connp_req_data(
-                self.connp,
+                &mut *self.connp,
                 None,
                 "\r\n".as_ptr() as *const core::ffi::c_void,
                 2,
@@ -88,7 +88,7 @@ impl Test {
             // Send data.
             for d in data {
                 htp_connp_req_data(
-                    self.connp,
+                    &mut *self.connp,
                     None,
                     d.as_ptr() as *const core::ffi::c_void,
                     d.chars().count(),

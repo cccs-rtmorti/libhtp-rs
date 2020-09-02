@@ -160,7 +160,7 @@ impl Test {
                 match chunk {
                     Chunk::Client(data) => {
                         let rc = htp_connp_req_data(
-                            self.connp,
+                            &mut *self.connp,
                             Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
@@ -218,7 +218,7 @@ impl Test {
                         // And check if we also had some input data buffered
                         if let Some(in_remaining) = in_buf {
                             let rc = htp_connp_req_data(
-                                self.connp,
+                                &mut *self.connp,
                                 Some(tv_start),
                                 in_remaining.as_ptr() as *const core::ffi::c_void,
                                 in_remaining.len(),
