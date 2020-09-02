@@ -100,9 +100,13 @@ unsafe fn htp_res_handle_state_change(
                 .hook_response_trailer_data
                 .clone(),
         );
-        match connp.out_tx_mut_ok()?.response_progress as u32 {
-            2 => htp_connp_res_receiver_set(connp, header_fn),
-            4 => htp_connp_res_receiver_set(connp, trailer_fn),
+        match connp.out_tx_mut_ok()?.response_progress {
+            htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_HEADERS => {
+                htp_connp_res_receiver_set(connp, header_fn)
+            }
+            htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_TRAILER => {
+                htp_connp_res_receiver_set(connp, trailer_fn)
+            }
             _ => Ok(()),
         }?;
     }

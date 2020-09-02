@@ -121,9 +121,13 @@ impl htp_connection_parser::htp_connp_t {
                     .clone(),
             );
 
-            match self.in_tx_mut_ok()?.request_progress as u32 {
-                2 => self.req_receiver_set(header_fn),
-                4 => self.req_receiver_set(trailer_fn),
+            match self.in_tx_mut_ok()?.request_progress {
+                htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS => {
+                    self.req_receiver_set(header_fn)
+                }
+                htp_transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER => {
+                    self.req_receiver_set(trailer_fn)
+                }
                 _ => Ok(()),
             }?;
         }
