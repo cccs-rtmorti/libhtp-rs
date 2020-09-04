@@ -22,15 +22,12 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_body_data(
         return Status::ERROR;
     };
     if !(*d).data().is_null() {
+        let data = std::slice::from_raw_parts((*d).data(), (*d).len());
         // Process one chunk of data.
-        htp_urlencoded::htp_urlenp_parse_partial(
-            (*tx).request_urlenp_body,
-            (*d).data() as *const core::ffi::c_void,
-            (*d).len(),
-        );
+        htp_urlencoded::htp_urlenp_parse_partial(&mut *(*tx).request_urlenp_body, data);
     } else {
         // Finalize parsing.
-        htp_urlencoded::htp_urlenp_finalize((*tx).request_urlenp_body);
+        htp_urlencoded::htp_urlenp_finalize(&mut *(*tx).request_urlenp_body);
         // Add all parameters to the transaction.
         for (name, value) in (*(*tx).request_urlenp_body).params.elements.iter() {
             let param = htp_transaction::htp_param_t::new(
@@ -99,15 +96,10 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     if (*tx).request_urlenp_query.is_null() {
         return Status::ERROR;
     }
-    if htp_urlencoded::htp_urlenp_parse_complete(
-        (*tx).request_urlenp_query,
-        bstr::bstr_ptr((*(*tx).parsed_uri).query) as *const core::ffi::c_void,
-        bstr::bstr_len((*(*tx).parsed_uri).query),
-    ) != Status::OK
-    {
-        htp_urlencoded::htp_urlenp_destroy((*tx).request_urlenp_query);
-        return Status::ERROR;
-    }
+    htp_urlencoded::htp_urlenp_parse_complete(
+        &mut *(*tx).request_urlenp_query,
+        (*(*(*tx).parsed_uri).query).as_slice(),
+    );
     // Add all parameters to the transaction.
     for (name, value) in (*(*tx).request_urlenp_query).params.elements.iter() {
         let param = htp_transaction::htp_param_t::new(
