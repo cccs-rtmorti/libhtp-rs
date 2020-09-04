@@ -189,6 +189,75 @@ pub struct htp_mpartp_t {
     pub cr_aside: bool,
 }
 
+/// Creates a new multipart/form-data parser. On a successful invocation,
+/// the ownership of the boundary parameter is transferred to the parser.
+///
+/// Returns New parser instance, or None on failure.
+impl htp_mpartp_t {
+    pub fn new(
+        cfg: *mut htp_config::htp_cfg_t,
+        boundary: &[u8],
+        flags: MultipartFlags,
+    ) -> Option<Self> {
+        if cfg.is_null() || boundary.is_empty() {
+            return None;
+        }
+
+        unsafe {
+            let limit: i32 = if (*cfg).extract_request_files_limit >= 0 {
+                (*cfg).extract_request_files_limit
+            } else {
+                16
+            };
+
+            Some(Self {
+                multipart: htp_multipart_t {
+                    boundary_len: boundary.len() + 2,
+                    boundary: bstr::bstr_t::from([b"--", boundary].concat()),
+                    boundary_count: 0,
+                    parts: list::List::with_capacity(64),
+                    flags,
+                },
+                cfg,
+                extract_files: (*cfg).extract_request_files,
+                extract_limit: limit,
+                extract_dir: (*cfg).tmpdir.clone(),
+                file_count: 0,
+                handle_data: Some(
+                    htp_mpartp_handle_data as fn(_: &mut htp_mpartp_t, _: bool) -> Status,
+                ),
+                handle_boundary: Some(htp_mpartp_handle_boundary as fn(_: &mut htp_mpartp_t)),
+                // We're starting in boundary-matching mode. The first boundary can appear without the
+                // CRLF, and our starting state expects that. If we encounter non-boundary data, the
+                // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
+                // to boundary matching. Thus, we handle all the possibilities.
+                parser_state: htp_multipart_state_t::STATE_BOUNDARY,
+                boundary_match_pos: 0,
+                current_part: std::ptr::null_mut(),
+                current_part_mode: htp_part_mode_t::MODE_LINE,
+                boundary_candidate: bstr::bstr_t::with_capacity(boundary.len()),
+                part_header: bstr::bstr_t::with_capacity(64),
+                pending_header_line: bstr::bstr_t::with_capacity(64),
+                to_consume: bstr::bstr_t::new(),
+                part_data_pieces: bstr::bstr_t::with_capacity(64),
+                boundary_candidate_pos: 0,
+                cr_aside: false,
+            })
+        }
+    }
+}
+
+impl Drop for htp_mpartp_t {
+    fn drop(&mut self) {
+        unsafe {
+            // Free the parts.
+            for part in &self.multipart.parts {
+                htp_mpart_part_destroy(*part);
+            }
+        }
+    }
+}
+
 /// Holds information related to a part.
 pub struct htp_multipart_part_t {
     /// Pointer to the parser.
@@ -225,8 +294,6 @@ enum htp_part_mode_t {
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum htp_multipart_state_t {
-    /// Initial state, after the parser has been created but before the boundary initialized.
-    STATE_INIT,
     /// Processing data, waiting for a new line (which might indicate a new boundary).
     STATE_DATA,
     /// Testing a potential boundary.
@@ -273,9 +340,9 @@ pub struct htp_multipart_t {
 ///
 /// Returns The main multipart structure.
 pub unsafe extern "C" fn htp_mpartp_get_multipart(
-    parser: *mut htp_mpartp_t,
+    parser: &mut htp_mpartp_t,
 ) -> *mut htp_multipart_t {
-    &mut (*parser).multipart
+    &mut parser.multipart
 }
 
 /// Extracts and decodes a C-D header param name and value following a form-data. This is impossible to do correctly without a
@@ -791,7 +858,7 @@ fn htp_mpartp_handle_data(parser: &mut htp_mpartp_t, is_line: bool) -> Status {
 }
 
 /// Handles a boundary event, which means that it will finalize a part if one exists.
-fn htp_mpartp_handle_boundary(mut parser: &mut htp_mpartp_t) {
+fn htp_mpartp_handle_boundary(parser: &mut htp_mpartp_t) {
     if !parser.current_part.is_null() {
         unsafe {
             if htp_mpart_part_finalize_data(&mut *(*parser).current_part) != Status::OK {
@@ -805,83 +872,8 @@ fn htp_mpartp_handle_boundary(mut parser: &mut htp_mpartp_t) {
     }
 }
 
-fn htp_mpartp_init_boundary(parser: &mut htp_mpartp_t, data: &[u8]) -> Status {
-    if data.len() == 0 {
-        return Status::ERROR;
-    }
-    // Copy the boundary and convert it to lowercase.
-    parser.multipart.boundary_len = data.len() + 2;
-    parser.multipart.boundary = bstr::bstr_t::with_capacity((*parser).multipart.boundary_len);
-    parser.multipart.boundary.add("--");
-    parser.multipart.boundary.add(data);
-    // We're starting in boundary-matching mode. The first boundary can appear without the
-    // CRLF, and our starting state expects that. If we encounter non-boundary data, the
-    // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
-    // to boundary matching. Thus, we handle all the possibilities.
-    parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
-    parser.boundary_match_pos = 0;
-    Status::OK
-}
-
-/// Creates a new multipart/form-data parser. On a successful invocation,
-/// the ownership of the boundary parameter is transferred to the parser.
-///
-/// Returns New parser instance, or NULL on memory allocation failure.
-pub unsafe extern "C" fn htp_mpartp_create(
-    cfg: *mut htp_config::htp_cfg_t,
-    boundary: &[u8],
-    flags: MultipartFlags,
-) -> *mut htp_mpartp_t {
-    if cfg.is_null() || boundary.len() == 0 {
-        return 0 as *mut htp_mpartp_t;
-    }
-    let mut parser: *mut htp_mpartp_t =
-        calloc(1, ::std::mem::size_of::<htp_mpartp_t>()) as *mut htp_mpartp_t;
-    if parser.is_null() {
-        return 0 as *mut htp_mpartp_t;
-    }
-    (*parser).cfg = cfg;
-    (*parser).boundary_candidate = bstr::bstr_t::with_capacity(boundary.len());
-    (*parser).pending_header_line = bstr::bstr_t::with_capacity(64);
-    (*parser).part_header = bstr::bstr_t::with_capacity(64);
-    (*parser).part_data_pieces = bstr::bstr_t::with_capacity(64);
-    (*parser).multipart.parts = list::List::with_capacity(64);
-    (*parser).multipart.flags = flags;
-    (*parser).parser_state = htp_multipart_state_t::STATE_INIT;
-    (*parser).extract_files = (*cfg).extract_request_files;
-    (*parser).extract_dir = (*cfg).tmpdir.clone();
-    if (*cfg).extract_request_files_limit >= 0 {
-        (*parser).extract_limit = (*cfg).extract_request_files_limit
-    } else {
-        (*parser).extract_limit = 16
-    }
-    (*parser).handle_data =
-        Some(htp_mpartp_handle_data as fn(_: &mut htp_mpartp_t, _: bool) -> Status);
-    (*parser).handle_boundary = Some(htp_mpartp_handle_boundary as fn(_: &mut htp_mpartp_t));
-    // Initialize the boundary.
-    let rc: Status = htp_mpartp_init_boundary(&mut *parser, boundary);
-    if rc != Status::OK {
-        htp_mpartp_destroy(parser);
-        return 0 as *mut htp_mpartp_t;
-    }
-    parser
-}
-
-/// Destroys the provided parser.
-pub unsafe extern "C" fn htp_mpartp_destroy(parser: *mut htp_mpartp_t) {
-    if parser.is_null() {
-        return;
-    }
-    // Free the parts.
-    for part in &(*parser).multipart.parts {
-        htp_mpart_part_destroy(*part);
-    }
-    drop(&(*parser).multipart.parts);
-    free(parser as *mut core::ffi::c_void);
-}
-
 /// Processes set-aside data.
-fn htp_martp_process_aside(mut parser: &mut htp_mpartp_t, matched: bool) {
+fn htp_martp_process_aside(parser: &mut htp_mpartp_t, matched: bool) {
     // The stored data pieces can contain up to one line. If we're in data mode and there
     // was no boundary match, things are straightforward -- we process everything as data.
     // If there was a match, we need to take care to not send the line ending as data, nor
@@ -1143,10 +1135,6 @@ fn htp_mpartp_parse_state_lws<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) ->
 pub fn htp_mpartp_parse<'a>(parser: &mut htp_mpartp_t, mut input: &'a [u8]) -> Status {
     while input.len() > 0 {
         match parser.parser_state {
-            htp_multipart_state_t::STATE_INIT => {
-                // Incomplete initialization.
-                return Status::ERROR;
-            }
             htp_multipart_state_t::STATE_DATA => {
                 input = htp_mpartp_parse_state_data(parser, input);
             }

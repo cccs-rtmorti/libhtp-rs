@@ -1,13 +1,6 @@
 use crate::htp_multipart::MultipartFlags;
 use crate::{bstr, htp_multipart, htp_transaction, htp_urlencoded, Status};
 
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
-
 /// This callback function feeds request body data to a Urlencoded parser
 /// and, later, feeds the parsed parameters to the correct structures.
 ///
@@ -130,26 +123,28 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     } else {
         return Status::ERROR;
     };
-    if !(*d).data().is_null() {
-        // Process one chunk of data.
-        let data = std::slice::from_raw_parts((*d).data(), (*d).len());
-        htp_multipart::htp_mpartp_parse(&mut *(*tx).request_mpartp, data);
-    } else {
-        // Finalize parsing.
-        htp_multipart::htp_mpartp_finalize(&mut *(*tx).request_mpartp);
-        let body: *mut htp_multipart::htp_multipart_t =
-            htp_multipart::htp_mpartp_get_multipart((*tx).request_mpartp);
-        for part in &(*body).parts {
-            // Use text parameters.
-            if (*(*part)).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
-                let param = htp_transaction::htp_param_t::new(
-                    bstr::bstr_t::from((*(*(*part)).name).as_slice()),
-                    bstr::bstr_t::from((*(*(*part)).value).as_slice()),
-                    htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
-                    htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART,
-                );
-                if tx.req_add_param(param).is_err() {
-                    return Status::ERROR;
+    if let Some(parser) = &mut (*tx).request_mpartp {
+        if !(*d).data().is_null() {
+            // Process one chunk of data.
+            let data = std::slice::from_raw_parts((*d).data(), (*d).len());
+            htp_multipart::htp_mpartp_parse(parser, data);
+        } else {
+            // Finalize parsing.
+            htp_multipart::htp_mpartp_finalize(parser);
+            let body: *mut htp_multipart::htp_multipart_t =
+                htp_multipart::htp_mpartp_get_multipart(parser);
+            for part in &(*body).parts {
+                // Use text parameters.
+                if (*(*part)).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
+                    let param = htp_transaction::htp_param_t::new(
+                        bstr::bstr_t::from((*(*(*part)).name).as_slice()),
+                        bstr::bstr_t::from((*(*(*part)).value).as_slice()),
+                        htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
+                        htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART,
+                    );
+                    if tx.req_add_param(param).is_err() {
+                        return Status::ERROR;
+                    }
                 }
             }
         }
@@ -184,8 +179,8 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_headers(
     {
         // Create a Multipart parser instance.
         (*tx).request_mpartp =
-            htp_multipart::htp_mpartp_create((*(*tx).connp).cfg, boundary, flags);
-        if (*tx).request_mpartp.is_null() {
+            htp_multipart::htp_mpartp_t::new((*(*tx).connp).cfg, boundary, flags);
+        if (*tx).request_mpartp.is_none() {
             return Status::ERROR;
         }
         // Register a request body data callback.

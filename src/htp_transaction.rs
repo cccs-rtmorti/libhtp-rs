@@ -9,13 +9,6 @@ use crate::{
 };
 use std::cmp::Ordering;
 
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// A collection of possible data sources.
@@ -334,7 +327,7 @@ pub struct htp_tx_t {
     pub request_urlenp_body: *mut htp_urlencoded::htp_urlenp_t,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
-    pub request_mpartp: *mut htp_multipart::htp_mpartp_t,
+    pub request_mpartp: Option<htp_multipart::htp_mpartp_t>,
     /// Request parameters.
     pub request_params: *mut htp_table::htp_table_t<htp_param_t>,
     /// Request cookies
@@ -479,7 +472,7 @@ impl htp_tx_t {
             hook_response_body_data: DataHook::new(),
             request_urlenp_query: std::ptr::null_mut(),
             request_urlenp_body: std::ptr::null_mut(),
-            request_mpartp: std::ptr::null_mut(),
+            request_mpartp: None,
             request_params: htp_table::htp_table_alloc(32),
             request_cookies: std::ptr::null_mut(),
             request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
@@ -1467,7 +1460,6 @@ impl Drop for htp_tx_t {
             // Request parsers.
             htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_query);
             htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_body);
-            htp_multipart::htp_mpartp_destroy(self.request_mpartp);
             // Request parameters.
             htp_table::htp_table_free(self.request_params);
 

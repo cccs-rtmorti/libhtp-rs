@@ -19,7 +19,7 @@ struct Test {
     connp: *mut htp_connp_t,
     cfg: *mut htp_config::htp_cfg_t,
     body: *mut htp_multipart_t,
-    mpartp: *mut htp_mpartp_t,
+    mpartp: Option<htp_mpartp_t>,
     tx: *mut htp_tx_t,
 }
 
@@ -33,7 +33,7 @@ impl Test {
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let body = std::ptr::null_mut();
-            let mpartp = std::ptr::null_mut();
+            let mpartp = None;
             let tx = std::ptr::null_mut();
             Test {
                 connp,
@@ -102,9 +102,9 @@ impl Test {
             self.tx = (*self.connp).conn.tx_mut_ptr(0);
 
             assert!(!self.tx.is_null());
-            assert!(!(*self.tx).request_mpartp.is_null());
-            self.mpartp = (*self.tx).request_mpartp;
-            self.body = htp_mpartp_get_multipart(self.mpartp);
+            assert!(!(*self.tx).request_mpartp.is_none());
+            self.mpartp = (*self.tx).request_mpartp.clone();
+            self.body = htp_mpartp_get_multipart(self.mpartp.as_mut().unwrap());
             assert!(!self.body.is_null());
         }
     }
@@ -157,17 +157,16 @@ impl Test {
             assert!((*(*(*field2)).value).eq("GHIJKL"));
         }
     }
-
     fn parseParts(&mut self, parts: &Vec<&str>) {
         unsafe {
-            self.mpartp = htp_mpartp_create(self.cfg, b"0123456789", MultipartFlags::empty());
-            assert!(!self.mpartp.is_null());
+            self.mpartp = htp_mpartp_t::new(self.cfg, b"0123456789", MultipartFlags::empty());
+            assert!(!self.mpartp.is_none());
             for part in parts {
-                htp_mpartp_parse(&mut *self.mpartp, part.as_bytes());
+                htp_mpartp_parse(self.mpartp.as_mut().unwrap(), part.as_bytes());
             }
 
-            htp_mpartp_finalize(&mut *self.mpartp);
-            self.body = htp_mpartp_get_multipart(self.mpartp);
+            htp_mpartp_finalize(self.mpartp.as_mut().unwrap());
+            self.body = htp_mpartp_get_multipart(self.mpartp.as_mut().unwrap());
             assert!(!self.body.is_null());
         }
     }
@@ -177,7 +176,7 @@ impl Test {
 
         unsafe {
             // Examine the result
-            self.body = htp_mpartp_get_multipart(self.mpartp);
+            self.body = htp_mpartp_get_multipart(self.mpartp.as_mut().unwrap());
             assert!(!self.body.is_null());
             assert_eq!(2, (*self.body).parts.len());
 
@@ -201,9 +200,6 @@ impl Test {
 impl Drop for Test {
     fn drop(&mut self) {
         unsafe {
-            if !self.mpartp.is_null() {
-                htp_mpartp_destroy(self.mpartp);
-            }
             (*self.cfg).destroy();
         }
     }
@@ -213,7 +209,7 @@ impl Drop for Test {
 fn Test1() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = htp_mpartp_create(
+        t.mpartp = htp_mpartp_t::new(
             t.cfg,
             b"---------------------------41184676334",
             MultipartFlags::empty(),
@@ -249,16 +245,16 @@ fn Test1() {
             "\r\n",
             "FFFFFFFFFFFFFFFFFFFFFFFFFFFZ",
             "\r\n-----------------------------41184676334--"
-    ];
+        ];
 
         for part in parts {
-            htp_mpartp_parse(&mut *t.mpartp, part.as_bytes());
+            htp_mpartp_parse(t.mpartp.as_mut().unwrap(), part.as_bytes());
         }
 
-        htp_mpartp_finalize(&mut *t.mpartp);
+        htp_mpartp_finalize(t.mpartp.as_mut().unwrap());
 
         // Examine the result
-        t.body = htp_mpartp_get_multipart(t.mpartp);
+        t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
         assert!(!t.body.is_null());
         assert_eq!(5, (*t.body).parts.len());
 
@@ -298,9 +294,6 @@ fn Test1() {
         assert!(!(*t.body)
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_PART_INCOMPLETE));
-
-        htp_mpartp_destroy(t.mpartp);
-        t.mpartp = std::ptr::null_mut();
     }
 }
 
@@ -308,7 +301,7 @@ fn Test1() {
 fn Test2() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = htp_mpartp_create(t.cfg, b"BBB", MultipartFlags::empty());
+        t.mpartp = htp_mpartp_t::new(t.cfg, b"BBB", MultipartFlags::empty());
 
         let parts = vec![
             "x0000x\n--BBB\n\nx1111x\n--\nx2222x\n--",
@@ -323,12 +316,12 @@ fn Test2() {
         ];
 
         for part in parts {
-            htp_mpartp_parse(&mut *t.mpartp, part.as_bytes());
+            htp_mpartp_parse(t.mpartp.as_mut().unwrap(), part.as_bytes());
         }
 
-        htp_mpartp_finalize(&mut *t.mpartp);
+        htp_mpartp_finalize(t.mpartp.as_mut().unwrap());
 
-        t.body = htp_mpartp_get_multipart(t.mpartp);
+        t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
         assert!(!t.body.is_null());
         assert_eq!(4, (*t.body).parts.len());
 
@@ -371,9 +364,6 @@ fn Test2() {
         assert!((*t.body)
             .flags
             .contains(MultipartFlags::HTP_MULTIPART_INCOMPLETE));
-
-        htp_mpartp_destroy(t.mpartp);
-        t.mpartp = std::ptr::null_mut();
     }
 }
 
@@ -1470,9 +1460,7 @@ fn InvalidHeader6() {
 #[test]
 fn NullByte() {
     let mut t = Test::new();
-    unsafe {
-        t.mpartp = htp_mpartp_create(t.cfg, b"0123456789", MultipartFlags::empty());
-    }
+    t.mpartp = htp_mpartp_t::new(t.cfg, b"0123456789", MultipartFlags::empty());
 
     // NUL byte in the part header.
     let i1 = "--0123456789\r\n\
@@ -1492,12 +1480,12 @@ fn NullByte() {
               \r\n--0123456789--";
 
     unsafe {
-        htp_mpartp_parse(&mut *t.mpartp, i1.as_bytes());
-        htp_mpartp_parse(&mut *t.mpartp, i2.as_bytes());
-        htp_mpartp_parse(&mut *t.mpartp, i3.as_bytes());
-        htp_mpartp_finalize(&mut *t.mpartp);
+        htp_mpartp_parse(t.mpartp.as_mut().unwrap(), i1.as_bytes());
+        htp_mpartp_parse(t.mpartp.as_mut().unwrap(), i2.as_bytes());
+        htp_mpartp_parse(t.mpartp.as_mut().unwrap(), i3.as_bytes());
+        htp_mpartp_finalize(t.mpartp.as_mut().unwrap());
 
-        t.body = htp_mpartp_get_multipart(t.mpartp);
+        t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
         assert!(!t.body.is_null());
         assert_eq!(3, (*t.body).parts.len());
 
@@ -2067,13 +2055,13 @@ fn InvalidContentDispositionSyntax() {
 
     unsafe {
         for input in inputs {
-            t.mpartp = htp_mpartp_create(t.cfg, b"123", MultipartFlags::empty());
+            t.mpartp = htp_mpartp_t::new(t.cfg, b"123", MultipartFlags::empty());
 
             let mut part: *mut htp_multipart_part_t =
                 calloc(1, ::std::mem::size_of::<htp_multipart_part_t>())
                     as *mut htp_multipart_part_t;
             (*part).headers = htp_table_t::with_capacity(4);
-            (*part).parser = t.mpartp;
+            (*part).parser = t.mpartp.as_mut().unwrap();
 
             let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
             (*part).headers.add(header.name.clone(), header);
@@ -2081,7 +2069,7 @@ fn InvalidContentDispositionSyntax() {
 
             assert_eq!(Status::DECLINED, rc);
 
-            t.body = htp_mpartp_get_multipart(t.mpartp);
+            t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
             assert!((*t.body)
                 .flags
                 .contains(MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID));
@@ -2090,8 +2078,6 @@ fn InvalidContentDispositionSyntax() {
                 .intersects(MultipartFlags::HTP_MULTIPART_CD_INVALID));
 
             htp_mpart_part_destroy(part);
-            htp_mpartp_destroy(t.mpartp);
-            t.mpartp = std::ptr::null_mut();
         }
     }
 }
