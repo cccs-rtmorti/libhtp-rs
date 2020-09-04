@@ -5,10 +5,8 @@ use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
 use htp::htp_multipart::*;
 use htp::htp_request::*;
-use htp::htp_table::*;
 use htp::htp_transaction::*;
 use htp::Status;
-use libc::calloc;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -1581,24 +1579,24 @@ fn BoundaryParsing() {
 #[test]
 fn BoundaryInvalid() {
     let inputs: Vec<&[u8]> = vec![
-        b"multipart/form-data boundary=1",
-        b"multipart/form-data ; boundary=1",
-        b"multipart/form-data, boundary=1",
-        b"multipart/form-data , boundary=1",
-        b"multipart/form-datax; boundary=1",
-        b"multipart/; boundary=1",
-        b"multipart; boundary=1",
-        b"application/octet-stream; boundary=1",
-        b"boundary=1",
-        b"multipart/form-data; boundary",
-        b"multipart/form-data; boundary=",
-        b"multipart/form-data; boundaryX=",
-        b"multipart/form-data; boundary=\"\"",
-        b"multipart/form-data; bounDary=1",
-        b"multipart/form-data; boundary=1; boundary=2",
-        b"multipart/form-data; boundary=1 2",
-        b"multipart/form-data boundary=01234567890123456789012345678901234567890123456789012345678901234567890123456789",
-    ];
+    b"multipart/form-data boundary=1",
+    b"multipart/form-data ; boundary=1",
+    b"multipart/form-data, boundary=1",
+    b"multipart/form-data , boundary=1",
+    b"multipart/form-datax; boundary=1",
+    b"multipart/; boundary=1",
+    b"multipart; boundary=1",
+    b"application/octet-stream; boundary=1",
+    b"boundary=1",
+    b"multipart/form-data; boundary",
+    b"multipart/form-data; boundary=",
+    b"multipart/form-data; boundaryX=",
+    b"multipart/form-data; boundary=\"\"",
+    b"multipart/form-data; bounDary=1",
+    b"multipart/form-data; boundary=1; boundary=2",
+    b"multipart/form-data; boundary=1 2",
+    b"multipart/form-data boundary=01234567890123456789012345678901234567890123456789012345678901234567890123456789",
+];
 
     for input in inputs {
         let mut flags: MultipartFlags = MultipartFlags::empty();
@@ -1948,20 +1946,20 @@ fn InvalidContentDispositionMultipleParams2() {
     // Two "filename" parameters in a C-D header.
 
     let data = vec![
-        "--0123456789\r\n\
-        Content-Disposition: form-data; name=\"field1\"\r\n\
-        \r\n\
-        ABCDEF\
-        \r\n--0123456789\r\n\
-        Content-Disposition: form-data; name=\"file1\"; filename=\"file.bin\"; filename=\"file2.bin\"\r\n\
-        \r\n\
-        FILEDATA\
-        \r\n--0123456789\r\n\
-        Content-Disposition: form-data; name=\"field2\"\r\n\
-        \r\n\
-        GHIJKL\
-        \r\n--0123456789--"
-    ];
+    "--0123456789\r\n\
+    Content-Disposition: form-data; name=\"field1\"\r\n\
+    \r\n\
+    ABCDEF\
+    \r\n--0123456789\r\n\
+    Content-Disposition: form-data; name=\"file1\"; filename=\"file.bin\"; filename=\"file2.bin\"\r\n\
+    \r\n\
+    FILEDATA\
+    \r\n--0123456789\r\n\
+    Content-Disposition: form-data; name=\"field2\"\r\n\
+    \r\n\
+    GHIJKL\
+    \r\n--0123456789--"
+];
 
     t.parseRequest(&headers, &data);
 
@@ -2057,16 +2055,11 @@ fn InvalidContentDispositionSyntax() {
         for input in inputs {
             t.mpartp = htp_mpartp_t::new(t.cfg, b"123", MultipartFlags::empty());
 
-            let mut part: *mut htp_multipart_part_t =
-                calloc(1, ::std::mem::size_of::<htp_multipart_part_t>())
-                    as *mut htp_multipart_part_t;
-            (*part).headers = htp_table_t::with_capacity(4);
-            (*part).parser = t.mpartp.as_mut().unwrap();
-
+            let mut part: htp_multipart_part_t =
+                htp_multipart_part_t::new(t.mpartp.as_mut().unwrap());
             let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
-            (*part).headers.add(header.name.clone(), header);
-            let rc: Status = htp_mpart_part_parse_c_d(&mut *part);
-
+            part.headers.add(header.name.clone(), header);
+            let rc: Status = htp_mpart_part_parse_c_d(&mut part);
             assert_eq!(Status::DECLINED, rc);
 
             t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
@@ -2076,8 +2069,6 @@ fn InvalidContentDispositionSyntax() {
             assert!((*t.body)
                 .flags
                 .intersects(MultipartFlags::HTP_MULTIPART_CD_INVALID));
-
-            htp_mpart_part_destroy(part);
         }
     }
 }

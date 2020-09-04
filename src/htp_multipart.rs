@@ -99,32 +99,6 @@ bitflags::bitflags! {
         const HTP_MULTIPART_UNUSUAL_PARANOID = ( Self::HTP_MULTIPART_UNUSUAL.bits | Self::HTP_MULTIPART_LF_LINE.bits | Self::HTP_MULTIPART_BBOUNDARY_LWS_AFTER.bits | Self::HTP_MULTIPART_HAS_PREAMBLE.bits );
     }
 }
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-    #[no_mangle]
-    fn mkstemp(__template: *mut libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn close(__fd: libc::c_int) -> libc::c_int;
-    #[no_mangle]
-    fn write(
-        __fd: libc::c_int,
-        __buf: *const core::ffi::c_void,
-        __n: libc::size_t,
-    ) -> libc::ssize_t;
-    #[no_mangle]
-    fn unlink(__name: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn umask(__mask: libc::c_uint) -> libc::c_uint;
-    #[no_mangle]
-    fn strncpy(_: *mut libc::c_char, _: *const libc::c_char, _: libc::size_t) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strncat(_: *mut libc::c_char, _: *const libc::c_char, _: libc::size_t) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::size_t;
-}
 
 #[derive(Clone)]
 pub struct htp_mpartp_t {
@@ -145,8 +119,8 @@ pub struct htp_mpartp_t {
     /// When this field reaches boundary_len, we have a boundary match.
     pub boundary_match_pos: usize,
 
-    /// Pointer to the part that is currently being processed.
-    pub current_part: *mut htp_multipart_part_t,
+    /// Index of part that is currently being processed.
+    pub current_part_idx: Option<usize>,
 
     /// This parser consists of two layers: the outer layer is charged with
     /// finding parts, and the internal layer handles part data. There is an
@@ -233,7 +207,7 @@ impl htp_mpartp_t {
                 // to boundary matching. Thus, we handle all the possibilities.
                 parser_state: htp_multipart_state_t::STATE_BOUNDARY,
                 boundary_match_pos: 0,
-                current_part: std::ptr::null_mut(),
+                current_part_idx: None,
                 current_part_mode: htp_part_mode_t::MODE_LINE,
                 boundary_candidate: bstr::bstr_t::with_capacity(boundary.len()),
                 part_header: bstr::bstr_t::with_capacity(64),
@@ -245,6 +219,15 @@ impl htp_mpartp_t {
             })
         }
     }
+
+    pub fn get_current_part(&mut self) -> Option<*mut htp_multipart_part_t> {
+        if let Some(idx) = self.current_part_idx {
+            if let Some(part) = self.multipart.parts.get_mut(idx) {
+                return Some(*part);
+            }
+        }
+        None
+    }
 }
 
 impl Drop for htp_mpartp_t {
@@ -252,8 +235,9 @@ impl Drop for htp_mpartp_t {
         unsafe {
             // Free the parts.
             for part in &self.multipart.parts {
-                htp_mpart_part_destroy(*part);
+                Box::from_raw(*part);
             }
+            drop(&self.multipart.parts);
         }
     }
 }
@@ -280,6 +264,31 @@ pub struct htp_multipart_part_t {
     pub headers: htp_transaction::htp_headers_t,
     /// File data, available only for MULTIPART_PART_FILE parts.
     pub file: Option<htp_util::htp_file_t>,
+}
+
+impl htp_multipart_part_t {
+    /// Creates a new Multipart part.
+    ///
+    /// Returns New part instance.
+    pub fn new(parser: &mut htp_mpartp_t) -> htp_multipart_part_t {
+        htp_multipart_part_t {
+            parser,
+            type_0: htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
+            len: 0,
+            name: bstr::bstr_t::with_capacity(64),
+            value: bstr::bstr_t::with_capacity(64),
+            content_type: bstr::bstr_t::new(),
+            headers: htp_table::htp_table_t::with_capacity(4),
+            file: None,
+        }
+    }
+}
+
+impl Drop for htp_multipart_part_t {
+    fn drop(&mut self) {
+        self.file = None;
+        self.headers.elements.clear();
+    }
 }
 
 #[repr(C)]
@@ -575,37 +584,6 @@ pub unsafe fn htp_mpartp_parse_header<'a>(
     Status::OK
 }
 
-/// Creates a new Multipart part.
-///
-/// Returns New part instance, or NULL on memory allocation failure.
-pub unsafe extern "C" fn htp_mpart_part_create(
-    parser: *mut htp_mpartp_t,
-) -> *mut htp_multipart_part_t {
-    let mut part: *mut htp_multipart_part_t =
-        calloc(1, ::std::mem::size_of::<htp_multipart_part_t>()) as *mut htp_multipart_part_t;
-    if part.is_null() {
-        return 0 as *mut htp_multipart_part_t;
-    }
-    (*part).headers = htp_table::htp_table_t::with_capacity(4);
-    (*part).name = bstr::bstr_t::with_capacity(64);
-    (*part).value = bstr::bstr_t::with_capacity(64);
-    (*part).file = None;
-    (*part).parser = parser;
-    (*parser).part_data_pieces.clear();
-    (*parser).part_header.clear();
-    part
-}
-
-/// Destroys a part.
-pub unsafe extern "C" fn htp_mpart_part_destroy(part: *mut htp_multipart_part_t) {
-    if part.is_null() {
-        return;
-    }
-    (*part).file = None;
-    (*part).headers.elements.clear();
-    free(part as *mut core::ffi::c_void);
-}
-
 /// Finalizes part processing.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
@@ -618,7 +596,9 @@ pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> S
     {
         if part.type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
             // Assume that the unknown part after the last boundary is the epilogue.
-            (*(*part.parser).current_part).type_0 = htp_multipart_type_t::MULTIPART_PART_EPILOGUE;
+            if let Some(current_part) = (*part.parser).get_current_part() {
+                (*current_part).type_0 = htp_multipart_type_t::MULTIPART_PART_EPILOGUE;
+            }
             // But if we've already seen a part we thought was the epilogue,
             // raise HTP_MULTIPART_PART_UNKNOWN. Multiple epilogues are not allowed.
             if (*part.parser)
@@ -635,10 +615,12 @@ pub unsafe fn htp_mpart_part_finalize_data(part: &mut htp_multipart_part_t) -> S
     }
     // Sanity checks.
     // Have we seen complete part headers? If we have not, that means that the part ended prematurely.
-    if (*(*part.parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE
-        && (*part.parser).current_part_mode != htp_part_mode_t::MODE_DATA
-    {
-        (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_INCOMPLETE
+    if let Some(current_part) = (*part.parser).get_current_part() {
+        if (*current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE
+            && (*part.parser).current_part_mode != htp_part_mode_t::MODE_DATA
+        {
+            (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_INCOMPLETE
+        }
     }
     // Have we been able to determine the part type? If not, this means
     // that the part did not contain the C-D header.
@@ -681,7 +663,7 @@ pub unsafe fn htp_mpartp_run_request_file_data_hook(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe fn htp_mpart_part_handle_data(
-    mut part: &mut htp_multipart_part_t,
+    part: &mut htp_multipart_part_t,
     data: &[u8],
     is_line: bool,
 ) -> Status {
@@ -825,17 +807,12 @@ fn htp_mpartp_handle_data(parser: &mut htp_mpartp_t, is_line: bool) -> Status {
         return Status::OK;
     }
     // Do we have a part already?
-    if parser.current_part.is_null() {
+    if parser.current_part_idx.is_none() {
         // Create a new part.
-        unsafe { parser.current_part = htp_mpart_part_create(parser) };
-        if parser.current_part.is_null() {
-            return Status::ERROR;
-        }
+        let mut part = htp_multipart_part_t::new(parser);
+        // Set current part.
         if parser.multipart.boundary_count == 0 {
-            // We haven't seen a boundary yet, so this must be the preamble part.
-            unsafe {
-                (*parser.current_part).type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE
-            };
+            part.type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE;
             parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_HAS_PREAMBLE;
             parser.current_part_mode = htp_part_mode_t::MODE_DATA
         } else {
@@ -843,30 +820,32 @@ fn htp_mpartp_handle_data(parser: &mut htp_mpartp_t, is_line: bool) -> Status {
             parser.current_part_mode = htp_part_mode_t::MODE_LINE
         }
         // Add part to the list.
-        parser.multipart.parts.push((*parser).current_part);
+        parser.multipart.parts.push(Box::into_raw(Box::new(part)));
+        parser.current_part_idx = Some(parser.multipart.parts.len() - 1);
     }
-    // Send data to the part.
-    let rc = unsafe {
-        htp_mpart_part_handle_data(
-            &mut *(*parser).current_part,
-            parser.to_consume.as_slice(),
-            is_line,
-        )
+
+    let rc = if let Some(current_part) = parser.get_current_part() {
+        unsafe {
+            htp_mpart_part_handle_data(&mut *current_part, parser.to_consume.as_slice(), is_line)
+        }
+    } else {
+        Status::OK
     };
+
     parser.to_consume.clear();
     rc
 }
 
 /// Handles a boundary event, which means that it will finalize a part if one exists.
 fn htp_mpartp_handle_boundary(parser: &mut htp_mpartp_t) {
-    if !parser.current_part.is_null() {
+    if let Some(part) = parser.get_current_part() {
         unsafe {
-            if htp_mpart_part_finalize_data(&mut *(*parser).current_part) != Status::OK {
+            if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
                 return;
             }
         }
         // We're done with this part
-        parser.current_part = 0 as *mut htp_multipart_part_t;
+        parser.current_part_idx = None;
         // Revert to line mode
         parser.current_part_mode = htp_part_mode_t::MODE_LINE
     }
@@ -942,15 +921,15 @@ fn htp_martp_process_aside(parser: &mut htp_mpartp_t, matched: bool) {
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub unsafe fn htp_mpartp_finalize(parser: &mut htp_mpartp_t) -> Status {
-    if !parser.current_part.is_null() {
+    if let Some(part) = parser.get_current_part() {
         // Process buffered data, if any.
         htp_martp_process_aside(parser, false);
         // Finalize the last part.
-        if htp_mpart_part_finalize_data(&mut *(*parser).current_part) != Status::OK {
+        if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
             return Status::ERROR;
         }
         // It is OK to end abruptly in the epilogue part, but not in any other.
-        if (*(*parser).current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
+        if (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
             (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
         }
     }
