@@ -4,7 +4,6 @@ use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
 use htp::htp_multipart::*;
-use htp::htp_request::*;
 use htp::htp_transaction::*;
 use htp::Status;
 use std::fs;
@@ -56,8 +55,7 @@ impl Test {
 
             // Send headers
             for header in headers {
-                htp_connp_req_data(
-                    &mut *self.connp,
+                (*self.connp).req_data(
                     None,
                     header.as_ptr() as *const core::ffi::c_void,
                     header.chars().count(),
@@ -71,24 +69,17 @@ impl Test {
             }
 
             let contentStr = format!("Content-Length: {}\r\n", bodyLen);
-            htp_connp_req_data(
-                &mut *self.connp,
+            (*self.connp).req_data(
                 None,
                 contentStr.as_ptr() as *const core::ffi::c_void,
                 contentStr.chars().count(),
             );
 
-            htp_connp_req_data(
-                &mut *self.connp,
-                None,
-                "\r\n".as_ptr() as *const core::ffi::c_void,
-                2,
-            );
+            (*self.connp).req_data(None, "\r\n".as_ptr() as *const core::ffi::c_void, 2);
 
             // Send data.
             for d in data {
-                htp_connp_req_data(
-                    &mut *self.connp,
+                (*self.connp).req_data(
                     None,
                     d.as_ptr() as *const core::ffi::c_void,
                     d.chars().count(),

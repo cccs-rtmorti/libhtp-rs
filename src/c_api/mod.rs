@@ -3,7 +3,6 @@ use crate::hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallb
 use crate::htp_config;
 use crate::htp_connection;
 use crate::htp_connection_parser;
-use crate::htp_request;
 use crate::htp_response;
 use crate::htp_transaction;
 use crate::htp_util;
@@ -566,7 +565,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
     len: libc::size_t,
 ) -> htp_connection_parser::htp_stream_state_t {
     if let Some(connp) = connp.as_mut() {
-        htp_request::htp_connp_req_data(connp, timestamp.as_ref().map(|val| val.clone()), data, len)
+        connp.req_data(timestamp.as_ref().map(|val| val.clone()), data, len)
     } else {
         htp_connection_parser::htp_stream_state_t::HTP_STREAM_ERROR
     }

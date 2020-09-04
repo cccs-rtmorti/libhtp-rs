@@ -1,10 +1,8 @@
 use crate::error::Result;
 use crate::htp_config::htp_server_personality_t;
-use crate::htp_request_apache_2_2;
-use crate::htp_request_generic;
 use crate::htp_response_generic;
 use crate::{
-    bstr, hook::DataHook, htp_config, htp_connection, htp_decompressors, htp_request, htp_response,
+    bstr, hook::DataHook, htp_config, htp_connection, htp_decompressors, htp_response,
     htp_transaction, htp_util, Status,
 };
 use std::net::IpAddr;
@@ -360,26 +358,20 @@ impl htp_connp_t {
         unsafe {
             match self.in_state {
                 State::NONE => Err(Status::ERROR),
-                State::IDLE => htp_request::htp_connp_REQ_IDLE(self),
-                State::IGNORE_DATA_AFTER_HTTP_0_9 => {
-                    htp_request::htp_connp_REQ_IGNORE_DATA_AFTER_HTTP_0_9(self)
-                }
-                State::LINE => htp_request::htp_connp_REQ_LINE(self),
-                State::PROTOCOL => htp_request::htp_connp_REQ_PROTOCOL(self),
-                State::HEADERS => htp_request::htp_connp_REQ_HEADERS(self),
-                State::CONNECT_WAIT_RESPONSE => {
-                    htp_request::htp_connp_REQ_CONNECT_WAIT_RESPONSE(self)
-                }
-                State::CONNECT_CHECK => htp_request::htp_connp_REQ_CONNECT_CHECK(self),
-                State::CONNECT_PROBE_DATA => htp_request::htp_connp_REQ_CONNECT_PROBE_DATA(self),
-                State::BODY_DETERMINE => htp_request::htp_connp_REQ_BODY_DETERMINE(self),
-                State::BODY_CHUNKED_DATA => htp_request::htp_connp_REQ_BODY_CHUNKED_DATA(self),
-                State::BODY_CHUNKED_LENGTH => htp_request::htp_connp_REQ_BODY_CHUNKED_LENGTH(self),
-                State::BODY_CHUNKED_DATA_END => {
-                    htp_request::htp_connp_REQ_BODY_CHUNKED_DATA_END(self)
-                }
-                State::BODY_IDENTITY => htp_request::htp_connp_REQ_BODY_IDENTITY(self),
-                State::FINALIZE => htp_request::htp_connp_REQ_FINALIZE(self),
+                State::IDLE => self.REQ_IDLE(),
+                State::IGNORE_DATA_AFTER_HTTP_0_9 => self.REQ_IGNORE_DATA_AFTER_HTTP_0_9(),
+                State::LINE => self.REQ_LINE(),
+                State::PROTOCOL => self.REQ_PROTOCOL(),
+                State::HEADERS => self.REQ_HEADERS(),
+                State::CONNECT_WAIT_RESPONSE => self.REQ_CONNECT_WAIT_RESPONSE(),
+                State::CONNECT_CHECK => self.REQ_CONNECT_CHECK(),
+                State::CONNECT_PROBE_DATA => self.REQ_CONNECT_PROBE_DATA(),
+                State::BODY_DETERMINE => self.REQ_BODY_DETERMINE(),
+                State::BODY_CHUNKED_DATA => self.REQ_BODY_CHUNKED_DATA(),
+                State::BODY_CHUNKED_LENGTH => self.REQ_BODY_CHUNKED_LENGTH(),
+                State::BODY_CHUNKED_DATA_END => self.REQ_BODY_CHUNKED_DATA_END(),
+                State::BODY_IDENTITY => self.REQ_BODY_IDENTITY(),
+                State::FINALIZE => self.REQ_FINALIZE(),
                 // These are only used by out_state
                 State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => {
                     Err(Status::ERROR)
@@ -424,9 +416,9 @@ impl htp_connp_t {
     pub fn parse_request_line(&mut self) -> Result<()> {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                htp_request_apache_2_2::htp_parse_request_line_apache_2_2(self)
+                self.parse_request_line_apache_2_2()
             } else {
-                htp_request_generic::htp_parse_request_line_generic(self)
+                self.parse_request_line_generic()
             }
         }
     }
@@ -439,9 +431,9 @@ impl htp_connp_t {
     pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                htp_request_apache_2_2::htp_process_request_header_apache_2_2(self, data, len)
+                self.process_request_header_apache_2_2(data, len)
             } else {
-                htp_request_generic::htp_process_request_header_generic(self, data, len)
+                self.process_request_header_generic(data, len)
             }
         }
     }
@@ -460,7 +452,7 @@ impl htp_connp_t {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        htp_request::htp_connp_req_data(self, timestamp, 0 as *const core::ffi::c_void, 0);
+        self.req_data(timestamp, 0 as *const core::ffi::c_void, 0);
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -478,7 +470,7 @@ impl htp_connp_t {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        htp_request::htp_connp_req_data(self, timestamp.clone(), 0 as *const core::ffi::c_void, 0);
+        self.req_data(timestamp.clone(), 0 as *const core::ffi::c_void, 0);
         htp_response::htp_connp_res_data(self, timestamp, 0 as *const core::ffi::c_void, 0);
     }
 

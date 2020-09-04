@@ -6,7 +6,6 @@ use htp::htp_config;
 use htp::htp_config::htp_decoder_ctx_t::*;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
-use htp::htp_request::*;
 use htp::htp_response::*;
 use htp::htp_transaction::htp_auth_type_t::*;
 use htp::htp_transaction::htp_data_source_t::*;
@@ -159,8 +158,7 @@ impl Test {
             for chunk in test {
                 match chunk {
                     Chunk::Client(data) => {
-                        let rc = htp_connp_req_data(
-                            &mut *self.connp,
+                        let rc = (*self.connp).req_data(
                             Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
@@ -217,8 +215,7 @@ impl Test {
 
                         // And check if we also had some input data buffered
                         if let Some(in_remaining) = in_buf {
-                            let rc = htp_connp_req_data(
-                                &mut *self.connp,
+                            let rc = (*self.connp).req_data(
                                 Some(tv_start),
                                 in_remaining.as_ptr() as *const core::ffi::c_void,
                                 in_remaining.len(),
