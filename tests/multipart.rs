@@ -102,7 +102,7 @@ impl Test {
             assert!(!self.tx.is_null());
             assert!(!(*self.tx).request_mpartp.is_none());
             self.mpartp = (*self.tx).request_mpartp.clone();
-            self.body = htp_mpartp_get_multipart(self.mpartp.as_mut().unwrap());
+            self.body = self.mpartp.as_mut().unwrap().get_multipart();
             assert!(!self.body.is_null());
         }
     }
@@ -160,11 +160,11 @@ impl Test {
             self.mpartp = htp_mpartp_t::new(self.cfg, b"0123456789", MultipartFlags::empty());
             assert!(!self.mpartp.is_none());
             for part in parts {
-                htp_mpartp_parse(self.mpartp.as_mut().unwrap(), part.as_bytes());
+                self.mpartp.as_mut().unwrap().parse(part.as_bytes());
             }
 
-            htp_mpartp_finalize(self.mpartp.as_mut().unwrap());
-            self.body = htp_mpartp_get_multipart(self.mpartp.as_mut().unwrap());
+            self.mpartp.as_mut().unwrap().finalize();
+            self.body = self.mpartp.as_mut().unwrap().get_multipart();
             assert!(!self.body.is_null());
         }
     }
@@ -174,7 +174,7 @@ impl Test {
 
         unsafe {
             // Examine the result
-            self.body = htp_mpartp_get_multipart(self.mpartp.as_mut().unwrap());
+            self.body = self.mpartp.as_mut().unwrap().get_multipart();
             assert!(!self.body.is_null());
             assert_eq!(2, (*self.body).parts.len());
 
@@ -246,13 +246,13 @@ fn Test1() {
         ];
 
         for part in parts {
-            htp_mpartp_parse(t.mpartp.as_mut().unwrap(), part.as_bytes());
+            t.mpartp.as_mut().unwrap().parse(part.as_bytes());
         }
 
-        htp_mpartp_finalize(t.mpartp.as_mut().unwrap());
+        t.mpartp.as_mut().unwrap().finalize();
 
         // Examine the result
-        t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
+        t.body = t.mpartp.as_mut().unwrap().get_multipart();
         assert!(!t.body.is_null());
         assert_eq!(5, (*t.body).parts.len());
 
@@ -314,12 +314,12 @@ fn Test2() {
         ];
 
         for part in parts {
-            htp_mpartp_parse(t.mpartp.as_mut().unwrap(), part.as_bytes());
+            t.mpartp.as_mut().unwrap().parse(part.as_bytes());
         }
 
-        htp_mpartp_finalize(t.mpartp.as_mut().unwrap());
+        t.mpartp.as_mut().unwrap().finalize();
 
-        t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
+        t.body = t.mpartp.as_mut().unwrap().get_multipart();
         assert!(!t.body.is_null());
         assert_eq!(4, (*t.body).parts.len());
 
@@ -1478,12 +1478,12 @@ fn NullByte() {
               \r\n--0123456789--";
 
     unsafe {
-        htp_mpartp_parse(t.mpartp.as_mut().unwrap(), i1.as_bytes());
-        htp_mpartp_parse(t.mpartp.as_mut().unwrap(), i2.as_bytes());
-        htp_mpartp_parse(t.mpartp.as_mut().unwrap(), i3.as_bytes());
-        htp_mpartp_finalize(t.mpartp.as_mut().unwrap());
+        t.mpartp.as_mut().unwrap().parse(i1.as_bytes());
+        t.mpartp.as_mut().unwrap().parse(i2.as_bytes());
+        t.mpartp.as_mut().unwrap().parse(i3.as_bytes());
+        t.mpartp.as_mut().unwrap().finalize();
 
-        t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
+        t.body = t.mpartp.as_mut().unwrap().get_multipart();
         assert!(!t.body.is_null());
         assert_eq!(3, (*t.body).parts.len());
 
@@ -2060,9 +2060,10 @@ fn InvalidContentDispositionSyntax() {
             let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
             part.headers.add(header.name.clone(), header);
             let rc: Status = htp_mpart_part_parse_c_d(&mut part);
+
             assert_eq!(Status::DECLINED, rc);
 
-            t.body = htp_mpartp_get_multipart(t.mpartp.as_mut().unwrap());
+            t.body = t.mpartp.as_mut().unwrap().get_multipart();
             assert!((*t.body)
                 .flags
                 .contains(MultipartFlags::HTP_MULTIPART_CD_SYNTAX_INVALID));

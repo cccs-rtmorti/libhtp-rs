@@ -123,16 +123,16 @@ pub unsafe extern "C" fn htp_ch_multipart_callback_request_body_data(
     } else {
         return Status::ERROR;
     };
+
     if let Some(parser) = &mut (*tx).request_mpartp {
         if !(*d).data().is_null() {
             // Process one chunk of data.
             let data = std::slice::from_raw_parts((*d).data(), (*d).len());
-            htp_multipart::htp_mpartp_parse(parser, data);
+            parser.parse(data);
         } else {
             // Finalize parsing.
-            htp_multipart::htp_mpartp_finalize(parser);
-            let body: *mut htp_multipart::htp_multipart_t =
-                htp_multipart::htp_mpartp_get_multipart(parser);
+            parser.finalize();
+            let body: *mut htp_multipart::htp_multipart_t = parser.get_multipart();
             for part in &(*body).parts {
                 // Use text parameters.
                 if (*(*part)).type_0 == htp_multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {

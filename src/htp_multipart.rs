@@ -108,9 +108,6 @@ pub struct htp_mpartp_t {
     pub extract_limit: i32,
     pub extract_dir: String,
     pub file_count: i32,
-    // Parsing callbacks
-    pub handle_data: Option<fn(_: &mut htp_mpartp_t, _: bool) -> Status>,
-    pub handle_boundary: Option<fn(_: &mut htp_mpartp_t)>,
     // Internal parsing fields; move into a private structure
     /// Parser state; one of MULTIPART_STATE_* constants.
     parser_state: htp_multipart_state_t,
@@ -197,10 +194,6 @@ impl htp_mpartp_t {
                 extract_limit: limit,
                 extract_dir: (*cfg).tmpdir.clone(),
                 file_count: 0,
-                handle_data: Some(
-                    htp_mpartp_handle_data as fn(_: &mut htp_mpartp_t, _: bool) -> Status,
-                ),
-                handle_boundary: Some(htp_mpartp_handle_boundary as fn(_: &mut htp_mpartp_t)),
                 // We're starting in boundary-matching mode. The first boundary can appear without the
                 // CRLF, and our starting state expects that. If we encounter non-boundary data, the
                 // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
@@ -227,6 +220,344 @@ impl htp_mpartp_t {
             }
         }
         None
+    }
+
+    /// Handles a boundary event, which means that it will finalize a part if one exists.
+    fn handle_boundary(&mut self) {
+        if let Some(part) = self.get_current_part() {
+            unsafe {
+                if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
+                    return;
+                }
+            }
+            // We're done with this part
+            self.current_part_idx = None;
+            // Revert to line mode
+            self.current_part_mode = htp_part_mode_t::MODE_LINE
+        }
+    }
+
+    /// Handles data, creating new parts as necessary.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    fn handle_data(&mut self, is_line: bool) -> Status {
+        if self.to_consume.len() == 0 {
+            return Status::OK;
+        }
+        // Do we have a part already?
+        if self.current_part_idx.is_none() {
+            // Create a new part.
+            let mut part = htp_multipart_part_t::new(self);
+            // Set current part.
+            if self.multipart.boundary_count == 0 {
+                part.type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE;
+                self.multipart.flags |= MultipartFlags::HTP_MULTIPART_HAS_PREAMBLE;
+                self.current_part_mode = htp_part_mode_t::MODE_DATA
+            } else {
+                // Part after preamble.
+                self.current_part_mode = htp_part_mode_t::MODE_LINE
+            }
+            // Add part to the list.
+            self.multipart.parts.push(Box::into_raw(Box::new(part)));
+            self.current_part_idx = Some(self.multipart.parts.len() - 1);
+        }
+
+        let rc = if let Some(current_part) = self.get_current_part() {
+            unsafe {
+                htp_mpart_part_handle_data(&mut *current_part, self.to_consume.as_slice(), is_line)
+            }
+        } else {
+            Status::OK
+        };
+
+        self.to_consume.clear();
+        rc
+    }
+
+    /// Processes set-aside data.
+    fn process_aside(&mut self, matched: bool) {
+        // The stored data pieces can contain up to one line. If we're in data mode and there
+        // was no boundary match, things are straightforward -- we process everything as data.
+        // If there was a match, we need to take care to not send the line ending as data, nor
+        // anything that follows (because it's going to be a part of the boundary). Similarly,
+        // when we are in line mode, we need to split the first data chunk, processing the first
+        // part as line and the second part as data.
+        // Do we need to do any chunk splitting?
+        if matched || self.current_part_mode == htp_part_mode_t::MODE_LINE {
+            // Line mode or boundary match
+            if matched {
+                if self.to_consume.last() == Some(&('\n' as u8)) {
+                    self.to_consume.pop();
+                }
+                if self.to_consume.last() == Some(&('\r' as u8)) {
+                    self.to_consume.pop();
+                }
+            } else {
+                // Process the CR byte, if set aside.
+                if self.cr_aside {
+                    self.to_consume.add("\r");
+                }
+            }
+            self.handle_data(self.current_part_mode == htp_part_mode_t::MODE_LINE);
+            self.cr_aside = false;
+            // We know that we went to match a boundary because
+            // we saw a new line. Now we have to find that line and
+            // process it. It's either going to be in the current chunk,
+            // or in the first stored chunk.
+
+            // Split the first chunk.
+            // In line mode, we are OK with line endings.
+            // This should be unnecessary, but as a precaution check for min value:
+            let pos = std::cmp::min(self.boundary_candidate_pos, self.boundary_candidate.len());
+            self.to_consume.add(&self.boundary_candidate[..pos]);
+            self.handle_data(!matched);
+            // The second part of the split chunks belongs to the boundary
+            // when matched, data otherwise.
+            if !matched {
+                self.to_consume.add(&self.boundary_candidate[pos..]);
+            }
+        } else {
+            // Do not send data if there was a boundary match. The stored
+            // data belongs to the boundary.
+            // Data mode and no match.
+            // In data mode, we process the lone CR byte as data.
+
+            // Treat as part data, when there is not a match.
+            if self.cr_aside {
+                self.to_consume.add("\r");
+                self.cr_aside = false;
+            }
+            // We then process any pieces that we might have stored, also as data.
+            self.to_consume.add(self.boundary_candidate.as_slice());
+        }
+        self.boundary_candidate.clear();
+        self.handle_data(false);
+    }
+
+    /// Finalize parsing.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    pub unsafe fn finalize(&mut self) -> Status {
+        if let Some(part) = self.get_current_part() {
+            // Process buffered data, if any.
+            self.process_aside(false);
+            // Finalize the last part.
+            if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
+                return Status::ERROR;
+            }
+            // It is OK to end abruptly in the epilogue part, but not in any other.
+            if (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
+                (*self).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
+            }
+        }
+        (*self).boundary_candidate.clear();
+        Status::OK
+    }
+
+    /// Returns the multipart structure created by the parser.
+    ///
+    /// Returns The main multipart structure.
+    pub fn get_multipart(&mut self) -> *mut htp_multipart_t {
+        &mut self.multipart
+    }
+
+    fn parse_state_data<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
+        if let Ok((remaining, mut consumed)) =
+            take_till::<_, _, (&[u8], nom::error::ErrorKind)>(|c: u8| {
+                c == '\r' as u8 || c == '\n' as u8
+            })(input)
+        {
+            if let Ok((left, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(remaining) {
+                consumed = &input[..consumed.len() + 2];
+                self.multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE;
+                // Prepare to switch to boundary testing.
+                self.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
+                self.boundary_match_pos = 0;
+                self.to_consume.add(consumed);
+                return left;
+            } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\r')(remaining)
+            {
+                if left.len() == 0 {
+                    // We have CR as the last byte in input. We are going to process
+                    // what we have in the buffer as data, except for the CR byte,
+                    // which we're going to leave for later. If it happens that a
+                    // CR is followed by a LF and then a boundary, the CR is going
+                    // to be discarded.
+                    self.cr_aside = true
+                } else {
+                    // This is not a new line; advance over the
+                    // byte and clear the CR set-aside flag.
+                    consumed = &input[..consumed.len() + 1];
+                    self.cr_aside = false;
+                }
+                self.to_consume.add(consumed);
+                return left;
+            } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\n')(remaining)
+            {
+                // Check for a LF-terminated line.
+                // Advance over LF.
+                // Did we have a CR in the previous input chunk?
+                consumed = &input[..consumed.len() + 1];
+                if !self.cr_aside {
+                    self.multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE
+                } else {
+                    self.to_consume.add("\r");
+                    self.cr_aside = false;
+                    self.multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE
+                }
+                self.to_consume.add(consumed);
+                // Prepare to switch to boundary testing.
+                self.boundary_match_pos = 0;
+                self.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
+                return left;
+            } else if self.cr_aside {
+                (self.to_consume).add("\r");
+                self.cr_aside = false;
+            }
+            (self.to_consume).add(consumed);
+            self.handle_data(false);
+            remaining
+        } else {
+            input
+        }
+    }
+
+    fn parse_state_boundary<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
+        if self.multipart.boundary.len() < self.boundary_match_pos {
+            // This should never hit
+            // Process stored (buffered) data.
+            self.process_aside(false);
+            // Return back where data parsing left off.
+            self.parser_state = htp_multipart_state_t::STATE_DATA;
+            return input;
+        }
+        let len = std::cmp::min(
+            self.multipart.boundary.len() - self.boundary_match_pos,
+            input.len(),
+        );
+        if let Ok((remaining, consumed)) = tag::<&[u8], _, (&[u8], nom::error::ErrorKind)>(
+            &self.multipart.boundary[self.boundary_match_pos..self.boundary_match_pos + len]
+                .to_vec(),
+        )(input)
+        {
+            self.boundary_match_pos = self.boundary_match_pos.wrapping_add(len);
+            if self.boundary_match_pos == self.multipart.boundary_len {
+                // Boundary match!
+                // Process stored (buffered) data.
+                self.process_aside(true);
+                // Keep track of how many boundaries we've seen.
+                self.multipart.boundary_count += 1;
+                if self
+                    .multipart
+                    .flags
+                    .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
+                {
+                    self.multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY
+                }
+                // Run boundary match.
+                self.handle_boundary();
+                // We now need to check if this is the last boundary in the payload
+                self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1;
+            } else {
+                // No more data in the input buffer; store (buffer) the unprocessed
+                // part for later, for after we find out if this is a boundary.
+                self.boundary_candidate.add(consumed);
+            }
+            remaining
+        } else {
+            // Boundary mismatch.
+            // Process stored (buffered) data.
+            self.process_aside(false);
+            // Return back where data parsing left off.
+            self.parser_state = htp_multipart_state_t::STATE_DATA;
+            input
+        }
+    }
+
+    fn parse_state_last1<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
+        // Examine the first byte after the last boundary character. If it is
+        // a dash, then we maybe processing the last boundary in the payload. If
+        // it is not, move to eat all bytes until the end of the line.
+        if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
+            // Found one dash, now go to check the next position.
+            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2;
+            remaining
+        } else {
+            // This is not the last boundary. Change state but
+            // do not advance the position, allowing the next
+            // state to process the byte.
+            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
+            input
+        }
+    }
+
+    fn parse_state_last2<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
+        // Examine the byte after the first dash; expected to be another dash.
+        // If not, eat all bytes until the end of the line.
+        if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
+            // This is indeed the last boundary in the payload.
+            self.multipart.flags |= MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY;
+            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
+            remaining
+        } else {
+            // The second character is not a dash, and so this is not
+            // the final boundary. Raise the flag for the first dash,
+            // and change state to consume the rest of the boundary line.
+            self.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
+            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
+            input
+        }
+    }
+
+    fn parse_state_lws<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
+        if let Ok((remaining, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(input) {
+            // CRLF line ending; we're done with boundary processing; data bytes follow.
+            self.multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE;
+            self.parser_state = htp_multipart_state_t::STATE_DATA;
+            remaining
+        } else if let Ok((remaining, byte)) = be_u8::<(&[u8], nom::error::ErrorKind)>(input) {
+            if byte == '\n' as u8 {
+                // LF line ending; we're done with boundary processing; data bytes follow.
+                self.multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE;
+                self.parser_state = htp_multipart_state_t::STATE_DATA;
+            } else if nom::character::is_space(byte) {
+                // Linear white space is allowed here.
+                self.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
+            } else {
+                // Unexpected byte; consume, but remain in the same state.
+                self.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
+            }
+            remaining
+        } else {
+            input
+        }
+    }
+
+    /// Parses a chunk of multipart/form-data data. This function should be called
+    /// as many times as necessary until all data has been consumed.
+    ///
+    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    pub fn parse<'a>(&mut self, mut input: &'a [u8]) -> Status {
+        while input.len() > 0 {
+            match self.parser_state {
+                htp_multipart_state_t::STATE_DATA => {
+                    input = self.parse_state_data(input);
+                }
+                htp_multipart_state_t::STATE_BOUNDARY => {
+                    input = self.parse_state_boundary(input);
+                }
+                htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1 => {
+                    input = self.parse_state_last1(input);
+                }
+                htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2 => {
+                    input = self.parse_state_last2(input);
+                }
+                htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS => {
+                    input = self.parse_state_lws(input);
+                }
+            }
+        }
+        Status::OK
     }
 }
 
@@ -343,15 +674,6 @@ pub struct htp_multipart_t {
     pub parts: list::List<*mut htp_multipart_part_t>,
     /// Parsing flags.
     pub flags: MultipartFlags,
-}
-
-/// Returns the multipart structure created by the parser.
-///
-/// Returns The main multipart structure.
-pub unsafe extern "C" fn htp_mpartp_get_multipart(
-    parser: &mut htp_mpartp_t,
-) -> *mut htp_multipart_t {
-    &mut parser.multipart
 }
 
 /// Extracts and decodes a C-D header param name and value following a form-data. This is impossible to do correctly without a
@@ -544,10 +866,7 @@ fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> 
 /// Parses one part header.
 ///
 /// Returns HTP_OK on success, HTP_DECLINED on parsing error, HTP_ERROR on fatal error.
-pub unsafe fn htp_mpartp_parse_header<'a>(
-    part: &mut htp_multipart_part_t,
-    input: &'a [u8],
-) -> Status {
+pub unsafe fn htp_mpartp_parse_header(part: &mut htp_multipart_part_t, input: &[u8]) -> Status {
     // We do not allow NUL bytes here.
     if input.contains(&('\0' as u8)) {
         (*part.parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_NUL_BYTE;
@@ -799,340 +1118,6 @@ pub unsafe fn htp_mpart_part_handle_data(
     Status::OK
 }
 
-/// Handles data, creating new parts as necessary.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-fn htp_mpartp_handle_data(parser: &mut htp_mpartp_t, is_line: bool) -> Status {
-    if parser.to_consume.len() == 0 {
-        return Status::OK;
-    }
-    // Do we have a part already?
-    if parser.current_part_idx.is_none() {
-        // Create a new part.
-        let mut part = htp_multipart_part_t::new(parser);
-        // Set current part.
-        if parser.multipart.boundary_count == 0 {
-            part.type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE;
-            parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_HAS_PREAMBLE;
-            parser.current_part_mode = htp_part_mode_t::MODE_DATA
-        } else {
-            // Part after preamble.
-            parser.current_part_mode = htp_part_mode_t::MODE_LINE
-        }
-        // Add part to the list.
-        parser.multipart.parts.push(Box::into_raw(Box::new(part)));
-        parser.current_part_idx = Some(parser.multipart.parts.len() - 1);
-    }
-
-    let rc = if let Some(current_part) = parser.get_current_part() {
-        unsafe {
-            htp_mpart_part_handle_data(&mut *current_part, parser.to_consume.as_slice(), is_line)
-        }
-    } else {
-        Status::OK
-    };
-
-    parser.to_consume.clear();
-    rc
-}
-
-/// Handles a boundary event, which means that it will finalize a part if one exists.
-fn htp_mpartp_handle_boundary(parser: &mut htp_mpartp_t) {
-    if let Some(part) = parser.get_current_part() {
-        unsafe {
-            if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
-                return;
-            }
-        }
-        // We're done with this part
-        parser.current_part_idx = None;
-        // Revert to line mode
-        parser.current_part_mode = htp_part_mode_t::MODE_LINE
-    }
-}
-
-/// Processes set-aside data.
-fn htp_martp_process_aside(parser: &mut htp_mpartp_t, matched: bool) {
-    // The stored data pieces can contain up to one line. If we're in data mode and there
-    // was no boundary match, things are straightforward -- we process everything as data.
-    // If there was a match, we need to take care to not send the line ending as data, nor
-    // anything that follows (because it's going to be a part of the boundary). Similarly,
-    // when we are in line mode, we need to split the first data chunk, processing the first
-    // part as line and the second part as data.
-    // Do we need to do any chunk splitting?
-    if matched || parser.current_part_mode == htp_part_mode_t::MODE_LINE {
-        // Line mode or boundary match
-        if matched {
-            if parser.to_consume.last() == Some(&('\n' as u8)) {
-                parser.to_consume.pop();
-            }
-            if parser.to_consume.last() == Some(&('\r' as u8)) {
-                parser.to_consume.pop();
-            }
-        } else {
-            // Process the CR byte, if set aside.
-            if parser.cr_aside {
-                parser.to_consume.add("\r");
-            }
-        }
-        parser.handle_data.expect("non-null function pointer")(
-            parser,
-            parser.current_part_mode == htp_part_mode_t::MODE_LINE,
-        );
-        parser.cr_aside = false;
-        // We know that we went to match a boundary because
-        // we saw a new line. Now we have to find that line and
-        // process it. It's either going to be in the current chunk,
-        // or in the first stored chunk.
-
-        // Split the first chunk.
-        // In line mode, we are OK with line endings.
-        // This should be unnecessary, but as a precaution check for min value:
-        let pos = std::cmp::min(
-            parser.boundary_candidate_pos,
-            parser.boundary_candidate.len(),
-        );
-        parser.to_consume.add(&parser.boundary_candidate[..pos]);
-        parser.handle_data.expect("non-null function pointer")(parser, !matched);
-        // The second part of the split chunks belongs to the boundary
-        // when matched, data otherwise.
-        if !matched {
-            parser.to_consume.add(&parser.boundary_candidate[pos..]);
-        }
-    } else {
-        // Do not send data if there was a boundary match. The stored
-        // data belongs to the boundary.
-        // Data mode and no match.
-        // In data mode, we process the lone CR byte as data.
-
-        // Treat as part data, when there is not a match.
-        if parser.cr_aside {
-            parser.to_consume.add("\r");
-            parser.cr_aside = false;
-        }
-        // We then process any pieces that we might have stored, also as data.
-        parser.to_consume.add(parser.boundary_candidate.as_slice());
-    }
-    parser.boundary_candidate.clear();
-    parser.handle_data.expect("non-null function pointer")(parser, false);
-}
-
-/// Finalize parsing.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub unsafe fn htp_mpartp_finalize(parser: &mut htp_mpartp_t) -> Status {
-    if let Some(part) = parser.get_current_part() {
-        // Process buffered data, if any.
-        htp_martp_process_aside(parser, false);
-        // Finalize the last part.
-        if htp_mpart_part_finalize_data(&mut *part) != Status::OK {
-            return Status::ERROR;
-        }
-        // It is OK to end abruptly in the epilogue part, but not in any other.
-        if (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
-            (*parser).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
-        }
-    }
-    (*parser).boundary_candidate.clear();
-    Status::OK
-}
-
-fn htp_mpartp_parse_state_data<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) -> &'a [u8] {
-    if let Ok((remaining, mut consumed)) =
-        take_till::<_, _, (&[u8], nom::error::ErrorKind)>(|c: u8| {
-            c == '\r' as u8 || c == '\n' as u8
-        })(input)
-    {
-        if let Ok((left, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(remaining) {
-            consumed = &input[..consumed.len() + 2];
-            parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE;
-            // Prepare to switch to boundary testing.
-            parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
-            parser.boundary_match_pos = 0;
-            parser.to_consume.add(consumed);
-            return left;
-        } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\r')(remaining) {
-            if left.len() == 0 {
-                // We have CR as the last byte in input. We are going to process
-                // what we have in the buffer as data, except for the CR byte,
-                // which we're going to leave for later. If it happens that a
-                // CR is followed by a LF and then a boundary, the CR is going
-                // to be discarded.
-                parser.cr_aside = true
-            } else {
-                // This is not a new line; advance over the
-                // byte and clear the CR set-aside flag.
-                consumed = &input[..consumed.len() + 1];
-                parser.cr_aside = false;
-            }
-            parser.to_consume.add(consumed);
-            return left;
-        } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\n')(remaining) {
-            // Check for a LF-terminated line.
-            // Advance over LF.
-            // Did we have a CR in the previous input chunk?
-            consumed = &input[..consumed.len() + 1];
-            if !parser.cr_aside {
-                parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE
-            } else {
-                parser.to_consume.add("\r");
-                parser.cr_aside = false;
-                parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE
-            }
-            parser.to_consume.add(consumed);
-            // Prepare to switch to boundary testing.
-            parser.boundary_match_pos = 0;
-            parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
-            return left;
-        } else if parser.cr_aside {
-            (parser.to_consume).add("\r");
-            parser.cr_aside = false;
-        }
-        (parser.to_consume).add(consumed);
-        parser.handle_data.expect("non-null function pointer")(parser, false);
-        remaining
-    } else {
-        input
-    }
-}
-
-fn htp_mpartp_parse_state_boundary<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) -> &'a [u8] {
-    if parser.multipart.boundary.len() < parser.boundary_match_pos {
-        // This should never hit
-        // Process stored (buffered) data.
-        htp_martp_process_aside(parser, false);
-        // Return back where data parsing left off.
-        parser.parser_state = htp_multipart_state_t::STATE_DATA;
-        return input;
-    }
-    let len = std::cmp::min(
-        parser.multipart.boundary.len() - parser.boundary_match_pos,
-        input.len(),
-    );
-    if let Ok((remaining, consumed)) = tag::<&[u8], _, (&[u8], nom::error::ErrorKind)>(
-        &parser.multipart.boundary[parser.boundary_match_pos..parser.boundary_match_pos + len]
-            .to_vec(),
-    )(input)
-    {
-        parser.boundary_match_pos = parser.boundary_match_pos.wrapping_add(len);
-        if parser.boundary_match_pos == parser.multipart.boundary_len {
-            // Boundary match!
-            // Process stored (buffered) data.
-            htp_martp_process_aside(parser, true);
-            // Keep track of how many boundaries we've seen.
-            parser.multipart.boundary_count += 1;
-            if parser
-                .multipart
-                .flags
-                .contains(MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
-            {
-                parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY
-            }
-            // Run boundary match.
-            parser.handle_boundary.expect("non-null function pointer")(parser);
-            // We now need to check if this is the last boundary in the payload
-            parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1;
-        } else {
-            // No more data in the input buffer; store (buffer) the unprocessed
-            // part for later, for after we find out if this is a boundary.
-            parser.boundary_candidate.add(consumed);
-        }
-        remaining
-    } else {
-        // Boundary mismatch.
-        // Process stored (buffered) data.
-        htp_martp_process_aside(parser, false);
-        // Return back where data parsing left off.
-        parser.parser_state = htp_multipart_state_t::STATE_DATA;
-        input
-    }
-}
-
-fn htp_mpartp_parse_state_last1<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) -> &'a [u8] {
-    // Examine the first byte after the last boundary character. If it is
-    // a dash, then we maybe processing the last boundary in the payload. If
-    // it is not, move to eat all bytes until the end of the line.
-    if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
-        // Found one dash, now go to check the next position.
-        parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2;
-        remaining
-    } else {
-        // This is not the last boundary. Change state but
-        // do not advance the position, allowing the next
-        // state to process the byte.
-        parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
-        input
-    }
-}
-
-fn htp_mpartp_parse_state_last2<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) -> &'a [u8] {
-    // Examine the byte after the first dash; expected to be another dash.
-    // If not, eat all bytes until the end of the line.
-    if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
-        // This is indeed the last boundary in the payload.
-        parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_SEEN_LAST_BOUNDARY;
-        parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
-        remaining
-    } else {
-        // The second character is not a dash, and so this is not
-        // the final boundary. Raise the flag for the first dash,
-        // and change state to consume the rest of the boundary line.
-        parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
-        parser.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
-        input
-    }
-}
-
-fn htp_mpartp_parse_state_lws<'a>(parser: &mut htp_mpartp_t, input: &'a [u8]) -> &'a [u8] {
-    if let Ok((remaining, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(input) {
-        // CRLF line ending; we're done with boundary processing; data bytes follow.
-        parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_CRLF_LINE;
-        parser.parser_state = htp_multipart_state_t::STATE_DATA;
-        remaining
-    } else if let Ok((remaining, byte)) = be_u8::<(&[u8], nom::error::ErrorKind)>(input) {
-        if byte == '\n' as u8 {
-            // LF line ending; we're done with boundary processing; data bytes follow.
-            parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE;
-            parser.parser_state = htp_multipart_state_t::STATE_DATA;
-        } else if nom::character::is_space(byte) {
-            // Linear white space is allowed here.
-            parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
-        } else {
-            // Unexpected byte; consume, but remain in the same state.
-            parser.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
-        }
-        remaining
-    } else {
-        input
-    }
-}
-
-/// Parses a chunk of multipart/form-data data. This function should be called
-/// as many times as necessary until all data has been consumed.
-///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
-pub fn htp_mpartp_parse<'a>(parser: &mut htp_mpartp_t, mut input: &'a [u8]) -> Status {
-    while input.len() > 0 {
-        match parser.parser_state {
-            htp_multipart_state_t::STATE_DATA => {
-                input = htp_mpartp_parse_state_data(parser, input);
-            }
-            htp_multipart_state_t::STATE_BOUNDARY => {
-                input = htp_mpartp_parse_state_boundary(parser, input);
-            }
-            htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1 => {
-                input = htp_mpartp_parse_state_last1(parser, input);
-            }
-            htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2 => {
-                input = htp_mpartp_parse_state_last2(parser, input);
-            }
-            htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS => {
-                input = htp_mpartp_parse_state_lws(parser, input);
-            }
-        }
-    }
-    Status::OK
-}
 /// Validates a multipart boundary according to RFC 1341:
 ///
 ///    The only mandatory parameter for the multipart  Content-Type
@@ -1186,7 +1171,7 @@ fn validate_boundary(boundary: &[u8], flags: &mut MultipartFlags) {
 ///
 /// Returns in flags the appropriate MultipartFlags
 
-fn validate_content_type<'a>(content_type: &'a [u8], flags: &mut MultipartFlags) {
+fn validate_content_type(content_type: &[u8], flags: &mut MultipartFlags) {
     if let Ok((_, (f, _))) = fold_many1(
         tuple((
             htp_util::take_until_no_case(b"boundary"),
