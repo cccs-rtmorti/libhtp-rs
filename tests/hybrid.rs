@@ -303,12 +303,8 @@ fn GetTest() {
         assert!((*(*tx).request_protocol).eq("HTTP/1.1"));
 
         assert!(!(*tx).parsed_uri.is_null());
-
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/"));
-
-        assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert!((*(*(*tx).parsed_uri).query).eq("p=1&q=2"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/"));
+        assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
 
         // Check parameters
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -598,7 +594,7 @@ fn RequestLineParsing1() {
         assert!((*(*tx).request_protocol).eq("HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!((*(*(*tx).parsed_uri).query).eq("p=1&q=2"));
+        assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
 
         // Check parameters
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
@@ -694,7 +690,7 @@ fn ParsedUriSupplied() {
 
         //htp_uri_t *u = htp_uri_alloc();
         let u = htp_uri_alloc();
-        (*u).path = bstr_dup_str("/123");
+        (*u).path = Some(bstr_t::from("/123"));
         (*tx).req_set_parsed_uri(u);
 
         (*tx).state_request_line().unwrap();
@@ -708,8 +704,7 @@ fn ParsedUriSupplied() {
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/123"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/123"));
     }
 }
 
@@ -749,9 +744,7 @@ fn TestRepeatCallbacks() {
         assert!((*(*tx).request_protocol).eq("HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
-
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/"));
 
         // Request headers complete
         (*tx).state_request_headers().unwrap();

@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::hook::{DataHook, DataNativeCallbackFn};
+use crate::htp_config::htp_decoder_ctx_t;
 use crate::htp_connection_parser::State;
 use crate::htp_util::Flags;
 use crate::list::List;
@@ -267,6 +268,10 @@ pub struct htp_tx_t {
     /// was supplied on the request line. Fields can be NULL, depending on what data was supplied.
     /// The port_number field is always -1.
     pub parsed_uri_raw: *mut htp_util::htp_uri_t,
+    //  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
+    pub complete_normalized_uri: Option<bstr::bstr_t>,
+    //  This structure holds the normalized uri, including path, query, and fragment
+    pub partial_normalized_uri: Option<bstr::bstr_t>,
     /// HTTP 1.1 RFC
     ///
     /// 4.3 Message Body
@@ -344,8 +349,8 @@ pub struct htp_tx_t {
     /// not contain port information.
     pub request_hostname: *mut bstr::bstr_t,
     /// Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
-    /// -1 by default.
-    pub request_port_number: i32,
+    /// None by default.
+    pub request_port_number: Option<u16>,
 
     // Response fields
     /// How many empty lines did we ignore before reaching the status line?
@@ -460,6 +465,8 @@ impl htp_tx_t {
             is_protocol_0_9: 0,
             parsed_uri: std::ptr::null_mut(),
             parsed_uri_raw: unsafe { htp_util::htp_uri_alloc() },
+            complete_normalized_uri: None,
+            partial_normalized_uri: None,
             request_message_len: 0,
             request_entity_len: 0,
             request_headers: htp_table::htp_table_t::with_capacity(32),
@@ -479,7 +486,7 @@ impl htp_tx_t {
             request_auth_username: std::ptr::null_mut(),
             request_auth_password: std::ptr::null_mut(),
             request_hostname: std::ptr::null_mut(),
-            request_port_number: 0,
+            request_port_number: None,
             response_ignored_lines: 0,
             response_line: std::ptr::null_mut(),
             response_protocol: std::ptr::null_mut(),
@@ -672,8 +679,8 @@ impl htp_tx_t {
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
-        if !(*self.parsed_uri).hostname.is_null() {
-            self.request_hostname = bstr::bstr_dup((*self.parsed_uri).hostname);
+        if let Some(hostname) = (*self.parsed_uri).hostname.as_ref() {
+            self.request_hostname = bstr::bstr_dup(hostname);
             if self.request_hostname.is_null() {
                 return Err(Status::ERROR);
             }
@@ -695,8 +702,8 @@ impl htp_tx_t {
                     // hostname from the headers into the parsed_uri structure.
                     self.request_hostname = bstr::bstr_dup_str(hostname);
                     bstr::bstr_to_lowercase(self.request_hostname);
-                    if let Some((_, Some(port))) = port_nmb {
-                        self.request_port_number = port as i32;
+                    if let Some((_, port)) = port_nmb {
+                        self.request_port_number = port;
                     }
                 } else {
                     // The host information appears in the URI and in the headers. The
@@ -705,10 +712,9 @@ impl htp_tx_t {
                     if (*self.request_hostname).cmp_nocase(hostname) != Ordering::Equal {
                         self.flags |= Flags::HTP_HOST_AMBIGUOUS
                     }
-                    if let Some((_, Some(port))) = port_nmb {
+                    if let Some((_, port)) = port_nmb {
                         // Check for different ports.
-                        if self.request_port_number != -1 && self.request_port_number != port as i32
-                        {
+                        if self.request_port_number.is_some() && self.request_port_number != port {
                             self.flags |= Flags::HTP_HOST_AMBIGUOUS
                         }
                     }
@@ -1123,15 +1129,13 @@ impl htp_tx_t {
                 return Err(Status::ERROR);
             }
             // Keep the original URI components, but create a copy which we can normalize and use internally.
-            if htp_util::htp_normalize_parsed_uri(self, self.parsed_uri_raw, self.parsed_uri) != 1 {
-                return Err(Status::ERROR);
-            }
+            htp_util::htp_normalize_parsed_uri(self)
         }
         // Check parsed_uri hostname.
-        if !(*self.parsed_uri).hostname.is_null()
-            && !htp_util::htp_validate_hostname((*(*self.parsed_uri).hostname).as_slice())
-        {
-            self.flags |= Flags::HTP_HOSTU_INVALID
+        if let Some(hostname) = (*self.parsed_uri).hostname.as_ref() {
+            if !htp_util::htp_validate_hostname(hostname.as_slice()) {
+                self.flags |= Flags::HTP_HOSTU_INVALID
+            }
         }
         // Run hook REQUEST_URI_NORMALIZE.
         (*(*self.connp).cfg)
@@ -1139,6 +1143,12 @@ impl htp_tx_t {
             .run_all(self)?;
         // Run hook REQUEST_LINE.
         (*(*self.connp).cfg).hook_request_line.run_all(self)?;
+        let (partial_normalized_uri, complete_normalized_uri) = htp_util::generate_normalized_uri(
+            &(*(self.cfg)).decoder_cfgs[htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
+            &*self.parsed_uri,
+        );
+        self.partial_normalized_uri = partial_normalized_uri;
+        self.complete_normalized_uri = complete_normalized_uri;
         // Move on to the next phase.
         (*self.connp).in_state = State::PROTOCOL;
         Ok(())

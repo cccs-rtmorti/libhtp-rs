@@ -1266,10 +1266,7 @@ pub unsafe extern "C" fn htp_connp_RES_IDLE(
             if out_tx.parsed_uri.is_null() {
                 return Err(Status::ERROR);
             }
-            (*out_tx.parsed_uri).path = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
-            if (*out_tx.parsed_uri).path.is_null() {
-                return Err(Status::ERROR);
-            }
+            (*out_tx.parsed_uri).path = Some(bstr::bstr_t::from("/libhtp::request_uri_not_seen"));
             out_tx.request_uri = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
             if out_tx.request_uri.is_null() {
                 return Err(Status::ERROR);

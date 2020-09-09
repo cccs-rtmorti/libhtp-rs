@@ -132,14 +132,6 @@ fn free_htp_uri_t(urip: *mut *mut htp_uri_t) {
         if uri == std::ptr::null_mut() {
             return;
         }
-        bstr_free((*uri).scheme);
-        bstr_free((*uri).username);
-        bstr_free((*uri).password);
-        bstr_free((*uri).hostname);
-        bstr_free((*uri).port);
-        bstr_free((*uri).path);
-        bstr_free((*uri).query);
-        bstr_free((*uri).fragment);
 
         libc::free(uri as *mut core::ffi::c_void);
         *urip = std::ptr::null_mut();
@@ -148,14 +140,14 @@ fn free_htp_uri_t(urip: *mut *mut htp_uri_t) {
 
 #[derive(Clone)]
 struct uri_expected {
-    scheme: *const i8,
-    username: *const i8,
-    password: *const i8,
-    hostname: *const i8,
-    port: *const i8,
-    path: *const i8,
-    query: *const i8,
-    fragment: *const i8,
+    scheme: Option<bstr_t>,
+    username: Option<bstr_t>,
+    password: Option<bstr_t>,
+    hostname: Option<bstr_t>,
+    port: Option<bstr_t>,
+    path: Option<bstr_t>,
+    query: Option<bstr_t>,
+    fragment: Option<bstr_t>,
 }
 
 #[derive(Clone)]
@@ -177,29 +169,26 @@ fn bstr_equal_c(b: *const bstr_t, c: *const i8) -> bool {
 fn append_message<W: Write>(
     o: &mut W,
     label: *const i8,
-    expected: *const i8,
-    actual: *const bstr_t,
+    expected: Option<&bstr_t>,
+    actual: Option<&bstr_t>,
 ) -> Result<(), std::io::Error> {
     unsafe {
         o.write_fmt(format_args!(
             "{} missmatch: ",
             CStr::from_ptr(label).to_str().unwrap()
         ))?;
-        if expected != std::ptr::null() {
-            o.write_fmt(format_args!(
-                "'{}'",
-                CStr::from_ptr(expected).to_str().unwrap()
-            ))?;
+        if let Some(expected) = expected {
+            o.write(b"'")?;
+            o.write(expected.as_slice())?;
+
+            o.write(b"'")?;
         } else {
             o.write(b"<NULL>")?;
         }
         o.write(b" != ")?;
-        if actual != std::ptr::null() {
+        if let Some(actual) = actual {
             o.write(b"'")?;
-            o.write(std::slice::from_raw_parts(
-                bstr_ptr(actual),
-                bstr_len(actual),
-            ))?;
+            o.write(actual.as_slice())?;
             o.write(b"'")?;
         } else {
             o.write(b"<NULL>")?;
@@ -214,63 +203,83 @@ fn UriIsExpected(expected: uri_expected, actual: *const htp_uri_t) -> Result<(),
         let mut msg: Vec<u8> = vec![];
         let mut equal: bool = true;
 
-        if !bstr_equal_c((*actual).scheme, expected.scheme) {
+        if (*actual).scheme != expected.scheme {
             equal = false;
-            append_message(&mut msg, cstr!("scheme"), expected.scheme, (*actual).scheme)?;
+            append_message(
+                &mut msg,
+                cstr!("scheme"),
+                expected.scheme.as_ref(),
+                (*actual).scheme.as_ref(),
+            )?;
         }
 
-        if !bstr_equal_c((*actual).username, expected.username) {
+        if (*actual).username != expected.username {
             equal = false;
             append_message(
                 &mut msg,
                 cstr!("username"),
-                expected.username,
-                (*actual).username,
+                expected.username.as_ref(),
+                (*actual).username.as_ref(),
             )?;
         }
 
-        if !bstr_equal_c((*actual).password, expected.password) {
+        if (*actual).password != expected.password {
             equal = false;
             append_message(
                 &mut msg,
                 cstr!("password"),
-                expected.password,
-                (*actual).password,
+                expected.password.as_ref(),
+                (*actual).password.as_ref(),
             )?;
         }
 
-        if !bstr_equal_c((*actual).hostname, expected.hostname) {
+        if (*actual).hostname != expected.hostname {
             equal = false;
             append_message(
                 &mut msg,
                 cstr!("hostname"),
-                expected.hostname,
-                (*actual).hostname,
+                expected.hostname.as_ref(),
+                (*actual).hostname.as_ref(),
             )?;
         }
 
-        if !bstr_equal_c((*actual).port, expected.port) {
+        if (*actual).port != expected.port {
             equal = false;
-            append_message(&mut msg, cstr!("port"), expected.port, (*actual).port)?;
+            append_message(
+                &mut msg,
+                cstr!("port"),
+                expected.port.as_ref(),
+                (*actual).port.as_ref(),
+            )?;
         }
 
-        if !bstr_equal_c((*actual).path, expected.path) {
+        if (*actual).path != expected.path {
             equal = false;
-            append_message(&mut msg, cstr!("path"), expected.path, (*actual).path)?;
+            append_message(
+                &mut msg,
+                cstr!("path"),
+                expected.path.as_ref(),
+                (*actual).path.as_ref(),
+            )?;
         }
 
-        if !bstr_equal_c((*actual).query, expected.query) {
+        if (*actual).query != expected.query {
             equal = false;
-            append_message(&mut msg, cstr!("query"), expected.query, (*actual).query)?;
+            append_message(
+                &mut msg,
+                cstr!("query"),
+                expected.query.as_ref(),
+                (*actual).query.as_ref(),
+            )?;
         }
 
-        if !bstr_equal_c((*actual).fragment, expected.fragment) {
+        if (*actual).fragment != expected.fragment {
             equal = false;
             append_message(
                 &mut msg,
                 cstr!("fragment"),
-                expected.fragment,
-                (*actual).fragment,
+                expected.fragment.as_ref(),
+                (*actual).fragment.as_ref(),
             )?;
         }
 
@@ -301,118 +310,118 @@ impl UriTest {
                         .unwrap()
                         .into_raw(),
                         expected: uri_expected {
-                            scheme: CString::new("http").unwrap().into_raw(),
-                            username: CString::new("user").unwrap().into_raw(),
-                            password: CString::new("pass").unwrap().into_raw(),
-                            hostname: CString::new("www.example.com").unwrap().into_raw(),
-                            port: CString::new("1234").unwrap().into_raw(),
-                            path: CString::new("/path1/path2").unwrap().into_raw(),
-                            query: CString::new("a=b&c=d").unwrap().into_raw(),
-                            fragment: CString::new("frag").unwrap().into_raw(),
+                            scheme: Some(bstr_t::from("http")),
+                            username: Some(bstr_t::from("user")),
+                            password: Some(bstr_t::from("pass")),
+                            hostname: Some(bstr_t::from("www.example.com")),
+                            port: Some(bstr_t::from("1234")),
+                            path: Some(bstr_t::from("/path1/path2")),
+                            query: Some(bstr_t::from("a=b&c=d")),
+                            fragment: Some(bstr_t::from("frag")),
                         },
                     },
                     uri_test {
                         uri: CString::new("http://host.com/path").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: CString::new("http").unwrap().into_raw(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: CString::new("host.com").unwrap().into_raw(),
-                            port: std::ptr::null(),
-                            path: CString::new("/path").unwrap().into_raw(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: Some(bstr_t::from("http")),
+                            username: None,
+                            password: None,
+                            hostname: Some(bstr_t::from("host.com")),
+                            port: None,
+                            path: Some(bstr_t::from("/path")),
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: CString::new("http://host.com").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: CString::new("http").unwrap().into_raw(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: CString::new("host.com").unwrap().into_raw(),
-                            port: std::ptr::null(),
-                            path: std::ptr::null(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: Some(bstr_t::from("http")),
+                            username: None,
+                            password: None,
+                            hostname: Some(bstr_t::from("host.com")),
+                            port: None,
+                            path: None,
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: CString::new("http://").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: CString::new("http").unwrap().into_raw(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: std::ptr::null(),
-                            port: std::ptr::null(),
-                            path: CString::new("//").unwrap().into_raw(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: Some(bstr_t::from("http")),
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: Some(bstr_t::from("//")),
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: CString::new("/path").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: std::ptr::null(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: std::ptr::null(),
-                            port: std::ptr::null(),
-                            path: CString::new("/path").unwrap().into_raw(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: None,
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: Some(bstr_t::from("/path")),
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: CString::new("://").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: CString::new("").unwrap().into_raw(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: std::ptr::null(),
-                            port: std::ptr::null(),
-                            path: CString::new("//").unwrap().into_raw(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: Some(bstr_t::from("")),
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: Some(bstr_t::from("//")),
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: CString::new("").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: std::ptr::null(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: std::ptr::null(),
-                            port: std::ptr::null(),
-                            path: std::ptr::null(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: None,
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: None,
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: CString::new("http://user@host.com").unwrap().into_raw(),
                         expected: uri_expected {
-                            scheme: CString::new("http").unwrap().into_raw(),
-                            username: CString::new("user").unwrap().into_raw(),
-                            password: std::ptr::null(),
-                            hostname: CString::new("host.com").unwrap().into_raw(),
-                            port: std::ptr::null(),
-                            path: std::ptr::null(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: Some(bstr_t::from("http")),
+                            username: Some(bstr_t::from("user")),
+                            password: None,
+                            hostname: Some(bstr_t::from("host.com")),
+                            port: None,
+                            path: None,
+                            query: None,
+                            fragment: None,
                         },
                     },
                     uri_test {
                         uri: std::ptr::null(),
                         expected: uri_expected {
-                            scheme: std::ptr::null(),
-                            username: std::ptr::null(),
-                            password: std::ptr::null(),
-                            hostname: std::ptr::null(),
-                            port: std::ptr::null(),
-                            path: std::ptr::null(),
-                            query: std::ptr::null(),
-                            fragment: std::ptr::null(),
+                            scheme: None,
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: None,
+                            query: None,
+                            fragment: None,
                         },
                     },
                 ]
@@ -1007,6 +1016,7 @@ impl DecodingTest {
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
             ret.tx = (*ret.connp).conn.tx_mut_ptr(tx_id);
+            (*ret.tx).parsed_uri = htp_uri_alloc();
         }
         ret
     }
@@ -1327,24 +1337,21 @@ fn DecodingTest_DecodeUrlencodedInplace21_UencodedCaseInsensitive() {
 
 #[test]
 fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%a");
-    let e = bstr_t::from("/%a");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%a"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%a")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%uX");
-    let e = bstr_t::from("/%uX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1353,16 +1360,15 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%uX"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%uX")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace3_UencodedValid() {
-    let mut i = bstr_t::from("/%u0107");
-    let e = bstr_t::from("/c");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1371,15 +1377,14 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%u0107"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/c")));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
-    let mut i = bstr_t::from("/%uXXXX");
-    let e = bstr_t::from("/uXXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1388,16 +1393,15 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%uXXXX"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/uXXXX")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
-    let mut i = bstr_t::from("/%uXXXX");
-    let e = bstr_t::from("/%uXXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1406,16 +1410,15 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%uXXXX"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%uXXXX")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
-    let mut i = bstr_t::from("/%u00}9");
-    let e = bstr_t::from("/i");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1424,16 +1427,15 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%u00}9"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/i")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace7_UencodedNul() {
-    let mut i = bstr_t::from("/%u0000");
-    let e = bstr_t::from("/\0");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1442,16 +1444,15 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%u0000"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/\0")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
-    let mut i = bstr_t::from("/%uXXX");
-    let e = bstr_t::from("/uXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1460,16 +1461,15 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%uXXX"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/uXXX")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
-    let mut i = bstr_t::from("/%uXXX");
-    let e = bstr_t::from("/%uXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
@@ -1478,243 +1478,253 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%uXXX"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%uXXX")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
-    let mut i = bstr_t::from("/%00123");
-    let e = bstr_t::from("/\x00123");
     unsafe {
         let test = DecodingTest::new();
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%00123"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/\x00123"))
+        );
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
-    let mut i = bstr_t::from("/%00123");
-    let e = bstr_t::from("/");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_encoded_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%00123"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace12_EncodedSlash() {
-    let mut i = bstr_t::from("/one%2ftwo");
-    let e = bstr_t::from("/one%2ftwo");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/one%2ftwo"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/one%2ftwo"))
+        );
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
-    let mut i = bstr_t::from("/one%2ftwo");
-    let e = bstr_t::from("/one/two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_path_separators_decode(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/one%2ftwo"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/one/two"))
+        );
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
-    let mut i = bstr_t::from("/%HH");
-    let e = bstr_t::from("/%HH");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%HH"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%HH")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
-    let mut i = bstr_t::from("/%HH");
-    let e = bstr_t::from("/HH");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%HH"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/HH")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
-    let mut i = bstr_t::from("/%}9");
-    let e = bstr_t::from("/i");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%}9"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/i")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
-    let mut i = bstr_t::from("/%H");
-    let e = bstr_t::from("/H");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%H"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/H")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
-    let mut i = bstr_t::from("/%H");
-    let e = bstr_t::from("/%H");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%H"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%H")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
-    let mut i = bstr_t::from("/%H");
-    let e = bstr_t::from("/%H");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/%H"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/%H")));
         assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace20_RawNul1() {
-    let mut i = bstr_t::from("/\x00123");
-    let e = bstr_t::from("/");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, true);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/\x00123"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!((*(*test.tx).parsed_uri).path, Some(bstr_t::from("/")));
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace21_RawNul1() {
-    let mut i = bstr_t::from("/\x00123");
-    let e = bstr_t::from("/\x00123");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_nul_raw_terminates(htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS, false);
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/\x00123"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/\x00123"))
+        );
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
-    let mut i = bstr_t::from("/one\\two");
-    let e = bstr_t::from("/one/two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_backslash_convert_slashes(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             true,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/one\\two"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/one/two"))
+        );
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
-    let mut i = bstr_t::from("/one\\two");
-    let e = bstr_t::from("/one\\two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_backslash_convert_slashes(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_DEFAULTS,
             false,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/one\\two"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/one\\two"))
+        );
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_DecodePathInplace24_CompressSeparators() {
-    let mut i = bstr_t::from("/one//two");
-    let e = bstr_t::from("/one/two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_path_separators_compress(
             htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH,
             true,
         );
-        htp_decode_path_inplace(&mut *(test.tx), &mut i).unwrap();
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from("/one//two"));
+        decode_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("/one/two"))
+        );
     }
-    assert_eq!(i, e);
 }
 
 #[test]
 fn DecodingTest_InvalidUtf8() {
-    let mut i = bstr_t::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec());
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg)
             .set_utf8_convert_bestfit(htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH, true);
-        utf8_decode_and_validate_path_inplace(&mut *test.tx, &mut i);
+        (*(*test.tx).parsed_uri).path = Some(bstr_t::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec()));
+        utf8_decode_and_validate_uri_path_inplace(&mut *test.tx);
+        assert_eq!(
+            (*(*test.tx).parsed_uri).path,
+            Some(bstr_t::from("?.?}abcd"))
+        );
     }
-    assert!(i.eq("?.?}abcd"));
 }
 
 struct UrlEncodedParserTest {
@@ -2162,43 +2172,43 @@ fn Table_Misc() {
 #[test]
 fn Util_NormalizeUriPath() {
     let mut s = bstr_t::from("/a/b/c/./../../g");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq("/a/g"));
 
     let mut s = bstr_t::from("mid/content=5/../6");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq("mid/6"));
 
     let mut s = bstr_t::from("./one");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq("one"));
 
     let mut s = bstr_t::from("../one");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq("one"));
 
     let mut s = bstr_t::from(".");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
     let mut s = bstr_t::from("..");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
     let mut s = bstr_t::from("one/.");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq("one"));
 
     let mut s = bstr_t::from("one/..");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
     let mut s = bstr_t::from("one/../");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
     let mut s = bstr_t::from("/../../../images.gif");
-    htp_normalize_uri_path_inplace(&mut s);
+    normalize_uri_path_inplace(&mut s);
     assert!(s.eq("/images.gif"));
 }
 
@@ -2217,7 +2227,7 @@ fn UrlencodedParser_UrlDecode1() {
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
         htp_urldecode_inplace(
-            (*test.cfg).decoder_cfgs
+            &(*test.cfg).decoder_cfgs
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
@@ -2234,7 +2244,7 @@ fn UrlencodedParser_UrlDecode1() {
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
         );
         htp_urldecode_inplace(
-            (*test.cfg).decoder_cfgs
+            &(*test.cfg).decoder_cfgs
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
@@ -2251,7 +2261,7 @@ fn UrlencodedParser_UrlDecode1() {
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
         htp_urldecode_inplace(
-            (*test.cfg).decoder_cfgs
+            &(*test.cfg).decoder_cfgs
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
@@ -2268,7 +2278,7 @@ fn UrlencodedParser_UrlDecode1() {
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
         );
         htp_urldecode_inplace(
-            (*test.cfg).decoder_cfgs
+            &(*test.cfg).decoder_cfgs
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,
@@ -2285,7 +2295,7 @@ fn UrlencodedParser_UrlDecode1() {
             htp_config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
         );
         htp_urldecode_inplace(
-            (*test.cfg).decoder_cfgs
+            &(*test.cfg).decoder_cfgs
                 [htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
             &mut s,
             &mut flags,

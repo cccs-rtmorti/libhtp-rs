@@ -7,8 +7,9 @@ use crate::htp_util::htp_uri_t;
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_scheme(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.scheme)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.scheme.as_ref())
+        .map(|scheme| scheme as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the username of a uri.
@@ -17,8 +18,9 @@ pub unsafe extern "C" fn htp_uri_scheme(uri: *const htp_uri_t) -> *const bstr_t 
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_username(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.username)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.username.as_ref())
+        .map(|username| username as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the password of a uri.
@@ -27,8 +29,9 @@ pub unsafe extern "C" fn htp_uri_username(uri: *const htp_uri_t) -> *const bstr_
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_password(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.password)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.password.as_ref())
+        .map(|password| password as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the hostname of a uri.
@@ -37,18 +40,21 @@ pub unsafe extern "C" fn htp_uri_password(uri: *const htp_uri_t) -> *const bstr_
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_hostname(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.hostname)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.hostname.as_ref())
+        .map(|hostname| hostname as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the port of a uri.
 ///
 /// Returns the port for uri or NULL on error.
 #[no_mangle]
+#[no_mangle]
 pub unsafe extern "C" fn htp_uri_port(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.port)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.port.as_ref())
+        .map(|port| port as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the port_number of a uri.
@@ -56,7 +62,10 @@ pub unsafe extern "C" fn htp_uri_port(uri: *const htp_uri_t) -> *const bstr_t {
 /// Returns the port_number for uri or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_port_number(uri: *const htp_uri_t) -> i32 {
-    uri.as_ref().map(|uri| uri.port_number).unwrap_or(-1)
+    uri.as_ref()
+        .and_then(|uri| uri.port_number)
+        .map(|port| port as i32)
+        .unwrap_or(-1)
 }
 
 /// Get the path of a uri.
@@ -65,8 +74,9 @@ pub unsafe extern "C" fn htp_uri_port_number(uri: *const htp_uri_t) -> i32 {
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_path(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.path)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.path.as_ref())
+        .map(|path| path as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the query of a uri.
@@ -75,8 +85,9 @@ pub unsafe extern "C" fn htp_uri_path(uri: *const htp_uri_t) -> *const bstr_t {
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_query(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.query)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.query.as_ref())
+        .map(|query| query as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the fragment of a uri.
@@ -85,6 +96,7 @@ pub unsafe extern "C" fn htp_uri_query(uri: *const htp_uri_t) -> *const bstr_t {
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_fragment(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
-        .map(|uri| uri.fragment)
-        .unwrap_or(std::ptr::null_mut())
+        .and_then(|uri| uri.fragment.as_ref())
+        .map(|fragment| fragment as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }

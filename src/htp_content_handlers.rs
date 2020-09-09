@@ -81,7 +81,12 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
         return Status::ERROR;
     };
     // Proceed only if there's something for us to parse.
-    if (*(*tx).parsed_uri).query.is_null() || bstr::bstr_len((*(*tx).parsed_uri).query) == 0 {
+    if (*(*tx).parsed_uri)
+        .query
+        .as_ref()
+        .map(|query| query.len() == 0)
+        .unwrap_or(true)
+    {
         return Status::DECLINED;
     }
     // We have a non-zero length query string.
@@ -89,10 +94,12 @@ pub unsafe extern "C" fn htp_ch_urlencoded_callback_request_line(
     if (*tx).request_urlenp_query.is_null() {
         return Status::ERROR;
     }
-    htp_urlencoded::htp_urlenp_parse_complete(
-        &mut *(*tx).request_urlenp_query,
-        (*(*(*tx).parsed_uri).query).as_slice(),
-    );
+    if let Some(query) = (*(*tx).parsed_uri).query.as_ref() {
+        htp_urlencoded::htp_urlenp_parse_complete(
+            &mut *(*tx).request_urlenp_query,
+            query.as_slice(),
+        );
+    }
     // Add all parameters to the transaction.
     for (name, value) in (*(*tx).request_urlenp_query).params.elements.iter() {
         let param = htp_transaction::htp_param_t::new(

@@ -35,6 +35,34 @@ pub unsafe extern "C" fn htp_tx_destroy(tx: *mut htp_transaction::htp_tx_t) -> S
     }
 }
 
+/// Get a transaction's normalized parsed uri.
+///
+/// tx: Transaction pointer.
+///
+/// Returns the complete normalized uri or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_normalized_uri(
+    tx: *mut htp_transaction::htp_tx_t,
+    all: bool,
+) -> *const bstr::bstr_t {
+    if all {
+        if let Some(uri) = tx
+            .as_ref()
+            .and_then(|tx| tx.complete_normalized_uri.as_ref())
+            .map(|uri| uri)
+        {
+            return uri;
+        }
+    } else if let Some(uri) = tx
+        .as_ref()
+        .and_then(|tx| tx.partial_normalized_uri.as_ref())
+        .map(|uri| uri)
+    {
+        return uri;
+    }
+    std::ptr::null()
+}
+
 /// Get a transaction's connection parser.
 ///
 /// tx: Transaction pointer.
@@ -392,11 +420,10 @@ pub unsafe extern "C" fn htp_tx_request_hostname(
 /// Returns the request port number or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_port_number(tx: *const htp_transaction::htp_tx_t) -> i32 {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_port_number
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_port_number.as_ref())
+        .map(|port| *port as i32)
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's request message length.

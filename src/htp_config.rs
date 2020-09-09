@@ -27,8 +27,6 @@ pub struct htp_cfg_t {
         Option<unsafe extern "C" fn(_: *mut htp_transaction::htp_param_t) -> Status>,
     /// Decoder configuration array, one per context.
     pub decoder_cfgs: [htp_decoder_cfg_t; 3],
-    /// Whether to generate the request_uri_normalized field.
-    pub generate_request_uri_normalized: i32,
     /// Whether to decompress compressed response bodies.
     pub response_decompression_enabled: bool,
     /// Not fully implemented at the moment.
@@ -142,7 +140,6 @@ impl Default for htp_cfg_t {
             server_personality: htp_server_personality_t::HTP_SERVER_GENERIC,
             parameter_processor: None,
             decoder_cfgs: [Default::default(), Default::default(), Default::default()],
-            generate_request_uri_normalized: 0,
             response_decompression_enabled: true,
             request_encoding: std::ptr::null_mut(),
             internal_encoding: std::ptr::null_mut(),

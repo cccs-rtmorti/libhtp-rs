@@ -870,7 +870,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     }
     let mut f = htp_util::Flags::from_bits_truncate(*flags);
     let res =
-        htp_util::htp_urldecode_inplace((*cfg).decoder_cfgs[ctx as usize], &mut *input, &mut f);
+        htp_util::htp_urldecode_inplace(&(*cfg).decoder_cfgs[ctx as usize], &mut *input, &mut f);
     *flags = f.bits();
     res.into()
 }

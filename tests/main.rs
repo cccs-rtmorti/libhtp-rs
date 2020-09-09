@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::error::Result;
 use htp::htp_config;
@@ -284,8 +285,7 @@ fn Get() {
         assert!((*(*tx).request_method).eq("GET"));
         assert!((*(*tx).request_uri).eq("/?p=%20"));
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert!((*(*(*tx).parsed_uri).query).eq("p=%20"));
+        assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=%20"));
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
             .unwrap()
@@ -308,7 +308,7 @@ fn GetEncodedRelPath() {
         assert!((*(*tx).request_method).eq("GET"));
         assert!((*(*tx).request_hostname).eq("www.example.com"));
         assert!(!(*tx).parsed_uri.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/images.gif"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/images.gif"));
     }
 }
 
@@ -755,7 +755,7 @@ fn AmbiguousHost() {
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx3).request_hostname.is_null());
         assert!((*(*tx3).request_hostname).eq("www.example.com"));
-        assert_eq!(8001, (*tx3).request_port_number);
+        assert_eq!(Some(8001), (*tx3).request_port_number);
 
         let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
@@ -763,7 +763,7 @@ fn AmbiguousHost() {
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx4).request_hostname.is_null());
         assert!((*(*tx4).request_hostname).eq("www.example.com"));
-        assert_eq!(8002, (*tx4).request_port_number);
+        assert_eq!(Some(8002), (*tx4).request_port_number);
 
         let tx5: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(4);
         assert!(!tx5.is_null());
@@ -771,7 +771,7 @@ fn AmbiguousHost() {
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!(!(*tx5).request_hostname.is_null());
         assert!((*(*tx5).request_hostname).eq("www.example.com"));
-        assert_eq!(80, (*tx5).request_port_number);
+        assert_eq!(Some(80), (*tx5).request_port_number);
     }
 }
 
@@ -1124,12 +1124,10 @@ fn GetIPv6() {
 
         assert!(!(*tx).parsed_uri.is_null());
 
-        assert!(!(*(*tx).parsed_uri).hostname.is_null());
-        assert!((*(*(*tx).parsed_uri).hostname).eq("[::1]"));
-        assert_eq!(8080, (*(*tx).parsed_uri).port_number);
+        assert_eq!((*(*tx).parsed_uri).hostname, Some(bstr_t::from("[::1]")));
+        assert_eq!(Some(8080), (*(*tx).parsed_uri).port_number);
 
-        assert!(!(*(*tx).parsed_uri).query.is_null());
-        assert!((*(*(*tx).parsed_uri).query).eq("p=%20"));
+        assert_eq!((*(*tx).parsed_uri).query, Some(bstr_t::from("p=%20")));
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
             .unwrap()
@@ -1521,8 +1519,10 @@ fn GetIPv6Invalid() {
 
         assert!(!(*tx).parsed_uri.is_null());
 
-        assert!(!(*(*tx).parsed_uri).hostname.is_null());
-        assert!((*(*(*tx).parsed_uri).hostname).eq("[::1:8080"));
+        assert_eq!(
+            (*(*tx).parsed_uri).hostname,
+            Some(bstr_t::from("[::1:8080"))
+        );
     }
 }
 
@@ -1545,8 +1545,7 @@ fn InvalidPath() {
 
         assert!(!(*tx).parsed_uri.is_null());
 
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("invalid/path"));
+        assert_eq!((*(*tx).parsed_uri).path, Some(bstr_t::from("invalid/path")));
     }
 }
 
@@ -1671,8 +1670,7 @@ fn PathUtf8_Decode_Valid() {
         assert!(!tx.is_null());
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/Ristic.txt"));
+        assert_eq!((*(*tx).parsed_uri).path, Some(bstr_t::from("/Ristic.txt")));
     }
 }
 
@@ -1691,8 +1689,7 @@ fn PathUtf8_Decode_Overlong2() {
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
+        assert_eq!((*(*tx).parsed_uri).path, Some(bstr_t::from("/&.txt")));
     }
 }
 
@@ -1711,8 +1708,7 @@ fn PathUtf8_Decode_Overlong3() {
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/&.txt"));
     }
 }
 
@@ -1731,8 +1727,7 @@ fn PathUtf8_Decode_Overlong4() {
         assert!((*tx).flags.contains(Flags::HTP_PATH_UTF8_OVERLONG));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/&.txt"));
     }
 }
 
@@ -1752,8 +1747,11 @@ fn PathUtf8_Decode_Invalid() {
         assert!(!(*tx).flags.contains(Flags::HTP_PATH_UTF8_VALID));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/Ristic?.txt"));
+        assert!((*(*tx).parsed_uri)
+            .path
+            .as_ref()
+            .unwrap()
+            .eq("/Ristic?.txt"));
     }
 }
 
@@ -1772,8 +1770,7 @@ fn PathUtf8_Decode_FullWidth() {
         assert!((*tx).flags.contains(Flags::HTP_PATH_HALF_FULL_RANGE));
 
         assert!(!(*tx).parsed_uri.is_null());
-        assert!(!(*(*tx).parsed_uri).path.is_null());
-        assert!((*(*(*tx).parsed_uri).path).eq("/&.txt"));
+        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/&.txt"));
     }
 }
 
@@ -2272,13 +2269,13 @@ fn IncorrectHostAmbiguousWarning() {
 
         assert!(!(*tx).parsed_uri_raw.is_null());
 
-        assert!(!(*(*tx).parsed_uri_raw).port.is_null());
-        assert!((*(*(*tx).parsed_uri_raw).port).eq("443"));
+        assert_eq!((*(*tx).parsed_uri_raw).port, Some(bstr_t::from("443")));
+        assert_eq!(
+            (*(*tx).parsed_uri).hostname,
+            Some(bstr_t::from("www.example.com"))
+        );
 
-        assert!(!(*(*tx).parsed_uri_raw).hostname.is_null());
-        assert!((*(*(*tx).parsed_uri_raw).hostname).eq("www.example.com"));
-
-        assert_eq!(443, (*(*tx).parsed_uri_raw).port_number);
+        assert_eq!(443, (*(*tx).parsed_uri_raw).port_number.unwrap());
 
         assert!(!(*tx).request_hostname.is_null());
         assert!((*(*tx).request_hostname).eq("www.example.com"));
@@ -2304,9 +2301,7 @@ fn GetWhitespace() {
 
         assert!(!(*tx).parsed_uri.is_null());
 
-        assert!(!(*(*tx).parsed_uri).query.is_null());
-
-        assert!((*(*(*tx).parsed_uri).query).eq("p=%20"));
+        assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=%20"));
 
         assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
             .unwrap()
