@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
-use htp::bstr_builder::*;
 use libc;
 use std::ffi::CString;
 
@@ -566,45 +565,5 @@ fn Bstr_UtilMemTrim() {
         let src = std::slice::from_raw_parts(data as *const u8, len);
         let b = bstr_t::from("0123456789");
         assert!(b.eq(src));
-    }
-}
-
-#[test]
-fn Bstr_CreateDestroy() {
-    unsafe {
-        let bb: *mut bstr_builder_t = bstr_builder_create();
-        assert_eq!(0, bstr_builder_size(bb));
-        bstr_builder_destroy(bb);
-    }
-}
-
-#[test]
-fn Bstr_Append() {
-    unsafe {
-        let bb: *mut bstr_builder_t = bstr_builder_create();
-
-        assert_eq!(0, bstr_builder_size(bb));
-
-        bstr_builder_append_mem(bb, cstr!("!@#$%^&*()") as *const core::ffi::c_void, 4);
-
-        assert_eq!(1, bstr_builder_size(bb));
-
-        let result: *mut bstr_t = bstr_builder_to_str(bb);
-        assert_eq!(4, bstr_len(result));
-
-        assert_eq!(
-            0,
-            libc::memcmp(
-                cstr!("!@#$") as *const core::ffi::c_void,
-                bstr_ptr(result) as *const core::ffi::c_void,
-                4
-            )
-        );
-        bstr_free(result);
-
-        bstr_builder_clear(bb);
-        assert_eq!(0, bstr_builder_size(bb));
-
-        bstr_builder_destroy(bb);
     }
 }
