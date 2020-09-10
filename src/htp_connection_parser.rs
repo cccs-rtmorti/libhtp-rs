@@ -1,6 +1,5 @@
 use crate::error::Result;
 use crate::htp_config::htp_server_personality_t;
-use crate::htp_response_generic;
 use crate::{
     bstr, hook::DataHook, htp_config, htp_connection, htp_decompressors, htp_response,
     htp_transaction, htp_util, Status,
@@ -425,7 +424,7 @@ impl htp_connp_t {
 
     /// The function used for response line parsing. Depends on the personality.
     pub fn parse_response_line(&mut self) -> Result<()> {
-        unsafe { htp_response_generic::parse_response_line_generic(self) }
+        unsafe { self.parse_response_line_generic() }
     }
 
     pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
@@ -439,7 +438,7 @@ impl htp_connp_t {
     }
 
     pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
-        unsafe { htp_response_generic::process_response_header_generic(self, data, len) }
+        unsafe { self.process_response_header_generic(data, len) }
     }
 
     /// Closes the connection associated with the supplied parser.
