@@ -13,7 +13,7 @@ extern "C" {
 }
 
 /// Generic response line parser.
-pub unsafe extern "C" fn htp_parse_response_line_generic(
+pub unsafe extern "C" fn parse_response_line_generic(
     connp: &mut htp_connection_parser::htp_connp_t,
 ) -> Result<()> {
     let tx = (*connp).out_tx_mut_ok()?;
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn htp_parse_response_line_generic(
 }
 
 /// Generic response header parser.
-pub unsafe extern "C" fn htp_parse_response_header_generic(
+pub unsafe extern "C" fn parse_response_header_generic(
     connp: &mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
@@ -208,12 +208,12 @@ pub unsafe extern "C" fn htp_parse_response_header_generic(
 
 /// Generic response header line(s) processor, which assembles folded lines
 /// into a single buffer before invoking the parsing function.
-pub unsafe extern "C" fn htp_process_response_header_generic(
+pub unsafe extern "C" fn process_response_header_generic(
     connp: &mut htp_connection_parser::htp_connp_t,
     data: *mut u8,
     len: usize,
 ) -> Result<()> {
-    let header = htp_parse_response_header_generic(connp, data, len)?;
+    let header = parse_response_header_generic(connp, data, len)?;
     let mut repeated = false;
     let reps = connp.out_tx_mut_ok()?.res_header_repetitions;
     let mut update_reps = false;

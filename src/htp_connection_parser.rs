@@ -425,7 +425,7 @@ impl htp_connp_t {
 
     /// The function used for response line parsing. Depends on the personality.
     pub fn parse_response_line(&mut self) -> Result<()> {
-        unsafe { htp_response_generic::htp_parse_response_line_generic(self) }
+        unsafe { htp_response_generic::parse_response_line_generic(self) }
     }
 
     pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
@@ -439,7 +439,7 @@ impl htp_connp_t {
     }
 
     pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
-        unsafe { htp_response_generic::htp_process_response_header_generic(self, data, len) }
+        unsafe { htp_response_generic::process_response_header_generic(self, data, len) }
     }
 
     /// Closes the connection associated with the supplied parser.
