@@ -311,15 +311,11 @@ impl htp_connection_parser::htp_connp_t {
         while pos < len && !htp_util::htp_is_space(*data.offset(pos as isize)) {
             pos = pos.wrapping_add(1)
         }
-        let mut method_type = htp_method_t::HTP_M_UNKNOWN;
-        let method: *mut bstr::bstr_t = bstr::bstr_dup_mem(
-            data.offset(mstart as isize) as *const core::ffi::c_void,
+        let method = bstr::bstr_t::from(std::slice::from_raw_parts(
+            data.offset(mstart as isize),
             pos.wrapping_sub(mstart),
-        );
-        if !method.is_null() {
-            method_type = htp_util::htp_convert_bstr_to_method(&*method);
-            bstr::bstr_free(method);
-        }
+        ));
+        let method_type = htp_util::htp_convert_bstr_to_method(&method);
         if method_type != htp_method_t::HTP_M_UNKNOWN {
             return self.state_request_complete().into();
         } else {
@@ -882,15 +878,11 @@ impl htp_connection_parser::htp_connp_t {
             self.req_clear_buffer();
             return rc;
         } else {
-            let mut method_type = htp_method_t::HTP_M_UNKNOWN;
-            let method: *mut bstr::bstr_t = bstr::bstr_dup_mem(
-                data.offset(mstart as isize) as *const core::ffi::c_void,
+            let method = bstr::bstr_t::from(std::slice::from_raw_parts(
+                data.offset(mstart as isize),
                 pos.wrapping_sub(mstart),
-            );
-            if !method.is_null() {
-                method_type = htp_util::htp_convert_bstr_to_method(&*method);
-                bstr::bstr_free(method);
-            }
+            ));
+            let method_type = htp_util::htp_convert_bstr_to_method(&method);
             if method_type == htp_method_t::HTP_M_UNKNOWN {
                 // else continue
                 // Interpret remaining bytes as body data
