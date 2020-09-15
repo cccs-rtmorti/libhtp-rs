@@ -336,7 +336,7 @@ pub struct htp_tx_t {
     /// Request parameters.
     pub request_params: *mut htp_table::htp_table_t<htp_param_t>,
     /// Request cookies
-    pub request_cookies: *mut htp_table::htp_table_t<*mut bstr::bstr_t>,
+    pub request_cookies: *mut htp_table::htp_table_t<bstr::bstr_t>,
     /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
     /// Authentication username.
@@ -1470,9 +1470,6 @@ impl Drop for htp_tx_t {
 
             // Request cookies.
             if !self.request_cookies.is_null() {
-                for (_name, value) in (*self.request_cookies).elements.iter_mut() {
-                    bstr::bstr_free(*value);
-                }
                 htp_table::htp_table_free(self.request_cookies);
             }
 

@@ -1786,18 +1786,15 @@ fn RequestCookies1() {
 
         let mut res = &(*(*tx).request_cookies)[0];
         assert!(res.0.eq("p"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("1"));
+        assert!(res.1.eq("1"));
 
         res = &(*(*tx).request_cookies)[1];
         assert!(res.0.eq("q"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("2"));
+        assert!(res.1.eq("2"));
 
         res = &(*(*tx).request_cookies)[2];
         assert!(res.0.eq("z"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq(""));
+        assert!(res.1.eq(""));
     }
 }
 
@@ -2521,18 +2518,15 @@ fn RequestCookies2() {
 
         let mut res = &(*(*tx).request_cookies)[0];
         assert!(res.0.eq("p"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("1"));
+        assert!(res.1.eq("1"));
 
         res = &(*(*tx).request_cookies)[1];
         assert!(res.0.eq("q"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("2"));
+        assert!(res.1.eq("2"));
 
         res = &(*(*tx).request_cookies)[2];
         assert!(res.0.eq("z"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq(""));
+        assert!(res.1.eq(""));
     }
 }
 
@@ -2551,18 +2545,15 @@ fn RequestCookies3() {
 
         let mut res = &(*(*tx).request_cookies)[0];
         assert!(res.0.eq("a"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("1"));
+        assert!(res.1.eq("1"));
 
         res = &(*(*tx).request_cookies)[1];
         assert!(res.0.eq("b"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("2  "));
+        assert!(res.1.eq("2  "));
 
         res = &(*(*tx).request_cookies)[2];
         assert!(res.0.eq("c"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("double=equal"));
+        assert!(res.1.eq("double=equal"));
     }
 }
 
@@ -2581,18 +2572,15 @@ fn RequestCookies4() {
 
         let mut res = &(*(*tx).request_cookies)[0];
         assert!(res.0.eq("c"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("1"));
+        assert!(res.1.eq("1"));
 
         res = &(*(*tx).request_cookies)[1];
         assert!(res.0.eq("a"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("1  "));
+        assert!(res.1.eq("1  "));
 
         res = &(*(*tx).request_cookies)[2];
         assert!(res.0.eq("b"));
-        assert!(!res.1.is_null());
-        assert!((*res.1).eq("2"));
+        assert!(res.1.eq("2"));
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::htp_util::take_ascii_whitespace;
-use crate::{bstr, htp_table, htp_transaction, Status};
+use crate::{bstr, htp_table, htp_transaction};
 
 /// Parses a single v0 request cookie.
 ///
@@ -31,11 +31,8 @@ pub fn htp_parse_cookies_v0(in_tx: &mut htp_transaction::htp_tx_t) -> Result<()>
 
                 if !name.is_empty() {
                     unsafe {
-                        let value = bstr::bstr_dup_str(value);
-                        if value.is_null() {
-                            return Err(Status::ERROR);
-                        }
-                        (*in_tx.request_cookies).add(bstr::bstr_t::from(name), value);
+                        (*in_tx.request_cookies)
+                            .add(bstr::bstr_t::from(name), bstr::bstr_t::from(value));
                     }
                 }
             }
