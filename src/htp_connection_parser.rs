@@ -144,9 +144,7 @@ pub struct htp_connp_t {
     /// The value of the response byte currently being processed.
     pub out_next_byte: i32,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
-    pub out_buf: *mut u8,
-    /// Stores the size of the buffer. Valid only when htp_tx_t::out_buf is not NULL.
-    pub out_buf_size: usize,
+    pub out_buf: bstr::bstr_t,
     /// Stores the current value of a folded response header. Such headers span
     /// multiple lines, and are processed only when all data is available.
     pub out_header: *mut bstr::bstr_t,
@@ -216,8 +214,7 @@ impl htp_connp_t {
             out_current_receiver_offset: 0,
             out_stream_offset: 0,
             out_next_byte: 0,
-            out_buf: std::ptr::null_mut(),
-            out_buf_size: 0,
+            out_buf: bstr::bstr_t::new(),
             out_header: std::ptr::null_mut(),
             out_tx: None,
             out_content_length: 0,
@@ -677,9 +674,6 @@ impl Drop for htp_connp_t {
         unsafe {
             if !self.in_buf.is_null() {
                 free(self.in_buf as *mut core::ffi::c_void);
-            }
-            if !self.out_buf.is_null() {
-                free(self.out_buf as *mut core::ffi::c_void);
             }
             self.destroy_decompressors();
             if !self.in_header.is_null() {

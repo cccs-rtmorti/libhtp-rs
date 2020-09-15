@@ -9,21 +9,6 @@ use crate::{
 };
 use std::cmp::Ordering;
 
-extern "C" {
-    #[no_mangle]
-    fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn realloc(_: *mut core::ffi::c_void, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-    #[no_mangle]
-    fn memcpy(
-        _: *mut core::ffi::c_void,
-        _: *const core::ffi::c_void,
-        _: libc::size_t,
-    ) -> *mut core::ffi::c_void;
-}
-
 pub type htp_time_t = libc::timeval;
 
 /// Sends outstanding connection data to the currently active data receiver hook.
@@ -136,7 +121,7 @@ unsafe fn htp_connp_res_buffer(connp: &mut htp_connection_parser::htp_connp_t) -
     let len: usize =
         ((*connp).out_current_read_offset - (*connp).out_current_consume_offset) as usize;
     // Check the hard (buffering) limit.
-    let mut newlen: usize = (*connp).out_buf_size.wrapping_add(len);
+    let mut newlen: usize = (*connp).out_buf.len().wrapping_add(len);
     // When calculating the size of the buffer, take into account the
     // space we're using for the response header buffer.
     if !(*connp).out_header.is_null() {
@@ -155,32 +140,7 @@ unsafe fn htp_connp_res_buffer(connp: &mut htp_connection_parser::htp_connp_t) -
         return Err(Status::ERROR);
     }
     // Copy the data remaining in the buffer.
-    if (*connp).out_buf.is_null() {
-        (*connp).out_buf = malloc(len) as *mut u8;
-        if (*connp).out_buf.is_null() {
-            return Err(Status::ERROR);
-        }
-        memcpy(
-            (*connp).out_buf as *mut core::ffi::c_void,
-            data as *const core::ffi::c_void,
-            len,
-        );
-        (*connp).out_buf_size = len
-    } else {
-        let newsize: usize = (*connp).out_buf_size.wrapping_add(len);
-        let newbuf: *mut u8 =
-            realloc((*connp).out_buf as *mut core::ffi::c_void, newsize) as *mut u8;
-        if newbuf.is_null() {
-            return Err(Status::ERROR);
-        }
-        (*connp).out_buf = newbuf;
-        memcpy(
-            (*connp).out_buf.offset((*connp).out_buf_size as isize) as *mut core::ffi::c_void,
-            data as *const core::ffi::c_void,
-            len,
-        );
-        (*connp).out_buf_size = newsize
-    }
+    (*connp).out_buf.add(std::slice::from_raw_parts(data, len));
     // Reset the consumer position.
     (*connp).out_current_consume_offset = (*connp).out_current_read_offset;
     Ok(())
@@ -196,7 +156,7 @@ unsafe fn htp_connp_res_consolidate_data(
     data: *mut *mut u8,
     len: *mut usize,
 ) -> Result<()> {
-    if (*connp).out_buf.is_null() {
+    if (*connp).out_buf.is_empty() {
         // We do not have any data buffered; point to the current data chunk.
         *data = (*connp)
             .out_current_data
@@ -206,8 +166,8 @@ unsafe fn htp_connp_res_consolidate_data(
         // We do have data in the buffer. Add data from the current
         // chunk, and point to the consolidated buffer.
         htp_connp_res_buffer(connp)?;
-        *data = (*connp).out_buf;
-        *len = (*connp).out_buf_size
+        *data = (*connp).out_buf.as_mut_ptr();
+        *len = (*connp).out_buf.len();
     }
     Ok(())
 }
@@ -215,11 +175,7 @@ unsafe fn htp_connp_res_consolidate_data(
 /// Clears buffered outbound data and resets the consumer position to the reader position.
 unsafe fn htp_connp_res_clear_buffer(connp: &mut htp_connection_parser::htp_connp_t) {
     (*connp).out_current_consume_offset = (*connp).out_current_read_offset;
-    if !(*connp).out_buf.is_null() {
-        free((*connp).out_buf as *mut core::ffi::c_void);
-        (*connp).out_buf = 0 as *mut u8;
-        (*connp).out_buf_size = 0
-    };
+    (*connp).out_buf.clear()
 }
 
 /// Consumes bytes until the end of the current line.
