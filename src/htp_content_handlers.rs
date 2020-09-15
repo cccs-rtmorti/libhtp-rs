@@ -172,8 +172,7 @@ pub fn htp_ch_multipart_callback_request_headers(tx: *mut htp_transaction::htp_t
             return Err(Status::ERROR);
         };
         let mut flags: MultipartFlags = MultipartFlags::empty();
-        if let Some(boundary) =
-            htp_multipart::htp_mpartp_find_boundary(&(*(*ct).value).as_slice(), &mut flags)
+        if let Some(boundary) = htp_multipart::find_boundary(&(*(*ct).value).as_slice(), &mut flags)
         {
             // Create a Multipart parser instance.
             (*tx).request_mpartp =

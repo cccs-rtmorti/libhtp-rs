@@ -1538,10 +1538,7 @@ fn BoundaryNormal() {
     ];
     for i in 0..inputs.len() {
         let mut flags: MultipartFlags = MultipartFlags::empty();
-        assert_eq!(
-            htp_mpartp_find_boundary(inputs[i], &mut flags).unwrap(),
-            outputs[i]
-        );
+        assert_eq!(find_boundary(inputs[i], &mut flags).unwrap(), outputs[i]);
         assert_eq!(MultipartFlags::empty(), flags);
     }
 }
@@ -1560,10 +1557,7 @@ fn BoundaryParsing() {
 
     for i in 0..inputs.len() {
         let mut flags: MultipartFlags = MultipartFlags::empty();
-        assert_eq!(
-            htp_mpartp_find_boundary(inputs[i], &mut flags).unwrap(),
-            outputs[i]
-        );
+        assert_eq!(find_boundary(inputs[i], &mut flags).unwrap(), outputs[i]);
     }
 }
 
@@ -1591,7 +1585,7 @@ fn BoundaryInvalid() {
 
     for input in inputs {
         let mut flags: MultipartFlags = MultipartFlags::empty();
-        htp_mpartp_find_boundary(input, &mut flags);
+        find_boundary(input, &mut flags);
         assert!(flags.contains(MultipartFlags::HTP_MULTIPART_HBOUNDARY_INVALID));
     }
 }
@@ -1608,7 +1602,7 @@ fn BoundaryUnusual() {
     ];
     for input in inputs {
         let mut flags: MultipartFlags = MultipartFlags::empty();
-        assert!(htp_mpartp_find_boundary(input, &mut flags).is_some());
+        assert!(find_boundary(input, &mut flags).is_some());
         assert!(flags.contains(MultipartFlags::HTP_MULTIPART_HBOUNDARY_UNUSUAL));
     }
 }
@@ -2050,7 +2044,7 @@ fn InvalidContentDispositionSyntax() {
                 htp_multipart_part_t::new(t.mpartp.as_mut().unwrap());
             let header = htp_header_t::new(b"Content-Disposition".to_vec().into(), input.into());
             part.headers.add(header.name.clone(), header);
-            assert_err!(htp_mpart_part_parse_c_d(&mut part), Status::DECLINED);
+            assert_err!(part.parse_c_d(), Status::DECLINED);
 
             t.body = t.mpartp.as_mut().unwrap().get_multipart();
             assert!((*t.body)
