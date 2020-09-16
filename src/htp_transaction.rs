@@ -744,7 +744,8 @@ impl htp_tx_t {
         }
         // Parse authentication information.
         if (*(*self.connp).cfg).parse_request_auth != 0 {
-            htp_parsers::htp_parse_authorization(self.connp).or_else(|rc| {
+            htp_parsers::htp_parse_authorization((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)
+                .or_else(|rc| {
                 if rc == Status::DECLINED {
                     // Don't fail the stream if an authorization header is invalid, just set a flag.
                     self.flags |= Flags::HTP_AUTH_INVALID;
