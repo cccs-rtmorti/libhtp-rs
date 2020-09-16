@@ -94,9 +94,7 @@ pub struct htp_connp_t {
     /// populated when the IN_NEXT_* or IN_PEEK_* macros are invoked.
     pub in_next_byte: i32,
     /// Used to buffer a line of inbound data when buffering cannot be avoided.
-    pub in_buf: *mut u8,
-    /// Stores the size of the buffer. Valid only when htp_tx_t::in_buf is not NULL.
-    pub in_buf_size: usize,
+    pub in_buf: bstr::bstr_t,
     /// Stores the current value of a folded request header. Such headers span
     /// multiple lines, and are processed only when all data is available.
     pub in_header: *mut bstr::bstr_t,
@@ -192,8 +190,7 @@ impl htp_connp_t {
             in_chunk_request_index: 0,
             in_stream_offset: 0,
             in_next_byte: 0,
-            in_buf: std::ptr::null_mut(),
-            in_buf_size: 0,
+            in_buf: bstr::bstr_t::new(),
             in_header: std::ptr::null_mut(),
             in_tx: None,
             in_content_length: 0,
@@ -672,9 +669,6 @@ impl htp_connp_t {
 impl Drop for htp_connp_t {
     fn drop(&mut self) {
         unsafe {
-            if !self.in_buf.is_null() {
-                free(self.in_buf as *mut core::ffi::c_void);
-            }
             self.destroy_decompressors();
             if !self.in_header.is_null() {
                 bstr::bstr_free(self.in_header);

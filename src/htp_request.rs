@@ -5,21 +5,6 @@ use crate::htp_connection_parser::State;
 use crate::htp_util::Flags;
 use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
 
-extern "C" {
-    #[no_mangle]
-    fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn realloc(_: *mut core::ffi::c_void, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-    #[no_mangle]
-    fn memcpy(
-        _: *mut core::ffi::c_void,
-        _: *const core::ffi::c_void,
-        _: libc::size_t,
-    ) -> *mut core::ffi::c_void;
-}
-
 /// HTTP methods.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -158,7 +143,7 @@ impl htp_connection_parser::htp_connp_t {
             return Ok(());
         }
         // Check the hard (buffering) limit.
-        let mut newlen: usize = self.in_buf_size.wrapping_add(len);
+        let mut newlen: usize = self.in_buf.len().wrapping_add(len);
         // When calculating the size of the buffer, take into account the
         // space we're using for the request header buffer.
         if !self.in_header.is_null() {
@@ -177,32 +162,7 @@ impl htp_connection_parser::htp_connp_t {
             return Err(Status::ERROR);
         }
         // Copy the data remaining in the buffer.
-        if self.in_buf.is_null() {
-            self.in_buf = malloc(len) as *mut u8;
-            if self.in_buf.is_null() {
-                return Err(Status::ERROR);
-            }
-            memcpy(
-                self.in_buf as *mut core::ffi::c_void,
-                data as *const core::ffi::c_void,
-                len,
-            );
-            self.in_buf_size = len
-        } else {
-            let newsize: usize = self.in_buf_size.wrapping_add(len);
-            let newbuf: *mut u8 =
-                realloc(self.in_buf as *mut core::ffi::c_void, newsize) as *mut u8;
-            if newbuf.is_null() {
-                return Err(Status::ERROR);
-            }
-            self.in_buf = newbuf;
-            memcpy(
-                self.in_buf.offset(self.in_buf_size as isize) as *mut core::ffi::c_void,
-                data as *const core::ffi::c_void,
-                len,
-            );
-            self.in_buf_size = newsize
-        }
+        self.in_buf.add(std::slice::from_raw_parts(data, len));
         // Reset the consumer position.
         self.in_current_consume_offset = self.in_current_read_offset;
         Ok(())
@@ -214,18 +174,18 @@ impl htp_connection_parser::htp_connp_t {
     ///
     /// Returns HTP_OK
     unsafe fn req_consolidate_data(&mut self, data: *mut *mut u8, len: *mut usize) -> Result<()> {
-        if self.in_buf.is_null() {
+        if !self.in_buf.is_empty() {
+            // We already have some data in the buffer. Add the data from the current
+            // chunk to it and point to the consolidated buffer.
+            self.req_buffer()?;
+            *data = self.in_buf.as_mut_ptr();
+            *len = self.in_buf.len()
+        } else {
             // We do not have any data buffered; point to the current data chunk.
             *data = self
                 .in_current_data
                 .offset(self.in_current_consume_offset as isize);
             *len = (self.in_current_read_offset - self.in_current_consume_offset) as usize
-        } else {
-            // We already have some data in the buffer. Add the data from the current
-            // chunk to it, and point to the consolidated buffer.
-            self.req_buffer()?;
-            *data = self.in_buf;
-            *len = self.in_buf_size
         }
         Ok(())
     }
@@ -233,11 +193,7 @@ impl htp_connection_parser::htp_connp_t {
     /// Clears buffered inbound data and resets the consumer position to the reader position.
     unsafe fn req_clear_buffer(&mut self) {
         self.in_current_consume_offset = self.in_current_read_offset;
-        if !self.in_buf.is_null() {
-            free(self.in_buf as *mut core::ffi::c_void);
-            self.in_buf = 0 as *mut u8;
-            self.in_buf_size = 0
-        };
+        self.in_buf.clear()
     }
 
     /// Performs a check for a CONNECT transaction to decide whether inbound
