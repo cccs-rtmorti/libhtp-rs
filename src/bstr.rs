@@ -3,10 +3,6 @@ use core::cmp::Ordering;
 use std::boxed::Box;
 use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
-extern "C" {
-    #[no_mangle]
-    fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct bstr_t {
@@ -867,45 +863,6 @@ pub unsafe fn bstr_util_mem_trim(data: *mut *mut u8, len: *mut usize) {
     let trimmed = bstr.trim();
     *data = trimmed.as_ptr() as *mut u8;
     *len = trimmed.len();
-}
-
-/// Create a new NUL-terminated string out of the provided bstring. If NUL bytes
-/// are contained in the bstring, each will be replaced with "\0" (two characters).
-/// The caller is responsible to keep track of the allocated memory area and free
-/// it once it is no longer needed.
-pub unsafe fn bstr_util_strdup_to_c(b: *const bstr_t) -> *mut i8 {
-    if b.is_null() {
-        return std::ptr::null_mut();
-    }
-    let src = std::slice::from_raw_parts(bstr_ptr(b), bstr_len(b));
-
-    // Since the memory returned here is just a char* and the caller will
-    // free() it we have to use malloc() here.
-    // So we allocate enough space for doubled NULL bytes plus the trailing NULL.
-    let mut null_count = 1;
-    for byte in src {
-        if *byte == 0 {
-            null_count += 1;
-        }
-    }
-    let newlen = bstr_len(b) + null_count;
-    let mem = libc::malloc(newlen) as *mut i8;
-    let dst: &mut [i8] = std::slice::from_raw_parts_mut(mem, newlen);
-    let mut dst_idx = 0;
-    for byte in src {
-        if *byte == 0 {
-            dst[dst_idx] = '\\' as i8;
-            dst_idx += 1;
-            dst[dst_idx] = '0' as i8;
-            dst_idx += 1;
-        } else {
-            dst[dst_idx] = *byte as i8;
-            dst_idx += 1;
-        }
-    }
-    dst[dst_idx] = 0;
-
-    mem
 }
 
 // Tests

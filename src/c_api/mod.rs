@@ -1098,7 +1098,38 @@ pub unsafe extern "C" fn bstr_util_mem_to_pint(
 ///         allocation failure.
 #[no_mangle]
 pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const bstr::bstr_t) -> *mut libc::c_char {
-    bstr::bstr_util_strdup_to_c(b)
+    if b.is_null() {
+        return std::ptr::null_mut();
+    }
+    let src = std::slice::from_raw_parts(bstr_ptr(b), bstr_len(b));
+
+    // Since the memory returned here is just a char* and the caller will
+    // free() it we have to use malloc() here.
+    // So we allocate enough space for doubled NULL bytes plus the trailing NULL.
+    let mut null_count = 1;
+    for byte in src {
+        if *byte == 0 {
+            null_count += 1;
+        }
+    }
+    let newlen = bstr_len(b) + null_count;
+    let mem = libc::malloc(newlen) as *mut i8;
+    let dst: &mut [i8] = std::slice::from_raw_parts_mut(mem, newlen);
+    let mut dst_idx = 0;
+    for byte in src {
+        if *byte == 0 {
+            dst[dst_idx] = '\\' as i8;
+            dst_idx += 1;
+            dst[dst_idx] = '0' as i8;
+            dst_idx += 1;
+        } else {
+            dst[dst_idx] = *byte as i8;
+            dst_idx += 1;
+        }
+    }
+    dst[dst_idx] = 0;
+
+    mem
 }
 
 // Get the log message
@@ -1161,5 +1192,25 @@ pub unsafe extern "C" fn htp_log_get_file(
         }
     } else {
         std::ptr::null_mut()
+    }
+}
+
+#[test]
+fn BstrUtilDupToC() {
+    unsafe {
+        let c: *mut i8;
+        let str: *mut bstr::bstr_t = bstr::bstr_dup_mem(
+            b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
+            20,
+        );
+
+        c = bstr_util_strdup_to_c(str);
+        assert_eq!(
+            0,
+            libc::strcmp(CString::new("ABCDEFGHIJKL\\0NOPQRST").unwrap().as_ptr(), c)
+        );
+
+        libc::free(c as *mut core::ffi::c_void);
+        bstr::bstr_free(str);
     }
 }

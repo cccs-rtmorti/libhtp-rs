@@ -536,23 +536,6 @@ fn Bstr_ToPint() {
 }
 
 #[test]
-fn Bstr_DupToC() {
-    unsafe {
-        let c: *mut i8;
-        let str: *mut bstr_t = bstr_dup_mem(
-            b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-            20,
-        );
-
-        c = bstr_util_strdup_to_c(str);
-        assert_eq!(0, libc::strcmp(cstr!("ABCDEFGHIJKL\\0NOPQRST"), c));
-
-        libc::free(c as *mut core::ffi::c_void);
-        bstr_free(str);
-    }
-}
-
-#[test]
 fn Bstr_UtilMemTrim() {
     unsafe {
         let d = CString::new(" \r\t0123456789\x0c\x0b  ").unwrap();
