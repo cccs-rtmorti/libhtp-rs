@@ -5,26 +5,19 @@ use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util,
 use nom::{error::ErrorKind, sequence::tuple, Err::Error};
 use std::cmp::Ordering;
 
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
-
 impl htp_connection_parser::htp_connp_t {
     /// Generic response line parser.
     pub unsafe fn parse_response_line_generic(&mut self) -> Result<()> {
         let tx = self.out_tx_mut_ok()?;
-        let data: *const u8 = bstr::bstr_ptr((*tx).response_line);
-        let len: usize = bstr::bstr_len((*tx).response_line);
-        (*tx).response_protocol = 0 as *mut bstr::bstr_t;
+        let data = if let Some(data) = tx.response_line.clone() {
+            data
+        } else {
+            return Err(Status::ERROR);
+        };
         (*tx).response_protocol_number = Protocol::INVALID;
-        (*tx).response_status = 0 as *mut bstr::bstr_t;
+        (*tx).response_status = None;
         (*tx).response_status_number = -1;
-        (*tx).response_message = 0 as *mut bstr::bstr_t;
-
-        let data_slice = std::slice::from_raw_parts(data, len);
+        (*tx).response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
             htp_util::take_htp_is_space,
@@ -35,30 +28,23 @@ impl htp_connection_parser::htp_connp_t {
         ));
 
         if let Ok((message, (_ls, response_protocol, ws1, status_code, ws2))) =
-            response_line_parser(data_slice)
+            response_line_parser(data.as_slice())
         {
-            if response_protocol.len() == 0 {
+            if response_protocol.is_empty() {
                 return Ok(());
             }
 
             let out_tx = self.out_tx_mut_ok()?;
-            out_tx.response_protocol = bstr::bstr_dup_str(response_protocol);
-            if out_tx.response_protocol.is_null() {
-                return Err(Status::ERROR);
-            }
-
+            out_tx.response_protocol = Some(bstr::bstr_t::from(response_protocol));
             self.out_tx_mut_ok()?.response_protocol_number =
                 htp_parsers::htp_parse_protocol(response_protocol, self);
 
-            if ws1.len() == 0 || status_code.len() == 0 {
+            if ws1.is_empty() || status_code.is_empty() {
                 return Ok(());
             }
 
             let out_tx = self.out_tx_mut_ok()?;
-            out_tx.response_status = bstr::bstr_dup_str(status_code);
-            if out_tx.response_status.is_null() {
-                return Err(Status::ERROR);
-            }
+            out_tx.response_status = Some(bstr::bstr_t::from(status_code));
 
             if let Some(status_number) = htp_parsers::htp_parse_status(status_code) {
                 out_tx.response_status_number = status_number as i32;
@@ -66,14 +52,11 @@ impl htp_connection_parser::htp_connp_t {
                 out_tx.response_status_number = -1;
             }
 
-            if ws2.len() == 0 {
+            if ws2.is_empty() {
                 return Ok(());
             }
 
-            out_tx.response_message = bstr::bstr_dup_str(message);
-            if out_tx.response_message.is_null() {
-                return Err(Status::ERROR);
-            }
+            out_tx.response_message = Some(bstr::bstr_t::from(message));
         } else {
             return Err(Status::ERROR);
         }

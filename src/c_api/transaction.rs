@@ -1,4 +1,5 @@
 use crate::bstr;
+use crate::bstr::bstr_t;
 use crate::hook::DataExternalCallbackFn;
 use crate::htp_config;
 use crate::htp_connection_parser;
@@ -463,11 +464,10 @@ pub unsafe extern "C" fn htp_tx_request_entity_len(tx: *const htp_transaction::h
 pub unsafe extern "C" fn htp_tx_response_line(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_line
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.response_line.as_ref())
+        .map(|response_line| response_line as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's response protocol.
@@ -479,11 +479,10 @@ pub unsafe extern "C" fn htp_tx_response_line(
 pub unsafe extern "C" fn htp_tx_response_protocol(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_protocol
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.response_protocol.as_ref())
+        .map(|response_protocol| response_protocol as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's response protocol number.
@@ -511,11 +510,10 @@ pub unsafe extern "C" fn htp_tx_response_protocol_number(
 pub unsafe extern "C" fn htp_tx_response_status(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_status
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.response_status.as_ref())
+        .map(|response_status| response_status as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the transaction's response status number.
@@ -558,11 +556,10 @@ pub unsafe extern "C" fn htp_tx_response_status_expected_number(
 pub unsafe extern "C" fn htp_tx_response_message(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_message
-    } else {
-        std::ptr::null_mut()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.response_message.as_ref())
+        .map(|response_message| response_message as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's response headers.
@@ -690,11 +687,10 @@ pub unsafe extern "C" fn htp_tx_response_content_length(
 pub unsafe extern "C" fn htp_tx_response_content_type(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_content_type
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.response_content_type.as_ref())
+        .map(|response_content_type| response_content_type as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the transaction's bit flags.

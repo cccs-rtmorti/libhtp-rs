@@ -341,11 +341,11 @@ fn GetTest() {
 
         // Response line data
         (*tx).res_set_status_line("HTTP/1.1 200 OK").unwrap();
-        assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
+        assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
-        assert_eq!(0, bstr_cmp_str((*tx).response_status, "200"));
+        assert!((*tx).response_status.as_ref().unwrap().eq("200"));
         assert_eq!(200, (*tx).response_status_number);
-        assert!((*(*tx).response_message).eq("OK"));
+        assert!((*tx).response_message.as_ref().unwrap().eq("OK"));
 
         // Response line complete
         (*tx).state_response_line().unwrap();
@@ -823,11 +823,11 @@ fn ResponseLineIncomplete() {
         assert!(!tx.is_null());
         (*tx).state_response_start().unwrap();
         (*tx).res_set_status_line("HTTP/1.1").unwrap();
-        assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
+        assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
-        assert!((*tx).response_status.is_null());
+        assert!((*tx).response_status.is_none());
         assert_eq!(-1, (*tx).response_status_number);
-        assert!((*tx).response_message.is_null());
+        assert!((*tx).response_message.is_none());
         (*tx).state_response_complete().unwrap();
     }
 }
@@ -843,11 +843,11 @@ fn ResponseLineIncomplete1() {
         assert!(!tx.is_null());
         (*tx).state_response_start().unwrap();
         (*tx).res_set_status_line("HTTP/1.1 200").unwrap();
-        assert!((*(*tx).response_protocol).eq("HTTP/1.1"));
+        assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
-        assert_eq!(0, bstr_cmp_str((*tx).response_status, "200"));
+        assert!((*tx).response_status.as_ref().unwrap().eq("200"));
         assert_eq!(200, (*tx).response_status_number);
-        assert!((*tx).response_message.is_null());
+        assert!((*tx).response_message.is_none());
         (*tx).state_response_complete().unwrap();
     }
 }

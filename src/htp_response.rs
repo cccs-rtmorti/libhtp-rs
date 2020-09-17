@@ -560,12 +560,10 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
             .get_nocase_nozero("content-type")
             .map(|(_, val)| val.clone());
         if let Some(ct) = &ct_opt {
-            connp.out_tx_mut_ok()?.response_content_type = bstr::bstr_dup_lower(&ct.value);
-            if connp.out_tx_mut_ok()?.response_content_type.is_null() {
-                return Err(Status::ERROR);
-            }
+            let mut response_content_type = bstr::bstr_t::from(ct.value.as_slice());
+            response_content_type.make_ascii_lowercase();
             // Ignore parameters
-            let data: *mut u8 = (*connp.out_tx_mut_ok()?.response_content_type).as_mut_ptr();
+            let data: *mut u8 = response_content_type.as_mut_ptr();
             let len: usize = ct.value.len();
             let mut newlen: usize = 0;
             while newlen < len {
@@ -573,12 +571,13 @@ pub unsafe extern "C" fn htp_connp_RES_BODY_DETERMINE(
                 if htp_util::htp_is_space(*data.offset(newlen as isize))
                     || *data.offset(newlen as isize) as i32 == ';' as i32
                 {
-                    bstr::bstr_adjust_len(connp.out_tx_mut_ok()?.response_content_type, newlen);
+                    response_content_type.set_len(newlen);
                     break;
                 } else {
                     newlen = newlen.wrapping_add(1)
                 }
             }
+            connp.out_tx_mut_ok()?.response_content_type = Some(response_content_type);
         }
         // 2. If a Transfer-Encoding header field (section 14.40) is present and
         //   indicates that the "chunked" transfer coding has been applied, then
@@ -1072,22 +1071,10 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                 return Ok(());
             }
             // Deallocate previous response line allocations, which we would have on a 100 response.
-            if !connp.out_tx_mut_ok()?.response_line.is_null() {
-                bstr::bstr_free(connp.out_tx_mut_ok()?.response_line);
-                connp.out_tx_mut_ok()?.response_line = 0 as *mut bstr::bstr_t
-            }
-            if !connp.out_tx_mut_ok()?.response_protocol.is_null() {
-                bstr::bstr_free(connp.out_tx_mut_ok()?.response_protocol);
-                connp.out_tx_mut_ok()?.response_protocol = 0 as *mut bstr::bstr_t
-            }
-            if !connp.out_tx_mut_ok()?.response_status.is_null() {
-                bstr::bstr_free(connp.out_tx_mut_ok()?.response_status);
-                connp.out_tx_mut_ok()?.response_status = 0 as *mut bstr::bstr_t
-            }
-            if !connp.out_tx_mut_ok()?.response_message.is_null() {
-                bstr::bstr_free(connp.out_tx_mut_ok()?.response_message);
-                connp.out_tx_mut_ok()?.response_message = 0 as *mut bstr::bstr_t
-            }
+            connp.out_tx_mut_ok()?.response_line = None;
+            connp.out_tx_mut_ok()?.response_protocol = None;
+            connp.out_tx_mut_ok()?.response_status = None;
+            connp.out_tx_mut_ok()?.response_message = None;
             // Process response line.
             let s = std::slice::from_raw_parts(data as *const u8, len);
             let s = htp_util::htp_chomp(&s);
@@ -1118,14 +1105,8 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
                 }
                 return Ok(());
             }
-            connp.out_tx_mut_ok()?.response_line =
-                bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-            if connp.out_tx_mut_ok()?.response_line.is_null() {
-                return Err(Status::ERROR);
-            }
-            if (*connp).parse_response_line().is_err() {
-                return Err(Status::ERROR);
-            }
+            connp.out_tx_mut_ok()?.response_line = Some(bstr::bstr_t::from(s));
+            (*connp).parse_response_line()?;
             (*connp).state_response_line()?;
             htp_connp_res_clear_buffer(connp);
             // Move on to the next phase.

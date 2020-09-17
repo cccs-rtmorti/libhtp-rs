@@ -356,15 +356,15 @@ pub struct htp_tx_t {
     /// How many empty lines did we ignore before reaching the status line?
     pub response_ignored_lines: u32,
     /// Response line.
-    pub response_line: *mut bstr::bstr_t,
+    pub response_line: Option<bstr::bstr_t>,
     /// Response protocol, as text. Can be NULL.
-    pub response_protocol: *mut bstr::bstr_t,
+    pub response_protocol: Option<bstr::bstr_t>,
     /// Response protocol as number. Available only if we were able to parse the protocol version,
     /// INVALID otherwise. UNKNOWN until parsing is attempted.
     pub response_protocol_number: Protocol,
     /// Response status code, as text. Starts as NULL and can remain NULL on
     /// an invalid response that does not specify status code.
-    pub response_status: *mut bstr::bstr_t,
+    pub response_status: Option<bstr::bstr_t>,
     /// Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
     /// otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
     pub response_status_number: i32,
@@ -372,7 +372,7 @@ pub struct htp_tx_t {
     /// backend server will reject a request with a particular status code.
     pub response_status_expected_number: i32,
     /// The message associated with the response status code. Can be NULL.
-    pub response_message: *mut bstr::bstr_t,
+    pub response_message: Option<bstr::bstr_t>,
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: i32,
     /// Parsed response headers. Contains instances of htp_header_t.
@@ -428,7 +428,7 @@ pub struct htp_tx_t {
     /// This field will contain the response content type when that information
     /// is available in response headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
-    pub response_content_type: *mut bstr::bstr_t,
+    pub response_content_type: Option<bstr::bstr_t>,
 
     // Common fields
     /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
@@ -488,13 +488,13 @@ impl htp_tx_t {
             request_hostname: std::ptr::null_mut(),
             request_port_number: None,
             response_ignored_lines: 0,
-            response_line: std::ptr::null_mut(),
-            response_protocol: std::ptr::null_mut(),
+            response_line: None,
+            response_protocol: None,
             response_protocol_number: Protocol::UNKNOWN,
-            response_status: std::ptr::null_mut(),
+            response_status: None,
             response_status_number: 0,
             response_status_expected_number: 0,
-            response_message: std::ptr::null_mut(),
+            response_message: None,
             seen_100continue: 0,
             response_headers: htp_table::htp_table_t::with_capacity(32),
             response_message_len: 0,
@@ -505,7 +505,7 @@ impl htp_tx_t {
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
             response_content_encoding_processing:
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
-            response_content_type: std::ptr::null_mut(),
+            response_content_type: None,
             flags: Flags::empty(),
             request_progress: htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED,
             response_progress: htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED,
@@ -845,10 +845,7 @@ impl htp_tx_t {
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn res_set_status_line<S: AsRef<[u8]>>(&mut self, line: S) -> Result<()> {
-        self.response_line = bstr::bstr_dup_str(line);
-        if self.response_line.is_null() {
-            return Err(Status::ERROR);
-        }
+        self.response_line = Some(bstr::bstr_t::from(line.as_ref()));
         (*self.connp).parse_response_line()
     }
 
@@ -1473,13 +1470,6 @@ impl Drop for htp_tx_t {
             if !self.request_cookies.is_null() {
                 htp_table::htp_table_free(self.request_cookies);
             }
-
-            // Response fields.
-            bstr::bstr_free(self.response_line);
-            bstr::bstr_free(self.response_protocol);
-            bstr::bstr_free(self.response_status);
-            bstr::bstr_free(self.response_message);
-            bstr::bstr_free(self.response_content_type);
 
             // If we're using a private configuration structure, destroy it.
             if self.is_config_shared == 0 {
