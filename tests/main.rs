@@ -2176,6 +2176,12 @@ fn Put() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
+        let file = (*t.connp).put_file.as_ref().unwrap();
+        assert_eq!(file.len, 12);
+        assert_eq!(file.source as u8, htp_file_source_t::HTP_FILE_PUT as u8);
+        assert!(file.filename.is_none());
+        assert!(file.tmpfile.is_none());
+
         assert!(!(*tx).request_hostname.is_null());
         assert!((*(*tx).request_hostname).eq("www.example.com"));
     }
