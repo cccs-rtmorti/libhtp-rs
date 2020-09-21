@@ -14,25 +14,33 @@ pub fn htp_ch_urlencoded_callback_request_body_data(
         if !(*d).data().is_null() {
             let data = std::slice::from_raw_parts((*d).data(), (*d).len());
             // Process one chunk of data.
-            htp_urlencoded::htp_urlenp_parse_partial(&mut *(*tx).request_urlenp_body, data);
+            if let Some(urlenp) = (*tx).request_urlenp_body.as_mut() {
+                htp_urlencoded::htp_urlenp_parse_partial(urlenp, data);
+            }
         } else {
             // Finalize parsing.
-            htp_urlencoded::htp_urlenp_finalize(&mut *(*tx).request_urlenp_body);
-            // Add all parameters to the transaction.
-            for (name, value) in (*(*tx).request_urlenp_body).params.elements.iter() {
-                let param = htp_transaction::htp_param_t::new(
-                    bstr::bstr_t::from((*name).as_slice()),
-                    bstr::bstr_t::from((*value).as_slice()),
-                    htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
-                    htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
-                );
-                if tx.req_add_param(param).is_err() {
-                    return Err(Status::ERROR);
+            if let Some(urlenp) = (*tx).request_urlenp_body.as_mut() {
+                htp_urlencoded::htp_urlenp_finalize(urlenp);
+            }
+            if let Some(urlenp) = (*tx).request_urlenp_body.clone() {
+                // Add all parameters to the transaction.
+                for (name, value) in urlenp.params.elements.iter() {
+                    let param = htp_transaction::htp_param_t::new(
+                        bstr::bstr_t::from((*name).as_slice()),
+                        bstr::bstr_t::from((*value).as_slice()),
+                        htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
+                        htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
+                    );
+                    if tx.req_add_param(param).is_err() {
+                        return Err(Status::ERROR);
+                    }
                 }
             }
-            // All the parameter data is now owned by the transaction, and
-            // the parser table used to store it is no longer needed
-            (*(*tx).request_urlenp_body).params.elements.clear();
+            if let Some(urlenp) = (*tx).request_urlenp_body.as_mut() {
+                // All the parameter data is now owned by the transaction, and
+                // the parser table used to store it is no longer needed
+                urlenp.params.elements.clear();
+            }
         }
     }
     Ok(())
@@ -54,10 +62,7 @@ pub fn htp_ch_urlencoded_callback_request_headers(
             return Err(Status::DECLINED);
         }
         // Create parser instance.
-        (*tx).request_urlenp_body = htp_urlencoded::htp_urlenp_create(tx);
-        if (*tx).request_urlenp_body.is_null() {
-            return Err(Status::ERROR);
-        }
+        (*tx).request_urlenp_body = Some(htp_urlencoded::htp_urlenp_t::new(tx));
         // Register a request body data callback.
         (*tx)
             .hook_request_body_data
@@ -83,18 +88,12 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut htp_transaction::htp_tx_
             return Err(Status::DECLINED);
         }
         // We have a non-zero length query string.
-        (*tx).request_urlenp_query = htp_urlencoded::htp_urlenp_create(tx);
-        if (*tx).request_urlenp_query.is_null() {
-            return Err(Status::ERROR);
-        }
+        let mut urlenp = htp_urlencoded::htp_urlenp_t::new(tx);
         if let Some(query) = (*(*tx).parsed_uri).query.as_ref() {
-            htp_urlencoded::htp_urlenp_parse_complete(
-                &mut *(*tx).request_urlenp_query,
-                query.as_slice(),
-            );
+            htp_urlencoded::htp_urlenp_parse_complete(&mut urlenp, query.as_slice());
         }
         // Add all parameters to the transaction.
-        for (name, value) in (*(*tx).request_urlenp_query).params.elements.iter() {
+        for (name, value) in urlenp.params.elements.iter() {
             let param = htp_transaction::htp_param_t::new(
                 bstr::bstr_t::from(name.as_slice()),
                 bstr::bstr_t::from(value.as_slice()),
@@ -105,9 +104,6 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut htp_transaction::htp_tx_
                 return Err(Status::ERROR);
             }
         }
-        // All the parameter data is now owned by the transaction, and
-        // the parser table used to store it is no longer needed.
-        (*(*tx).request_urlenp_query).params.elements.clear();
     }
     Ok(())
 }

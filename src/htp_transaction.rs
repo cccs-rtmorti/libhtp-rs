@@ -323,12 +323,9 @@ pub struct htp_tx_t {
     /// Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
     /// the configuration hook with the same name.
     pub hook_response_body_data: DataHook,
-    /// Query string URLENCODED parser. Available only
-    /// when the query string is not NULL and not empty.
-    pub request_urlenp_query: *mut htp_urlencoded::htp_urlenp_t,
     /// Request body URLENCODED parser. Available only when the request body is in the
     /// application/x-www-form-urlencoded format and the parser was configured to run.
-    pub request_urlenp_body: *mut htp_urlencoded::htp_urlenp_t,
+    pub request_urlenp_body: Option<htp_urlencoded::htp_urlenp_t>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: Option<htp_multipart::htp_mpartp_t>,
@@ -476,8 +473,7 @@ impl htp_tx_t {
             request_content_length: -1,
             hook_request_body_data: DataHook::new(),
             hook_response_body_data: DataHook::new(),
-            request_urlenp_query: std::ptr::null_mut(),
-            request_urlenp_body: std::ptr::null_mut(),
+            request_urlenp_body: None,
             request_mpartp: None,
             request_params: htp_table::htp_table_alloc(32),
             request_cookies: std::ptr::null_mut(),
@@ -1457,9 +1453,6 @@ impl Drop for htp_tx_t {
             bstr::bstr_free(self.request_auth_username);
             bstr::bstr_free(self.request_auth_password);
 
-            // Request parsers.
-            htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_query);
-            htp_urlencoded::htp_urlenp_destroy(self.request_urlenp_body);
             // Request parameters.
             htp_table::htp_table_free(self.request_params);
 

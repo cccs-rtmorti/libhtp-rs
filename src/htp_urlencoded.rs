@@ -7,13 +7,6 @@ use nom::{
     IResult,
 };
 
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
-
 /// This is the main URLENCODED parser structure. It is used to store
 /// parser configuration, temporary parsing data, as well as the parameters.
 #[derive(Clone)]
@@ -23,7 +16,7 @@ pub struct htp_urlenp_t {
     /// The character used to separate parameters. Defaults to & and should
     /// not be changed without good reason.
     pub argument_separator: u8,
-    /// Whether to perform URL-decoding on parameters.
+    /// Whether to perform URL-decoding on parameters. Defaults to true.
     pub decode_url_encoding: bool,
     /// This table contains the list of parameters, indexed by name.
     pub params: htp_table::htp_table_t<bstr::bstr_t>,
@@ -33,31 +26,18 @@ pub struct htp_urlenp_t {
     field: bstr::bstr_t,
 }
 
-/// Creates a new URLENCODED parser.
-///
-/// Returns New parser, or NULL on memory allocation failure.
-pub unsafe fn htp_urlenp_create(tx: *mut htp_transaction::htp_tx_t) -> *mut htp_urlenp_t {
-    let urlenp: *mut htp_urlenp_t =
-        calloc(1, ::std::mem::size_of::<htp_urlenp_t>()) as *mut htp_urlenp_t;
-    if urlenp.is_null() {
-        return 0 as *mut htp_urlenp_t;
+impl htp_urlenp_t {
+    pub fn new(tx: *mut htp_transaction::htp_tx_t) -> Self {
+        Self {
+            tx: tx,
+            argument_separator: '&' as u8,
+            decode_url_encoding: true,
+            params: htp_table::htp_table_t::with_capacity(32),
+            complete: false,
+            saw_data: false,
+            field: bstr::bstr_t::with_capacity(64),
+        }
     }
-    (*urlenp).tx = tx;
-    (*urlenp).params = htp_table::htp_table_t::with_capacity(32);
-    (*urlenp).field = bstr::bstr_t::with_capacity(64);
-    (*urlenp).argument_separator = '&' as u8;
-    (*urlenp).decode_url_encoding = true;
-    urlenp
-}
-
-/// Destroys an existing URLENCODED parser.
-pub unsafe fn htp_urlenp_destroy(urlenp: *mut htp_urlenp_t) {
-    if urlenp.is_null() {
-        return;
-    }
-    (*urlenp).field.clear();
-    (*urlenp).params.elements.clear();
-    free(urlenp as *mut core::ffi::c_void);
 }
 
 /// Finalizes parsing, forcing the parser to convert any outstanding

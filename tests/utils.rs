@@ -1669,7 +1669,6 @@ struct UrlEncodedParserTest {
     connp: *mut htp_connp_t,
     cfg: *mut htp_config::htp_cfg_t,
     tx: *mut htp_tx_t,
-    urlenp: *mut htp_urlenp_t,
 }
 
 impl UrlEncodedParserTest {
@@ -1678,7 +1677,6 @@ impl UrlEncodedParserTest {
             connp: std::ptr::null_mut(),
             cfg: std::ptr::null_mut(),
             tx: std::ptr::null_mut(),
-            urlenp: std::ptr::null_mut(),
         };
         unsafe {
             ret.cfg = htp_config::create();
@@ -1692,7 +1690,6 @@ impl UrlEncodedParserTest {
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
             ret.tx = (*ret.connp).conn.tx_mut_ptr(tx_id);
-            ret.urlenp = htp_urlenp_create(ret.tx);
             ret
         }
     }
@@ -1701,7 +1698,6 @@ impl UrlEncodedParserTest {
 impl Drop for UrlEncodedParserTest {
     fn drop(&mut self) {
         unsafe {
-            htp_urlenp_destroy(self.urlenp);
             htp_connp_destroy_all(self.connp);
             (*self.cfg).destroy();
         }
@@ -1711,261 +1707,240 @@ impl Drop for UrlEncodedParserTest {
 // Start of Url Parser tests.
 #[test]
 fn UrlencodedParser_Empty() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"");
 
-        assert_eq!(0, (*test.urlenp).params.size());
-    }
+    assert_eq!(0, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_EmptyKey1() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"&");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"&");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_EmptyKey2() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"=&");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"=&");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_EmptyKey3() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"=1&");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"=1&");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq("1"));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq("1"));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_EmptyKey4() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"&=");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"&=");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_EmptyKey5() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"&&");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"&&");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_EmptyKeyAndValue() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"=");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"=");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_OnePairEmptyValue() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p=");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p=");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_OnePairEmptyKey() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"=p");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"=p");
 
-        assert!((*test.urlenp).params.get_nocase("").unwrap().1.eq("p"));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq("p"));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_OnePair() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p=1");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p=1");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq("1"));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_TwoPairs() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p=1&q=2");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p=1&q=2");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq("1"));
-        assert!((*test.urlenp).params.get_nocase("q").unwrap().1.eq("2"));
-        assert_eq!(2, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
+    assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
+    assert_eq!(2, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_KeyNoValue1() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_KeyNoValue2() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p&");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p&");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_KeyNoValue3() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p&q");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p&q");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert!((*test.urlenp).params.get_nocase("q").unwrap().1.eq(""));
-        assert_eq!(2, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("q").unwrap().1.eq(""));
+    assert_eq!(2, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_KeyNoValue4() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_complete(&mut *test.urlenp, b"p&q=2");
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_complete(&mut urlenp, b"p&q=2");
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert!((*test.urlenp).params.get_nocase("q").unwrap().1.eq("2"));
-        assert_eq!(2, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
+    assert_eq!(2, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_Partial1() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"p");
-        htp_urlenp_finalize(&mut *test.urlenp);
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_partial(&mut urlenp, b"p");
+    htp_urlenp_finalize(&mut urlenp);
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_Partial2() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"p");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"x");
-        htp_urlenp_finalize(&mut *test.urlenp);
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_partial(&mut urlenp, b"p");
+    htp_urlenp_parse_partial(&mut urlenp, b"x");
+    htp_urlenp_finalize(&mut urlenp);
 
-        assert!((*test.urlenp).params.get_nocase("px").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_Partial3() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"p");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"x&");
-        htp_urlenp_finalize(&mut *test.urlenp);
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_partial(&mut urlenp, b"p");
+    htp_urlenp_parse_partial(&mut urlenp, b"x&");
+    htp_urlenp_finalize(&mut urlenp);
 
-        assert!((*test.urlenp).params.get_nocase("px").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_Partial4() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"p");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"=");
-        htp_urlenp_finalize(&mut *test.urlenp);
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_partial(&mut urlenp, b"p");
+    htp_urlenp_parse_partial(&mut urlenp, b"=");
+    htp_urlenp_finalize(&mut urlenp);
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
 fn UrlencodedParser_Partial5() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"p");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"");
-        htp_urlenp_finalize(&mut *test.urlenp);
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_partial(&mut urlenp, b"p");
+    htp_urlenp_parse_partial(&mut urlenp, b"");
+    htp_urlenp_parse_partial(&mut urlenp, b"");
+    htp_urlenp_parse_partial(&mut urlenp, b"");
+    htp_urlenp_finalize(&mut urlenp);
 
-        assert!((*test.urlenp).params.get_nocase("p").unwrap().1.eq(""));
-        assert_eq!(1, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert_eq!(1, urlenp.params.size());
 }
 
 #[test]
-fn UrlencodedParser_Partial6i() {
-    unsafe {
-        let test = UrlEncodedParserTest::new();
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"px");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"n");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"=");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"1");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"2");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"&");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"qz");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"n");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"=");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"2");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"3");
-        htp_urlenp_parse_partial(&mut *test.urlenp, b"&");
-        htp_urlenp_finalize(&mut *test.urlenp);
+fn UrlencodedParser_Partial6() {
+    let test = UrlEncodedParserTest::new();
+    let mut urlenp = htp_urlenp_t::new(test.tx);
+    htp_urlenp_parse_partial(&mut urlenp, b"px");
+    htp_urlenp_parse_partial(&mut urlenp, b"n");
+    htp_urlenp_parse_partial(&mut urlenp, b"");
+    htp_urlenp_parse_partial(&mut urlenp, b"=");
+    htp_urlenp_parse_partial(&mut urlenp, b"1");
+    htp_urlenp_parse_partial(&mut urlenp, b"2");
+    htp_urlenp_parse_partial(&mut urlenp, b"&");
+    htp_urlenp_parse_partial(&mut urlenp, b"qz");
+    htp_urlenp_parse_partial(&mut urlenp, b"n");
+    htp_urlenp_parse_partial(&mut urlenp, b"");
+    htp_urlenp_parse_partial(&mut urlenp, b"=");
+    htp_urlenp_parse_partial(&mut urlenp, b"2");
+    htp_urlenp_parse_partial(&mut urlenp, b"3");
+    htp_urlenp_parse_partial(&mut urlenp, b"&");
+    htp_urlenp_finalize(&mut urlenp);
 
-        assert!((*test.urlenp).params.get_nocase("pxn").unwrap().1.eq("12"));
-        assert!((*test.urlenp).params.get_nocase("qzn").unwrap().1.eq("23"));
-        assert_eq!(2, (*test.urlenp).params.size());
-    }
+    assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq("12"));
+    assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq("23"));
+    assert_eq!(2, urlenp.params.size());
 }
 
 #[test]
