@@ -1,8 +1,8 @@
 use crate::error::Result;
 use crate::htp_config::htp_server_personality_t;
 use crate::{
-    bstr, hook::DataHook, htp_config, htp_connection, htp_decompressors, htp_response,
-    htp_transaction, htp_util, Status,
+    bstr, hook::DataHook, htp_config, htp_connection, htp_response, htp_transaction, htp_util,
+    Status,
 };
 use std::net::IpAddr;
 
@@ -162,8 +162,6 @@ pub struct htp_connp_t {
     pub out_state_previous: State,
     /// The hook that should be receiving raw connection data.
     pub out_data_receiver_hook: Option<DataHook>,
-    /// Response decompressor used to decompress response body data.
-    pub out_decompressor: *mut htp_decompressors::htp_decompressor_t,
     /// On a PUT request, this field contains additional file data.
     pub put_file: Option<htp_util::htp_file_t>,
 }
@@ -220,7 +218,6 @@ impl htp_connp_t {
             out_state: State::IDLE,
             out_state_previous: State::NONE,
             out_data_receiver_hook: None,
-            out_decompressor: std::ptr::null_mut(),
             put_file: None,
         }
     }
@@ -490,16 +487,6 @@ impl htp_connp_t {
         self.out_current_read_offset
     }
 
-    pub unsafe fn destroy_decompressors(&mut self) {
-        let mut comp: *mut htp_decompressors::htp_decompressor_t = self.out_decompressor;
-        while !comp.is_null() {
-            let next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
-            (*comp).destroy.expect("non-null function pointer")(comp);
-            comp = next
-        }
-        self.out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
-    }
-
     /// Opens connection.
     ///
     /// timestamp is optional
@@ -669,7 +656,6 @@ impl htp_connp_t {
 impl Drop for htp_connp_t {
     fn drop(&mut self) {
         unsafe {
-            self.destroy_decompressors();
             if !self.in_header.is_null() {
                 bstr::bstr_free(self.in_header);
                 self.in_header = std::ptr::null_mut()

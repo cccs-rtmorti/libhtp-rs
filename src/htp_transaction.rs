@@ -425,6 +425,8 @@ pub struct htp_tx_t {
     /// is available in response headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
     pub response_content_type: Option<bstr::bstr_t>,
+    /// Response decompressor used to decompress response body data.
+    pub out_decompressor: *mut htp_decompressors::htp_decompressor_t,
 
     // Common fields
     /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
@@ -501,6 +503,7 @@ impl htp_tx_t {
             response_content_encoding_processing:
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
             response_content_type: None,
+            out_decompressor: std::ptr::null_mut(),
             flags: Flags::empty(),
             request_progress: htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED,
             response_progress: htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED,
@@ -929,8 +932,7 @@ impl htp_tx_t {
         match self.response_content_encoding_processing as u32 {
             2 | 3 | 4 => {
                 // In severe memory stress these could be NULL
-                if (*connp).out_decompressor.is_null()
-                    || (*(*connp).out_decompressor).decompress.is_none()
+                if self.out_decompressor.is_null() || (*self.out_decompressor).decompress.is_none()
                 {
                     return Err(Status::ERROR);
                 }
@@ -939,33 +941,32 @@ impl htp_tx_t {
                     tv_usec: 0,
                 };
                 libc::gettimeofday(
-                    &mut (*(*connp).out_decompressor).time_before,
+                    &mut (*self.out_decompressor).time_before,
                     0 as *mut libc::timezone,
                 );
                 // Send data buffer to the decompressor.
-                (*(*connp).out_decompressor)
+                (*self.out_decompressor)
                     .decompress
                     .expect("non-null function pointer")(
-                    (*connp).out_decompressor, &mut d
+                    self.out_decompressor, &mut d
                 );
                 libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
                 // sanity check for race condition if system time changed
                 if htp_timer_track(
-                    &mut (*(*connp).out_decompressor).time_spent,
+                    &mut (*self.out_decompressor).time_spent,
                     &mut after,
-                    &mut (*(*connp).out_decompressor).time_before,
+                    &mut (*self.out_decompressor).time_before,
                 )
                 .is_ok()
                 {
-                    if (*(*connp).out_decompressor).time_spent
-                        > (*(*connp).cfg).compression_time_limit
+                    if (*self.out_decompressor).time_spent > (*(*connp).cfg).compression_time_limit
                     {
                         htp_error!(
                             connp,
                             htp_log_code::COMPRESSION_BOMB,
                             format!(
                                 "Compression bomb: spent {} us decompressing",
-                                (*(*self.connp).out_decompressor).time_spent
+                                (*self.out_decompressor).time_spent
                             )
                         );
                         return Err(Status::ERROR);
@@ -973,7 +974,7 @@ impl htp_tx_t {
                 }
                 if data == 0 as *mut core::ffi::c_void {
                     // Shut down the decompressor, if we used one.
-                    (*self.connp).destroy_decompressors();
+                    self.destroy_decompressors();
                 }
             }
             1 => {
@@ -997,6 +998,16 @@ impl htp_tx_t {
             }
         }
         Ok(())
+    }
+
+    pub unsafe fn destroy_decompressors(&mut self) {
+        let mut comp: *mut htp_decompressors::htp_decompressor_t = self.out_decompressor;
+        while !comp.is_null() {
+            let next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
+            (*comp).destroy.expect("non-null function pointer")(comp);
+            comp = next
+        }
+        self.out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
     }
 
     pub unsafe fn state_request_complete_partial(&mut self) -> Result<()> {
@@ -1273,19 +1284,19 @@ impl htp_tx_t {
                 == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
             || ce_multi_comp != 0
         {
-            if !(*self.connp).out_decompressor.is_null() {
-                (*self.connp).destroy_decompressors();
+            if !self.out_decompressor.is_null() {
+                self.destroy_decompressors();
             }
             // normal case
             if ce_multi_comp == 0 {
-                (*self.connp).out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
+                self.out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
                     self.connp,
                     self.response_content_encoding_processing,
                 );
-                if (*self.connp).out_decompressor.is_null() {
+                if self.out_decompressor.is_null() {
                     return Err(Status::ERROR);
                 }
-                (*(*self.connp).out_decompressor).callback = Some(
+                (*self.out_decompressor).callback = Some(
                     htp_tx_res_process_body_data_decompressor_callback
                         as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
                 )
@@ -1353,19 +1364,19 @@ impl htp_tx_t {
                         {
                             if comp.is_null() {
                                 self.response_content_encoding_processing = cetype;
-                                (*self.connp).out_decompressor =
+                                self.out_decompressor =
                                     htp_decompressors::htp_gzip_decompressor_create(
                                         self.connp,
                                         self.response_content_encoding_processing,
                                     );
-                                if (*self.connp).out_decompressor.is_null() {
+                                if self.out_decompressor.is_null() {
                                     return Err(Status::ERROR);
                                 }
-                                (*(*self.connp).out_decompressor).callback = Some(
+                                (*self.out_decompressor).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
                                         as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
                                 );
-                                comp = (*self.connp).out_decompressor
+                                comp = self.out_decompressor
                             } else {
                                 (*comp).next = htp_decompressors::htp_gzip_decompressor_create(
                                     self.connp, cetype,
@@ -1461,6 +1472,7 @@ impl Drop for htp_tx_t {
                 htp_table::htp_table_free(self.request_cookies);
             }
 
+            self.destroy_decompressors();
             // If we're using a private configuration structure, destroy it.
             if self.is_config_shared == 0 {
                 (*self.cfg).destroy();
@@ -1515,14 +1527,9 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     if rc != Status::OK {
         return Status::ERROR;
     }
-    (*(*tx.connp).out_decompressor).nb_callbacks =
-        (*(*tx.connp).out_decompressor).nb_callbacks.wrapping_add(1);
+    (*tx.out_decompressor).nb_callbacks = (*tx.out_decompressor).nb_callbacks.wrapping_add(1);
 
-    if (*(*tx.connp).out_decompressor)
-        .nb_callbacks
-        .wrapping_rem(256)
-        == 0
-    {
+    if (*tx.out_decompressor).nb_callbacks.wrapping_rem(256) == 0 {
         let mut after: libc::timeval = libc::timeval {
             tv_sec: 0,
             tv_usec: 0,
@@ -1530,23 +1537,21 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
         libc::gettimeofday(&mut after, 0 as *mut libc::timezone);
         // sanity check for race condition if system time changed
         if htp_timer_track(
-            &mut (*(*tx.connp).out_decompressor).time_spent,
+            &mut (*tx.out_decompressor).time_spent,
             &mut after,
-            &mut (*(*tx.connp).out_decompressor).time_before,
+            &mut (*tx.out_decompressor).time_before,
         )
         .is_ok()
         {
             // updates last tracked time
-            (*(*tx.connp).out_decompressor).time_before = after;
-            if (*(*tx.connp).out_decompressor).time_spent
-                > (*(*tx.connp).cfg).compression_time_limit
-            {
+            (*tx.out_decompressor).time_before = after;
+            if (*tx.out_decompressor).time_spent > (*(*tx.connp).cfg).compression_time_limit {
                 htp_error!(
                     tx.connp,
                     htp_log_code::COMPRESSION_BOMB,
                     format!(
                         "Compression bomb: spent {} us decompressing",
-                        (*(*tx.connp).out_decompressor).time_spent
+                        (*tx.out_decompressor).time_spent
                     )
                 );
                 return Status::ERROR;
