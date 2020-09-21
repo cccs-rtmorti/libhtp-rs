@@ -1,6 +1,5 @@
 use crate::error::Result;
 use crate::hook::{DataHook, DataNativeCallbackFn};
-use crate::htp_config::htp_decoder_ctx_t;
 use crate::htp_connection_parser::State;
 use crate::htp_util::Flags;
 use crate::list::List;
@@ -1136,10 +1135,8 @@ impl htp_tx_t {
             .run_all(self)?;
         // Run hook REQUEST_LINE.
         (*(*self.connp).cfg).hook_request_line.run_all(self)?;
-        let (partial_normalized_uri, complete_normalized_uri) = htp_util::generate_normalized_uri(
-            &(*(self.cfg)).decoder_cfgs[htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize],
-            &*self.parsed_uri,
-        );
+        let (partial_normalized_uri, complete_normalized_uri) =
+            htp_util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, &*self.parsed_uri);
         self.partial_normalized_uri = partial_normalized_uri;
         self.complete_normalized_uri = complete_normalized_uri;
         // Move on to the next phase.

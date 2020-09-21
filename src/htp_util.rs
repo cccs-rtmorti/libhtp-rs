@@ -1,7 +1,5 @@
 use crate::error::Result;
-use crate::htp_config::{
-    htp_cfg_t, htp_decoder_cfg_t, htp_decoder_ctx_t, htp_url_encoding_handling_t,
-};
+use crate::htp_config::{htp_cfg_t, htp_decoder_cfg_t, htp_url_encoding_handling_t};
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_request, htp_transaction, utf8_decoder, Status,
 };
@@ -914,7 +912,7 @@ fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
 /// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
 /// be stored in the input path if the transaction cfg indicates it
 pub fn utf8_decode_and_validate_uri_path_inplace(tx: &mut htp_transaction::htp_tx_t) {
-    let cfg = unsafe { (*(tx.cfg)).decoder_cfgs[htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize] };
+    let cfg = unsafe { (*(tx.cfg)).decoder_cfg };
     if let Some(path) = unsafe { &mut (*tx.parsed_uri).path } {
         let mut decoder = utf8_decoder::Utf8Decoder::new(cfg);
         decoder.decode_and_validate(path.as_slice());
@@ -1334,8 +1332,7 @@ fn path_decode<'a>(
 /// transaction configuration structure.
 pub fn decode_uri_path_inplace(tx: &mut htp_transaction::htp_tx_t) {
     if let Some(path) = unsafe { &mut (*tx.parsed_uri).path } {
-        let decoder_cfg =
-            unsafe { (*(tx.cfg)).decoder_cfgs[htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize] };
+        let decoder_cfg = unsafe { (*(tx.cfg)).decoder_cfg };
         if let Ok((_, (consumed, flags, expected_status_code))) =
             path_decode(path.as_slice(), &decoder_cfg)
         {
@@ -1374,9 +1371,7 @@ pub fn htp_tx_urldecode_params_inplace(
     tx: &mut htp_transaction::htp_tx_t,
     input: &mut bstr::bstr_t,
 ) -> Result<()> {
-    let decoder_cfg = unsafe {
-        (*(tx.cfg)).decoder_cfgs[htp_config::htp_decoder_ctx_t::HTP_DECODER_URLENCODED as usize]
-    };
+    let decoder_cfg = unsafe { (*(tx.cfg)).decoder_cfg };
     if let Ok((_, (consumed, flags, expected_status))) =
         htp_urldecode_ex(input.as_slice(), &decoder_cfg)
     {
@@ -1766,7 +1761,6 @@ pub fn generate_normalized_uri(
 
 /// Normalize a previously-parsed request URI.
 pub unsafe fn htp_normalize_parsed_uri(tx: &mut htp_transaction::htp_tx_t) {
-    let decoder_cfg = (*(tx.cfg)).decoder_cfgs[htp_decoder_ctx_t::HTP_DECODER_URL_PATH as usize];
     // Scheme.
     if let Some(mut scheme) = (*tx.parsed_uri_raw).scheme.clone() {
         // Duplicate and convert to lowercase.
@@ -1777,13 +1771,13 @@ pub unsafe fn htp_normalize_parsed_uri(tx: &mut htp_transaction::htp_tx_t) {
     (*tx.parsed_uri).username = (*tx.parsed_uri_raw).username.clone();
     if let Some(ref mut username) = (*tx.parsed_uri).username {
         // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&decoder_cfg, &mut tx.flags, username);
+        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, username);
     }
     // Password.
     (*tx.parsed_uri).password = (*tx.parsed_uri_raw).password.clone();
     if let Some(ref mut password) = (*tx.parsed_uri).password {
         // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&decoder_cfg, &mut tx.flags, password);
+        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, password);
     }
     // Hostname.
     // We know that (*tx.parsed_uri_raw)->hostname does not contain
@@ -1791,7 +1785,7 @@ pub unsafe fn htp_normalize_parsed_uri(tx: &mut htp_transaction::htp_tx_t) {
     (*tx.parsed_uri).hostname = (*tx.parsed_uri_raw).hostname.clone();
     if let Some(ref mut hostname) = (*tx.parsed_uri).hostname {
         // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&decoder_cfg, &mut tx.flags, hostname);
+        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, hostname);
         htp_normalize_hostname_inplace(hostname);
     }
     if let Some(ref port) = (*tx.parsed_uri_raw).port {
@@ -1819,7 +1813,7 @@ pub unsafe fn htp_normalize_parsed_uri(tx: &mut htp_transaction::htp_tx_t) {
     (*tx.parsed_uri).fragment = (*tx.parsed_uri_raw).fragment.clone();
     if let Some(ref mut fragment) = (*tx.parsed_uri).fragment {
         // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&decoder_cfg, &mut tx.flags, fragment);
+        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, fragment);
     }
 }
 

@@ -211,15 +211,13 @@ pub unsafe extern "C" fn htp_config_register_transaction_complete(
 /// Configures whether backslash characters are treated as path segment separators. They
 /// are not on Unix systems, but are on Windows systems. If this setting is enabled, a path
 /// such as "/one\two/three" will be converted to "/one/two/three".
-/// Implemented only for htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_backslash_convert_slashes(ctx, enabled == 1)
+        (*cfg).set_backslash_convert_slashes(enabled == 1)
     }
 }
 
@@ -229,11 +227,10 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     b: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_bestfit_replacement_byte(ctx, b)
+        (*cfg).set_bestfit_replacement_byte(b as u8)
     }
 }
 
@@ -248,18 +245,15 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
     }
 }
 
-/// Configures whether input data will be converted to lowercase. Useful when set on the
-/// htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH context, in order to handle servers with
+/// Configures whether input data will be converted to lowercase. Useful for handling servers with
 /// case-insensitive filesystems.
-/// Implemented only for htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_convert_lowercase(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_convert_lowercase(ctx, enabled == 1)
+        (*cfg).set_convert_lowercase(enabled == 1)
     }
 }
 
@@ -294,11 +288,10 @@ pub unsafe extern "C" fn htp_config_set_lzma_memlimit(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_nul_encoded_terminates(ctx, enabled == 1)
+        (*cfg).set_nul_encoded_terminates(enabled == 1)
     }
 }
 
@@ -306,11 +299,10 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_nul_raw_terminates(ctx, enabled == 1)
+        (*cfg).set_nul_raw_terminates(enabled == 1)
     }
 }
 
@@ -328,16 +320,14 @@ pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
 /// Configures whether consecutive path segment separators will be compressed. When enabled, a path
 /// such as "/one//two" will be normalized to "/one/two". Backslash conversion and path segment separator
 /// decoding are carried out before compression. For example, the path "/one\\/two\/%5cthree/%2f//four"
-/// will be converted to "/one/two/three/four" (assuming all 3 options are enabled). Implemented only for
-/// htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+/// will be converted to "/one/two/three/four" (assuming all 3 options are enabled).
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_path_separators_compress(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_path_separators_compress(ctx, enabled == 1)
+        (*cfg).set_path_separators_compress(enabled == 1)
     }
 }
 
@@ -347,27 +337,24 @@ pub unsafe extern "C" fn htp_config_set_path_separators_compress(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_plusspace_decode(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_plusspace_decode(ctx, enabled == 1)
+        (*cfg).set_plusspace_decode(enabled == 1)
     }
 }
 
 /// Configures whether encoded path segment separators will be decoded. Apache does not do
 /// this by default, but IIS does. If enabled, a path such as "/one%2ftwo" will be normalized
 /// to "/one/two". If the backslash_separators option is also enabled, encoded backslash
-/// characters will be converted too (and subsequently normalized to forward slashes). Implemented
-/// only for htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+/// characters will be converted too (and subsequently normalized to forward slashes).
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_path_separators_decode(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_path_separators_decode(ctx, enabled == 1)
+        (*cfg).set_path_separators_decode(enabled == 1)
     }
 }
 
@@ -400,11 +387,10 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_u_encoding_decode(ctx, enabled == 1)
+        (*cfg).set_u_encoding_decode(enabled == 1)
     }
 }
 
@@ -412,24 +398,22 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     handling: htp_config::htp_url_encoding_handling_t,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_url_encoding_invalid_handling(ctx, handling)
+        (*cfg).set_url_encoding_invalid_handling(handling)
     }
 }
 
 /// Controls whether the data should be treated as UTF-8 and converted to a single-byte
-/// stream using best-fit mapping. Implemented only for htp_config::htp_decoder_ctx_t::HTP_DECODER_URL_PATH.
+/// stream using best-fit mapping.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_utf8_convert_bestfit(ctx, enabled == 1)
+        (*cfg).set_utf8_convert_bestfit(enabled == 1)
     }
 }
 
@@ -873,7 +857,6 @@ pub unsafe extern "C" fn htp_header_value_len(
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace(
     cfg: *mut htp_config::htp_cfg_t,
-    ctx: htp_config::htp_decoder_ctx_t,
     input: *mut bstr::bstr_t,
     flags: *mut u64,
 ) -> Status {
@@ -881,8 +864,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
         return Status::ERROR;
     }
     let mut f = htp_util::Flags::from_bits_truncate(*flags);
-    let res =
-        htp_util::htp_urldecode_inplace(&(*cfg).decoder_cfgs[ctx as usize], &mut *input, &mut f);
+    let res = htp_util::htp_urldecode_inplace(&(*cfg).decoder_cfg, &mut *input, &mut f);
     *flags = f.bits();
     res.into()
 }

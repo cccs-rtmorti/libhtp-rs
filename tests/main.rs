@@ -3,7 +3,6 @@ use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::error::Result;
 use htp::htp_config;
-use htp::htp_config::htp_decoder_ctx_t::*;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
 use htp::htp_response::*;
@@ -1658,7 +1657,7 @@ fn PathUtf8_FullWidth() {
 fn PathUtf8_Decode_Valid() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
+        (*t.cfg).set_utf8_convert_bestfit(true);
         assert!(t.run("54-path-utf8-valid.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -1675,7 +1674,7 @@ fn PathUtf8_Decode_Valid() {
 fn PathUtf8_Decode_Overlong2() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
+        (*t.cfg).set_utf8_convert_bestfit(true);
         assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -1694,7 +1693,7 @@ fn PathUtf8_Decode_Overlong2() {
 fn PathUtf8_Decode_Overlong3() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
+        (*t.cfg).set_utf8_convert_bestfit(true);
         assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -1713,7 +1712,7 @@ fn PathUtf8_Decode_Overlong3() {
 fn PathUtf8_Decode_Overlong4() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
+        (*t.cfg).set_utf8_convert_bestfit(true);
         assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -1732,7 +1731,7 @@ fn PathUtf8_Decode_Overlong4() {
 fn PathUtf8_Decode_Invalid() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
+        (*t.cfg).set_utf8_convert_bestfit(true);
         assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -1756,7 +1755,7 @@ fn PathUtf8_Decode_Invalid() {
 fn PathUtf8_Decode_FullWidth() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_utf8_convert_bestfit(HTP_DECODER_URL_PATH, true);
+        (*t.cfg).set_utf8_convert_bestfit(true);
         assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
