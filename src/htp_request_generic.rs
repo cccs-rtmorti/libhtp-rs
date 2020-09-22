@@ -16,13 +16,8 @@ impl htp_connection_parser::htp_connp_t {
     /// which case they will be folded into one before parsing is attempted.
     ///
     /// Returns HTP_OK or HTP_ERROR
-    pub unsafe fn process_request_header_generic(
-        &mut self,
-        data: *mut u8,
-        len: usize,
-    ) -> Result<()> {
+    pub unsafe fn process_request_header_generic(&mut self, data: &[u8]) -> Result<()> {
         // Try to parse the header.
-        let data: &[u8] = std::slice::from_raw_parts(data as *const u8, len);
         let header = self.parse_request_header_generic(data)?;
         let mut repeated = false;
         let reps = self.in_tx_mut_ok()?.req_header_repetitions;

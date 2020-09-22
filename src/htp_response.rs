@@ -1,4 +1,3 @@
-use crate::bstr::{bstr_len, bstr_ptr};
 use crate::error::Result;
 use crate::hook::DataHook;
 use crate::htp_connection_parser::State;
@@ -124,8 +123,8 @@ unsafe fn htp_connp_res_buffer(connp: &mut htp_connection_parser::htp_connp_t) -
     let mut newlen: usize = (*connp).out_buf.len().wrapping_add(len);
     // When calculating the size of the buffer, take into account the
     // space we're using for the response header buffer.
-    if !(*connp).out_header.is_null() {
-        newlen = newlen.wrapping_add(bstr_len((*connp).out_header))
+    if let Some(out_header) = &(*connp).out_header {
+        newlen = newlen.wrapping_add(out_header.len())
     }
     if newlen > (*connp.out_tx_mut_ok()?.cfg).field_limit_hard {
         htp_error!(
@@ -846,18 +845,8 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 )
             {
                 // Parse previous header, if any.
-                if !(*connp).out_header.is_null() {
-                    if (*connp)
-                        .process_response_header(
-                            bstr_ptr((*connp).out_header),
-                            bstr_len((*connp).out_header),
-                        )
-                        .is_err()
-                    {
-                        return Err(Status::ERROR);
-                    }
-                    bstr::bstr_free((*connp).out_header);
-                    (*connp).out_header = 0 as *mut bstr::bstr_t
+                if let Some(out_header) = (*connp).out_header.take() {
+                    (*connp).process_response_header(out_header.as_slice())?;
                 }
                 htp_connp_res_clear_buffer(connp);
                 // We've seen all response headers.
@@ -884,23 +873,11 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
             let s = htp_util::htp_chomp(&s);
             len = s.len();
             // Check for header folding.
-            if !data.is_null()
-                && !htp_util::htp_connp_is_line_folded(std::slice::from_raw_parts(data, len))
-            {
+            if !htp_util::htp_connp_is_line_folded(s) {
                 // New header line.
                 // Parse previous header, if any.
-                if !(*connp).out_header.is_null() {
-                    if (*connp)
-                        .process_response_header(
-                            bstr_ptr((*connp).out_header),
-                            bstr_len((*connp).out_header),
-                        )
-                        .is_err()
-                    {
-                        return Err(Status::ERROR);
-                    }
-                    bstr::bstr_free((*connp).out_header);
-                    (*connp).out_header = 0 as *mut bstr::bstr_t
+                if let Some(out_header) = (*connp).out_header.take() {
+                    (*connp).process_response_header(out_header.as_slice())?;
                 }
                 if (*connp).out_current_read_offset >= (*connp).out_current_len {
                     (*connp).out_next_byte = -1
@@ -912,17 +889,12 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                 }
                 if !htp_util::htp_is_folding_char((*connp).out_next_byte as u8) {
                     // Because we know this header is not folded, we can process the buffer straight away.
-                    if (*connp).process_response_header(data, len).is_err() {
-                        return Err(Status::ERROR);
-                    }
+                    (*connp).process_response_header(s)?;
                 } else {
                     // Keep the partial header data for parsing later.
-                    (*connp).out_header = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-                    if (*connp).out_header.is_null() {
-                        return Err(Status::ERROR);
-                    }
+                    (*connp).out_header = Some(bstr::bstr_t::from(s));
                 }
-            } else if (*connp).out_header.is_null() {
+            } else if (*connp).out_header.is_none() {
                 // Folding; check that there's a previous header line to add to.
                 // Invalid folding.
                 // Warn only once per transaction.
@@ -939,17 +911,18 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                     );
                 }
                 // Keep the header data for parsing later.
-                (*connp).out_header = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-                if (*connp).out_header.is_null() {
-                    return Err(Status::ERROR);
-                }
+                (*connp).out_header = Some(bstr::bstr_t::from(s));
             } else {
                 let mut colon_pos: usize = 0;
                 while colon_pos < len && *data.offset(colon_pos as isize) != ':' as u8 {
                     colon_pos = colon_pos.wrapping_add(1)
                 }
                 if colon_pos < len
-                    && bstr::bstr_chr((*connp).out_header, ':' as i32) >= 0
+                    && (*connp)
+                        .out_header
+                        .as_ref()
+                        .and_then(|hdr| hdr.index_of(":"))
+                        .is_some()
                     && connp.out_tx_mut_ok()?.response_protocol_number == Protocol::V1_1
                 {
                     // Warn only once per transaction.
@@ -965,34 +938,13 @@ pub unsafe extern "C" fn htp_connp_RES_HEADERS(
                             "Invalid response field folding"
                         );
                     }
-                    if (*connp)
-                        .process_response_header(
-                            bstr_ptr((*connp).out_header),
-                            bstr_len((*connp).out_header),
-                        )
-                        .is_err()
-                    {
-                        return Err(Status::ERROR);
+                    if let Some(out_header) = (*connp).out_header.take() {
+                        (*connp).process_response_header(out_header.as_slice())?;
                     }
-                    bstr::bstr_free((*connp).out_header);
-                    (*connp).out_header = bstr::bstr_dup_mem(
-                        data.offset(1 as isize) as *const core::ffi::c_void,
-                        len.wrapping_sub(1),
-                    );
-                    if (*connp).out_header.is_null() {
-                        return Err(Status::ERROR);
-                    }
-                } else {
+                    (*connp).out_header = Some(bstr::bstr_t::from(&s[1..]));
+                } else if let Some(out_header) = &mut (*connp).out_header {
                     // Add to the existing header.
-                    let new_out_header: *mut bstr::bstr_t = bstr::bstr_add_mem(
-                        (*connp).out_header,
-                        data as *const core::ffi::c_void,
-                        len,
-                    );
-                    if new_out_header.is_null() {
-                        return Err(Status::ERROR);
-                    }
-                    (*connp).out_header = new_out_header
+                    out_header.add(s);
                 }
             }
             htp_connp_res_clear_buffer(connp);
@@ -1083,7 +1035,7 @@ pub unsafe extern "C" fn htp_connp_RES_LINE(
             // If the response line is invalid, determine if it _looks_ like
             // a response line. If it does not look like a line, process the
             // data as a response body because that is what browsers do.
-            if htp_util::htp_treat_response_line_as_body(std::slice::from_raw_parts(data, len)) {
+            if htp_util::htp_treat_response_line_as_body(s) {
                 connp.out_tx_mut_ok()?.response_content_encoding_processing =
                     htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                 (*connp).out_current_consume_offset = (*connp).out_current_read_offset;

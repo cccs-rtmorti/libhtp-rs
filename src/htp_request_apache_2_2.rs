@@ -6,14 +6,9 @@ impl htp_connection_parser::htp_connp_t {
     /// which case they will be folded into one before parsing is attempted.
     ///
     /// Returns HTP_OK or HTP_ERROR
-    pub unsafe fn process_request_header_apache_2_2(
-        &mut self,
-        data: *mut u8,
-        len: usize,
-    ) -> Result<()> {
-        self.process_request_header_generic(data, len)
+    pub unsafe fn process_request_header_apache_2_2(&mut self, data: &[u8]) -> Result<()> {
+        self.process_request_header_generic(data)
     }
-
     /// Parse request line as Apache 2.2 does.
     ///
     /// Returns HTP_OK or HTP_ERROR

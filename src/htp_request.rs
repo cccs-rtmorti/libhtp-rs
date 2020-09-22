@@ -1,4 +1,3 @@
-use crate::bstr::{bstr_len, bstr_ptr};
 use crate::error::Result;
 use crate::hook::DataHook;
 use crate::htp_connection_parser::State;
@@ -146,8 +145,8 @@ impl htp_connection_parser::htp_connp_t {
         let mut newlen: usize = self.in_buf.len().wrapping_add(len);
         // When calculating the size of the buffer, take into account the
         // space we're using for the request header buffer.
-        if !self.in_header.is_null() {
-            newlen = newlen.wrapping_add(bstr_len(self.in_header))
+        if let Some(header) = &self.in_header {
+            newlen = newlen.wrapping_add(header.len())
         }
         if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit_hard {
             htp_error!(
@@ -523,13 +522,8 @@ impl htp_connection_parser::htp_connp_t {
         loop {
             if self.in_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
                 // Parse previous header, if any.
-                if !self.in_header.is_null() {
-                    self.process_request_header(
-                        bstr_ptr(self.in_header),
-                        bstr_len(self.in_header),
-                    )?;
-                    bstr::bstr_free(self.in_header);
-                    self.in_header = 0 as *mut bstr::bstr_t
+                if let Some(in_header) = self.in_header.take() {
+                    self.process_request_header(in_header.as_slice())?;
                 }
                 self.req_clear_buffer();
                 self.in_tx_mut_ok()?.request_progress =
@@ -561,13 +555,8 @@ impl htp_connection_parser::htp_connp_t {
                     )
                 {
                     // Parse previous header, if any.
-                    if !self.in_header.is_null() {
-                        self.process_request_header(
-                            bstr_ptr(self.in_header),
-                            bstr_len(self.in_header),
-                        )?;
-                        bstr::bstr_free(self.in_header);
-                        self.in_header = 0 as *mut bstr::bstr_t
+                    if let Some(in_header) = self.in_header.take() {
+                        self.process_request_header(in_header.as_slice())?;
                     }
                     self.req_clear_buffer();
                     // We've seen all the request headers.
@@ -577,18 +566,11 @@ impl htp_connection_parser::htp_connp_t {
                 let s = htp_util::htp_chomp(&s);
                 len = s.len();
                 // Check for header folding.
-                if !data.is_null()
-                    && !htp_util::htp_connp_is_line_folded(std::slice::from_raw_parts(data, len))
-                {
+                if !htp_util::htp_connp_is_line_folded(s) {
                     // New header line.
                     // Parse previous header, if any.
-                    if !self.in_header.is_null() {
-                        self.process_request_header(
-                            bstr_ptr(self.in_header),
-                            bstr_len(self.in_header),
-                        )?;
-                        bstr::bstr_free(self.in_header);
-                        self.in_header = 0 as *mut bstr::bstr_t
+                    if let Some(in_header) = self.in_header.take() {
+                        self.process_request_header(in_header.as_slice())?;
                     }
                     if self.in_current_read_offset >= self.in_current_len {
                         self.in_next_byte = -1
@@ -602,15 +584,12 @@ impl htp_connection_parser::htp_connp_t {
                         && !htp_util::htp_is_folding_char(self.in_next_byte as u8)
                     {
                         // Because we know this header is not folded, we can process the buffer straight away.
-                        self.process_request_header(data, len)?;
+                        self.process_request_header(s)?;
                     } else {
                         // Keep the partial header data for parsing later.
-                        self.in_header = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-                        if self.in_header.is_null() {
-                            return Err(Status::ERROR);
-                        }
+                        self.in_header = Some(bstr::bstr_t::from(s));
                     }
-                } else if self.in_header.is_null() {
+                } else if self.in_header.is_none() {
                     // Folding; check that there's a previous header line to add to.
                     // Invalid folding.
                     // Warn only once per transaction.
@@ -627,18 +606,10 @@ impl htp_connection_parser::htp_connp_t {
                         );
                     }
                     // Keep the header data for parsing later.
-                    self.in_header = bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-                    if self.in_header.is_null() {
-                        return Err(Status::ERROR);
-                    }
-                } else {
+                    self.in_header = Some(bstr::bstr_t::from(s));
+                } else if let Some(header) = &mut self.in_header {
                     // Add to the existing header.
-                    let new_in_header: *mut bstr::bstr_t =
-                        bstr::bstr_add_mem(self.in_header, data as *const core::ffi::c_void, len);
-                    if new_in_header.is_null() {
-                        return Err(Status::ERROR);
-                    }
-                    self.in_header = new_in_header
+                    header.add(&s);
                 }
                 self.req_clear_buffer();
             }

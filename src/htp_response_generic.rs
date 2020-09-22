@@ -66,17 +66,15 @@ impl htp_connection_parser::htp_connp_t {
     /// Generic response header parser.
     pub unsafe fn parse_response_header_generic(
         &mut self,
-        data: *mut u8,
-        len: usize,
+        data: &[u8],
     ) -> Result<htp_transaction::htp_header_t> {
-        let data_slice = std::slice::from_raw_parts(data as *const u8, len);
-        let data_slice = htp_util::htp_chomp(&data_slice);
+        let data = htp_util::htp_chomp(&data);
         let mut flags = Flags::empty();
 
         let mut header: &[u8] = b"";
         let mut value: &[u8] = b"";
 
-        match htp_util::split_by_colon(data_slice) {
+        match htp_util::split_by_colon(data) {
             Ok((mut name, val)) => {
                 // Colon present
                 // Log empty header name
@@ -166,7 +164,7 @@ impl htp_connection_parser::htp_connp_t {
                         "Response field invalid: missing colon."
                     );
                 }
-                value = data_slice;
+                value = data;
             }
             _ => (),
         }
@@ -190,12 +188,8 @@ impl htp_connection_parser::htp_connp_t {
 
     /// Generic response header line(s) processor, which assembles folded lines
     /// into a single buffer before invoking the parsing function.
-    pub unsafe fn process_response_header_generic(
-        &mut self,
-        data: *mut u8,
-        len: usize,
-    ) -> Result<()> {
-        let header = self.parse_response_header_generic(data, len)?;
+    pub unsafe fn process_response_header_generic(&mut self, data: &[u8]) -> Result<()> {
+        let header = self.parse_response_header_generic(data)?;
         let mut repeated = false;
         let reps = self.out_tx_mut_ok()?.res_header_repetitions;
         let mut update_reps = false;

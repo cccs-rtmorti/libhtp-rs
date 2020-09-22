@@ -97,7 +97,7 @@ pub struct htp_connp_t {
     pub in_buf: bstr::bstr_t,
     /// Stores the current value of a folded request header. Such headers span
     /// multiple lines, and are processed only when all data is available.
-    pub in_header: *mut bstr::bstr_t,
+    pub in_header: Option<bstr::bstr_t>,
     /// Ongoing inbound transaction.
     in_tx: Option<usize>,
     /// The request body length declared in a valid request header. The key here
@@ -145,7 +145,7 @@ pub struct htp_connp_t {
     pub out_buf: bstr::bstr_t,
     /// Stores the current value of a folded response header. Such headers span
     /// multiple lines, and are processed only when all data is available.
-    pub out_header: *mut bstr::bstr_t,
+    pub out_header: Option<bstr::bstr_t>,
     /// Ongoing outbound transaction
     out_tx: Option<usize>,
     /// The length of the current response body as presented in the
@@ -189,7 +189,7 @@ impl htp_connp_t {
             in_stream_offset: 0,
             in_next_byte: 0,
             in_buf: bstr::bstr_t::new(),
-            in_header: std::ptr::null_mut(),
+            in_header: None,
             in_tx: None,
             in_content_length: 0,
             in_body_data_left: 0,
@@ -210,7 +210,7 @@ impl htp_connp_t {
             out_stream_offset: 0,
             out_next_byte: 0,
             out_buf: bstr::bstr_t::new(),
-            out_header: std::ptr::null_mut(),
+            out_header: None,
             out_tx: None,
             out_content_length: 0,
             out_body_data_left: 0,
@@ -418,18 +418,18 @@ impl htp_connp_t {
         unsafe { self.parse_response_line_generic() }
     }
 
-    pub fn process_request_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
+    pub fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                self.process_request_header_apache_2_2(data, len)
+                self.process_request_header_apache_2_2(data)
             } else {
-                self.process_request_header_generic(data, len)
+                self.process_request_header_generic(data)
             }
         }
     }
 
-    pub fn process_response_header(&mut self, data: *mut u8, len: usize) -> Result<()> {
-        unsafe { self.process_response_header_generic(data, len) }
+    pub fn process_response_header(&mut self, data: &[u8]) -> Result<()> {
+        unsafe { self.process_response_header_generic(data) }
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -649,21 +649,6 @@ impl htp_connp_t {
             tx.state_response_complete_ex(hybrid_mode)
         } else {
             Err(Status::ERROR)
-        }
-    }
-}
-
-impl Drop for htp_connp_t {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.in_header.is_null() {
-                bstr::bstr_free(self.in_header);
-                self.in_header = std::ptr::null_mut()
-            }
-            if !self.out_header.is_null() {
-                bstr::bstr_free(self.out_header);
-                self.out_header = std::ptr::null_mut()
-            }
         }
     }
 }
