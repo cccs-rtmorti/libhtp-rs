@@ -191,6 +191,29 @@ fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Result<
     Ok(())
 }
 
+/// Set one request header.
+unsafe fn req_set_header<S: AsRef<[u8]>>(tx: &mut htp_tx_t, name: S, value: S) {
+    tx.request_headers.add(
+        name.as_ref().into(),
+        htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+    )
+}
+
+/// Set request line. When used, this function should always be called first,
+/// with more specific functions following. Must not contain line terminators.
+unsafe fn req_set_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Result<()> {
+    tx.request_line = Some(bstr_t::from(line.as_ref()));
+    (*tx.connp).parse_request_line()
+}
+
+/// Set response line. Use this function is you have a single buffer containing
+/// the entire line. If you have individual request line pieces, use the other
+/// available functions.
+unsafe fn res_set_status_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Result<()> {
+    tx.response_line = Some(bstr_t::from(line.as_ref()));
+    (*tx.connp).parse_response_line()
+}
+
 struct HybridParsingTest {
     connp: *mut htp_connp_t,
     cfg: *mut htp_config::htp_cfg_t,
@@ -288,7 +311,7 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        (*tx).req_set_line("GET /?p=1&q=2 HTTP/1.1").unwrap();
+        req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.1").unwrap();
 
         // Request line complete
         (*tx).state_request_line().unwrap();
@@ -305,19 +328,13 @@ fn GetTest() {
         assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
 
         // Check parameters
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
-            .unwrap()
-            .value
-            .eq("1"));
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
-            .unwrap()
-            .value
-            .eq("2"));
+        assert_contains_param!(&*(*tx).request_params, "p", "1");
+        assert_contains_param!(&*(*tx).request_params, "q", "2");
 
         // Request headers
-        (*tx).req_set_header("Host", "www.example.com");
-        (*tx).req_set_header("Connection", "keep-alive");
-        (*tx).req_set_header("User-Agent", "Mozilla/5.0");
+        req_set_header(&mut *tx, "Host", "www.example.com");
+        req_set_header(&mut *tx, "Connection", "keep-alive");
+        req_set_header(&mut *tx, "User-Agent", "Mozilla/5.0");
 
         // Request headers complete
         (*tx).state_request_headers().unwrap();
@@ -338,7 +355,7 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
 
         // Response line data
-        (*tx).res_set_status_line("HTTP/1.1 200 OK").unwrap();
+        res_set_status_line(&mut *tx, "HTTP/1.1 200 OK").unwrap();
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.as_ref().unwrap().eq("200"));
@@ -392,14 +409,18 @@ fn PostUrlecodedTest() {
         (*tx).state_request_start().unwrap();
 
         // Request line data
-        (*tx).req_set_line("POST / HTTP/1.1").unwrap();
+        req_set_line(&mut *tx, "POST / HTTP/1.1").unwrap();
 
         // Request line complete
         (*tx).state_request_line().unwrap();
 
         // Configure headers to trigger the URLENCODED parser
-        (*tx).req_set_header("Content-Type", "application/x-www-form-urlencoded");
-        (*tx).req_set_header("Content-Length", "7");
+        req_set_header(
+            &mut *tx,
+            "Content-Type",
+            "application/x-www-form-urlencoded",
+        );
+        req_set_header(&mut *tx, "Content-Length", "7");
 
         // Request headers complete
         (*tx).state_request_headers().unwrap();
@@ -410,9 +431,9 @@ fn PostUrlecodedTest() {
         (*tx).req_process_body_data("&").unwrap();
         (*tx).req_process_body_data("q=2").unwrap();
 
-        (*tx).req_set_header("Host", "www.example.com");
-        (*tx).req_set_header("Connection", "keep-alive");
-        (*tx).req_set_header("User-Agent", "Mozilla/5.0");
+        req_set_header(&mut *tx, "Host", "www.example.com");
+        req_set_header(&mut *tx, "Connection", "keep-alive");
+        req_set_header(&mut *tx, "User-Agent", "Mozilla/5.0");
 
         assert_request_header_eq!(tx, "host", "www.example.com");
         assert_request_header_eq!(tx, "connection", "keep-alive");
@@ -422,14 +443,8 @@ fn PostUrlecodedTest() {
         (*tx).state_request_complete().unwrap();
 
         // Check parameters
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
-            .unwrap()
-            .value
-            .eq("1"));
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
-            .unwrap()
-            .value
-            .eq("2"));
+        assert_contains_param!(&*(*tx).request_params, "p", "1");
+        assert_contains_param!(&*(*tx).request_params, "q", "2");
     }
 }
 
@@ -443,7 +458,7 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
     unsafe {
         (*tx).state_request_start().unwrap();
 
-        (*tx).req_set_line("GET / HTTP/1.1").unwrap();
+        req_set_line(&mut *tx, "GET / HTTP/1.1").unwrap();
 
         (*tx).state_request_line().unwrap();
         (*tx).state_request_headers().unwrap();
@@ -451,7 +466,7 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
 
         (*tx).state_response_start().unwrap();
 
-        (*tx).res_set_status_line("HTTP/1.1 200 OK").unwrap();
+        res_set_status_line(&mut *tx, "HTTP/1.1 200 OK").unwrap();
         (*tx).res_set_header("Content-Encoding", "gzip");
         (*tx).res_set_header("Content-Length", "187");
 
@@ -493,36 +508,17 @@ fn ParamCaseSensitivity() {
         (*tx).state_request_start().unwrap();
 
         // Request line data
-        (*tx).req_set_line("GET /?p=1&Q=2 HTTP/1.1").unwrap();
+        req_set_line(&mut *tx, "GET /?p=1&Q=2 HTTP/1.1").unwrap();
 
         // Request line complete
         (*tx).state_request_line().unwrap();
 
         // Check the parameters.
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
-            .unwrap()
-            .value
-            .eq("1"));
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
-            .unwrap()
-            .value
-            .eq("1"));
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
-            .unwrap()
-            .value
-            .eq("2"));
-        assert!(
-            htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q")
-                .unwrap()
-                .value
-                .eq("2")
-        );
-        assert!(
-            htp_tx_req_get_param_ex(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q")
-                .unwrap()
-                .value
-                .eq("2")
-        );
+        assert_contains_param!(&*(*tx).request_params, "p", "1");
+        assert_contains_param!(&*(*tx).request_params, "p", "1");
+        assert_contains_param!(&*(*tx).request_params, "q", "2");
+        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q", "2");
+        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q", "2");
     }
 }
 
@@ -540,12 +536,16 @@ fn PostUrlecodedChunked() {
         (*tx).state_request_start().unwrap();
 
         // Request line data.
-        (*tx).req_set_line("POST / HTTP/1.1").unwrap();
+        req_set_line(&mut *tx, "POST / HTTP/1.1").unwrap();
         (*tx).state_request_line().unwrap();
 
         // Configure headers to trigger the URLENCODED parser.
-        (*tx).req_set_header("Content-Type", "application/x-www-form-urlencoded");
-        (*tx).req_set_header("Transfer-Encoding", "chunked");
+        req_set_header(
+            &mut *tx,
+            "Content-Type",
+            "application/x-www-form-urlencoded",
+        );
+        req_set_header(&mut *tx, "Transfer-Encoding", "chunked");
 
         // Request headers complete.
         (*tx).state_request_headers().unwrap();
@@ -559,14 +559,8 @@ fn PostUrlecodedChunked() {
         (*tx).state_request_complete().unwrap();
 
         // Check the parameters.
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
-            .unwrap()
-            .value
-            .eq("1"));
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
-            .unwrap()
-            .value
-            .eq("2"));
+        assert_contains_param!(&*(*tx).request_params, "p", "1");
+        assert_contains_param!(&*(*tx).request_params, "q", "2");
     }
 }
 
@@ -582,7 +576,7 @@ fn RequestLineParsing1() {
         (*tx).state_request_start().unwrap();
 
         // Request line data
-        (*tx).req_set_line("GET /?p=1&q=2 HTTP/1.0").unwrap();
+        req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0").unwrap();
 
         // Request line complete
         (*tx).state_request_line().unwrap();
@@ -595,14 +589,8 @@ fn RequestLineParsing1() {
         assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
 
         // Check parameters
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "p")
-            .unwrap()
-            .value
-            .eq("1"));
-        assert!(htp_tx_req_get_param(&*(*tx).request_params, "q")
-            .unwrap()
-            .value
-            .eq("2"));
+        assert_contains_param!(&*(*tx).request_params, "p", "1");
+        assert_contains_param!(&*(*tx).request_params, "q", "2");
     }
 }
 
@@ -616,7 +604,7 @@ fn RequestLineParsing2() {
         // Feed data to the parser.
 
         (*tx).state_request_start().unwrap();
-        (*tx).req_set_line("GET /").unwrap();
+        req_set_line(&mut *tx, "GET /").unwrap();
         (*tx).state_request_line().unwrap();
 
         // Check the results now.
@@ -639,7 +627,7 @@ fn RequestLineParsing3() {
         // Feed data to the parser.
 
         (*tx).state_request_start().unwrap();
-        (*tx).req_set_line("GET / HTTP  / 01.1").unwrap();
+        req_set_line(&mut *tx, "GET / HTTP  / 01.1").unwrap();
         (*tx).state_request_line().unwrap();
 
         // Check the results now.
@@ -661,7 +649,7 @@ fn RequestLineParsing4() {
         // Feed data to the parser.
 
         (*tx).state_request_start().unwrap();
-        (*tx).req_set_line("GET / HTTP  / 01.10").unwrap();
+        req_set_line(&mut *tx, "GET / HTTP  / 01.10").unwrap();
         (*tx).state_request_line().unwrap();
 
         // Check the results now.
@@ -682,12 +670,12 @@ fn ParsedUriSupplied() {
         // Feed data to the parser.
 
         (*tx).state_request_start().unwrap();
-        (*tx).req_set_line("GET /?p=1&q=2 HTTP/1.0").unwrap();
+        req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0").unwrap();
 
         //htp_uri_t *u = htp_uri_alloc();
         let u = htp_uri_alloc();
         (*u).path = Some(bstr_t::from("/123"));
-        (*tx).req_set_parsed_uri(u);
+        (*tx).parsed_uri = u;
 
         (*tx).state_request_line().unwrap();
 
@@ -724,7 +712,7 @@ fn TestRepeatCallbacks() {
         assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
 
         // Request line data
-        (*tx).req_set_line("GET / HTTP/1.0").unwrap();
+        req_set_line(&mut *tx, "GET / HTTP/1.0").unwrap();
 
         // Request line complete
         (*tx).state_request_line().unwrap();
@@ -752,7 +740,7 @@ fn TestRepeatCallbacks() {
         assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
 
         // Response line data
-        (*tx).res_set_status_line("HTTP/1.1 200 OK\r\n").unwrap();
+        res_set_status_line(&mut *tx, "HTTP/1.1 200 OK\r\n").unwrap();
 
         // Response line complete
         (*tx).state_response_line().unwrap();
@@ -796,7 +784,7 @@ fn DeleteTransactionBeforeComplete() {
         (*tx).state_request_start().unwrap();
 
         // Request line data
-        (*tx).req_set_line("GET / HTTP/1.0").unwrap();
+        req_set_line(&mut *tx, "GET / HTTP/1.0").unwrap();
 
         assert_err!((*tx).destroy(), Status::ERROR);
 
@@ -815,7 +803,7 @@ fn ResponseLineIncomplete() {
 
         assert!(!tx.is_null());
         (*tx).state_response_start().unwrap();
-        (*tx).res_set_status_line("HTTP/1.1").unwrap();
+        res_set_status_line(&mut *tx, "HTTP/1.1").unwrap();
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.is_none());
@@ -835,7 +823,7 @@ fn ResponseLineIncomplete1() {
 
         assert!(!tx.is_null());
         (*tx).state_response_start().unwrap();
-        (*tx).res_set_status_line("HTTP/1.1 200").unwrap();
+        res_set_status_line(&mut *tx, "HTTP/1.1 200").unwrap();
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.as_ref().unwrap().eq("200"));

@@ -154,3 +154,56 @@ macro_rules! assert_response_header_flag_contains {
         assert!((*header).flags.contains($val), $($arg)*);
     }};
 }
+
+/// Assert the table of htp_param_t contains a param with the given name value pair
+///
+/// Example usage:
+/// assert_contains_param!(params, "name", "value");
+#[macro_export]
+macro_rules! assert_contains_param {
+    ($params:expr, $name:expr, $val:expr) => {{
+        let param = &(*$params)
+            .get_nocase($name)
+            .expect(
+                format!(
+                    "expected param '{}' to exist at {}:{}:{}",
+                    $name,
+                    file!(),
+                    line!(),
+                    column!()
+                )
+                .as_ref(),
+            )
+            .1;
+        assert!(param.value.eq($val));
+    }};
+}
+
+/// Assert the table of htp_param_t contains a param from the given source with a matching name value pair
+///
+/// Example usage:
+/// assert_contains_param_source!(params, source, "name", "value");
+#[macro_export]
+macro_rules! assert_contains_param_source {
+    ($params:expr, $source:expr, $name:expr, $val:expr) => {{
+        let param = &(*$params)
+            .elements
+            .iter()
+            .find(|x| {
+                (*x).1.source == $source && (*x).0.cmp_nocase($name) == std::cmp::Ordering::Equal
+            })
+            .expect(
+                format!(
+                    "expected param '{}' from given source {} to exist at {}:{}:{}",
+                    $name,
+                    $source as u32,
+                    file!(),
+                    line!(),
+                    column!()
+                )
+                .as_ref(),
+            )
+            .1;
+        assert!(param.value.eq($val));
+    }};
+}

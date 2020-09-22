@@ -570,19 +570,6 @@ impl htp_tx_t {
         0
     }
 
-    /// Set one request header. This function should be invoked once for
-    /// each available header, and in the order in which headers were
-    /// seen in the request.
-    ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
-    #[allow(dead_code)]
-    pub unsafe fn req_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
-        self.request_headers.add(
-            name.as_ref().into(),
-            htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
-        )
-    }
-
     unsafe fn process_request_headers(&mut self) -> Result<()> {
         // Determine if we have a request body, and how it is packaged.
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
@@ -804,45 +791,6 @@ impl htp_tx_t {
             );
             e
         })
-    }
-
-    /// Set request line. When used, this function should always be called first,
-    /// with more specific functions following. Must not contain line terminators.
-    ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
-    #[allow(dead_code)]
-    pub unsafe fn req_set_line<S: AsRef<[u8]>>(&mut self, line: S) -> Result<()> {
-        self.request_line = Some(bstr::bstr_t::from(line.as_ref()));
-        (*self.connp).parse_request_line()
-    }
-
-    /// Set parsed request URI. You don't need to use this function if you are already providing
-    /// the request line or request URI. But if your container already has this data available,
-    /// feeding it to LibHTP will minimize any potential data differences. This function assumes
-    /// management of the data provided in parsed_uri. This function will not change htp_tx_t::parsed_uri_raw
-    /// (which may have data in it from the parsing of the request URI).
-    ///
-    /// parsed_uri: URI pointer. Must not be NULL.
-    #[allow(dead_code)]
-    pub unsafe fn req_set_parsed_uri(&mut self, parsed_uri: *mut htp_util::htp_uri_t) {
-        if parsed_uri.is_null() {
-            return;
-        }
-        if !self.parsed_uri.is_null() {
-            htp_util::htp_uri_free(self.parsed_uri);
-        }
-        self.parsed_uri = parsed_uri;
-    }
-
-    /// Set response line. Use this function is you have a single buffer containing
-    /// the entire line. If you have individual request line pieces, use the other
-    /// available functions.
-    ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
-    #[allow(dead_code)]
-    pub unsafe fn res_set_status_line<S: AsRef<[u8]>>(&mut self, line: S) -> Result<()> {
-        self.response_line = Some(bstr::bstr_t::from(line.as_ref()));
-        (*self.connp).parse_response_line()
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
@@ -1564,36 +1512,4 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
         return Status::ERROR;
     }
     Status::OK
-}
-
-/// Returns the first parameter inside the given table that matches the given name, using case-insensitive matching.
-///
-/// Returns htp_param_t instance, or None if parameter not found.
-#[allow(dead_code)]
-pub fn htp_tx_req_get_param<'a, S: AsRef<[u8]>>(
-    params: &'a htp_table::htp_table_t<htp_param_t>,
-    name: S,
-) -> Option<&'a htp_param_t> {
-    if let Some((_, param)) = params.get_nocase(name) {
-        return Some(param);
-    }
-    None
-}
-
-/// Returns the first parameter inside the given table from the given source that matches the given name,
-/// using case-insensitive matching.
-///
-/// Returns htp_param_t instance, or None if parameter not found.
-#[allow(dead_code)]
-pub fn htp_tx_req_get_param_ex<'a, S: AsRef<[u8]>>(
-    params: &'a htp_table::htp_table_t<htp_param_t>,
-    source: htp_data_source_t,
-    name: S,
-) -> Option<&htp_param_t> {
-    if let Some((_, param)) = params.elements.iter().find(|x| {
-        (*x).1.source as u32 == source as u32 && (*x).0.cmp_nocase(name.as_ref()) == Ordering::Equal
-    }) {
-        return Some(&param);
-    }
-    None
 }
