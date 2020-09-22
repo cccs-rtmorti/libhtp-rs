@@ -278,7 +278,7 @@ fn Get() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
 
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert!((*(*tx).request_uri).eq("/?p=%20"));
         assert!(!(*tx).parsed_uri.is_null());
         assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=%20"));
@@ -301,8 +301,12 @@ fn GetEncodedRelPath() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
 
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
-        assert!((*(*tx).request_hostname).eq("www.example.com"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
+        assert!((*tx)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
         assert!(!(*tx).parsed_uri.is_null());
         assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/images.gif"));
     }
@@ -508,23 +512,35 @@ fn HeaderHostParsing() {
 
         let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
-        assert!(!(*tx1).request_hostname.is_null());
-        assert!((*(*tx1).request_hostname).eq("www.example.com"));
+        assert!((*tx1)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
 
         let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
-        assert!(!(*tx2).request_hostname.is_null());
-        assert!((*(*tx2).request_hostname).eq("www.example.com."));
+        assert!((*tx2)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com."));
 
         let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
-        assert!(!(*tx3).request_hostname.is_null());
-        assert!((*(*tx3).request_hostname).eq("www.example.com"));
+        assert!((*tx3)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
 
         let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
-        assert!(!(*tx4).request_hostname.is_null());
-        assert!((*(*tx4).request_hostname).eq("www.example.com"));
+        assert!((*tx4)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
     }
 }
 
@@ -556,7 +572,7 @@ fn FailedConnectRequest() {
 
         assert!((*tx).is_complete());
 
-        assert!((*(*tx).request_method).eq("CONNECT"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("CONNECT"));
 
         assert_eq!(405, (*tx).response_status_number);
     }
@@ -617,7 +633,7 @@ fn SuccessfulConnectRequest() {
         //       HTP_DATA_OTHER, which is why the check below fails.
         //assert!((*tx).is_complete());
 
-        assert!((*(*tx).request_method).eq("CONNECT"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("CONNECT"));
 
         assert_eq!(200, (*tx).response_status_number);
     }
@@ -699,7 +715,7 @@ fn UrlEncoded() {
 
         assert!((*tx).is_complete());
 
-        assert!((*(*tx).request_method).eq("POST"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
 
         assert!(
@@ -742,31 +758,39 @@ fn AmbiguousHost() {
         assert!(!tx2.is_null());
         assert!((*tx2).is_complete());
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
-        assert!(!(*tx2).request_hostname.is_null());
-        assert!((*(*tx2).request_hostname).eq("example.com"));
+        assert!((*tx2).request_hostname.as_ref().unwrap().eq("example.com"));
 
         let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
         assert!((*tx3).is_complete());
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
-        assert!(!(*tx3).request_hostname.is_null());
-        assert!((*(*tx3).request_hostname).eq("www.example.com"));
+        assert!((*tx3)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
         assert_eq!(Some(8001), (*tx3).request_port_number);
 
         let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
         assert!((*tx4).is_complete());
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
-        assert!(!(*tx4).request_hostname.is_null());
-        assert!((*(*tx4).request_hostname).eq("www.example.com"));
+        assert!((*tx4)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
         assert_eq!(Some(8002), (*tx4).request_port_number);
 
         let tx5: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(4);
         assert!(!tx5.is_null());
         assert!((*tx5).is_complete());
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
-        assert!(!(*tx5).request_hostname.is_null());
-        assert!((*(*tx5).request_hostname).eq("www.example.com"));
+        assert!((*tx5)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
         assert_eq!(Some(80), (*tx5).request_port_number);
     }
 }
@@ -1112,8 +1136,7 @@ fn GetIPv6() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
 
         assert!(!(*tx).request_uri.is_null());
         assert!((*(*tx).request_uri).eq("http://[::1]:8080/?p=%20"));
@@ -1226,7 +1249,7 @@ fn InvalidRequest1() {
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID_C_L));
 
-        assert!(!(*tx).request_hostname.is_null());
+        assert!((*tx).request_hostname.is_some());
     }
 }
 
@@ -1244,7 +1267,7 @@ fn InvalidRequest2() {
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
-        assert!(!(*tx).request_hostname.is_null());
+        assert!((*tx).request_hostname.is_some());
     }
 }
 
@@ -1262,7 +1285,7 @@ fn InvalidRequest3() {
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID_T_E));
 
-        assert!(!(*tx).request_hostname.is_null());
+        assert!((*tx).request_hostname.is_some());
     }
 }
 
@@ -1290,11 +1313,8 @@ fn AuthBasic() {
 
         assert_eq!(HTP_AUTH_BASIC, (*tx).request_auth_type);
 
-        assert!(!(*tx).request_auth_username.is_null());
-        assert!((*(*tx).request_auth_username).eq("ivanr"));
-
-        assert!(!(*tx).request_auth_password.is_null());
-        assert!((*(*tx).request_auth_password).eq("secret"));
+        assert!((*tx).request_auth_username.as_ref().unwrap().eq("ivanr"));
+        assert!((*tx).request_auth_password.as_ref().unwrap().eq("secret"));
     }
 }
 
@@ -1311,10 +1331,9 @@ fn AuthDigest() {
 
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
-        assert!(!(*tx).request_auth_username.is_null());
-        assert!((*(*tx).request_auth_username).eq("ivanr"));
+        assert!((*tx).request_auth_username.as_ref().unwrap().eq("ivanr"));
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
     }
 }
 
@@ -1329,8 +1348,7 @@ fn Unknown_MethodOnly() {
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("HELLO"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("HELLO"));
 
         assert!((*tx).request_uri.is_null());
 
@@ -1366,9 +1384,9 @@ fn AuthBasicInvalid() {
 
         assert_eq!(HTP_AUTH_BASIC, (*tx).request_auth_type);
 
-        assert!((*tx).request_auth_username.is_null());
+        assert!((*tx).request_auth_username.is_none());
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
 
         assert!((*tx).flags.contains(Flags::HTP_AUTH_INVALID));
     }
@@ -1387,9 +1405,9 @@ fn AuthDigestUnquotedUsername() {
 
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
-        assert!((*tx).request_auth_username.is_null());
+        assert!((*tx).request_auth_username.is_none());
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
 
         assert!((*tx).flags.contains(Flags::HTP_AUTH_INVALID));
     }
@@ -1408,9 +1426,9 @@ fn AuthDigestInvalidUsername1() {
 
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
-        assert!((*tx).request_auth_username.is_null());
+        assert!((*tx).request_auth_username.is_none());
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
 
         assert!((*tx).flags.contains(Flags::HTP_AUTH_INVALID));
     }
@@ -1429,9 +1447,9 @@ fn AuthUnrecognized() {
 
         assert_eq!(HTP_AUTH_UNRECOGNIZED, (*tx).request_auth_type);
 
-        assert!((*tx).request_auth_username.is_null());
+        assert!((*tx).request_auth_username.is_none());
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
     }
 }
 
@@ -1507,8 +1525,7 @@ fn GetIPv6Invalid() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
 
         assert!(!(*tx).request_uri.is_null());
         assert!((*(*tx).request_uri).eq("http://[::1:8080/?p=%20"));
@@ -1533,8 +1550,7 @@ fn InvalidPath() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
 
         assert!(!(*tx).request_uri.is_null());
         assert!((*(*tx).request_uri).eq("invalid/path?p=%20"));
@@ -2182,8 +2198,11 @@ fn Put() {
         assert!(file.filename.is_none());
         assert!(file.tmpfile.is_none());
 
-        assert!(!(*tx).request_hostname.is_null());
-        assert!((*(*tx).request_hostname).eq("www.example.com"));
+        assert!((*tx)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
     }
 }
 
@@ -2200,9 +2219,9 @@ fn AuthDigestInvalidUsername2() {
 
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
-        assert!((*tx).request_auth_username.is_null());
+        assert!((*tx).request_auth_username.is_none());
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
 
         assert!((*tx).flags.contains(Flags::HTP_AUTH_INVALID));
     }
@@ -2279,8 +2298,11 @@ fn IncorrectHostAmbiguousWarning() {
 
         assert_eq!(443, (*(*tx).parsed_uri_raw).port_number.unwrap());
 
-        assert!(!(*tx).request_hostname.is_null());
-        assert!((*(*tx).request_hostname).eq("www.example.com"));
+        assert!((*tx)
+            .request_hostname
+            .as_ref()
+            .unwrap()
+            .eq("www.example.com"));
 
         assert!(!(*tx).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
     }
@@ -2297,7 +2319,7 @@ fn GetWhitespace() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert!((*(*tx).request_method).eq(" GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq(" GET"));
 
         assert!((*(*tx).request_uri).eq("/?p=%20"));
 
@@ -2338,13 +2360,13 @@ fn RequestInvalid() {
 
         let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("POST"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(HTP_RESPONSE_NOT_STARTED, (*tx).response_progress);
     }
@@ -2361,8 +2383,7 @@ fn Http_0_9_MethodOnly() {
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
 
         assert!((*(*tx).request_uri).eq("/"));
 
@@ -2455,12 +2476,12 @@ fn RequestsCut() {
         assert_eq!(2, (*t.connp).conn.tx_size());
         let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
     }
 }
@@ -2474,14 +2495,14 @@ fn ResponsesCut() {
         assert_eq!(2, (*t.connp).conn.tx_size());
         let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
@@ -2501,10 +2522,13 @@ fn AuthDigest_EscapedQuote() {
 
         assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
 
-        assert!(!(*tx).request_auth_username.is_null());
-        assert!((*(*tx).request_auth_username).eq("ivan\"r\""));
+        assert!((*tx)
+            .request_auth_username
+            .as_ref()
+            .unwrap()
+            .eq("ivan\"r\""));
 
-        assert!((*tx).request_auth_password.is_null());
+        assert!((*tx).request_auth_password.is_none());
     }
 }
 

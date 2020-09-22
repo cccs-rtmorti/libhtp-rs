@@ -716,18 +716,10 @@ impl htp_connection_parser::htp_connp_t {
         let s = std::slice::from_raw_parts(data as *const u8, len);
         let s = htp_util::htp_chomp(&s);
         len = s.len();
-        self.in_tx_mut_ok()?.request_line =
-            bstr::bstr_dup_mem(data as *const core::ffi::c_void, len);
-        if self.in_tx_mut_ok()?.request_line.is_null() {
-            return Err(Status::ERROR);
-        }
-        if self.parse_request_line().is_err() {
-            return Err(Status::ERROR);
-        }
+        self.in_tx_mut_ok()?.request_line = Some(bstr::bstr_t::from(s));
+        self.parse_request_line()?;
         // Finalize request line parsing.
-        if self.state_request_line().is_err() {
-            return Err(Status::ERROR);
-        }
+        self.state_request_line()?;
         self.req_clear_buffer();
         Ok(())
     }

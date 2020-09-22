@@ -128,11 +128,10 @@ pub unsafe extern "C" fn htp_tx_set_user_data(
 pub unsafe extern "C" fn htp_tx_request_line(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_line
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_line.as_ref())
+        .map(|line| line as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request method.
@@ -144,11 +143,10 @@ pub unsafe extern "C" fn htp_tx_request_line(
 pub unsafe extern "C" fn htp_tx_request_method(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_method
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_method.as_ref())
+        .map(|method| method as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the transaction's request method number.
@@ -192,11 +190,10 @@ pub unsafe extern "C" fn htp_tx_request_uri(
 pub unsafe extern "C" fn htp_tx_request_protocol(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_protocol
-    } else {
-        std::ptr::null_mut()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_protocol.as_ref())
+        .map(|protocol| protocol as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request protocol number.
@@ -407,11 +404,10 @@ pub unsafe extern "C" fn htp_tx_request_auth_type(
 pub unsafe extern "C" fn htp_tx_request_hostname(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_hostname
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_hostname.as_ref())
+        .map(|hostname| hostname as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the transaction's request port number.

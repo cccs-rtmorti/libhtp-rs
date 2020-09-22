@@ -235,9 +235,9 @@ pub struct htp_tx_t {
     /// Contains a count of how many empty lines were skipped before the request line.
     pub request_ignored_lines: u32,
     /// The first line of this request.
-    pub request_line: *mut bstr::bstr_t,
+    pub request_line: Option<bstr::bstr_t>,
     /// Request method.
-    pub request_method: *mut bstr::bstr_t,
+    pub request_method: Option<bstr::bstr_t>,
     /// Request method, as number. Available only if we were able to recognize the request method.
     pub request_method_number: htp_request::htp_method_t,
     /// Request URI, raw, as given to us on the request line. This field can take different forms,
@@ -247,7 +247,7 @@ pub struct htp_tx_t {
     /// an extreme case of HTTP/0.9, but passes in practice.
     pub request_uri: *mut bstr::bstr_t,
     /// Request protocol, as text. Can be NULL if no protocol was specified.
-    pub request_protocol: *mut bstr::bstr_t,
+    pub request_protocol: Option<bstr::bstr_t>,
     /// Protocol version as a number. Multiply the high version number by 100, then add the low
     /// version number. You should prefer to work the pre-defined Protocol constants.
     pub request_protocol_number: Protocol,
@@ -336,14 +336,14 @@ pub struct htp_tx_t {
     /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
     /// Authentication username.
-    pub request_auth_username: *mut bstr::bstr_t,
+    pub request_auth_username: Option<bstr::bstr_t>,
     /// Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC.
-    pub request_auth_password: *mut bstr::bstr_t,
+    pub request_auth_password: Option<bstr::bstr_t>,
     /// Request hostname. Per the RFC, the hostname will be taken from the Host header
     /// when available. If the host information is also available in the URI, it is used
     /// instead of whatever might be in the Host header. Can be NULL. This field does
     /// not contain port information.
-    pub request_hostname: *mut bstr::bstr_t,
+    pub request_hostname: Option<bstr::bstr_t>,
     /// Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
     /// None by default.
     pub request_port_number: Option<u16>,
@@ -454,11 +454,11 @@ impl htp_tx_t {
             is_config_shared: 1,
             user_data: std::ptr::null_mut(),
             request_ignored_lines: 0,
-            request_line: std::ptr::null_mut(),
-            request_method: std::ptr::null_mut(),
+            request_line: None,
+            request_method: None,
             request_method_number: htp_request::htp_method_t::HTP_M_UNKNOWN,
             request_uri: std::ptr::null_mut(),
-            request_protocol: std::ptr::null_mut(),
+            request_protocol: None,
             request_protocol_number: Protocol::UNKNOWN,
             is_protocol_0_9: 0,
             parsed_uri: std::ptr::null_mut(),
@@ -480,9 +480,9 @@ impl htp_tx_t {
             request_params: htp_table::htp_table_alloc(32),
             request_cookies: std::ptr::null_mut(),
             request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
-            request_auth_username: std::ptr::null_mut(),
-            request_auth_password: std::ptr::null_mut(),
-            request_hostname: std::ptr::null_mut(),
+            request_auth_username: None,
+            request_auth_password: None,
+            request_hostname: None,
             request_port_number: None,
             response_ignored_lines: 0,
             response_line: None,
@@ -674,10 +674,7 @@ impl htp_tx_t {
         // Determine hostname.
         // Use the hostname from the URI, when available.
         if let Some(hostname) = (*self.parsed_uri).hostname.as_ref() {
-            self.request_hostname = bstr::bstr_dup(hostname);
-            if self.request_hostname.is_null() {
-                return Err(Status::ERROR);
-            }
+            self.request_hostname = Some(bstr::bstr_t::from(hostname.as_slice()));
         }
         self.request_port_number = (*self.parsed_uri).port_number;
         // Examine the Host header.
@@ -691,11 +688,12 @@ impl htp_tx_t {
                 }
                 // The host information in the headers is valid.
                 // Is there host information in the URI?
-                if self.request_hostname.is_null() {
+                if self.request_hostname.is_none() {
                     // There is no host information in the URI. Place the
                     // hostname from the headers into the parsed_uri structure.
-                    self.request_hostname = bstr::bstr_dup_str(hostname);
-                    bstr::bstr_to_lowercase(self.request_hostname);
+                    let mut hostname = bstr::bstr_t::from(hostname);
+                    hostname.make_ascii_lowercase();
+                    self.request_hostname = Some(hostname);
                     if let Some((_, port)) = port_nmb {
                         self.request_port_number = port;
                     }
@@ -703,9 +701,12 @@ impl htp_tx_t {
                     // The host information appears in the URI and in the headers. The
                     // HTTP RFC states that we should ignore the header copy.
                     // Check for different hostnames.
-                    if (*self.request_hostname).cmp_nocase(hostname) != Ordering::Equal {
-                        self.flags |= Flags::HTP_HOST_AMBIGUOUS
+                    if let Some(host) = &self.request_hostname {
+                        if host.cmp_nocase(hostname) != Ordering::Equal {
+                            self.flags |= Flags::HTP_HOST_AMBIGUOUS
+                        }
                     }
+
                     if let Some((_, port)) = port_nmb {
                         // Check for different ports.
                         if self.request_port_number.is_some() && self.request_port_number != port {
@@ -713,7 +714,7 @@ impl htp_tx_t {
                         }
                     }
                 }
-            } else if !self.request_hostname.is_null() {
+            } else if self.request_hostname.is_some() {
                 // Invalid host information in the headers.
                 // Raise the flag, even though the host information in the headers is invalid.
                 self.flags |= Flags::HTP_HOST_AMBIGUOUS
@@ -811,10 +812,7 @@ impl htp_tx_t {
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn req_set_line<S: AsRef<[u8]>>(&mut self, line: S) -> Result<()> {
-        self.request_line = bstr::bstr_dup_str(line);
-        if self.request_line.is_null() {
-            return Err(Status::ERROR);
-        }
+        self.request_line = Some(bstr::bstr_t::from(line.as_ref()));
         (*self.connp).parse_request_line()
     }
 
@@ -1426,7 +1424,7 @@ impl htp_tx_t {
         // If at this point we have no method and no uri and our status
         // is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
         // or a overly long request
-        if self.request_method.is_null()
+        if self.request_method.is_none()
             && self.request_uri.is_null()
             && (*self.connp).in_state == State::LINE
         {
@@ -1453,16 +1451,10 @@ impl Drop for htp_tx_t {
     fn drop(&mut self) {
         unsafe {
             // Request fields.
-            bstr::bstr_free(self.request_line);
-            bstr::bstr_free(self.request_method);
             bstr::bstr_free(self.request_uri);
-            bstr::bstr_free(self.request_protocol);
             bstr::bstr_free(self.request_content_type);
-            bstr::bstr_free(self.request_hostname);
             htp_util::htp_uri_free(self.parsed_uri_raw);
             htp_util::htp_uri_free(self.parsed_uri);
-            bstr::bstr_free(self.request_auth_username);
-            bstr::bstr_free(self.request_auth_password);
 
             // Request parameters.
             htp_table::htp_table_free(self.request_params);

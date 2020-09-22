@@ -141,10 +141,8 @@ pub fn htp_parse_authorization_basic(
     };
 
     let (username, password) = decoded.split_at(i);
-    unsafe {
-        in_tx.request_auth_username = bstr::bstr_dup_str(username);
-        in_tx.request_auth_password = bstr::bstr_dup_str(&password[1..]);
-    }
+    in_tx.request_auth_username = Some(bstr::bstr_t::from(username));
+    in_tx.request_auth_password = Some(bstr::bstr_t::from(&password[1..]));
 
     Ok(())
 }
@@ -168,19 +166,12 @@ pub fn htp_parse_authorization(in_tx: &mut htp_transaction::htp_tx_t) -> Result<
         in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
         if let Ok((_, auth_username)) = htp_parse_authorization_digest(auth_header.value.as_slice())
         {
-            if in_tx.request_auth_username.is_null() {
-                unsafe {
-                    in_tx.request_auth_username = bstr::bstr_dup_str(auth_username);
-                }
-                if in_tx.request_auth_username.is_null() {
-                    return Err(Status::ERROR);
-                }
-            } else {
-                unsafe {
-                    (*in_tx.request_auth_username).clear();
-                    (*in_tx.request_auth_username).add(auth_username);
-                }
+            if let Some(username) = &mut in_tx.request_auth_username {
+                username.clear();
+                username.add(auth_username);
                 return Ok(());
+            } else {
+                in_tx.request_auth_username = Some(bstr::bstr_t::from(auth_username));
             }
         }
         return Err(Status::DECLINED);

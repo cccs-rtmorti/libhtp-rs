@@ -295,12 +295,10 @@ fn GetTest() {
         assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
 
         // Check request line data
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert!(!(*tx).request_uri.is_null());
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
-        assert!(!(*tx).request_protocol.is_null());
-        assert!((*(*tx).request_protocol).eq("HTTP/1.1"));
+        assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP/1.1"));
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/"));
@@ -589,9 +587,9 @@ fn RequestLineParsing1() {
         // Request line complete
         (*tx).state_request_line().unwrap();
 
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
-        assert!((*(*tx).request_protocol).eq("HTTP/1.0"));
+        assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
@@ -623,10 +621,10 @@ fn RequestLineParsing2() {
 
         // Check the results now.
 
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(1, (*tx).is_protocol_0_9);
         assert_eq!(Protocol::V0_9, (*tx).request_protocol_number);
-        assert!((*tx).request_protocol.is_null());
+        assert!((*tx).request_protocol.is_none());
         assert!((*(*tx).request_uri).eq("/"));
     }
 }
@@ -646,10 +644,9 @@ fn RequestLineParsing3() {
 
         // Check the results now.
 
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(Protocol::V1_1, (*tx).request_protocol_number);
-        assert!(!(*tx).request_protocol.is_null());
-        assert!((*(*tx).request_protocol).eq("HTTP  / 01.1"));
+        assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP  / 01.1"));
         assert!((*(*tx).request_uri).eq("/"));
     }
 }
@@ -669,10 +666,9 @@ fn RequestLineParsing4() {
 
         // Check the results now.
 
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
-        assert!(!(*tx).request_protocol.is_null());
-        assert!((*(*tx).request_protocol).eq("HTTP  / 01.10"));
+        assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP  / 01.10"));
         assert!((*(*tx).request_uri).eq("/"));
     }
 }
@@ -697,8 +693,7 @@ fn ParsedUriSupplied() {
 
         // Check the results now.
 
-        assert!((*(*tx).request_method).eq("GET"));
-        assert!(!(*tx).request_protocol.is_null());
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(Protocol::V1_0, (*tx).request_protocol_number);
         assert!(!(*tx).request_uri.is_null());
         assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
@@ -736,12 +731,10 @@ fn TestRepeatCallbacks() {
         assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
 
         // Check request line data
-        assert!(!(*tx).request_method.is_null());
-        assert!((*(*tx).request_method).eq("GET"));
+        assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert!(!(*tx).request_uri.is_null());
         assert!((*(*tx).request_uri).eq("/"));
-        assert!(!(*tx).request_protocol.is_null());
-        assert!((*(*tx).request_protocol).eq("HTTP/1.0"));
+        assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP/1.0"));
 
         assert!(!(*tx).parsed_uri.is_null());
         assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/"));

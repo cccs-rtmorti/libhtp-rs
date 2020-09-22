@@ -201,7 +201,12 @@ impl htp_connection_parser::htp_connp_t {
 
     pub unsafe fn parse_request_line_generic_ex(&mut self, nul_terminates: i32) -> Result<()> {
         let mut mstart: bool = false;
-        let mut data = (*self.in_tx_mut_ok()?.request_line).as_ref();
+        let data = if let Some(data) = self.in_tx_mut_ok()?.request_line.clone() {
+            data
+        } else {
+            return Err(Status::ERROR);
+        };
+        let mut data = data.as_slice();
         if nul_terminates != 0 {
             if let Ok((_, before_null)) = htp_util::take_until_null(data) {
                 data = before_null
@@ -242,16 +247,15 @@ impl htp_connection_parser::htp_connp_t {
 
             if mstart {
                 self.in_tx_mut_ok()?.request_method =
-                    bstr::bstr_dup_str([&ls[..], &method[..]].concat());
+                    Some(bstr::bstr_t::from([&ls[..], &method[..]].concat()));
             } else {
-                self.in_tx_mut_ok()?.request_method = bstr::bstr_dup_str(method);
+                self.in_tx_mut_ok()?.request_method = Some(bstr::bstr_t::from(method));
             }
 
-            if self.in_tx_mut_ok()?.request_method.is_null() {
-                return Err(Status::ERROR);
+            if let Some(request_method) = &self.in_tx_mut_ok()?.request_method {
+                self.in_tx_mut_ok()?.request_method_number =
+                    htp_util::htp_convert_bstr_to_method(&request_method);
             }
-            self.in_tx_mut_ok()?.request_method_number =
-                htp_util::htp_convert_bstr_to_method(&*self.in_tx_mut_ok()?.request_method);
 
             // Too much performance overhead for fuzzing
             if ws.iter().any(|&c| c != 0x20) {
@@ -326,14 +330,9 @@ impl htp_connection_parser::htp_connp_t {
                     return Ok(());
                 }
                 // The protocol information continues until the end of the line.
-                self.in_tx_mut_ok()?.request_protocol = bstr::bstr_dup_str(protocol);
-                if self.in_tx_mut_ok()?.request_protocol.is_null() {
-                    return Err(Status::ERROR);
-                }
-                self.in_tx_mut_ok()?.request_protocol_number = htp_parsers::htp_parse_protocol(
-                    &mut *self.in_tx_mut_ok()?.request_protocol,
-                    &mut *self,
-                );
+                self.in_tx_mut_ok()?.request_protocol = Some(bstr::bstr_t::from(protocol));
+                self.in_tx_mut_ok()?.request_protocol_number =
+                    htp_parsers::htp_parse_protocol(protocol, &mut *self);
                 if self.in_tx_mut_ok()?.request_method_number
                     == htp_request::htp_method_t::HTP_M_UNKNOWN
                     && self.in_tx_mut_ok()?.request_protocol_number == Protocol::INVALID
