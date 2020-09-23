@@ -372,33 +372,29 @@ impl htp_connp_t {
 
     /// Handle the current state to be processed.
     pub fn handle_out_state(&mut self) -> Result<()> {
-        unsafe {
-            match self.out_state {
-                State::NONE => Err(Status::ERROR),
-                State::IDLE => htp_response::htp_connp_RES_IDLE(self),
-                State::LINE => htp_response::htp_connp_RES_LINE(self),
-                State::HEADERS => htp_response::htp_connp_RES_HEADERS(self),
-                State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self),
-                State::BODY_CHUNKED_DATA => htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self),
-                State::BODY_CHUNKED_LENGTH => htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self),
-                State::BODY_CHUNKED_DATA_END => {
-                    htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self)
-                }
-                State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self),
-                State::BODY_IDENTITY_STREAM_CLOSE => {
-                    htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self)
-                }
-                State::BODY_IDENTITY_CL_KNOWN => {
-                    htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self)
-                }
-                // These are only used by in_state
-                State::PROTOCOL
-                | State::CONNECT_CHECK
-                | State::CONNECT_PROBE_DATA
-                | State::CONNECT_WAIT_RESPONSE
-                | State::BODY_IDENTITY
-                | State::IGNORE_DATA_AFTER_HTTP_0_9 => Err(Status::ERROR),
+        match self.out_state {
+            State::NONE => Err(Status::ERROR),
+            State::IDLE => htp_response::htp_connp_RES_IDLE(self),
+            State::LINE => htp_response::htp_connp_RES_LINE(self),
+            State::HEADERS => htp_response::htp_connp_RES_HEADERS(self),
+            State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self),
+            State::BODY_CHUNKED_DATA => htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self),
+            State::BODY_CHUNKED_LENGTH => htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self),
+            State::BODY_CHUNKED_DATA_END => htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self),
+            State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self),
+            State::BODY_IDENTITY_STREAM_CLOSE => {
+                htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self)
             }
+            State::BODY_IDENTITY_CL_KNOWN => {
+                htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self)
+            }
+            // These are only used by in_state
+            State::PROTOCOL
+            | State::CONNECT_CHECK
+            | State::CONNECT_PROBE_DATA
+            | State::CONNECT_WAIT_RESPONSE
+            | State::BODY_IDENTITY
+            | State::IGNORE_DATA_AFTER_HTTP_0_9 => Err(Status::ERROR),
         }
     }
 
