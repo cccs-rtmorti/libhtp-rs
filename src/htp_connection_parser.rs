@@ -6,11 +6,6 @@ use crate::{
 };
 use std::net::IpAddr;
 
-extern "C" {
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
     NONE,
