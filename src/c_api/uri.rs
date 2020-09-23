@@ -49,7 +49,6 @@ pub unsafe extern "C" fn htp_uri_hostname(uri: *const htp_uri_t) -> *const bstr_
 ///
 /// Returns the port for uri or NULL on error.
 #[no_mangle]
-#[no_mangle]
 pub unsafe extern "C" fn htp_uri_port(uri: *const htp_uri_t) -> *const bstr_t {
     uri.as_ref()
         .and_then(|uri| uri.port.as_ref())

@@ -302,12 +302,7 @@ impl htp_connection_parser::htp_connp_t {
                         protocol = protocol2;
                     }
                 }
-
-                self.in_tx_mut_ok()?.request_uri = bstr::bstr_dup_str(uri);
-                if self.in_tx_mut_ok()?.request_uri.is_null() {
-                    return Err(Status::ERROR);
-                }
-
+                self.in_tx_mut_ok()?.request_uri = Some(bstr::bstr_t::from(uri));
                 // Is there protocol information available?
                 if protocol.is_empty() {
                     // No, this looks like a HTTP/0.9 request.

@@ -245,7 +245,7 @@ pub struct htp_tx_t {
     /// string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
     /// URI elements. Can be NULL if the request line contains only a request method (which is
     /// an extreme case of HTTP/0.9, but passes in practice.
-    pub request_uri: *mut bstr::bstr_t,
+    pub request_uri: Option<bstr::bstr_t>,
     /// Request protocol, as text. Can be NULL if no protocol was specified.
     pub request_protocol: Option<bstr::bstr_t>,
     /// Protocol version as a number. Multiply the high version number by 100, then add the low
@@ -261,15 +261,15 @@ pub struct htp_tx_t {
     /// is added. In extreme cases when no URI is provided on the request line, all fields
     /// will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
     /// htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
-    pub parsed_uri: *mut htp_util::htp_uri_t,
+    pub parsed_uri: Option<htp_util::htp_uri_t>,
     /// This structure holds the individual components parsed out of the request URI, but
     /// without any modification. The purpose of this field is to allow you to look at the data as it
     /// was supplied on the request line. Fields can be NULL, depending on what data was supplied.
     /// The port_number field is always -1.
-    pub parsed_uri_raw: *mut htp_util::htp_uri_t,
-    //  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
+    pub parsed_uri_raw: Option<htp_util::htp_uri_t>,
+    ///  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
     pub complete_normalized_uri: Option<bstr::bstr_t>,
-    //  This structure holds the normalized uri, including path, query, and fragment
+    ///  This structure holds the normalized uri, including path, query, and fragment
     pub partial_normalized_uri: Option<bstr::bstr_t>,
     /// HTTP 1.1 RFC
     ///
@@ -457,12 +457,12 @@ impl htp_tx_t {
             request_line: None,
             request_method: None,
             request_method_number: htp_request::htp_method_t::HTP_M_UNKNOWN,
-            request_uri: std::ptr::null_mut(),
+            request_uri: None,
             request_protocol: None,
             request_protocol_number: Protocol::UNKNOWN,
             is_protocol_0_9: 0,
-            parsed_uri: std::ptr::null_mut(),
-            parsed_uri_raw: unsafe { htp_util::htp_uri_alloc() },
+            parsed_uri: None,
+            parsed_uri_raw: None,
             complete_normalized_uri: None,
             partial_normalized_uri: None,
             request_message_len: 0,
@@ -511,9 +511,7 @@ impl htp_tx_t {
             req_header_repetitions: 0,
             res_header_repetitions: 0,
         };
-        if tx.parsed_uri_raw.is_null() {
-            return Err(Status::ERROR);
-        }
+
         let tx_id = tx.index;
         unsafe { (*tx.connp).conn.push_tx(tx) };
         Ok(tx_id)
@@ -660,10 +658,13 @@ impl htp_tx_t {
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
-        if let Some(hostname) = (*self.parsed_uri).hostname.as_ref() {
+        if let Some(hostname) = self.get_parsed_uri_hostname() {
             self.request_hostname = Some(bstr::bstr_t::from(hostname.as_slice()));
         }
-        self.request_port_number = (*self.parsed_uri).port_number;
+
+        if let Some(port_number) = self.get_parsed_uri_port_number() {
+            self.request_port_number = Some(*port_number);
+        }
         // Examine the Host header.
         if let Some((_, header)) = self.request_headers.get_nocase_nozero_mut("host") {
             // Host information available in the headers.
@@ -1055,29 +1056,21 @@ impl htp_tx_t {
         // Determine how to process the request URI.
         if self.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
-            if self.request_uri.is_null() || self.parsed_uri_raw.is_null() {
-                return Err(Status::ERROR);
-            }
-            htp_util::htp_parse_uri_hostport(
-                &mut *self.request_uri,
-                &mut *self.parsed_uri_raw,
+            self.parsed_uri_raw = Some(htp_util::htp_parse_uri_hostport(
+                self.request_uri.as_ref().ok_or(Status::ERROR)?,
                 &mut self.flags,
-            )?;
+            ));
         } else {
-            htp_util::htp_parse_uri(self.request_uri, &mut self.parsed_uri_raw)?
+            self.parsed_uri_raw = Some(htp_util::htp_parse_uri(self.request_uri.as_ref()));
         }
         // Parse the request URI into htp_tx_t::parsed_uri_raw.
         // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
-        if self.parsed_uri.is_null() {
-            self.parsed_uri = htp_util::htp_uri_alloc();
-            if self.parsed_uri.is_null() {
-                return Err(Status::ERROR);
-            }
+        if self.parsed_uri.is_none() {
             // Keep the original URI components, but create a copy which we can normalize and use internally.
-            htp_util::htp_normalize_parsed_uri(self)
+            self.normalize_parsed_uri();
         }
         // Check parsed_uri hostname.
-        if let Some(hostname) = (*self.parsed_uri).hostname.as_ref() {
+        if let Some(hostname) = self.get_parsed_uri_hostname() {
             if !htp_util::htp_validate_hostname(hostname.as_slice()) {
                 self.flags |= Flags::HTP_HOSTU_INVALID
             }
@@ -1088,10 +1081,12 @@ impl htp_tx_t {
             .run_all(self)?;
         // Run hook REQUEST_LINE.
         (*(*self.connp).cfg).hook_request_line.run_all(self)?;
-        let (partial_normalized_uri, complete_normalized_uri) =
-            htp_util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, &*self.parsed_uri);
-        self.partial_normalized_uri = partial_normalized_uri;
-        self.complete_normalized_uri = complete_normalized_uri;
+        if let Some(parsed_uri) = &self.parsed_uri {
+            let (partial_normalized_uri, complete_normalized_uri) =
+                htp_util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, parsed_uri);
+            self.partial_normalized_uri = partial_normalized_uri;
+            self.complete_normalized_uri = complete_normalized_uri;
+        }
         // Move on to the next phase.
         (*self.connp).in_state = State::PROTOCOL;
         Ok(())
@@ -1373,7 +1368,7 @@ impl htp_tx_t {
         // is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
         // or a overly long request
         if self.request_method.is_none()
-            && self.request_uri.is_null()
+            && self.request_uri.is_none()
             && (*self.connp).in_state == State::LINE
         {
             htp_warn!(
@@ -1392,6 +1387,48 @@ impl htp_tx_t {
         self.request_progress == htp_tx_req_progress_t::HTP_REQUEST_COMPLETE
             && self.response_progress == htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
     }
+
+    pub fn get_parsed_uri_query(&self) -> Option<&bstr::bstr_t> {
+        self.parsed_uri
+            .as_ref()
+            .and_then(|parsed_uri| parsed_uri.query.as_ref())
+    }
+
+    pub fn get_parsed_uri_hostname(&self) -> Option<&bstr::bstr_t> {
+        self.parsed_uri
+            .as_ref()
+            .and_then(|parsed_uri| parsed_uri.hostname.as_ref())
+    }
+
+    pub fn get_parsed_uri_port_number(&self) -> Option<&u16> {
+        self.parsed_uri
+            .as_ref()
+            .and_then(|parsed_uri| parsed_uri.port_number.as_ref())
+    }
+
+    /// Normalize a previously-parsed request URI.
+    pub unsafe fn normalize_parsed_uri(&mut self) {
+        let mut uri = htp_util::htp_uri_t::new();
+        if let Some(incomplete) = &self.parsed_uri_raw {
+            uri.scheme = incomplete.normalized_scheme();
+            uri.username =
+                incomplete.normalized_username(&(*(self.cfg)).decoder_cfg, &mut self.flags);
+            uri.password =
+                incomplete.normalized_password(&(*(self.cfg)).decoder_cfg, &mut self.flags);
+            uri.hostname =
+                incomplete.normalized_hostname(&(*(self.cfg)).decoder_cfg, &mut self.flags);
+            uri.port_number = incomplete.normalized_port(&mut self.flags);
+            uri.query = incomplete.query.clone();
+            uri.fragment =
+                incomplete.normalized_fragment(&(*(self.cfg)).decoder_cfg, &mut self.flags);
+            uri.path = incomplete.normalized_path(
+                &(*(self.cfg)).decoder_cfg,
+                &mut self.flags,
+                &mut self.response_status_expected_number,
+            );
+        }
+        self.parsed_uri = Some(uri);
+    }
 }
 
 impl Drop for htp_tx_t {
@@ -1399,10 +1436,7 @@ impl Drop for htp_tx_t {
     fn drop(&mut self) {
         unsafe {
             // Request fields.
-            bstr::bstr_free(self.request_uri);
             bstr::bstr_free(self.request_content_type);
-            htp_util::htp_uri_free(self.parsed_uri_raw);
-            htp_util::htp_uri_free(self.parsed_uri);
 
             // Request parameters.
             htp_table::htp_table_free(self.request_params);

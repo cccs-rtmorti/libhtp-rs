@@ -319,13 +319,24 @@ fn GetTest() {
 
         // Check request line data
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert!(!(*tx).request_uri.is_null());
-        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP/1.1"));
-
-        assert!(!(*tx).parsed_uri.is_null());
-        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/"));
-        assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
+        assert!((*tx)
+            .parsed_uri
+            .as_ref()
+            .unwrap()
+            .path
+            .as_ref()
+            .unwrap()
+            .eq("/"));
+        assert!((*tx)
+            .parsed_uri
+            .as_ref()
+            .unwrap()
+            .query
+            .as_ref()
+            .unwrap()
+            .eq("p=1&q=2"));
 
         // Check parameters
         assert_contains_param!(&*(*tx).request_params, "p", "1");
@@ -582,11 +593,16 @@ fn RequestLineParsing1() {
         (*tx).state_request_line().unwrap();
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP/1.0"));
-
-        assert!(!(*tx).parsed_uri.is_null());
-        assert!((*(*tx).parsed_uri).query.as_ref().unwrap().eq("p=1&q=2"));
+        assert!((*tx)
+            .parsed_uri
+            .as_ref()
+            .unwrap()
+            .query
+            .as_ref()
+            .unwrap()
+            .eq("p=1&q=2"));
 
         // Check parameters
         assert_contains_param!(&*(*tx).request_params, "p", "1");
@@ -613,7 +629,7 @@ fn RequestLineParsing2() {
         assert_eq!(1, (*tx).is_protocol_0_9);
         assert_eq!(Protocol::V0_9, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_none());
-        assert!((*(*tx).request_uri).eq("/"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
     }
 }
 
@@ -635,7 +651,7 @@ fn RequestLineParsing3() {
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(Protocol::V1_1, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP  / 01.1"));
-        assert!((*(*tx).request_uri).eq("/"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
     }
 }
 
@@ -657,7 +673,7 @@ fn RequestLineParsing4() {
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP  / 01.10"));
-        assert!((*(*tx).request_uri).eq("/"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
     }
 }
 #[test]
@@ -672,22 +688,24 @@ fn ParsedUriSupplied() {
         (*tx).state_request_start().unwrap();
         req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0").unwrap();
 
-        //htp_uri_t *u = htp_uri_alloc();
-        let u = htp_uri_alloc();
-        (*u).path = Some(bstr_t::from("/123"));
-        (*tx).parsed_uri = u;
-
+        let mut u = htp_uri_t::new();
+        u.path = Some(bstr_t::from("/123"));
+        (*tx).parsed_uri = Some(u);
         (*tx).state_request_line().unwrap();
 
         // Check the results now.
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(Protocol::V1_0, (*tx).request_protocol_number);
-        assert!(!(*tx).request_uri.is_null());
-        assert!((*(*tx).request_uri).eq("/?p=1&q=2"));
-
-        assert!(!(*tx).parsed_uri.is_null());
-        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/123"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
+        assert!((*tx)
+            .parsed_uri
+            .as_ref()
+            .unwrap()
+            .path
+            .as_ref()
+            .unwrap()
+            .eq("/123"));
     }
 }
 
@@ -720,12 +738,16 @@ fn TestRepeatCallbacks() {
 
         // Check request line data
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert!(!(*tx).request_uri.is_null());
-        assert!((*(*tx).request_uri).eq("/"));
+        assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP/1.0"));
-
-        assert!(!(*tx).parsed_uri.is_null());
-        assert!((*(*tx).parsed_uri).path.as_ref().unwrap().eq("/"));
+        assert!((*tx)
+            .parsed_uri
+            .as_ref()
+            .unwrap()
+            .path
+            .as_ref()
+            .unwrap()
+            .eq("/"));
 
         // Request headers complete
         (*tx).state_request_headers().unwrap();

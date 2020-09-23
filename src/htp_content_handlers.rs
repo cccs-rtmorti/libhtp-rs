@@ -79,9 +79,10 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut htp_transaction::htp_tx_
     unsafe {
         let tx = tx.as_mut().ok_or(Status::ERROR)?;
         // Proceed only if there's something for us to parse.
-        if (*(*tx).parsed_uri)
-            .query
+        if (*tx)
+            .parsed_uri
             .as_ref()
+            .and_then(|parsed_uri| parsed_uri.query.as_ref())
             .map(|query| query.len() == 0)
             .unwrap_or(true)
         {
@@ -89,9 +90,14 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut htp_transaction::htp_tx_
         }
         // We have a non-zero length query string.
         let mut urlenp = htp_urlencoded::htp_urlenp_t::new(tx);
-        if let Some(query) = (*(*tx).parsed_uri).query.as_ref() {
+        if let Some(query) = (*tx)
+            .parsed_uri
+            .as_ref()
+            .and_then(|parsed_uri| parsed_uri.query.as_ref())
+        {
             htp_urlencoded::htp_urlenp_parse_complete(&mut urlenp, query.as_slice());
         }
+
         // Add all parameters to the transaction.
         for (name, value) in urlenp.params.elements.iter() {
             let param = htp_transaction::htp_param_t::new(

@@ -174,11 +174,10 @@ pub unsafe extern "C" fn htp_tx_request_method_number(
 pub unsafe extern "C" fn htp_tx_request_uri(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_uri
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_uri.as_ref())
+        .map(|uri| uri as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request protocol.
@@ -235,12 +234,11 @@ pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const htp_transaction::htp_
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_parsed_uri(
     tx: *mut htp_transaction::htp_tx_t,
-) -> *mut htp_util::htp_uri_t {
-    if let Some(tx) = tx.as_mut() {
-        tx.parsed_uri
-    } else {
-        std::ptr::null_mut()
-    }
+) -> *const htp_util::htp_uri_t {
+    tx.as_ref()
+        .and_then(|tx| tx.parsed_uri.as_ref())
+        .map(|uri| uri as *const htp_util::htp_uri_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request headers.

@@ -87,13 +87,6 @@ bitflags::bitflags! {
     }
 }
 
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub enum htp_file_source_t {
@@ -192,15 +185,157 @@ pub struct htp_uri_t {
     pub fragment: Option<bstr::bstr_t>,
 }
 
-pub struct uri_t<'a> {
-    pub scheme: Option<&'a [u8]>,
-    pub username: Option<&'a [u8]>,
-    pub password: Option<&'a [u8]>,
-    pub hostname: Option<&'a [u8]>,
-    pub port: Option<&'a [u8]>,
-    pub path: Option<&'a [u8]>,
-    pub query: Option<&'a [u8]>,
-    pub fragment: Option<&'a [u8]>,
+impl htp_uri_t {
+    pub fn new() -> Self {
+        Self {
+            scheme: None,
+            username: None,
+            password: None,
+            hostname: None,
+            port: None,
+            port_number: None,
+            path: None,
+            query: None,
+            fragment: None,
+        }
+    }
+
+    pub fn set_scheme(&mut self, scheme: &[u8]) {
+        self.scheme = Some(bstr::bstr_t::from(scheme));
+    }
+
+    pub fn set_username(&mut self, username: &[u8]) {
+        self.username = Some(bstr::bstr_t::from(username));
+    }
+
+    pub fn set_password(&mut self, password: &[u8]) {
+        self.password = Some(bstr::bstr_t::from(password));
+    }
+
+    pub fn set_hostname(&mut self, hostname: &[u8]) {
+        self.hostname = Some(bstr::bstr_t::from(hostname));
+    }
+
+    pub fn set_port(&mut self, port: &[u8]) {
+        self.port = Some(bstr::bstr_t::from(port));
+    }
+
+    pub fn set_port_number(&mut self, port: u16) {
+        self.port_number = Some(port);
+    }
+
+    pub fn set_path(&mut self, path: &[u8]) {
+        self.path = Some(bstr::bstr_t::from(path));
+    }
+
+    pub fn set_query(&mut self, query: &[u8]) {
+        self.query = Some(bstr::bstr_t::from(query));
+    }
+
+    pub fn set_fragment(&mut self, fragment: &[u8]) {
+        self.fragment = Some(bstr::bstr_t::from(fragment));
+    }
+
+    pub fn normalized_scheme(&self) -> Option<bstr::bstr_t> {
+        if let Some(mut scheme) = self.scheme.clone() {
+            scheme.make_ascii_lowercase();
+            Some(scheme)
+        } else {
+            None
+        }
+    }
+
+    pub fn normalized_username(
+        &self,
+        decoder_cfg: &htp_config::htp_decoder_cfg_t,
+        flags: &mut Flags,
+    ) -> Option<bstr::bstr_t> {
+        if let Some(mut username) = self.username.clone() {
+            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut username);
+            Some(username)
+        } else {
+            None
+        }
+    }
+
+    pub fn normalized_password(
+        &self,
+        decoder_cfg: &htp_config::htp_decoder_cfg_t,
+        flags: &mut Flags,
+    ) -> Option<bstr::bstr_t> {
+        if let Some(mut password) = self.password.clone() {
+            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut password);
+            Some(password)
+        } else {
+            None
+        }
+    }
+
+    pub fn normalized_hostname(
+        &self,
+        decoder_cfg: &htp_config::htp_decoder_cfg_t,
+        flags: &mut Flags,
+    ) -> Option<bstr::bstr_t> {
+        if let Some(mut hostname) = self.hostname.clone() {
+            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut hostname);
+            hostname.make_ascii_lowercase();
+            // Remove dots from the end of the string.
+            while hostname.last() == Some(&('.' as u8)) {
+                hostname.pop();
+            }
+            Some(hostname)
+        } else {
+            None
+        }
+    }
+
+    pub fn normalized_port(&self, flags: &mut Flags) -> Option<u16> {
+        if let Some(port) = self.port.clone() {
+            if let Some(port) = convert_port(&port.as_slice()) {
+                Some(port)
+            } else {
+                // Failed to parse the port number.
+                *flags |= Flags::HTP_HOSTU_INVALID;
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn normalized_fragment(
+        &self,
+        decoder_cfg: &htp_config::htp_decoder_cfg_t,
+        flags: &mut Flags,
+    ) -> Option<bstr::bstr_t> {
+        if let Some(mut fragment) = self.fragment.clone() {
+            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut fragment);
+            Some(fragment)
+        } else {
+            None
+        }
+    }
+
+    pub fn normalized_path(
+        &self,
+        decoder_cfg: &htp_config::htp_decoder_cfg_t,
+        flags: &mut Flags,
+        status: &mut i32,
+    ) -> Option<bstr::bstr_t> {
+        if let Some(mut path) = self.path.clone() {
+            // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
+            // compress separators and convert backslashes.
+            // Ignore result.
+            let _ = decode_uri_path_inplace(decoder_cfg, flags, status, &mut path);
+            // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
+            utf8_decode_and_validate_uri_path_inplace(decoder_cfg, flags, status, &mut path);
+            // RFC normalization.
+            normalize_uri_path_inplace(&mut path);
+            Some(path)
+        } else {
+            None
+        }
+    }
 }
 
 /// Represents a chunk of file data.
@@ -280,7 +415,7 @@ pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a
 /// the end of the line provided as input.
 ///
 /// Returns a slice with all line terminators removed
-pub fn htp_chomp<'a>(mut data: &'a [u8]) -> &'a [u8] {
+pub fn htp_chomp(mut data: &[u8]) -> &[u8] {
     loop {
         let last_char = data.last();
         if last_char == Some(&('\n' as u8)) || last_char == Some(&('\r' as u8)) {
@@ -616,9 +751,9 @@ fn convert_port(port: &[u8]) -> Option<u16> {
 ///
 /// Returns a remaining unparsed data, parsed hostname, parsed port, converted port number,
 /// and a flag indicating whether the parsed data is valid
-pub fn htp_parse_hostport<'a>(
-    hostport: &'a mut bstr::bstr_t,
-) -> IResult<&'a [u8], (&'a [u8], Option<(&'a [u8], Option<u16>)>, bool)> {
+pub fn htp_parse_hostport(
+    hostport: &bstr::bstr_t,
+) -> IResult<&[u8], (&[u8], Option<(&[u8], Option<u16>)>, bool)> {
     let (input, host) = hostname()((hostport).as_slice())?;
     let mut valid = htp_validate_hostname(host);
     if let Ok((_, p)) = port()(input) {
@@ -636,20 +771,16 @@ pub fn htp_parse_hostport<'a>(
 
 /// Parses hostport provided in the URI.
 ///
-/// Returns HTP_OK on success or HTP_ERROR error.
-pub unsafe fn htp_parse_uri_hostport(
-    hostport: &mut bstr::bstr_t,
-    uri: &mut htp_uri_t,
-    flags: &mut Flags,
-) -> Result<()> {
+/// Returns htp_uri_t.
+pub fn htp_parse_uri_hostport(hostport: &bstr::bstr_t, flags: &mut Flags) -> htp_uri_t {
+    let mut uri = htp_uri_t::new();
     if let Ok((_, (host, port_nmb, mut valid))) = htp_parse_hostport(hostport) {
-        let mut host = bstr::bstr_t::from(host);
-        host.make_ascii_lowercase();
-        (*uri).hostname = Some(host);
+        uri.set_hostname(&host.to_ascii_lowercase());
         if let Some((port, port_nmb)) = port_nmb {
-            (*uri).port = Some(bstr::bstr_t::from(port));
-            (*uri).port_number = port_nmb;
-            if (*uri).port_number.is_none() {
+            uri.set_port(port);
+            if let Some(num) = port_nmb {
+                uri.set_port_number(num);
+            } else {
                 valid = false;
             }
         }
@@ -657,7 +788,7 @@ pub unsafe fn htp_parse_uri_hostport(
             *flags |= Flags::HTP_HOSTU_INVALID
         }
     }
-    Ok(())
+    uri
 }
 
 /// Attempts to extract the scheme from a given input URI.
@@ -790,97 +921,70 @@ pub fn fragment<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// Parses request URI, making no attempt to validate the contents.
 ///
 /// It attempts, but is not guaranteed to successfully parse out a scheme, username, password, hostname, port, query, and fragment.
-/// If it fails to parse a path, it will return an error.
+/// If it fails to parse a path, it will return an empty htp_uri_t.
 /// Note: only attempts to extract a username, password, and hostname and subsequently port if it successfully parsed a scheme.
 /// e.g. input: "http:://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
-/// e.g. output: (Some("http", Some("user", "pass"), Some("www.example.com", Some("1234"))), "/path1/path2", Some("a=b&c=d"), Some("frag"))
+/// e.g. output: htp_uri_t {Some("http"), Some("user"), Some("pass"), Some("www.example.com"), None, Some("1234"), Some("/path1/path2"), Some("a=b&c=d"), Some("frag") }
 ///
-/// Returns parsed scheme, username, password, hostname, port, path, query and fragment as a tuple containing optional values.
-pub fn parse_uri<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], uri_t> {
-    move |input| {
-        map(
-            tuple((
-                opt(tuple((
-                    scheme(),
-                    opt(credentials()),
-                    opt(tuple((hostname(), opt(port())))),
-                ))),
-                opt(path()),
-                opt(query()),
-                opt(fragment()),
-            )),
-            |(scheme_authority, path, query, fragment)| {
-                let mut uri = uri_t {
-                    scheme: None,
-                    username: None,
-                    password: None,
-                    hostname: None,
-                    port: None,
-                    path,
-                    query,
-                    fragment,
-                };
-                if let Some((scheme, authority, hostname_port)) = scheme_authority {
-                    uri.scheme = Some(scheme);
-                    if let Some((username, password)) = authority {
-                        uri.username = Some(username);
-                        uri.password = password;
-                    }
-                    if let Some((hostname, port)) = hostname_port {
-                        uri.hostname = Some(hostname);
-                        uri.port = port;
+/// Returns htp_uri_t.
+pub fn parse_uri(input: &[u8]) -> htp_uri_t {
+    let res = map(
+        tuple((
+            opt(tuple((
+                scheme(),
+                opt(credentials()),
+                opt(tuple((hostname(), opt(port())))),
+            ))),
+            opt(path()),
+            opt(query()),
+            opt(fragment()),
+        )),
+        |(scheme_authority, path, query, fragment)| {
+            let mut uri = htp_uri_t::new();
+            if let Some(path) = path {
+                uri.set_path(path);
+            }
+            if let Some(query) = query {
+                uri.set_query(query);
+            }
+            if let Some(fragment) = fragment {
+                uri.set_fragment(fragment);
+            }
+            if let Some((scheme, authority, hostname_port)) = scheme_authority {
+                uri.set_scheme(scheme);
+                if let Some((username, password)) = authority {
+                    uri.set_username(username);
+                    if let Some(password) = password {
+                        uri.set_password(password);
                     }
                 }
-                uri
-            },
-        )(input)
+                if let Some((hostname, port)) = hostname_port {
+                    uri.set_hostname(hostname);
+                    if let Some(port) = port {
+                        uri.set_port(port);
+                    }
+                }
+            }
+            uri
+        },
+    )(input);
+
+    if let Ok((_, parsed_uri)) = res {
+        parsed_uri
+    } else {
+        htp_uri_t::new()
     }
 }
 
 /// Parses request URI, making no attempt to validate the contents.
 ///
-/// Returns HTP_ERROR on memory allocation failure, HTP_OK otherwise
-pub unsafe fn htp_parse_uri(input: *mut bstr::bstr_t, mut uri: *mut *mut htp_uri_t) -> Result<()> {
-    // Allow a htp_uri_t structure to be provided on input,
-    // but allocate a new one if the structure is NULL.
-    if (*uri).is_null() {
-        *uri = calloc(1, ::std::mem::size_of::<htp_uri_t>()) as *mut htp_uri_t;
-        if (*uri).is_null() {
-            return Err(Status::ERROR);
-        }
+/// Returns htp_uri_t.
+pub fn htp_parse_uri(input: Option<&bstr::bstr_t>) -> htp_uri_t {
+    if let Some(input) = input {
+        parse_uri(input.as_slice())
+    } else {
+        htp_uri_t::new()
     }
-    if input.is_null() || bstr::bstr_len(input) == 0 {
-        // The input might be NULL or empty on requests that don't actually
-        // contain the URI. We allow that.
-        return Ok(());
-    }
-    if let Ok((_, parsed_uri)) = parse_uri()((*input).as_slice()) {
-        if let Some(scheme) = parsed_uri.scheme {
-            (*(*uri)).scheme = Some(bstr::bstr_t::from(scheme));
-        }
-        if let Some(username) = parsed_uri.username {
-            (*(*uri)).username = Some(bstr::bstr_t::from(username));
-        }
-        if let Some(password) = parsed_uri.password {
-            (*(*uri)).password = Some(bstr::bstr_t::from(password));
-        }
-        if let Some(hostname) = parsed_uri.hostname {
-            (*(*uri)).hostname = Some(bstr::bstr_t::from(hostname));
-        }
-        if let Some(port) = parsed_uri.port {
-            (*(*uri)).port = Some(bstr::bstr_t::from(port));
-        }
-        if let Some(path) = parsed_uri.path {
-            (*(*uri)).path = Some(bstr::bstr_t::from(path));
-        }
-        if let Some(query) = parsed_uri.query {
-            (*(*uri)).query = Some(bstr::bstr_t::from(query));
-        }
-        if let Some(fragment) = parsed_uri.fragment {
-            (*(*uri)).fragment = Some(bstr::bstr_t::from(fragment));
-        }
-    }
-    Ok(())
 }
 
 /// Convert two input bytes, pointed to by the pointer parameter,
@@ -911,22 +1015,24 @@ fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
 /// be replaced with the replacement byte specified in the cfg. Best-fit mapping will
 /// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
 /// be stored in the input path if the transaction cfg indicates it
-pub fn utf8_decode_and_validate_uri_path_inplace(tx: &mut htp_transaction::htp_tx_t) {
-    let cfg = unsafe { (*(tx.cfg)).decoder_cfg };
-    if let Some(path) = unsafe { &mut (*tx.parsed_uri).path } {
-        let mut decoder = utf8_decoder::Utf8Decoder::new(cfg);
-        decoder.decode_and_validate(path.as_slice());
-        if cfg.utf8_convert_bestfit {
-            path.clear();
-            path.add(decoder.decoded_bytes.as_slice());
-        }
-        tx.flags |= decoder.flags;
+pub fn utf8_decode_and_validate_uri_path_inplace(
+    cfg: &htp_config::htp_decoder_cfg_t,
+    flags: &mut Flags,
+    status: &mut i32,
+    path: &mut bstr::bstr_t,
+) {
+    let mut decoder = utf8_decoder::Utf8Decoder::new(*cfg);
+    decoder.decode_and_validate(path.as_slice());
+    if cfg.utf8_convert_bestfit {
+        path.clear();
+        path.add(decoder.decoded_bytes.as_slice());
     }
+    *flags |= decoder.flags;
 
-    if tx.flags.contains(Flags::HTP_PATH_UTF8_INVALID)
+    if flags.contains(Flags::HTP_PATH_UTF8_INVALID)
         && cfg.utf8_invalid_unwanted != htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE
     {
-        tx.response_status_expected_number = cfg.utf8_invalid_unwanted as i32;
+        *status = cfg.utf8_invalid_unwanted as i32;
     }
 }
 
@@ -1330,21 +1436,23 @@ fn path_decode<'a>(
 
 /// Decode the parsed uri path inplace according to the settings in the
 /// transaction configuration structure.
-pub fn decode_uri_path_inplace(tx: &mut htp_transaction::htp_tx_t) {
-    if let Some(path) = unsafe { &mut (*tx.parsed_uri).path } {
-        let decoder_cfg = unsafe { (*(tx.cfg)).decoder_cfg };
-        if let Ok((_, (consumed, flags, expected_status_code))) =
-            path_decode(path.as_slice(), &decoder_cfg)
-        {
-            path.clear();
-            path.add(consumed.as_slice());
-            tx.response_status_expected_number = expected_status_code;
-            tx.flags |= flags;
-        }
+pub fn decode_uri_path_inplace(
+    decoder_cfg: &htp_config::htp_decoder_cfg_t,
+    flag: &mut Flags,
+    status: &mut i32,
+    path: &mut bstr::bstr_t,
+) {
+    if let Ok((_, (consumed, flags, expected_status_code))) =
+        path_decode(path.as_slice(), &decoder_cfg)
+    {
+        path.clear();
+        path.add(consumed.as_slice());
+        *status = expected_status_code;
+        *flag |= flags;
     }
 }
 
-pub fn htp_tx_urldecode_uri_inplace(
+pub fn urldecode_uri_inplace(
     decoder_cfg: &htp_config::htp_decoder_cfg_t,
     flags: &mut Flags,
     input: &mut bstr::bstr_t,
@@ -1665,7 +1773,6 @@ fn htp_urldecode_ex<'a>(
     )(input)
 }
 
-/// Normalize a previously-parsed request URI.
 pub fn generate_normalized_uri(
     decoder_cfg: &htp_config::htp_decoder_cfg_t,
     parsed_uri: &htp_uri_t,
@@ -1756,74 +1863,6 @@ pub fn generate_normalized_uri(
         }
     } else {
         (None, None)
-    }
-}
-
-/// Normalize a previously-parsed request URI.
-pub unsafe fn htp_normalize_parsed_uri(tx: &mut htp_transaction::htp_tx_t) {
-    // Scheme.
-    if let Some(mut scheme) = (*tx.parsed_uri_raw).scheme.clone() {
-        // Duplicate and convert to lowercase.
-        scheme.make_ascii_lowercase();
-        (*tx.parsed_uri).scheme = Some(scheme);
-    }
-    // Username.
-    (*tx.parsed_uri).username = (*tx.parsed_uri_raw).username.clone();
-    if let Some(ref mut username) = (*tx.parsed_uri).username {
-        // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, username);
-    }
-    // Password.
-    (*tx.parsed_uri).password = (*tx.parsed_uri_raw).password.clone();
-    if let Some(ref mut password) = (*tx.parsed_uri).password {
-        // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, password);
-    }
-    // Hostname.
-    // We know that (*tx.parsed_uri_raw)->hostname does not contain
-    // port information, so no need to check for it here.
-    (*tx.parsed_uri).hostname = (*tx.parsed_uri_raw).hostname.clone();
-    if let Some(ref mut hostname) = (*tx.parsed_uri).hostname {
-        // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, hostname);
-        htp_normalize_hostname_inplace(hostname);
-    }
-    if let Some(ref port) = (*tx.parsed_uri_raw).port {
-        (*tx.parsed_uri).port_number = convert_port(port.as_slice());
-        if (*tx.parsed_uri).port_number.is_none() {
-            tx.flags |= Flags::HTP_HOSTU_INVALID
-        }
-    }
-    // Path.
-    // Make a copy of the path, so that we can work on it.
-    (*tx.parsed_uri).path = (*tx.parsed_uri_raw).path.clone();
-    if let Some(ref mut path) = (*tx.parsed_uri).path {
-        // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
-        // compress separators and convert backslashes.
-        // Ignore result.
-        let _ = decode_uri_path_inplace(tx);
-        // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
-        utf8_decode_and_validate_uri_path_inplace(tx);
-        // RFC normalization.
-        normalize_uri_path_inplace(path);
-    }
-    // Query string.
-    (*tx.parsed_uri).query = (*tx.parsed_uri_raw).query.clone();
-    // Fragment.
-    (*tx.parsed_uri).fragment = (*tx.parsed_uri_raw).fragment.clone();
-    if let Some(ref mut fragment) = (*tx.parsed_uri).fragment {
-        // Ignore result.
-        let _ = htp_tx_urldecode_uri_inplace(&(*(tx.cfg)).decoder_cfg, &mut tx.flags, fragment);
-    }
-}
-
-/// Normalize request hostname inplace. Convert all characters to lowercase and
-/// remove trailing dots from the end, if present.
-fn htp_normalize_hostname_inplace(hostname: &mut bstr::bstr_t) {
-    hostname.make_ascii_lowercase();
-    // Remove dots from the end of the string.
-    while hostname.last() == Some(&('.' as u8)) {
-        hostname.pop();
     }
 }
 
@@ -1979,25 +2018,6 @@ pub fn htp_validate_hostname<'a>(input: &'a [u8]) -> bool {
     true
 }
 
-/// Frees all data contained in the uri, and then the uri itself.
-pub unsafe fn htp_uri_free(uri: *mut htp_uri_t) {
-    if uri.is_null() {
-        return;
-    }
-    free(uri as *mut core::ffi::c_void);
-}
-
-/// Allocates and initializes a new htp_uri_t structure.
-///
-/// Returns New structure, or NULL on memory allocation failure.
-pub unsafe fn htp_uri_alloc() -> *mut htp_uri_t {
-    let u: *mut htp_uri_t = calloc(1, ::std::mem::size_of::<htp_uri_t>()) as *mut htp_uri_t;
-    if u.is_null() {
-        return 0 as *mut htp_uri_t;
-    }
-    u
-}
-
 /// Returns the LibHTP version string.
 pub unsafe fn htp_get_version() -> *const i8 {
     HTP_VERSION_STRING_FULL.as_ptr() as *const i8
@@ -2048,124 +2068,109 @@ pub fn is_word_token(data: &[u8]) -> bool {
 #[test]
 fn GenerateNormalizedUri1() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).scheme = Some(bstr::bstr_t::from("http"));
-        (*htp_uri).username = Some(bstr::bstr_t::from("user"));
-        (*htp_uri).password = Some(bstr::bstr_t::from("pass"));
-        (*htp_uri).hostname = Some(bstr::bstr_t::from("www.example.com"));
-        (*htp_uri).port = Some(bstr::bstr_t::from("1234"));
-        (*htp_uri).path = Some(bstr::bstr_t::from("/path1/path2"));
-        (*htp_uri).query = Some(bstr::bstr_t::from("a=b&c=d"));
-        (*htp_uri).fragment = Some(bstr::bstr_t::from("frag"));
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
+    htp_uri.username = Some(bstr::bstr_t::from("user"));
+    htp_uri.password = Some(bstr::bstr_t::from("pass"));
+    htp_uri.hostname = Some(bstr::bstr_t::from("www.example.com"));
+    htp_uri.port = Some(bstr::bstr_t::from("1234"));
+    htp_uri.path = Some(bstr::bstr_t::from("/path1/path2"));
+    htp_uri.query = Some(bstr::bstr_t::from("a=b&c=d"));
+    htp_uri.fragment = Some(bstr::bstr_t::from("frag"));
 
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(
-            partial_normalized_uri,
-            Some(bstr::bstr_t::from("/path1/path2?a=b&c=d#frag"))
-        );
-        assert_eq!(
-            normalized_uri,
-            Some(bstr::bstr_t::from(
-                "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
-            ))
-        );
-    }
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(
+        partial_normalized_uri,
+        Some(bstr::bstr_t::from("/path1/path2?a=b&c=d#frag"))
+    );
+    assert_eq!(
+        normalized_uri,
+        Some(bstr::bstr_t::from(
+            "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
+        ))
+    );
 }
 
 #[test]
 fn GenerateNormalizedUri2() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).scheme = Some(bstr::bstr_t::from("http"));
-        (*htp_uri).hostname = Some(bstr::bstr_t::from("host.com"));
-        (*htp_uri).path = Some(bstr::bstr_t::from("/path"));
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("/path")));
-        assert_eq!(
-            normalized_uri,
-            Some(bstr::bstr_t::from("http://host.com/path"))
-        );
-    }
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
+    htp_uri.hostname = Some(bstr::bstr_t::from("host.com"));
+    htp_uri.path = Some(bstr::bstr_t::from("/path"));
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("/path")));
+    assert_eq!(
+        normalized_uri,
+        Some(bstr::bstr_t::from("http://host.com/path"))
+    );
 }
 
 #[test]
 fn GenerateNormalizedUri3() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).scheme = Some(bstr::bstr_t::from("http"));
-        (*htp_uri).hostname = Some(bstr::bstr_t::from("host.com"));
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, None);
-        assert_eq!(normalized_uri, Some(bstr::bstr_t::from("http://host.com")));
-    }
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
+    htp_uri.hostname = Some(bstr::bstr_t::from("host.com"));
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, None);
+    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("http://host.com")));
 }
 
 #[test]
 fn GenerateNormalizedUri4() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).scheme = Some(bstr::bstr_t::from("http"));
-        (*htp_uri).path = Some(bstr::bstr_t::from("//"));
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("//")));
-        assert_eq!(normalized_uri, Some(bstr::bstr_t::from("http:////")));
-    }
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
+    htp_uri.path = Some(bstr::bstr_t::from("//"));
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("//")));
+    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("http:////")));
 }
 
 #[test]
 fn GenerateNormalizedUri5() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).path = Some(bstr::bstr_t::from("/path"));
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("/path")));
-        assert_eq!(normalized_uri, Some(bstr::bstr_t::from("/path")));
-    }
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.path = Some(bstr::bstr_t::from("/path"));
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("/path")));
+    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("/path")));
 }
 
 #[test]
 fn GenerateNormalizedUri6() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).scheme = Some(bstr::bstr_t::from(""));
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, None);
-        assert_eq!(normalized_uri, Some(bstr::bstr_t::from("://")));
-    }
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.scheme = Some(bstr::bstr_t::from(""));
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, None);
+    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("://")));
 }
 
 #[test]
 fn GenerateNormalizedUri7() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let htp_uri = htp_uri_alloc();
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, None);
-        assert_eq!(normalized_uri, None);
-    }
+    let htp_uri = htp_uri_t::new();
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, None);
+    assert_eq!(normalized_uri, None);
 }
 
 #[test]
 fn GenerateNormalizedUri8() {
     let cfg = htp_decoder_cfg_t::default();
-    unsafe {
-        let mut htp_uri = htp_uri_alloc();
-        (*htp_uri).scheme = Some(bstr::bstr_t::from("http"));
-        (*htp_uri).username = Some(bstr::bstr_t::from("user"));
-        (*htp_uri).hostname = Some(bstr::bstr_t::from("host.com"));
-        let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &*htp_uri);
-        assert_eq!(partial_normalized_uri, None);
-        assert_eq!(
-            normalized_uri,
-            Some(bstr::bstr_t::from("http://user:@host.com"))
-        );
-    }
+
+    let mut htp_uri = htp_uri_t::new();
+    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
+    htp_uri.username = Some(bstr::bstr_t::from("user"));
+    htp_uri.hostname = Some(bstr::bstr_t::from("host.com"));
+    let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
+    assert_eq!(partial_normalized_uri, None);
+    assert_eq!(
+        normalized_uri,
+        Some(bstr::bstr_t::from("http://user:@host.com"))
+    );
 }
 
 #[test]

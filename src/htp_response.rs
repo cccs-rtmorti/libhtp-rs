@@ -1240,19 +1240,12 @@ pub fn htp_connp_RES_IDLE(connp: &mut htp_connection_parser::htp_connp_t) -> Res
         }
         let tx_id = connp.create_tx()?;
         connp.set_out_tx_id(Some(tx_id));
-        let mut out_tx = connp.out_tx_mut_ok()?;
+        let out_tx = connp.out_tx_mut_ok()?;
 
-        unsafe {
-            out_tx.parsed_uri = htp_util::htp_uri_alloc();
-            if out_tx.parsed_uri.is_null() {
-                return Err(Status::ERROR);
-            }
-            (*out_tx.parsed_uri).path = Some(bstr::bstr_t::from("/libhtp::request_uri_not_seen"));
-            out_tx.request_uri = bstr::bstr_dup_str("/libhtp::request_uri_not_seen");
-            if out_tx.request_uri.is_null() {
-                return Err(Status::ERROR);
-            }
-        }
+        let mut uri = htp_util::htp_uri_t::new();
+        uri.set_path(b"/libhtp::request_uri_not_seen");
+        out_tx.parsed_uri = Some(uri);
+        out_tx.request_uri = Some(bstr::bstr_t::from("/libhtp::request_uri_not_seen"));
         connp.in_state = State::FINALIZE;
         // We've used one transaction
         connp.out_next_tx_index = connp.out_next_tx_index.wrapping_add(1)
