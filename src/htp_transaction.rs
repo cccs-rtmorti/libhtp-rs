@@ -876,8 +876,10 @@ impl htp_tx_t {
         self.response_message_len =
             (self.response_message_len as u64).wrapping_add(d.len as u64) as i64;
         let connp = self.connp;
-        match self.response_content_encoding_processing as u32 {
-            2 | 3 | 4 => {
+        match self.response_content_encoding_processing {
+            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+            | htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+            | htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA => {
                 // In severe memory stress these could be NULL
                 if self.out_decompressor.is_null() || (*self.out_decompressor).decompress.is_none()
                 {
@@ -924,7 +926,7 @@ impl htp_tx_t {
                     self.destroy_decompressors();
                 }
             }
-            1 => {
+            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE => {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
                 self.response_entity_len =
