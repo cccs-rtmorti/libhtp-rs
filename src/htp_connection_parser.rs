@@ -1,9 +1,6 @@
 use crate::error::Result;
 use crate::htp_config::htp_server_personality_t;
-use crate::{
-    bstr, hook::DataHook, htp_config, htp_connection, htp_response, htp_transaction, htp_util,
-    Status,
-};
+use crate::{bstr, hook::DataHook, htp_config, htp_connection, htp_transaction, htp_util, Status};
 use std::net::IpAddr;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -369,20 +366,16 @@ impl htp_connp_t {
     pub fn handle_out_state(&mut self) -> Result<()> {
         match self.out_state {
             State::NONE => Err(Status::ERROR),
-            State::IDLE => htp_response::htp_connp_RES_IDLE(self),
-            State::LINE => htp_response::htp_connp_RES_LINE(self),
-            State::HEADERS => htp_response::htp_connp_RES_HEADERS(self),
-            State::BODY_DETERMINE => htp_response::htp_connp_RES_BODY_DETERMINE(self),
-            State::BODY_CHUNKED_DATA => htp_response::htp_connp_RES_BODY_CHUNKED_DATA(self),
-            State::BODY_CHUNKED_LENGTH => htp_response::htp_connp_RES_BODY_CHUNKED_LENGTH(self),
-            State::BODY_CHUNKED_DATA_END => htp_response::htp_connp_RES_BODY_CHUNKED_DATA_END(self),
-            State::FINALIZE => htp_response::htp_connp_RES_FINALIZE(self),
-            State::BODY_IDENTITY_STREAM_CLOSE => {
-                htp_response::htp_connp_RES_BODY_IDENTITY_STREAM_CLOSE(self)
-            }
-            State::BODY_IDENTITY_CL_KNOWN => {
-                htp_response::htp_connp_RES_BODY_IDENTITY_CL_KNOWN(self)
-            }
+            State::IDLE => self.RES_IDLE(),
+            State::LINE => self.RES_LINE(),
+            State::HEADERS => self.RES_HEADERS(),
+            State::BODY_DETERMINE => self.RES_BODY_DETERMINE(),
+            State::BODY_CHUNKED_DATA => self.RES_BODY_CHUNKED_DATA(),
+            State::BODY_CHUNKED_LENGTH => self.RES_BODY_CHUNKED_LENGTH(),
+            State::BODY_CHUNKED_DATA_END => self.RES_BODY_CHUNKED_DATA_END(),
+            State::FINALIZE => self.RES_FINALIZE(),
+            State::BODY_IDENTITY_STREAM_CLOSE => self.RES_BODY_IDENTITY_STREAM_CLOSE(),
+            State::BODY_IDENTITY_CL_KNOWN => self.RES_BODY_IDENTITY_CL_KNOWN(),
             // These are only used by in_state
             State::PROTOCOL
             | State::CONNECT_CHECK
@@ -452,7 +445,7 @@ impl htp_connp_t {
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
         self.req_data(timestamp.clone(), 0 as *const core::ffi::c_void, 0);
-        htp_response::htp_connp_res_data(self, timestamp, 0 as *const core::ffi::c_void, 0);
+        self.res_data(timestamp, 0 as *const core::ffi::c_void, 0);
     }
 
     /// This function is most likely not used and/or not needed.

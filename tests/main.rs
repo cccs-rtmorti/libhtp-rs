@@ -4,7 +4,6 @@ use htp::error::Result;
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
 use htp::htp_connection_parser::*;
-use htp::htp_response::*;
 use htp::htp_transaction::htp_auth_type_t::*;
 use htp::htp_transaction::htp_data_source_t::*;
 use htp::htp_transaction::htp_tx_req_progress_t::*;
@@ -178,8 +177,7 @@ impl Test {
                     Chunk::Server(data) => {
                         // If we have leftover data from before then use it first
                         if let Some(out_remaining) = out_buf {
-                            let rc = htp_connp_res_data(
-                                &mut *self.connp,
+                            let rc = (&mut *self.connp).res_data(
                                 Some(tv_start),
                                 out_remaining.as_ptr() as *const core::ffi::c_void,
                                 out_remaining.len(),
@@ -191,8 +189,7 @@ impl Test {
                         }
 
                         // Now use up this data chunk
-                        let rc = htp_connp_res_data(
-                            &mut *self.connp,
+                        let rc = (&mut *self.connp).res_data(
                             Some(tv_start),
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
@@ -229,8 +226,7 @@ impl Test {
 
             // Clean up any remaining server data
             if let Some(out_remaining) = out_buf {
-                let rc = htp_connp_res_data(
-                    &mut *self.connp,
+                let rc = (&mut *self.connp).res_data(
                     Some(tv_start),
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),

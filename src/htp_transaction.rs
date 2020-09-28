@@ -5,7 +5,7 @@ use crate::htp_util::Flags;
 use crate::list::List;
 use crate::{
     bstr, htp_config, htp_connection_parser, htp_cookies, htp_decompressors, htp_multipart,
-    htp_parsers, htp_request, htp_response, htp_table, htp_urlencoded, htp_util, Status,
+    htp_parsers, htp_request, htp_table, htp_urlencoded, htp_util, Status,
 };
 use std::cmp::Ordering;
 
@@ -1205,7 +1205,7 @@ impl htp_tx_t {
             ce_multi_comp = 0
         }
         // Finalize sending raw header data.
-        htp_response::htp_connp_res_receiver_finalize_clear(&mut *self.connp)?;
+        (&mut *self.connp).res_receiver_finalize_clear()?;
         // Run hook RESPONSE_HEADERS.
         (*(*self.connp).cfg).hook_response_headers.run_all(self)?;
         // Initialize the decompression engine as necessary. We can deal with three
