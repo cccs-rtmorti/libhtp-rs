@@ -535,8 +535,8 @@ impl htp_cfg_t {
 
     /// Configures the maximum compression bomb size LibHTP will decompress.
     pub fn set_compression_bomb_limit(&mut self, bomblimit: usize) {
-        if bomblimit > 2147483647 {
-            self.compression_bomb_limit = 2147483647
+        if bomblimit > std::i32::MAX as usize {
+            self.compression_bomb_limit = std::i32::MAX
         } else {
             self.compression_bomb_limit = bomblimit as i32
         };
