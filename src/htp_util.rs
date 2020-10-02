@@ -3,7 +3,8 @@ use crate::htp_config::{
     htp_cfg_t, htp_decoder_cfg_t, htp_unwanted_t, htp_unwanted_t::*, htp_url_encoding_handling_t,
 };
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_request, htp_transaction, utf8_decoder, Status,
+    bstr, htp_config, htp_connection_parser, htp_request::htp_method_t, htp_transaction,
+    utf8_decoder, Status,
 };
 use bitflags;
 use nom::{
@@ -21,7 +22,6 @@ use nom::{
     IResult,
 };
 
-use std::cmp::Ordering;
 use std::io::Write;
 use tempfile::Builder;
 use tempfile::NamedTempFile;
@@ -468,96 +468,40 @@ pub fn take_until_no_case<'a>(tag: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a
         Ok((b"", input))
     }
 }
-/// Converts request method, given as a string, into a number.
-///
-/// Returns Method or M_UNKNOWN
-pub fn htp_convert_bstr_to_method(method: &bstr::bstr_t) -> htp_request::htp_method_t {
-    // TODO Optimize using parallel matching, or something similar.
-    if method.cmp("GET") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_GET;
+
+/// Converts request method string into a method type.
+pub fn htp_convert_bstr_to_method(method: &bstr::bstr_t) -> htp_method_t {
+    match method.as_slice() {
+        b"GET" => htp_method_t::HTP_M_GET,
+        b"PUT" => htp_method_t::HTP_M_PUT,
+        b"POST" => htp_method_t::HTP_M_POST,
+        b"DELETE" => htp_method_t::HTP_M_DELETE,
+        b"CONNECT" => htp_method_t::HTP_M_CONNECT,
+        b"OPTIONS" => htp_method_t::HTP_M_OPTIONS,
+        b"TRACE" => htp_method_t::HTP_M_TRACE,
+        b"PATCH" => htp_method_t::HTP_M_PATCH,
+        b"PROPFIND" => htp_method_t::HTP_M_PROPFIND,
+        b"PROPPATCH" => htp_method_t::HTP_M_PROPPATCH,
+        b"MKCOL" => htp_method_t::HTP_M_MKCOL,
+        b"COPY" => htp_method_t::HTP_M_COPY,
+        b"MOVE" => htp_method_t::HTP_M_MOVE,
+        b"LOCK" => htp_method_t::HTP_M_LOCK,
+        b"UNLOCK" => htp_method_t::HTP_M_UNLOCK,
+        b"VERSION-CONTROL" => htp_method_t::HTP_M_VERSION_CONTROL,
+        b"CHECKOUT" => htp_method_t::HTP_M_CHECKOUT,
+        b"UNCHECKOUT" => htp_method_t::HTP_M_UNCHECKOUT,
+        b"CHECKIN" => htp_method_t::HTP_M_CHECKIN,
+        b"UPDATE" => htp_method_t::HTP_M_UPDATE,
+        b"LABEL" => htp_method_t::HTP_M_LABEL,
+        b"REPORT" => htp_method_t::HTP_M_REPORT,
+        b"MKWORKSPACE" => htp_method_t::HTP_M_MKWORKSPACE,
+        b"MKACTIVITY" => htp_method_t::HTP_M_MKACTIVITY,
+        b"BASELINE-CONTROL" => htp_method_t::HTP_M_BASELINE_CONTROL,
+        b"MERGE" => htp_method_t::HTP_M_MERGE,
+        b"INVALID" => htp_method_t::HTP_M_INVALID,
+        b"HEAD" => htp_method_t::HTP_M_HEAD,
+        _ => htp_method_t::HTP_M_UNKNOWN,
     }
-    if method.cmp("PUT") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_PUT;
-    }
-    if method.cmp("POST") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_POST;
-    }
-    if method.cmp("DELETE") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_DELETE;
-    }
-    if method.cmp("CONNECT") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_CONNECT;
-    }
-    if method.cmp("OPTIONS") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_OPTIONS;
-    }
-    if method.cmp("TRACE") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_TRACE;
-    }
-    if method.cmp("PATCH") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_PATCH;
-    }
-    if method.cmp("PROPFIND") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_PROPFIND;
-    }
-    if method.cmp("PROPPATCH") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_PROPPATCH;
-    }
-    if method.cmp("MKCOL") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_MKCOL;
-    }
-    if method.cmp("COPY") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_COPY;
-    }
-    if method.cmp("MOVE") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_MOVE;
-    }
-    if method.cmp("LOCK") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_LOCK;
-    }
-    if method.cmp("UNLOCK") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_UNLOCK;
-    }
-    if method.cmp("VERSION-CONTROL") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_VERSION_CONTROL;
-    }
-    if method.cmp("CHECKOUT") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_CHECKOUT;
-    }
-    if method.cmp("UNCHECKOUT") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_UNCHECKOUT;
-    }
-    if method.cmp("CHECKIN") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_CHECKIN;
-    }
-    if method.cmp("UPDATE") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_UPDATE;
-    }
-    if method.cmp("LABEL") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_LABEL;
-    }
-    if method.cmp("REPORT") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_REPORT;
-    }
-    if method.cmp("MKWORKSPACE") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_MKWORKSPACE;
-    }
-    if method.cmp("MKACTIVITY") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_MKACTIVITY;
-    }
-    if method.cmp("BASELINE-CONTROL") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_BASELINE_CONTROL;
-    }
-    if method.cmp("MERGE") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_MERGE;
-    }
-    if method.cmp("INVALID") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_INVALID;
-    }
-    if method.cmp("HEAD") == Ordering::Equal {
-        return htp_request::htp_method_t::HTP_M_HEAD;
-    }
-    htp_request::htp_method_t::HTP_M_UNKNOWN
 }
 
 /// Is the given line empty?
