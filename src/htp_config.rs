@@ -112,8 +112,6 @@ pub struct htp_cfg_t {
     pub hook_transaction_complete: TxHook,
     /// Log hook, invoked every time the library wants to log.
     pub hook_log: LogHook,
-    /// Opaque user data associated with this configuration structure.
-    pub user_data: *mut core::ffi::c_void,
     // Request Line parsing options.
 
     // TODO this was added here to maintain a stable ABI, once we can break that
@@ -168,7 +166,6 @@ impl Default for htp_cfg_t {
             hook_response_complete: TxHook::new(),
             hook_transaction_complete: TxHook::new(),
             hook_log: LogHook::new(),
-            user_data: std::ptr::null_mut(),
             requestline_leading_whitespace_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
             response_decompression_layer_limit: 2,
             lzma_memlimit: 1048576,
