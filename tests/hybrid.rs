@@ -626,7 +626,7 @@ fn RequestLineParsing2() {
         // Check the results now.
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(1, (*tx).is_protocol_0_9);
+        assert!((*tx).is_protocol_0_9);
         assert_eq!(Protocol::V0_9, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_none());
         assert!((*tx).request_uri.as_ref().unwrap().eq("/"));

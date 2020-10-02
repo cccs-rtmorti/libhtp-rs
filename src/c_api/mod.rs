@@ -312,7 +312,7 @@ pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
     parse_request_cookies: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_parse_request_cookies(parse_request_cookies)
+        (*cfg).set_parse_request_cookies(parse_request_cookies == 1)
     }
 }
 
@@ -874,7 +874,7 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
     tx_auto_destroy: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_tx_auto_destroy(tx_auto_destroy)
+        (*cfg).set_tx_auto_destroy(tx_auto_destroy == 1)
     }
 }
 

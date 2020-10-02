@@ -220,7 +220,7 @@ pub unsafe extern "C" fn htp_tx_request_protocol_number(
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const htp_transaction::htp_tx_t) -> i32 {
     if let Some(tx) = tx.as_ref() {
-        tx.is_protocol_0_9
+        tx.is_protocol_0_9 as i32
     } else {
         0
     }

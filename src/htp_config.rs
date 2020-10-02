@@ -20,7 +20,7 @@ pub struct htp_cfg_t {
     pub log_level: htp_log_level_t,
     /// Whether to delete each transaction after the last hook is invoked. This
     /// feature should be used when parsing traffic streams in real time.
-    pub tx_auto_destroy: i32,
+    pub tx_auto_destroy: bool,
     /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
     /// The function to use to transform parameters after parsing.
@@ -34,9 +34,9 @@ pub struct htp_cfg_t {
     /// Not fully implemented at the moment.
     pub internal_encoding: *mut i8,
     /// Whether to parse request cookies.
-    pub parse_request_cookies: i32,
+    pub parse_request_cookies: bool,
     /// Whether to parse HTTP Authentication headers.
-    pub parse_request_auth: i32,
+    pub parse_request_auth: bool,
     /// Whether to extract files from requests using Multipart encoding.
     pub extract_request_files: bool,
     /// How many extracted files are allowed in a single Multipart request?
@@ -134,15 +134,15 @@ impl Default for htp_cfg_t {
             field_limit_hard: 18000,
             field_limit_soft: 9000,
             log_level: htp_log_level_t::HTP_LOG_NOTICE,
-            tx_auto_destroy: 0,
+            tx_auto_destroy: false,
             server_personality: htp_server_personality_t::HTP_SERVER_MINIMAL,
             parameter_processor: None,
             decoder_cfg: Default::default(),
             response_decompression_enabled: true,
             request_encoding: std::ptr::null_mut(),
             internal_encoding: std::ptr::null_mut(),
-            parse_request_cookies: 1,
-            parse_request_auth: 1,
+            parse_request_cookies: true,
+            parse_request_auth: true,
             extract_request_files: false,
             extract_request_files_limit: 16,
             tmpdir: "/tmp".to_string(),
@@ -540,7 +540,7 @@ impl htp_cfg_t {
     }
 
     /// Enable or disable request cookie parsing. Enabled by default.
-    pub fn set_parse_request_cookies(&mut self, parse_request_cookies: i32) {
+    pub fn set_parse_request_cookies(&mut self, parse_request_cookies: bool) {
         self.parse_request_cookies = parse_request_cookies;
     }
 
@@ -629,7 +629,7 @@ impl htp_cfg_t {
     /// Configures whether transactions will be automatically destroyed once they
     /// are processed and all callbacks invoked. This option is appropriate for
     /// programs that process transactions as they are processed.
-    pub fn set_tx_auto_destroy(&mut self, tx_auto_destroy: i32) {
+    pub fn set_tx_auto_destroy(&mut self, tx_auto_destroy: bool) {
         self.tx_auto_destroy = tx_auto_destroy;
     }
 

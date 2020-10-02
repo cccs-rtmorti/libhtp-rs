@@ -829,7 +829,7 @@ fn Http_0_9_Explicit() {
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
-        assert_eq!(0, (*tx).is_protocol_0_9);
+        assert!(!(*tx).is_protocol_0_9);
     }
 }
 
@@ -1280,7 +1280,7 @@ fn InvalidRequest3() {
 fn AutoDestroyCrash() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_tx_auto_destroy(1);
+        (*t.cfg).set_tx_auto_destroy(true);
         assert!(t.run("39-auto-destroy-crash.t").is_ok());
 
         assert_eq!(4, (*t.connp).conn.tx_size());
@@ -1339,7 +1339,7 @@ fn Unknown_MethodOnly() {
 
         assert!((*tx).request_uri.is_none());
 
-        assert_eq!(1, (*tx).is_protocol_0_9);
+        assert!((*tx).is_protocol_0_9);
     }
 }
 
@@ -2420,7 +2420,7 @@ fn Http_0_9_MethodOnly() {
 
         assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
 
-        assert_eq!(1, (*tx).is_protocol_0_9);
+        assert!((*tx).is_protocol_0_9);
     }
 }
 

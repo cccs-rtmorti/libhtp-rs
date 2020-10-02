@@ -499,7 +499,7 @@ impl htp_connection_parser::htp_connp_t {
             && te_opt.is_none()
             && cl_opt.is_none()
         {
-            if self.out_tx_mut_ok()?.seen_100continue != 0 {
+            if self.out_tx_mut_ok()?.seen_100continue {
                 unsafe {
                     htp_error!(
                         self as *mut htp_connection_parser::htp_connp_t,
@@ -515,7 +515,7 @@ impl htp_connection_parser::htp_connp_t {
             self.out_state = State::LINE;
             self.out_tx_mut_ok()?.response_progress =
                 htp_transaction::htp_tx_res_progress_t::HTP_RESPONSE_LINE;
-            self.out_tx_mut_ok()?.seen_100continue += 1;
+            self.out_tx_mut_ok()?.seen_100continue;
             return Ok(());
         }
         // 1. Any response message which MUST NOT include a message-body

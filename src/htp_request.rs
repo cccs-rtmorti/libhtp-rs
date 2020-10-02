@@ -622,7 +622,7 @@ impl htp_connection_parser::htp_connp_t {
     pub unsafe fn REQ_PROTOCOL(&mut self) -> Result<()> {
         // Is this a short-style HTTP/0.9 request? If it is,
         // we will not want to parse request headers.
-        if self.in_tx_mut_ok()?.is_protocol_0_9 == 0 {
+        if !self.in_tx_mut_ok()?.is_protocol_0_9 {
             // Switch to request header parsing.
             self.in_state = State::HEADERS;
             self.in_tx_mut_ok()?.request_progress =
@@ -639,7 +639,7 @@ impl htp_connection_parser::htp_connp_t {
                         htp_log_code::REQUEST_LINE_NO_PROTOCOL,
                         "Request line: missing protocol"
                     );
-                    self.in_tx_mut_ok()?.is_protocol_0_9 = 0;
+                    self.in_tx_mut_ok()?.is_protocol_0_9 = false;
                     // Switch to request header parsing.
                     self.in_state = State::HEADERS;
                     self.in_tx_mut_ok()?.request_progress =

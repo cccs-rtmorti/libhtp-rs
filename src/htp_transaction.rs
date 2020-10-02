@@ -227,7 +227,7 @@ pub struct htp_tx_t {
     pub cfg: *mut htp_config::htp_cfg_t,
     /// Is the configuration structure shared with other transactions or connections? If
     /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
-    pub is_config_shared: i32,
+    pub is_config_shared: bool,
     /// The user data associated with this transaction.
     pub user_data: *mut core::ffi::c_void,
 
@@ -255,7 +255,7 @@ pub struct htp_tx_t {
     /// the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
     /// example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
     /// as HTTP/0.9.
-    pub is_protocol_0_9: i32,
+    pub is_protocol_0_9: bool,
     /// This structure holds the individual components parsed out of the request URI, with
     /// appropriate normalization and transformation applied, per configuration. No information
     /// is added. In extreme cases when no URI is provided on the request line, all fields
@@ -370,7 +370,7 @@ pub struct htp_tx_t {
     /// The message associated with the response status code. Can be NULL.
     pub response_message: Option<bstr::bstr_t>,
     /// Have we seen the server respond with a 100 response?
-    pub seen_100continue: i32,
+    pub seen_100continue: bool,
     /// Parsed response headers. Contains instances of htp_header_t.
     pub response_headers: htp_headers_t,
 
@@ -451,7 +451,7 @@ impl htp_tx_t {
         let tx = Self {
             connp,
             cfg: connp.cfg,
-            is_config_shared: 1,
+            is_config_shared: true,
             user_data: std::ptr::null_mut(),
             request_ignored_lines: 0,
             request_line: None,
@@ -460,7 +460,7 @@ impl htp_tx_t {
             request_uri: None,
             request_protocol: None,
             request_protocol_number: Protocol::UNKNOWN,
-            is_protocol_0_9: 0,
+            is_protocol_0_9: false,
             parsed_uri: None,
             parsed_uri_raw: None,
             complete_normalized_uri: None,
@@ -492,7 +492,7 @@ impl htp_tx_t {
             response_status_number: 0,
             response_status_expected_number: htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE,
             response_message: None,
-            seen_100continue: 0,
+            seen_100continue: false,
             response_headers: htp_table::htp_table_t::with_capacity(32),
             response_message_len: 0,
             response_entity_len: 0,
@@ -558,14 +558,10 @@ impl htp_tx_t {
 
     /// Determine if the request has a body.
     ///
-    /// Returns 1 if there is a body, 0 otherwise.
-    pub unsafe fn req_has_body(&self) -> i32 {
-        if self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_IDENTITY
+    /// Returns true if there is a body, false otherwise.
+    pub fn req_has_body(&self) -> bool {
+        self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_IDENTITY
             || self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_CHUNKED
-        {
-            return 1;
-        }
-        0
     }
 
     unsafe fn process_request_headers(&mut self) -> Result<()> {
@@ -647,8 +643,7 @@ impl htp_tx_t {
             self.flags |= Flags::HTP_REQUEST_INVALID
         }
         // Check for PUT requests, which we need to treat as file uploads.
-        if self.request_method_number == htp_request::htp_method_t::HTP_M_PUT
-            && self.req_has_body() != 0
+        if self.request_method_number == htp_request::htp_method_t::HTP_M_PUT && self.req_has_body()
         {
             // Prepare to treat PUT request body as a file.
             (*self.connp).put_file = Some(htp_util::htp_file_t::new(
@@ -726,11 +721,11 @@ impl htp_tx_t {
             htp_util::htp_parse_ct_header(&ct.value, &mut *self.request_content_type)?;
         }
         // Parse cookies.
-        if (*(*self.connp).cfg).parse_request_cookies != 0 {
+        if (*(*self.connp).cfg).parse_request_cookies {
             htp_cookies::htp_parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
         }
         // Parse authentication information.
-        if (*(*self.connp).cfg).parse_request_auth != 0 {
+        if (*(*self.connp).cfg).parse_request_auth {
             htp_parsers::htp_parse_authorization((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)
                 .or_else(|rc| {
                 if rc == Status::DECLINED {
@@ -961,7 +956,7 @@ impl htp_tx_t {
 
     pub unsafe fn state_request_complete_partial(&mut self) -> Result<()> {
         // Finalize request body.
-        if self.req_has_body() != 0 {
+        if self.req_has_body() {
             self.req_process_body_data_ex(0 as *const core::ffi::c_void, 0)?;
         }
         self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
@@ -983,7 +978,7 @@ impl htp_tx_t {
         // destroyed later.
         let connp: *mut htp_connection_parser::htp_connp_t = self.connp;
         // Determine what happens next, and remove this transaction from the parser.
-        if self.is_protocol_0_9 != 0 {
+        if self.is_protocol_0_9 {
             (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
         } else {
             (*connp).in_state = State::IDLE;
@@ -1111,7 +1106,7 @@ impl htp_tx_t {
             .hook_transaction_complete
             .run_all(self)?;
         // In streaming processing, we destroy the transaction because it will not be needed any more.
-        if (*(*self.connp).cfg).tx_auto_destroy != 0 {
+        if (*(*self.connp).cfg).tx_auto_destroy {
             self.destroy()?;
         }
         Ok(())
@@ -1355,7 +1350,7 @@ impl htp_tx_t {
         (*(*self.connp).cfg).hook_response_start.run_all(self)?;
         // Change state into response line parsing, except if we're following
         // a HTTP/0.9 request (no status line or response headers).
-        if self.is_protocol_0_9 != 0 {
+        if self.is_protocol_0_9 {
             self.response_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY;
             self.response_content_encoding_processing =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
@@ -1450,7 +1445,7 @@ impl Drop for htp_tx_t {
 
             self.destroy_decompressors();
             // If we're using a private configuration structure, destroy it.
-            if self.is_config_shared == 0 {
+            if !self.is_config_shared {
                 (*self.cfg).destroy();
             }
         }

@@ -263,7 +263,7 @@ impl htp_connection_parser::htp_connp_t {
 
             if remaining.is_empty() {
                 // No, this looks like a HTTP/0.9 request.
-                self.in_tx_mut_ok()?.is_protocol_0_9 = 1;
+                self.in_tx_mut_ok()?.is_protocol_0_9 = true;
                 self.in_tx_mut_ok()?.request_protocol_number = Protocol::V0_9;
                 if self.in_tx_mut_ok()?.request_method_number
                     == htp_request::htp_method_t::HTP_M_UNKNOWN
@@ -306,7 +306,7 @@ impl htp_connection_parser::htp_connp_t {
                 // Is there protocol information available?
                 if protocol.is_empty() {
                     // No, this looks like a HTTP/0.9 request.
-                    self.in_tx_mut_ok()?.is_protocol_0_9 = 1;
+                    self.in_tx_mut_ok()?.is_protocol_0_9 = true;
                     self.in_tx_mut_ok()?.request_protocol_number = Protocol::V0_9;
                     if self.in_tx_mut_ok()?.request_method_number
                         == htp_request::htp_method_t::HTP_M_UNKNOWN
