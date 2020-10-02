@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+use htp::bstr::*;
 use htp::c_api::htp_connp_create;
 use htp::htp_config;
 use htp::htp_config::htp_server_personality_t::*;
@@ -1086,7 +1087,10 @@ fn WithFile() {
         assert!(part.is_some());
         let part = part.unwrap();
         assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
-        assert!((*(*(*part)).content_type).eq("application/octet-stream"));
+        assert_eq!(
+            Some(bstr_t::from("application/octet-stream")),
+            (*(*part)).content_type
+        );
         assert!((*(*part)).file.is_some());
         let file = (*(*part)).file.as_ref().unwrap();
         assert!(file.filename.is_some());
@@ -1127,7 +1131,10 @@ fn WithFileExternallyStored() {
             let part = part.unwrap();
             assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
 
-            assert!((*(*(*part)).content_type).eq("application/octet-stream"));
+            assert_eq!(
+                (*(*part)).content_type,
+                Some(bstr_t::from("application/octet-stream"))
+            );
             assert!((*(*part)).file.is_some());
             let file = (*(*part)).file.as_ref().unwrap();
             assert!(file.filename.is_some());
@@ -1514,8 +1521,10 @@ fn MultipleContentTypeHeadersEvasion() {
 
     t.parseRequestThenVerify(&headers, &data);
     unsafe {
-        assert!(!(*t.tx).request_content_type.is_null());
-        assert!((*(*t.tx).request_content_type).eq("multipart/form-data"));
+        assert_eq!(
+            (*t.tx).request_content_type,
+            Some(bstr_t::from("multipart/form-data"))
+        );
     }
 }
 

@@ -354,11 +354,10 @@ pub unsafe extern "C" fn htp_tx_request_content_encoding(
 pub unsafe extern "C" fn htp_tx_request_content_type(
     tx: *const htp_transaction::htp_tx_t,
 ) -> *const bstr::bstr_t {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_content_type
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .and_then(|tx| tx.request_content_type.as_ref())
+        .map(|content_type| content_type as *const bstr_t)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request content length.

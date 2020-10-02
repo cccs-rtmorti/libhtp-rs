@@ -817,73 +817,35 @@ fn ParseFragment() {
 }
 
 #[test]
-fn ParseContentType_1() {
-    let i = bstr_t::from("multipart/form-data");
-    let e = "multipart/form-data";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
-}
-
-#[test]
-fn ParseContentType_2() {
-    let i = bstr_t::from("multipart/form-data;boundary=X");
-    let e = "multipart/form-data";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
-}
-
-#[test]
-fn ParseContentType_3() {
-    let i = bstr_t::from("multipart/form-data boundary=X");
-    let e = "multipart/form-data";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
-}
-
-#[test]
-fn ParseContentType_4() {
-    let i = bstr_t::from("multipart/form-data,boundary=X");
-    let e = "multipart/form-data";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
-}
-
-#[test]
-fn ParseContentType_5() {
-    let i = bstr_t::from("multipart/FoRm-data");
-    let e = "multipart/form-data";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
-}
-
-#[test]
-fn ParseContentType_6() {
-    let i = bstr_t::from("multipart/form-data\t boundary=X");
-    let e = "multipart/form-data\t";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
-}
-
-#[test]
-fn ParseContentType_7() {
-    let i = bstr_t::from("   \tmultipart/form-data boundary=X");
-    let e = "multipart/form-data";
-    let mut ct = bstr_t::new();
-
-    htp_parse_ct_header(&i, &mut ct).unwrap();
-    assert!(ct.eq(e));
+fn ParseContentType() {
+    assert_eq!(
+        bstr_t::from("multipart/form-data"),
+        parse_ct_header(b"multipart/form-data").unwrap()
+    );
+    assert_eq!(
+        bstr_t::from("multipart/form-data"),
+        parse_ct_header(b"multipart/form-data;boundary=X").unwrap()
+    );
+    assert_eq!(
+        bstr_t::from("multipart/form-data"),
+        parse_ct_header(b"multipart/form-data boundary=X").unwrap()
+    );
+    assert_eq!(
+        bstr_t::from("multipart/form-data"),
+        parse_ct_header(b"multipart/form-data,boundary=X").unwrap()
+    );
+    assert_eq!(
+        bstr_t::from("multipart/form-data"),
+        parse_ct_header(b"multipart/FoRm-data").unwrap()
+    );
+    assert_eq!(
+        bstr_t::from("multipart/form-data\t"),
+        parse_ct_header(b"multipart/form-data\t boundary=X").unwrap()
+    );
+    assert_eq!(
+        bstr_t::from("multipart/form-data"),
+        parse_ct_header(b"   \tmultipart/form-data boundary=X").unwrap()
+    );
 }
 
 #[test]

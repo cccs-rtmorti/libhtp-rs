@@ -56,8 +56,11 @@ pub fn htp_ch_urlencoded_callback_request_headers(
 ) -> Result<()> {
     unsafe {
         // Check the request content type to see if it matches our MIME type.
-        if (*tx).request_content_type.is_null()
-            || !(*(*tx).request_content_type).starts_with("application/x-www-form-urlencoded")
+        if !(*tx)
+            .request_content_type
+            .as_ref()
+            .ok_or(Status::DECLINED)?
+            .starts_with("application/x-www-form-urlencoded")
         {
             return Err(Status::DECLINED);
         }
@@ -163,7 +166,7 @@ pub fn htp_ch_multipart_callback_request_headers(tx: *mut htp_transaction::htp_t
         // The field request_content_type does not contain the entire C-T
         // value and so we cannot use it to look for a boundary, but we can
         // use it for a quick check to determine if the C-T header exists.
-        if (*tx).request_content_type.is_null() {
+        if (*tx).request_content_type.is_none() {
             return Err(Status::DECLINED);
         }
         // Look for a boundary.

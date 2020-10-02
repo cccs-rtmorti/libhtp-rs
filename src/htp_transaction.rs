@@ -311,7 +311,7 @@ pub struct htp_tx_t {
     /// This field contain the request content type when that information is
     /// available in request headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
-    pub request_content_type: *mut bstr::bstr_t,
+    pub request_content_type: Option<bstr::bstr_t>,
     /// Contains the value specified in the Content-Length header. The value of this
     /// field will be -1 from the beginning of the transaction and until request
     /// headers are processed. It will stay -1 if the C-L header was not provided,
@@ -471,7 +471,7 @@ impl htp_tx_t {
             request_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
             request_content_encoding:
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
-            request_content_type: std::ptr::null_mut(),
+            request_content_type: None,
             request_content_length: -1,
             hook_request_body_data: DataHook::new(),
             hook_response_body_data: DataHook::new(),
@@ -711,14 +711,7 @@ impl htp_tx_t {
         }
         // Determine Content-Type.
         if let Some((_, ct)) = self.request_headers.get_nocase_nozero("content-type") {
-            if self.request_content_type.is_null() {
-                self.request_content_type = bstr::bstr_alloc(0);
-                if self.request_content_type.is_null() {
-                    return Err(Status::ERROR);
-                }
-            }
-
-            htp_util::htp_parse_ct_header(&ct.value, &mut *self.request_content_type)?;
+            self.request_content_type = Some(htp_util::parse_ct_header(ct.value.as_slice())?);
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies {
@@ -1432,9 +1425,6 @@ impl Drop for htp_tx_t {
     /// Destroys all the fields inside an htp_tx_t.
     fn drop(&mut self) {
         unsafe {
-            // Request fields.
-            bstr::bstr_free(self.request_content_type);
-
             // Request parameters.
             htp_table::htp_table_free(self.request_params);
 

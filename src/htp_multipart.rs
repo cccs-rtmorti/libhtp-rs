@@ -586,8 +586,8 @@ pub struct htp_multipart_part_t {
     /// preamble and epilogue parts (they have no headers), and
     /// 3) data only (headers excluded) for text and unknown parts.
     pub value: bstr::bstr_t,
-    /// Part content type, from the Content-Type header. Can be empty.
-    pub content_type: bstr::bstr_t,
+    /// Part content type, from the Content-Type header. Can be None.
+    pub content_type: Option<bstr::bstr_t>,
     /// Part headers (htp_header_t instances), using header name as the key.
     pub headers: htp_transaction::htp_headers_t,
     /// File data, available only for MULTIPART_PART_FILE parts.
@@ -605,7 +605,7 @@ impl htp_multipart_part_t {
             len: 0,
             name: bstr::bstr_t::with_capacity(64),
             value: bstr::bstr_t::with_capacity(64),
-            content_type: bstr::bstr_t::new(),
+            content_type: None,
             headers: htp_table::htp_table_t::with_capacity(4),
             file: None,
         }
@@ -681,7 +681,8 @@ impl htp_multipart_part_t {
     /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
     fn parse_c_t(&mut self) -> Result<()> {
         if let Some((_, header)) = self.headers.get_nocase_nozero("content-type") {
-            htp_util::htp_parse_ct_header(&header.value, &mut self.content_type).into()
+            self.content_type = Some(htp_util::parse_ct_header(header.value.as_slice())?);
+            Ok(())
         } else {
             Err(Status::DECLINED)
         }

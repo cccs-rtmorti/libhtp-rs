@@ -1911,12 +1911,11 @@ fn content_type_header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
 /// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
 ///
 /// Returns Status::OK if successful; Status::ERROR if not
-pub fn htp_parse_ct_header<'a>(header: &'a bstr::bstr_t, ct: &mut bstr::bstr_t) -> Result<()> {
-    if let Ok((_, content_type)) = content_type_header()(header.as_slice()) {
-        ct.clear();
-        ct.add(content_type);
+pub fn parse_ct_header(header: &[u8]) -> Result<bstr::bstr_t> {
+    if let Ok((_, content_type)) = content_type_header()(header) {
+        let mut ct = bstr::bstr_t::from(content_type);
         ct.make_ascii_lowercase();
-        Ok(())
+        Ok(ct)
     } else {
         Err(Status::ERROR)
     }
