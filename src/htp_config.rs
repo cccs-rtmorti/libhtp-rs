@@ -40,7 +40,7 @@ pub struct htp_cfg_t {
     /// Whether to extract files from requests using Multipart encoding.
     pub extract_request_files: bool,
     /// How many extracted files are allowed in a single Multipart request?
-    pub extract_request_files_limit: i32,
+    pub extract_request_files_limit: u32,
     /// The location on disk where temporary files will be created.
     pub tmpdir: String,
     /// Request start hook, invoked when the parser receives the first byte of a new
@@ -146,7 +146,7 @@ impl Default for htp_cfg_t {
             parse_request_cookies: 1,
             parse_request_auth: 1,
             extract_request_files: false,
-            extract_request_files_limit: -1,
+            extract_request_files_limit: 16,
             tmpdir: "/tmp".to_string(),
             hook_request_start: TxHook::new(),
             hook_request_line: TxHook::new(),

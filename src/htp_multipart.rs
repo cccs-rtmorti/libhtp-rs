@@ -106,9 +106,9 @@ pub struct htp_mpartp_t {
     pub multipart: htp_multipart_t,
     pub cfg: *mut htp_config::htp_cfg_t,
     pub extract_files: bool,
-    pub extract_limit: i32,
+    pub extract_limit: u32,
     pub extract_dir: String,
-    pub file_count: i32,
+    pub file_count: u32,
     // Internal parsing fields; move into a private structure
     /// Parser state; one of MULTIPART_STATE_* constants.
     parser_state: htp_multipart_state_t,
@@ -176,12 +176,6 @@ impl htp_mpartp_t {
         }
 
         unsafe {
-            let limit: i32 = if (*cfg).extract_request_files_limit >= 0 {
-                (*cfg).extract_request_files_limit
-            } else {
-                16
-            };
-
             Some(Self {
                 multipart: htp_multipart_t {
                     boundary_len: boundary.len() + 2,
@@ -192,7 +186,7 @@ impl htp_mpartp_t {
                 },
                 cfg,
                 extract_files: (*cfg).extract_request_files,
-                extract_limit: limit,
+                extract_limit: (*cfg).extract_request_files_limit,
                 extract_dir: (*cfg).tmpdir.clone(),
                 file_count: 0,
                 // We're starting in boundary-matching mode. The first boundary can appear without the
