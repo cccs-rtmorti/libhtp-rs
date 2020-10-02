@@ -191,10 +191,10 @@ impl htp_connection_parser::htp_connp_t {
     ///
     /// Returns HTP_OK or HTP_ERROR
     pub unsafe fn parse_request_line_generic(&mut self) -> Result<()> {
-        self.parse_request_line_generic_ex(0)
+        self.parse_request_line_generic_ex(false)
     }
 
-    pub unsafe fn parse_request_line_generic_ex(&mut self, nul_terminates: i32) -> Result<()> {
+    pub unsafe fn parse_request_line_generic_ex(&mut self, nul_terminates: bool) -> Result<()> {
         let mut mstart: bool = false;
         let data = if let Some(data) = self.in_tx_mut_ok()?.request_line.clone() {
             data
@@ -202,7 +202,7 @@ impl htp_connection_parser::htp_connp_t {
             return Err(Status::ERROR);
         };
         let mut data = data.as_slice();
-        if nul_terminates != 0 {
+        if nul_terminates {
             if let Ok((_, before_null)) = htp_util::take_until_null(data) {
                 data = before_null
             }

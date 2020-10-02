@@ -693,8 +693,8 @@ impl htp_connection_parser::htp_connp_t {
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
     pub fn RES_HEADERS(&mut self) -> Result<()> {
-        let mut endwithcr: i32 = 0;
-        let mut lfcrending: i32 = 0;
+        let mut endwithcr = false;
+        let mut lfcrending = false;
         loop {
             if self.out_status == htp_connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
                 // Finalize sending raw trailer data.
@@ -721,9 +721,9 @@ impl htp_connection_parser::htp_connp_t {
             }
             // Have we reached the end of the line?
             if self.out_next_byte != '\n' as i32 && self.out_next_byte != '\r' as i32 {
-                lfcrending = 0
+                lfcrending = false
             } else {
-                endwithcr = 0;
+                endwithcr = false;
                 if self.out_next_byte == '\r' as i32 {
                     if self.out_current_read_offset >= self.out_current_len {
                         self.out_next_byte = -1
@@ -751,7 +751,7 @@ impl htp_connection_parser::htp_connp_t {
                             } else {
                                 return Err(Status::DATA_BUFFER);
                             }
-                            if lfcrending != 0 {
+                            if lfcrending {
                                 // Handling LFCRCRLFCRLF
                                 // These 6 characters mean only 2 end of lines
                                 if self.out_current_read_offset >= self.out_current_len {
@@ -815,8 +815,8 @@ impl htp_connection_parser::htp_connp_t {
                         } else if self.out_next_byte == '\r' as i32 {
                             continue;
                         }
-                        lfcrending = 0;
-                        endwithcr = 1
+                        lfcrending = false;
+                        endwithcr = true
                     }
                 } else {
                     // connp->out_next_byte == LF
@@ -830,7 +830,7 @@ impl htp_connection_parser::htp_connp_t {
                                 as i32
                         }
                     }
-                    lfcrending = 0;
+                    lfcrending = false;
                     if self.out_next_byte == '\r' as i32 {
                         // hanldes LF-CR sequence as end of line
                         if self.out_current_read_offset < self.out_current_len {
@@ -845,14 +845,14 @@ impl htp_connection_parser::htp_connp_t {
                         } else {
                             return Err(Status::DATA_BUFFER);
                         }
-                        lfcrending = 1
+                        lfcrending = true
                     }
                 }
                 let mut data: *mut u8 = 0 as *mut u8;
                 let mut len: usize = 0;
                 self.res_consolidate_data(&mut data, &mut len)?;
                 // CRCRLF is not an empty line
-                if endwithcr != 0 && len < 2 {
+                if endwithcr && len < 2 {
                     continue;
                 }
                 let mut next_no_lf: bool = false;

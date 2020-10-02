@@ -1161,7 +1161,7 @@ impl htp_tx_t {
     pub unsafe fn state_response_headers(&mut self) -> Result<()> {
         // Check for compression.
         // Determine content encoding.
-        let mut ce_multi_comp: i32 = 0;
+        let mut ce_multi_comp = false;
         self.response_content_encoding =
             htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
         if let Some((_, ce)) = self.response_headers.get_nocase_nozero("content-encoding") {
@@ -1181,7 +1181,7 @@ impl htp_tx_t {
                     htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
             } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
                 // exceptional cases: enter slow path
-                ce_multi_comp = 1
+                ce_multi_comp = true
             }
         }
         // Configure decompression, if enabled in the configuration.
@@ -1190,7 +1190,7 @@ impl htp_tx_t {
         } else {
             self.response_content_encoding_processing =
                 htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-            ce_multi_comp = 0
+            ce_multi_comp = false
         }
         // Finalize sending raw header data.
         (&mut *self.connp).res_receiver_finalize_clear()?;
@@ -1213,13 +1213,13 @@ impl htp_tx_t {
                 == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
             || self.response_content_encoding_processing
                 == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
-            || ce_multi_comp != 0
+            || ce_multi_comp
         {
             if !self.out_decompressor.is_null() {
                 self.destroy_decompressors();
             }
             // normal case
-            if ce_multi_comp == 0 {
+            if !ce_multi_comp {
                 self.out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
                     self.connp,
                     self.response_content_encoding_processing,
