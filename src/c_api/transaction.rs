@@ -534,11 +534,9 @@ pub unsafe extern "C" fn htp_tx_response_status_number(
 pub unsafe extern "C" fn htp_tx_response_status_expected_number(
     tx: *const htp_transaction::htp_tx_t,
 ) -> i32 {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_status_expected_number
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .map(|tx| tx.response_status_expected_number as i32)
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's response message.

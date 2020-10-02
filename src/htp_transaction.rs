@@ -366,7 +366,7 @@ pub struct htp_tx_t {
     pub response_status_number: i32,
     /// This field is set by the protocol decoder with it thinks that the
     /// backend server will reject a request with a particular status code.
-    pub response_status_expected_number: i32,
+    pub response_status_expected_number: htp_config::htp_unwanted_t,
     /// The message associated with the response status code. Can be NULL.
     pub response_message: Option<bstr::bstr_t>,
     /// Have we seen the server respond with a 100 response?
@@ -490,7 +490,7 @@ impl htp_tx_t {
             response_protocol_number: Protocol::UNKNOWN,
             response_status: None,
             response_status_number: 0,
-            response_status_expected_number: 0,
+            response_status_expected_number: htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE,
             response_message: None,
             seen_100continue: 0,
             response_headers: htp_table::htp_table_t::with_capacity(32),

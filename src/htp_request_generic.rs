@@ -236,7 +236,7 @@ impl htp_connection_parser::htp_connp_t {
                     mstart = true;
                     // set expected response code to this anomaly
                     self.in_tx_mut_ok()?.response_status_expected_number =
-                        (*(*self).cfg).requestline_leading_whitespace_unwanted as i32
+                        (*(*self).cfg).requestline_leading_whitespace_unwanted
                 }
             }
 
