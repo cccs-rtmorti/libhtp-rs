@@ -492,27 +492,29 @@ pub unsafe extern "C" fn htp_connp_open(
     } else {
         return;
     };
-    let client_addr = if let Some(client_addr) = client_addr.as_ref() {
+    let client_addr = client_addr.as_ref().and_then(|client_addr| {
         CStr::from_ptr(client_addr)
             .to_str()
             .ok()
             .and_then(|val| val.parse().ok())
+    });
+    let client_port = if client_port >= 0 || client_port <= std::u16::MAX as libc::c_int {
+        Some(client_port as u16)
     } else {
         None
     };
-    let server_addr = if let Some(server_addr) = server_addr.as_ref() {
+    let server_addr = server_addr.as_ref().and_then(|server_addr| {
         CStr::from_ptr(server_addr)
             .to_str()
             .ok()
             .and_then(|val| val.parse().ok())
+    });
+    let server_port = if server_port >= 0 || server_port <= std::u16::MAX as libc::c_int {
+        Some(server_port as u16)
     } else {
         None
     };
-    let timestamp = if let Some(timestamp) = timestamp.as_ref() {
-        Some(timestamp.clone())
-    } else {
-        None
-    };
+    let timestamp = timestamp.as_ref().map(|timestamp| timestamp.clone());
     connp.open(
         client_addr,
         client_port,

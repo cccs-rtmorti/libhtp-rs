@@ -99,11 +99,11 @@ pub struct htp_log_t {
     /// Client IP address.
     pub client_addr: Option<IpAddr>,
     /// Client port.
-    pub client_port: i32,
+    pub client_port: Option<u16>,
     /// Server IP address.
     pub server_addr: Option<IpAddr>,
     /// Server port.
-    pub server_port: i32,
+    pub server_port: Option<u16>,
 
     /// Log message.
     pub msg: String,

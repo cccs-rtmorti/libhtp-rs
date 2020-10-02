@@ -70,9 +70,9 @@ impl Test {
             libc::gettimeofday(&mut tv_start, std::ptr::null_mut());
             (*self.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                10000,
+                Some(10000),
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                80,
+                Some(80),
                 Some(tv_start),
             );
 

@@ -477,9 +477,9 @@ impl htp_connp_t {
     pub unsafe fn open(
         &mut self,
         client_addr: Option<IpAddr>,
-        client_port: i32,
+        client_port: Option<u16>,
         server_addr: Option<IpAddr>,
-        server_port: i32,
+        server_port: Option<u16>,
         timestamp: Option<htp_time_t>,
     ) {
         // Check connection parser state first.

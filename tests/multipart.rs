@@ -47,9 +47,9 @@ impl Test {
             // Open connection
             (*self.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                32768,
+                Some(32768),
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                80,
+                Some(80),
                 None,
             );
 

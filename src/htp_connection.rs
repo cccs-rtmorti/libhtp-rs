@@ -8,11 +8,11 @@ pub struct htp_conn_t {
     /// Client IP address.
     pub client_addr: Option<IpAddr>,
     /// Client port.
-    pub client_port: i32,
+    pub client_port: Option<u16>,
     /// Server IP address.
     pub server_addr: Option<IpAddr>,
     /// Server port.
-    pub server_port: i32,
+    pub server_port: Option<u16>,
 
     /// Transactions carried out on this connection. The list may contain
     /// NULL elements when some of the transactions are deleted (and then
@@ -36,9 +36,9 @@ impl htp_conn_t {
     pub fn new() -> Self {
         Self {
             client_addr: None,
-            client_port: 0,
+            client_port: None,
             server_addr: None,
-            server_port: 0,
+            server_port: None,
             transactions: List::with_capacity(16),
             messages: List::with_capacity(8),
             flags: htp_util::ConnectionFlags::HTP_CONN_UNKNOWN,
@@ -131,9 +131,9 @@ impl htp_conn_t {
     pub fn open(
         &mut self,
         client_addr: Option<IpAddr>,
-        client_port: i32,
+        client_port: Option<u16>,
         server_addr: Option<IpAddr>,
-        server_port: i32,
+        server_port: Option<u16>,
         timestamp: Option<htp_time_t>,
     ) {
         self.client_addr = client_addr;

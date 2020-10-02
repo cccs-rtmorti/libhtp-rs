@@ -972,9 +972,9 @@ impl DecodingTest {
             ret.connp = htp_connp_create(ret.cfg);
             (*ret.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                32768,
+                Some(32768),
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                80,
+                Some(80),
                 None,
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
@@ -1772,9 +1772,9 @@ impl UrlEncodedParserTest {
             ret.connp = htp_connp_create(ret.cfg);
             (*ret.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                32768,
+                Some(32768),
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                80,
+                Some(80),
                 None,
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
