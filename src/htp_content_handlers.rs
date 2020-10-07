@@ -31,9 +31,7 @@ pub fn htp_ch_urlencoded_callback_request_body_data(
                         htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
                         htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
                     );
-                    if tx.req_add_param(param).is_err() {
-                        return Err(Status::ERROR);
-                    }
+                    tx.req_add_param(param)?;
                 }
             }
             if let Some(urlenp) = (*tx).request_urlenp_body.as_mut() {
@@ -109,9 +107,7 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut htp_transaction::htp_tx_
                 htp_transaction::htp_data_source_t::HTP_SOURCE_QUERY_STRING,
                 htp_transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
             );
-            if tx.req_add_param(param).is_err() {
-                return Err(Status::ERROR);
-            }
+            tx.req_add_param(param)?;
         }
     }
     Ok(())
@@ -145,9 +141,7 @@ pub fn htp_ch_multipart_callback_request_body_data(
                             htp_transaction::htp_data_source_t::HTP_SOURCE_BODY,
                             htp_transaction::htp_parser_id_t::HTP_PARSER_MULTIPART,
                         );
-                        if tx.req_add_param(param).is_err() {
-                            return Err(Status::ERROR);
-                        }
+                        tx.req_add_param(param)?;
                     }
                 }
             }

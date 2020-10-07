@@ -548,9 +548,7 @@ impl htp_tx_t {
     /// Returns HTP_OK on success, HTP_ERROR on failure.
     pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Result<()> {
         if let Some(parameter_processor_fn) = (*self.cfg).parameter_processor {
-            if parameter_processor_fn(&mut param).is_err() {
-                return Err(Status::ERROR);
-            }
+            parameter_processor_fn(&mut param)?
         }
         (*self.request_params).add(param.name.clone(), param);
         Ok(())
@@ -895,19 +893,17 @@ impl htp_tx_t {
                     &mut (*self.out_decompressor).time_before,
                 )
                 .is_ok()
+                    && (*self.out_decompressor).time_spent > (*(*connp).cfg).compression_time_limit
                 {
-                    if (*self.out_decompressor).time_spent > (*(*connp).cfg).compression_time_limit
-                    {
-                        htp_error!(
-                            connp,
-                            htp_log_code::COMPRESSION_BOMB,
-                            format!(
-                                "Compression bomb: spent {} us decompressing",
-                                (*self.out_decompressor).time_spent
-                            )
-                        );
-                        return Err(Status::ERROR);
-                    }
+                    htp_error!(
+                        connp,
+                        htp_log_code::COMPRESSION_BOMB,
+                        format!(
+                            "Compression bomb: spent {} us decompressing",
+                            (*self.out_decompressor).time_spent
+                        )
+                    );
+                    return Err(Status::ERROR);
                 }
                 if data == 0 as *mut core::ffi::c_void {
                     // Shut down the decompressor, if we used one.

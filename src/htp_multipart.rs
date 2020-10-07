@@ -218,18 +218,17 @@ impl htp_mpartp_t {
     }
 
     /// Handles a boundary event, which means that it will finalize a part if one exists.
-    fn handle_boundary(&mut self) {
+    fn handle_boundary(&mut self) -> Result<()> {
         if let Some(part) = self.get_current_part() {
             unsafe {
-                if (*part).finalize_data().is_err() {
-                    return;
-                }
+                (*part).finalize_data()?;
             }
             // We're done with this part
             self.current_part_idx = None;
             // Revert to line mode
             self.current_part_mode = htp_part_mode_t::MODE_LINE
         }
+        Ok(())
     }
 
     /// Handles data, creating new parts as necessary.
@@ -338,9 +337,7 @@ impl htp_mpartp_t {
             // Process buffered data, if any.
             self.process_aside(false);
             // Finalize the last part.
-            if (*part).finalize_data().is_err() {
-                return Err(Status::ERROR);
-            }
+            (*part).finalize_data()?;
             // It is OK to end abruptly in the epilogue part, but not in any other.
             if (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
                 (*self).multipart.flags |= MultipartFlags::HTP_MULTIPART_INCOMPLETE
@@ -452,7 +449,7 @@ impl htp_mpartp_t {
                     self.multipart.flags |= MultipartFlags::HTP_MULTIPART_PART_AFTER_LAST_BOUNDARY
                 }
                 // Run boundary match.
-                self.handle_boundary();
+                let _ = self.handle_boundary();
                 // We now need to check if this is the last boundary in the payload
                 self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1;
             } else {
