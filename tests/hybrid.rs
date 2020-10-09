@@ -339,8 +339,8 @@ fn GetTest() {
             .eq("p=1&q=2"));
 
         // Check parameters
-        assert_contains_param!(&*(*tx).request_params, "p", "1");
-        assert_contains_param!(&*(*tx).request_params, "q", "2");
+        assert_contains_param!(&(*tx).request_params, "p", "1");
+        assert_contains_param!(&(*tx).request_params, "q", "2");
 
         // Request headers
         req_set_header(&mut *tx, "Host", "www.example.com");
@@ -454,8 +454,8 @@ fn PostUrlecodedTest() {
         (*tx).state_request_complete().unwrap();
 
         // Check parameters
-        assert_contains_param!(&*(*tx).request_params, "p", "1");
-        assert_contains_param!(&*(*tx).request_params, "q", "2");
+        assert_contains_param!(&(*tx).request_params, "p", "1");
+        assert_contains_param!(&(*tx).request_params, "q", "2");
     }
 }
 
@@ -525,11 +525,11 @@ fn ParamCaseSensitivity() {
         (*tx).state_request_line().unwrap();
 
         // Check the parameters.
-        assert_contains_param!(&*(*tx).request_params, "p", "1");
-        assert_contains_param!(&*(*tx).request_params, "p", "1");
-        assert_contains_param!(&*(*tx).request_params, "q", "2");
-        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q", "2");
-        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q", "2");
+        assert_contains_param!(&(*tx).request_params, "p", "1");
+        assert_contains_param!(&(*tx).request_params, "p", "1");
+        assert_contains_param!(&(*tx).request_params, "q", "2");
+        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q", "2");
+        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q", "2");
     }
 }
 
@@ -570,8 +570,8 @@ fn PostUrlecodedChunked() {
         (*tx).state_request_complete().unwrap();
 
         // Check the parameters.
-        assert_contains_param!(&*(*tx).request_params, "p", "1");
-        assert_contains_param!(&*(*tx).request_params, "q", "2");
+        assert_contains_param!(&(*tx).request_params, "p", "1");
+        assert_contains_param!(&(*tx).request_params, "q", "2");
     }
 }
 
@@ -605,8 +605,8 @@ fn RequestLineParsing1() {
             .eq("p=1&q=2"));
 
         // Check parameters
-        assert_contains_param!(&*(*tx).request_params, "p", "1");
-        assert_contains_param!(&*(*tx).request_params, "q", "2");
+        assert_contains_param!(&(*tx).request_params, "p", "1");
+        assert_contains_param!(&(*tx).request_params, "q", "2");
     }
 }
 

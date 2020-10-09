@@ -330,9 +330,9 @@ pub struct htp_tx_t {
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: Option<htp_multipart::htp_mpartp_t>,
     /// Request parameters.
-    pub request_params: *mut htp_table::htp_table_t<htp_param_t>,
+    pub request_params: htp_table::htp_table_t<htp_param_t>,
     /// Request cookies
-    pub request_cookies: *mut htp_table::htp_table_t<bstr::bstr_t>,
+    pub request_cookies: htp_table::htp_table_t<bstr::bstr_t>,
     /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
     /// Authentication username.
@@ -477,8 +477,8 @@ impl htp_tx_t {
             hook_response_body_data: DataHook::new(),
             request_urlenp_body: None,
             request_mpartp: None,
-            request_params: htp_table::htp_table_alloc(32),
-            request_cookies: std::ptr::null_mut(),
+            request_params: htp_table::htp_table_t::with_capacity(32),
+            request_cookies: htp_table::htp_table_t::with_capacity(32),
             request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -550,7 +550,7 @@ impl htp_tx_t {
         if let Some(parameter_processor_fn) = (*self.cfg).parameter_processor {
             parameter_processor_fn(&mut param)?
         }
-        (*self.request_params).add(param.name.clone(), param);
+        self.request_params.add(param.name.clone(), param);
         Ok(())
     }
 
@@ -1421,14 +1421,6 @@ impl Drop for htp_tx_t {
     /// Destroys all the fields inside an htp_tx_t.
     fn drop(&mut self) {
         unsafe {
-            // Request parameters.
-            htp_table::htp_table_free(self.request_params);
-
-            // Request cookies.
-            if !self.request_cookies.is_null() {
-                htp_table::htp_table_free(self.request_cookies);
-            }
-
             self.destroy_decompressors();
             // If we're using a private configuration structure, destroy it.
             if !self.is_config_shared {

@@ -285,7 +285,7 @@ fn Get() {
             .unwrap()
             .eq("p=%20"));
 
-        assert_contains_param!(&*(*tx).request_params, "p", " ");
+        assert_contains_param!(&(*tx).request_params, "p", " ");
     }
 }
 
@@ -383,7 +383,7 @@ fn PostUrlencoded() {
             .tx(0)
             .expect("expected at least one transaction");
 
-        assert_contains_param!(&*(*tx).request_params, "p", "0123456789");
+        assert_contains_param!(&(*tx).request_params, "p", "0123456789");
 
         assert_eq!((*tx).request_progress, HTP_REQUEST_COMPLETE);
         assert_eq!((*tx).response_progress, HTP_RESPONSE_COMPLETE);
@@ -414,7 +414,7 @@ fn PostUrlencodedChunked() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_contains_param!(&*(*tx).request_params, "p", "0123456789");
+        assert_contains_param!(&(*tx).request_params, "p", "0123456789");
         assert_eq!(25, (*tx).request_message_len);
         assert_eq!(12, (*tx).request_entity_len);
     }
@@ -671,8 +671,8 @@ fn Multipart() {
 
         assert!((*tx).is_complete());
 
-        assert_contains_param!(&*(*tx).request_params, "field1", "0123456789");
-        assert_contains_param!(&*(*tx).request_params, "field2", "9876543210");
+        assert_contains_param!(&(*tx).request_params, "field1", "0123456789");
+        assert_contains_param!(&(*tx).request_params, "field2", "9876543210");
     }
 }
 
@@ -710,9 +710,9 @@ fn UrlEncoded() {
 
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
-        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_BODY, "p", "3");
-        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_BODY, "q", "4");
-        assert_contains_param_source!(&*(*tx).request_params, HTP_SOURCE_BODY, "z", "5");
+        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_BODY, "p", "3");
+        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_BODY, "q", "4");
+        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_BODY, "z", "5");
     }
 }
 
@@ -1140,7 +1140,7 @@ fn GetIPv6() {
             .unwrap()
             .eq("p=%20"));
 
-        assert_contains_param!(&*(*tx).request_params, "p", " ");
+        assert_contains_param!(&(*tx).request_params, "p", " ");
     }
 }
 
@@ -1819,17 +1819,17 @@ fn RequestCookies1() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(3, (*(*tx).request_cookies).size());
+        assert_eq!(3, (*tx).request_cookies.size());
 
-        let mut res = &(*(*tx).request_cookies)[0];
+        let mut res = &(*tx).request_cookies[0];
         assert!(res.0.eq("p"));
         assert!(res.1.eq("1"));
 
-        res = &(*(*tx).request_cookies)[1];
+        res = &(*tx).request_cookies[1];
         assert!(res.0.eq("q"));
         assert!(res.1.eq("2"));
 
-        res = &(*(*tx).request_cookies)[2];
+        res = &(*tx).request_cookies[2];
         assert!(res.0.eq("z"));
         assert!(res.1.eq(""));
     }
@@ -1901,7 +1901,7 @@ fn PostChunkedSplitChunk() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_contains_param!(&*(*tx).request_params, "p", "0123456789");
+        assert_contains_param!(&(*tx).request_params, "p", "0123456789");
     }
 }
 
@@ -2363,7 +2363,7 @@ fn GetWhitespace() {
             .as_ref()
             .unwrap()
             .eq("p=%20"));
-        assert_contains_param!(&*(*tx).request_params, "p", " ");
+        assert_contains_param!(&(*tx).request_params, "p", " ");
     }
 }
 
@@ -2576,17 +2576,17 @@ fn RequestCookies2() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(3, (*(*tx).request_cookies).size());
+        assert_eq!(3, (*tx).request_cookies.size());
 
-        let mut res = &(*(*tx).request_cookies)[0];
+        let mut res = &(*tx).request_cookies[0];
         assert!(res.0.eq("p"));
         assert!(res.1.eq("1"));
 
-        res = &(*(*tx).request_cookies)[1];
+        res = &(*tx).request_cookies[1];
         assert!(res.0.eq("q"));
         assert!(res.1.eq("2"));
 
-        res = &(*(*tx).request_cookies)[2];
+        res = &(*tx).request_cookies[2];
         assert!(res.0.eq("z"));
         assert!(res.1.eq(""));
     }
@@ -2603,17 +2603,17 @@ fn RequestCookies3() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(3, (*(*tx).request_cookies).size());
+        assert_eq!(3, (*tx).request_cookies.size());
 
-        let mut res = &(*(*tx).request_cookies)[0];
+        let mut res = &(*tx).request_cookies[0];
         assert!(res.0.eq("a"));
         assert!(res.1.eq("1"));
 
-        res = &(*(*tx).request_cookies)[1];
+        res = &(*tx).request_cookies[1];
         assert!(res.0.eq("b"));
         assert!(res.1.eq("2  "));
 
-        res = &(*(*tx).request_cookies)[2];
+        res = &(*tx).request_cookies[2];
         assert!(res.0.eq("c"));
         assert!(res.1.eq("double=equal"));
     }
@@ -2630,17 +2630,17 @@ fn RequestCookies4() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(3, (*(*tx).request_cookies).size());
+        assert_eq!(3, (*tx).request_cookies.size());
 
-        let mut res = &(*(*tx).request_cookies)[0];
+        let mut res = &(*tx).request_cookies[0];
         assert!(res.0.eq("c"));
         assert!(res.1.eq("1"));
 
-        res = &(*(*tx).request_cookies)[1];
+        res = &(*tx).request_cookies[1];
         assert!(res.0.eq("a"));
         assert!(res.1.eq("1  "));
 
-        res = &(*(*tx).request_cookies)[2];
+        res = &(*tx).request_cookies[2];
         assert!(res.0.eq("b"));
         assert!(res.1.eq("2"));
     }
@@ -2658,6 +2658,6 @@ fn RequestCookies5() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(0, (*(*tx).request_cookies).size());
+        assert_eq!(0, (*tx).request_cookies.size());
     }
 }

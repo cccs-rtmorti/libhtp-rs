@@ -115,25 +115,6 @@ impl<T> htp_table_t<T> {
     }
 }
 
-/// Allocate a htp_table_t with initial capacity size
-///
-/// Returns new htp_table_t instance
-pub fn htp_table_alloc<T>(size: usize) -> *mut htp_table_t<T> {
-    let t = htp_table_t::with_capacity(size);
-    let boxed = Box::new(t);
-    Box::into_raw(boxed)
-}
-
-/// Deallocate the supplied htp_table_t instance. Allows NULL on input.
-pub fn htp_table_free<T>(t: *mut htp_table_t<T>) {
-    if !t.is_null() {
-        unsafe {
-            // t will be dropped when this box goes out of scope
-            Box::from_raw(t);
-        }
-    }
-}
-
 // Tests
 
 #[test]
