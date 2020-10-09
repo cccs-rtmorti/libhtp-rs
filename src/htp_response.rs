@@ -458,7 +458,7 @@ impl htp_connection_parser::htp_connp_t {
                 // We are going to continue processing this transaction,
                 // adding a note for ourselves to stop at the end (because
                 // we don't want to see the beginning of a new transaction).
-                self.out_data_other_at_tx_end = 1
+                self.out_data_other_at_tx_end = true
             }
         }
         let cl_opt = self

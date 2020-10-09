@@ -59,7 +59,7 @@ pub struct htp_connp_t {
     /// When true, this field indicates that there is unprocessed inbound data, and
     /// that the response parsing code should stop at the end of the current request
     /// in order to allow more requests to be produced.
-    pub out_data_other_at_tx_end: u32,
+    pub out_data_other_at_tx_end: bool,
     /// The time when the last request data chunk was received. Can be NULL if
     /// the upstream code is not providing the timestamps when calling us.
     pub in_timestamp: htp_time_t,
@@ -166,7 +166,7 @@ impl htp_connp_t {
             user_data: std::ptr::null_mut(),
             in_status: htp_stream_state_t::HTP_STREAM_NEW,
             out_status: htp_stream_state_t::HTP_STREAM_NEW,
-            out_data_other_at_tx_end: 0,
+            out_data_other_at_tx_end: false,
             in_timestamp: htp_time_t {
                 tv_sec: 0,
                 tv_usec: 0,

@@ -1133,9 +1133,9 @@ impl htp_tx_t {
             }
             // Do we have a signal to yield to inbound processing at
             // the end of the next transaction?
-            if (*self.connp).out_data_other_at_tx_end != 0 {
+            if (*self.connp).out_data_other_at_tx_end {
                 // We do. Let's yield then.
-                (*self.connp).out_data_other_at_tx_end = 0;
+                (*self.connp).out_data_other_at_tx_end = false;
                 return Err(Status::DATA_OTHER);
             }
         }
