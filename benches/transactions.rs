@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
-use htp::htp_config;
-use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_connection_parser::*;
+use htp::config;
+use htp::config::htp_server_personality_t::*;
+use htp::connection_parser::*;
 use std::convert::TryInto;
 use std::fmt;
 use std::iter::IntoIterator;
@@ -43,14 +43,14 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut config::htp_cfg_t,
     connp: *mut htp_connp_t,
 }
 
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg = htp_config::create();
+            let cfg = config::create();
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
             (*cfg).register_multipart_parser();

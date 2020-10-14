@@ -1,7 +1,7 @@
+use crate::connection_parser;
 use crate::error::Result;
-use crate::htp_connection_parser;
 
-impl htp_connection_parser::htp_connp_t {
+impl connection_parser::htp_connp_t {
     /// Extract one request header. A header can span multiple lines, in
     /// which case they will be folded into one before parsing is attempted.
     ///

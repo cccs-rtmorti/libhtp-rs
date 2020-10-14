@@ -1,11 +1,11 @@
 use crate::error::Result;
-use crate::htp_transaction::Protocol;
-use crate::htp_util::Flags;
-use crate::{bstr, htp_connection_parser, htp_parsers, htp_transaction, htp_util, Status};
+use crate::transaction::Protocol;
+use crate::util::Flags;
+use crate::{bstr, connection_parser, parsers, transaction, util, Status};
 use nom::{error::ErrorKind, sequence::tuple, Err::Error};
 use std::cmp::Ordering;
 
-impl htp_connection_parser::htp_connp_t {
+impl connection_parser::htp_connp_t {
     /// Generic response line parser.
     pub unsafe fn parse_response_line_generic(&mut self) -> Result<()> {
         let tx = self.out_tx_mut_ok()?;
@@ -20,11 +20,11 @@ impl htp_connection_parser::htp_connp_t {
         (*tx).response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
-            htp_util::take_htp_is_space,
-            htp_util::take_not_htp_is_space,
-            htp_util::take_htp_is_space,
-            htp_util::take_not_htp_is_space,
-            htp_util::take_ascii_whitespace(),
+            util::take_is_space,
+            util::take_not_is_space,
+            util::take_is_space,
+            util::take_not_is_space,
+            util::take_ascii_whitespace(),
         ));
 
         if let Ok((message, (_ls, response_protocol, ws1, status_code, ws2))) =
@@ -37,7 +37,7 @@ impl htp_connection_parser::htp_connp_t {
             let out_tx = self.out_tx_mut_ok()?;
             out_tx.response_protocol = Some(bstr::bstr_t::from(response_protocol));
             self.out_tx_mut_ok()?.response_protocol_number =
-                htp_parsers::htp_parse_protocol(response_protocol, self);
+                parsers::parse_protocol(response_protocol, self);
 
             if ws1.is_empty() || status_code.is_empty() {
                 return Ok(());
@@ -46,7 +46,7 @@ impl htp_connection_parser::htp_connp_t {
             let out_tx = self.out_tx_mut_ok()?;
             out_tx.response_status = Some(bstr::bstr_t::from(status_code));
 
-            if let Some(status_number) = htp_parsers::htp_parse_status(status_code) {
+            if let Some(status_number) = parsers::parse_status(status_code) {
                 out_tx.response_status_number = status_number as i32;
             } else {
                 out_tx.response_status_number = -1;
@@ -67,14 +67,14 @@ impl htp_connection_parser::htp_connp_t {
     pub unsafe fn parse_response_header_generic(
         &mut self,
         data: &[u8],
-    ) -> Result<htp_transaction::htp_header_t> {
-        let data = htp_util::htp_chomp(&data);
+    ) -> Result<transaction::htp_header_t> {
+        let data = util::chomp(&data);
         let mut flags = Flags::empty();
 
         let mut header: &[u8] = b"";
         let mut value: &[u8] = b"";
 
-        match htp_util::split_by_colon(data) {
+        match util::split_by_colon(data) {
             Ok((mut name, val)) => {
                 // Colon present
                 // Log empty header name
@@ -89,7 +89,7 @@ impl htp_connection_parser::htp_connp_t {
                         // Only once per transaction.
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            self as *mut htp_connection_parser::htp_connp_t,
+                            self as *mut connection_parser::htp_connp_t,
                             htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
                             "Response field invalid: empty name."
                         );
@@ -109,7 +109,7 @@ impl htp_connection_parser::htp_connp_t {
                             // Only once per transaction.
                             self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                             htp_log!(
-                                self as *mut htp_connection_parser::htp_connp_t,
+                                self as *mut connection_parser::htp_connp_t,
                                 htp_log_level_t::HTP_LOG_WARNING,
                                 htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
                                 "Response field invalid: LWS after name"
@@ -126,7 +126,7 @@ impl htp_connection_parser::htp_connp_t {
                 }
 
                 // Check header is a token
-                if !htp_util::is_word_token(name) {
+                if !util::is_word_token(name) {
                     flags |= Flags::HTP_FIELD_INVALID;
                     if !self
                         .out_tx_mut_ok()?
@@ -135,7 +135,7 @@ impl htp_connection_parser::htp_connp_t {
                     {
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            self as *mut htp_connection_parser::htp_connp_t,
+                            self as *mut connection_parser::htp_connp_t,
                             htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
                             "Response header name is not a token."
                         );
@@ -159,7 +159,7 @@ impl htp_connection_parser::htp_connp_t {
                     self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                     self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
-                        self as *mut htp_connection_parser::htp_connp_t,
+                        self as *mut connection_parser::htp_connp_t,
                         htp_log_code::RESPONSE_FIELD_MISSING_COLON,
                         "Response field invalid: missing colon."
                     );
@@ -172,14 +172,14 @@ impl htp_connection_parser::htp_connp_t {
         // No null char in val
         if value.contains(&0) {
             htp_log!(
-                self as *mut htp_connection_parser::htp_connp_t,
+                self as *mut connection_parser::htp_connp_t,
                 htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_HEADER_INVALID,
                 "Response header value contains null."
             );
         }
 
-        Ok(htp_transaction::htp_header_t::new_with_flags(
+        Ok(transaction::htp_header_t::new_with_flags(
             header.into(),
             value.into(),
             flags,
@@ -215,12 +215,12 @@ impl htp_connection_parser::htp_connp_t {
             if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
                 // Don't use string comparison here because we want to
                 // ignore small formatting differences.
-                let existing_cl = htp_util::htp_parse_content_length(&h_existing.value, None);
-                let new_cl = htp_util::htp_parse_content_length(&(header.value), None);
+                let existing_cl = util::parse_content_length(&h_existing.value, None);
+                let new_cl = util::parse_content_length(&(header.value), None);
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     // Ambiguous response C-L value.
                     htp_warn!(
-                        self as *mut htp_connection_parser::htp_connp_t,
+                        self as *mut connection_parser::htp_connp_t,
                         htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                         "Ambiguous response C-L value"
                     );
@@ -241,7 +241,7 @@ impl htp_connection_parser::htp_connp_t {
         }
         if repeated {
             htp_warn!(
-                self as *mut htp_connection_parser::htp_connp_t,
+                self as *mut connection_parser::htp_connp_t,
                 htp_log_code::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );

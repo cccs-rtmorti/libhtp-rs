@@ -1,7 +1,7 @@
 use crate::error::Result;
-use crate::htp_transaction::{htp_tx_data_t, htp_tx_t};
-use crate::htp_util::htp_file_data_t;
 use crate::log::htp_log_t;
+use crate::transaction::{htp_tx_data_t, htp_tx_t};
+use crate::util::htp_file_data_t;
 use crate::Status;
 
 /// External (C) callback function prototype

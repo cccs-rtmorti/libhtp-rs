@@ -1,5 +1,5 @@
 use crate::bstr::bstr_t;
-use crate::htp_util::htp_uri_t;
+use crate::util::htp_uri_t;
 
 /// Get the scheme of a uri.
 ///

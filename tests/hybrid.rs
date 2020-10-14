@@ -2,13 +2,13 @@
 #![allow(non_camel_case_types)]
 use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
+use htp::config;
+use htp::config::htp_server_personality_t::*;
+use htp::connection_parser::*;
 use htp::error::Result;
-use htp::htp_config;
-use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_connection_parser::*;
-use htp::htp_transaction::htp_data_source_t::*;
-use htp::htp_transaction::*;
-use htp::htp_util::*;
+use htp::transaction::htp_data_source_t::*;
+use htp::transaction::*;
+use htp::util::*;
 use htp::Status;
 use std::ffi::CString;
 use std::net::{IpAddr, Ipv4Addr};
@@ -216,7 +216,7 @@ unsafe fn res_set_status_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Res
 
 struct HybridParsingTest {
     connp: *mut htp_connp_t,
-    cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut config::htp_cfg_t,
     connp_open: bool,
     user_data: HybridParsing_Get_User_Data,
 }
@@ -224,7 +224,7 @@ struct HybridParsingTest {
 impl HybridParsingTest {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut htp_config::htp_cfg_t = htp_config::create();
+            let cfg: *mut config::htp_cfg_t = config::create();
             assert!(!cfg.is_null());
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();

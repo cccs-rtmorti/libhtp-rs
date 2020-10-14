@@ -1,6 +1,6 @@
 use crate::error::Result;
-use crate::htp_util::{take_ascii_whitespace, Flags};
-use crate::{bstr, htp_config, htp_table, htp_transaction, htp_util, list, Status};
+use crate::util::{take_ascii_whitespace, Flags};
+use crate::{bstr, config, list, table, transaction, util, Status};
 use bitflags;
 use nom::{
     branch::alt,
@@ -104,7 +104,7 @@ bitflags::bitflags! {
 #[derive(Clone)]
 pub struct htp_mpartp_t {
     pub multipart: htp_multipart_t,
-    pub cfg: *mut htp_config::htp_cfg_t,
+    pub cfg: *mut config::htp_cfg_t,
     pub extract_files: bool,
     pub extract_limit: u32,
     pub extract_dir: String,
@@ -167,7 +167,7 @@ pub struct htp_mpartp_t {
 /// Returns New parser instance, or None on failure.
 impl htp_mpartp_t {
     pub fn new(
-        cfg: *mut htp_config::htp_cfg_t,
+        cfg: *mut config::htp_cfg_t,
         boundary: &[u8],
         flags: MultipartFlags,
     ) -> Option<Self> {
@@ -514,7 +514,7 @@ impl htp_mpartp_t {
                 // LF line ending; we're done with boundary processing; data bytes follow.
                 self.multipart.flags |= MultipartFlags::HTP_MULTIPART_LF_LINE;
                 self.parser_state = htp_multipart_state_t::STATE_DATA;
-            } else if nom::character::is_space(byte) {
+            } else if is_space(byte) {
                 // Linear white space is allowed here.
                 self.multipart.flags |= MultipartFlags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
             } else {
@@ -586,9 +586,9 @@ pub struct htp_multipart_part_t {
     /// Part content type, from the Content-Type header. Can be None.
     pub content_type: Option<bstr::bstr_t>,
     /// Part headers (htp_header_t instances), using header name as the key.
-    pub headers: htp_transaction::htp_headers_t,
+    pub headers: transaction::htp_headers_t,
     /// File data, available only for MULTIPART_PART_FILE parts.
-    pub file: Option<htp_util::htp_file_t>,
+    pub file: Option<util::htp_file_t>,
 }
 
 impl htp_multipart_part_t {
@@ -603,7 +603,7 @@ impl htp_multipart_part_t {
             name: bstr::bstr_t::with_capacity(64),
             value: bstr::bstr_t::with_capacity(64),
             content_type: None,
-            headers: htp_table::htp_table_t::with_capacity(4),
+            headers: table::htp_table_t::with_capacity(4),
             file: None,
         }
     }
@@ -651,8 +651,8 @@ impl htp_multipart_part_t {
                                 return Err(Status::DECLINED);
                             }
                             None => {
-                                self.file = Some(htp_util::htp_file_t::new(
-                                    htp_util::htp_file_source_t::HTP_FILE_MULTIPART,
+                                self.file = Some(util::htp_file_t::new(
+                                    util::htp_file_source_t::HTP_FILE_MULTIPART,
                                     Some(bstr::bstr_t::from(param_value)),
                                 ));
                             }
@@ -678,7 +678,7 @@ impl htp_multipart_part_t {
     /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
     fn parse_c_t(&mut self) -> Result<()> {
         if let Some((_, header)) = self.headers.get_nocase_nozero("content-type") {
-            self.content_type = Some(htp_util::parse_ct_header(header.value.as_slice())?);
+            self.content_type = Some(util::parse_ct_header(header.value.as_slice())?);
             Ok(())
         } else {
             Err(Status::DECLINED)
@@ -712,7 +712,7 @@ impl htp_multipart_part_t {
         // Extract the name and the value
         if let Ok((_, (name, value))) = header()(input) {
             // Now extract the name and the value.
-            let header = htp_transaction::htp_header_t::new(name.into(), value.into());
+            let header = transaction::htp_header_t::new(name.into(), value.into());
 
             if header.name.cmp_nocase("content-disposition") != Ordering::Equal
                 && header.name.cmp_nocase("content-type") != Ordering::Equal
@@ -1142,7 +1142,7 @@ fn validate_boundary(boundary: &[u8], flags: &mut MultipartFlags) {
 fn validate_content_type(content_type: &[u8], flags: &mut MultipartFlags) {
     if let Ok((_, (f, _))) = fold_many1(
         tuple((
-            htp_util::take_until_no_case(b"boundary"),
+            util::take_until_no_case(b"boundary"),
             tag_no_case("boundary"),
             take_until("="),
             tag("="),
@@ -1180,7 +1180,7 @@ fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> 
     move |input| {
         let (value, (name, _, _, _)) = tuple((
             // The name must not be empty and must consist only of token characters (i.e., no spaces, seperators, control characters, etc)
-            take_while1(|c: u8| htp_util::htp_is_token(c)),
+            take_while1(|c: u8| util::is_token(c)),
             // First non token character must be a colon, to seperate name and value
             tag(":"),
             // Allow whitespace between the colon and the value
@@ -1212,12 +1212,12 @@ fn boundary<'a>() -> impl Fn(
     move |input| {
         map(
             tuple((
-                htp_util::take_until_no_case(b"boundary"),
+                util::take_until_no_case(b"boundary"),
                 tag_no_case("boundary"),
-                take_while(|c: u8| htp_util::htp_is_space(c)),
+                take_while(|c: u8| util::is_space(c)),
                 take_until("="),
                 tag("="),
-                take_while(|c: u8| htp_util::htp_is_space(c)),
+                take_while(|c: u8| util::is_space(c)),
                 peek(opt(char('\"'))),
                 alt((
                     map(tuple((tag("\""), take_until("\""))), |(_, boundary)| {
@@ -1226,7 +1226,7 @@ fn boundary<'a>() -> impl Fn(
                     map(
                         tuple((
                             take_while(|c: u8| {
-                                c != ',' as u8 && c != ';' as u8 && !htp_util::htp_is_space(c)
+                                c != ',' as u8 && c != ';' as u8 && !util::is_space(c)
                             }),
                             opt(alt((char(','), char(';')))), //Skip the matched character if we matched one without hitting the end
                         )),
@@ -1234,8 +1234,8 @@ fn boundary<'a>() -> impl Fn(
                     ),
                 )),
                 peek(opt(char('\"'))),
-                take_while(|c: u8| htp_util::htp_is_space(c)),
-                take_while(|c: u8| !htp_util::htp_is_space(c)),
+                take_while(|c: u8| util::is_space(c)),
+                take_while(|c: u8| !util::is_space(c)),
             )),
             |(
                 _,

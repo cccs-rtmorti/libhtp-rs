@@ -1,4 +1,4 @@
-use crate::{htp_connection_parser, list::List};
+use crate::{connection_parser, list::List};
 use std::net::IpAddr;
 
 /// cbindgen:prefix-with-name=true
@@ -120,8 +120,8 @@ pub struct htp_log_t {
 pub type htp_logs_t = List<htp_log_t>;
 
 impl htp_log_t {
-    pub unsafe fn new(
-        connp: &mut htp_connection_parser::htp_connp_t,
+    pub fn new(
+        connp: &mut connection_parser::htp_connp_t,
         file: &str,
         line: u32,
         level: htp_log_level_t,
@@ -142,15 +142,15 @@ impl htp_log_t {
     }
 }
 
-pub unsafe fn htp_log(
-    connp: &mut htp_connection_parser::htp_connp_t,
+pub fn log(
+    connp: &mut connection_parser::htp_connp_t,
     file: &str,
     line: u32,
     level: htp_log_level_t,
     code: htp_log_code,
     msg: String,
 ) {
-    if let Some(cfg) = connp.cfg.as_ref() {
+    if let Some(cfg) = unsafe { connp.cfg.as_ref() } {
         // Ignore messages below our log level.
         if level <= cfg.log_level {
             let mut log = htp_log_t::new(connp, file, line, level, code, msg);
@@ -165,8 +165,8 @@ pub unsafe fn htp_log(
 macro_rules! htp_log {
     ($connp:expr, $level:expr, $code:expr, $msg:expr) => {
         if let Some(connp) = $connp.as_mut() {
-            use $crate::log::{htp_log, htp_log_code, htp_log_level_t};
-            htp_log(connp, file!(), line!(), $level, $code, $msg.to_string());
+            use $crate::log::{htp_log_code, htp_log_level_t, log};
+            log(connp, file!(), line!(), $level, $code, $msg.to_string());
         }
     };
 }

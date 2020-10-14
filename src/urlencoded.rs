@@ -1,4 +1,4 @@
-use crate::{bstr, htp_table, htp_transaction, htp_util};
+use crate::{bstr, table, transaction, util};
 use nom::{
     bytes::complete::{take, take_till},
     character::complete::char,
@@ -12,14 +12,14 @@ use nom::{
 #[derive(Clone)]
 pub struct htp_urlenp_t {
     /// The transaction this parser belongs to.
-    pub tx: *mut htp_transaction::htp_tx_t,
+    pub tx: *mut transaction::htp_tx_t,
     /// The character used to separate parameters. Defaults to & and should
     /// not be changed without good reason.
     pub argument_separator: u8,
     /// Whether to perform URL-decoding on parameters. Defaults to true.
     pub decode_url_encoding: bool,
     /// This table contains the list of parameters, indexed by name.
-    pub params: htp_table::htp_table_t<bstr::bstr_t>,
+    pub params: table::htp_table_t<bstr::bstr_t>,
     // Private fields; these are used during the parsing process only
     complete: bool,
     saw_data: bool,
@@ -27,12 +27,12 @@ pub struct htp_urlenp_t {
 }
 
 impl htp_urlenp_t {
-    pub fn new(tx: *mut htp_transaction::htp_tx_t) -> Self {
+    pub fn new(tx: *mut transaction::htp_tx_t) -> Self {
         Self {
             tx: tx,
             argument_separator: '&' as u8,
             decode_url_encoding: true,
-            params: htp_table::htp_table_t::with_capacity(32),
+            params: table::htp_table_t::with_capacity(32),
             complete: false,
             saw_data: false,
             field: bstr::bstr_t::with_capacity(64),
@@ -42,19 +42,19 @@ impl htp_urlenp_t {
 
 /// Finalizes parsing, forcing the parser to convert any outstanding
 /// data into parameters. This method should be invoked at the end
-/// of a parsing operation that used htp_urlenp_parse_partial().
-pub fn htp_urlenp_finalize(urlenp: &mut htp_urlenp_t) {
+/// of a parsing operation that used urlenp_parse_partial().
+pub fn urlenp_finalize(urlenp: &mut htp_urlenp_t) {
     urlenp.complete = true;
-    htp_urlenp_parse_partial(urlenp, b"")
+    urlenp_parse_partial(urlenp, b"")
 }
 
 /// Parses the provided data chunk under the assumption
 /// that it contains all the data that will be parsed. When this
 /// method is used for parsing the finalization method should not
 /// be invoked.
-pub fn htp_urlenp_parse_complete(urlenp: &mut htp_urlenp_t, data: &[u8]) {
-    htp_urlenp_parse_partial(urlenp, data);
-    htp_urlenp_finalize(urlenp)
+pub fn urlenp_parse_complete(urlenp: &mut htp_urlenp_t, data: &[u8]) {
+    urlenp_parse_partial(urlenp, data);
+    urlenp_finalize(urlenp)
 }
 
 /// Extracts names and values from the url parameters
@@ -72,8 +72,8 @@ fn urlen_name_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
 }
 /// Parses the provided data chunk, searching for argument seperators and '=' to locate names and values,
 /// keeping state to allow streaming parsing, i.e., the parsing where only partial information is available
-/// at any one time. The method htp_urlenp_finalize() must be invoked at the end to finalize parsing.
-pub fn htp_urlenp_parse_partial(urlenp: &mut htp_urlenp_t, data: &[u8]) {
+/// at any one time. The method urlenp_finalize() must be invoked at the end to finalize parsing.
+pub fn urlenp_parse_partial(urlenp: &mut htp_urlenp_t, data: &[u8]) {
     urlenp.field.add(data);
     let input = urlenp.field.clone();
     let mut input = input.as_slice();
@@ -102,10 +102,8 @@ pub fn htp_urlenp_parse_partial(urlenp: &mut htp_urlenp_t, data: &[u8]) {
             if (*urlenp).decode_url_encoding {
                 unsafe {
                     //Don't currently care about this result
-                    let _result =
-                        htp_util::htp_tx_urldecode_params_inplace(&mut *urlenp.tx, &mut name);
-                    let _result =
-                        htp_util::htp_tx_urldecode_params_inplace(&mut *urlenp.tx, &mut value);
+                    let _result = util::tx_urldecode_params_inplace(&mut *urlenp.tx, &mut name);
+                    let _result = util::tx_urldecode_params_inplace(&mut *urlenp.tx, &mut value);
                 }
             }
             urlenp.params.add(name, value);

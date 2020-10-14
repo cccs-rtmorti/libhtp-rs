@@ -1,11 +1,11 @@
+use crate::connection_parser::State;
 use crate::error::Result;
 use crate::hook::{DataHook, DataNativeCallbackFn};
-use crate::htp_connection_parser::State;
-use crate::htp_util::Flags;
 use crate::list::List;
+use crate::util::Flags;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_cookies, htp_decompressors, htp_multipart,
-    htp_parsers, htp_request, htp_table, htp_urlencoded, htp_util, Status,
+    bstr, config, connection_parser, cookies, decompressors, multipart, parsers, request, table,
+    urlencoded, util, Status,
 };
 use std::cmp::Ordering;
 
@@ -146,7 +146,7 @@ pub struct htp_header_t {
     pub flags: Flags,
 }
 
-pub type htp_headers_t = htp_table::htp_table_t<htp_header_t>;
+pub type htp_headers_t = table::htp_table_t<htp_header_t>;
 
 impl htp_header_t {
     pub fn new(name: bstr::bstr_t, value: bstr::bstr_t) -> Self {
@@ -222,9 +222,9 @@ pub enum Protocol {
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct htp_tx_t {
     /// The connection parser associated with this transaction.
-    pub connp: *mut htp_connection_parser::htp_connp_t,
+    pub connp: *mut connection_parser::htp_connp_t,
     /// The configuration structure associated with this transaction.
-    pub cfg: *mut htp_config::htp_cfg_t,
+    pub cfg: *mut config::htp_cfg_t,
     /// Is the configuration structure shared with other transactions or connections? If
     /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
     pub is_config_shared: bool,
@@ -239,7 +239,7 @@ pub struct htp_tx_t {
     /// Request method.
     pub request_method: Option<bstr::bstr_t>,
     /// Request method, as number. Available only if we were able to recognize the request method.
-    pub request_method_number: htp_request::htp_method_t,
+    pub request_method_number: request::htp_method_t,
     /// Request URI, raw, as given to us on the request line. This field can take different forms,
     /// for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
     /// string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
@@ -261,12 +261,12 @@ pub struct htp_tx_t {
     /// is added. In extreme cases when no URI is provided on the request line, all fields
     /// will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
     /// htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
-    pub parsed_uri: Option<htp_util::htp_uri_t>,
+    pub parsed_uri: Option<util::htp_uri_t>,
     /// This structure holds the individual components parsed out of the request URI, but
     /// without any modification. The purpose of this field is to allow you to look at the data as it
     /// was supplied on the request line. Fields can be NULL, depending on what data was supplied.
     /// The port_number field is always -1.
-    pub parsed_uri_raw: Option<htp_util::htp_uri_t>,
+    pub parsed_uri_raw: Option<util::htp_uri_t>,
     ///  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
     pub complete_normalized_uri: Option<bstr::bstr_t>,
     ///  This structure holds the normalized uri, including path, query, and fragment
@@ -307,7 +307,7 @@ pub struct htp_tx_t {
     /// and HTP_CODING_UNRECOGNIZED.
     pub request_transfer_coding: htp_transfer_coding_t,
     /// Request body compression.
-    pub request_content_encoding: htp_decompressors::htp_content_encoding_t,
+    pub request_content_encoding: decompressors::htp_content_encoding_t,
     /// This field contain the request content type when that information is
     /// available in request headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
@@ -325,14 +325,14 @@ pub struct htp_tx_t {
     pub hook_response_body_data: DataHook,
     /// Request body URLENCODED parser. Available only when the request body is in the
     /// application/x-www-form-urlencoded format and the parser was configured to run.
-    pub request_urlenp_body: Option<htp_urlencoded::htp_urlenp_t>,
+    pub request_urlenp_body: Option<urlencoded::htp_urlenp_t>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
-    pub request_mpartp: Option<htp_multipart::htp_mpartp_t>,
+    pub request_mpartp: Option<multipart::htp_mpartp_t>,
     /// Request parameters.
-    pub request_params: htp_table::htp_table_t<htp_param_t>,
+    pub request_params: table::htp_table_t<htp_param_t>,
     /// Request cookies
-    pub request_cookies: htp_table::htp_table_t<bstr::bstr_t>,
+    pub request_cookies: table::htp_table_t<bstr::bstr_t>,
     /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
     /// Authentication username.
@@ -366,7 +366,7 @@ pub struct htp_tx_t {
     pub response_status_number: i32,
     /// This field is set by the protocol decoder with it thinks that the
     /// backend server will reject a request with a particular status code.
-    pub response_status_expected_number: htp_config::htp_unwanted_t,
+    pub response_status_expected_number: config::htp_unwanted_t,
     /// The message associated with the response status code. Can be NULL.
     pub response_message: Option<bstr::bstr_t>,
     /// Have we seen the server respond with a 100 response?
@@ -414,19 +414,19 @@ pub struct htp_tx_t {
     /// Response body compression, which indicates if compression is used
     /// for the response body. This field is an interpretation of the information
     /// available in response headers.
-    pub response_content_encoding: htp_decompressors::htp_content_encoding_t,
+    pub response_content_encoding: decompressors::htp_content_encoding_t,
     /// Response body compression processing information, which is related to how
     /// the library is going to process (or has processed) a response body. Changing
     /// this field mid-processing can influence library actions. For example, setting
     /// this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
     /// decompression.
-    pub response_content_encoding_processing: htp_decompressors::htp_content_encoding_t,
+    pub response_content_encoding_processing: decompressors::htp_content_encoding_t,
     /// This field will contain the response content type when that information
     /// is available in response headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
     pub response_content_type: Option<bstr::bstr_t>,
     /// Response decompressor used to decompress response body data.
-    pub out_decompressor: *mut htp_decompressors::htp_decompressor_t,
+    pub out_decompressor: *mut decompressors::htp_decompressor_t,
 
     // Common fields
     /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
@@ -447,7 +447,7 @@ pub struct htp_tx_t {
 pub type htp_txs_t = List<htp_tx_t>;
 
 impl htp_tx_t {
-    pub fn new(connp: &mut htp_connection_parser::htp_connp_t) -> Result<usize> {
+    pub fn new(connp: &mut connection_parser::htp_connp_t) -> Result<usize> {
         let tx = Self {
             connp,
             cfg: connp.cfg,
@@ -456,7 +456,7 @@ impl htp_tx_t {
             request_ignored_lines: 0,
             request_line: None,
             request_method: None,
-            request_method_number: htp_request::htp_method_t::HTP_M_UNKNOWN,
+            request_method_number: request::htp_method_t::HTP_M_UNKNOWN,
             request_uri: None,
             request_protocol: None,
             request_protocol_number: Protocol::UNKNOWN,
@@ -467,18 +467,18 @@ impl htp_tx_t {
             partial_normalized_uri: None,
             request_message_len: 0,
             request_entity_len: 0,
-            request_headers: htp_table::htp_table_t::with_capacity(32),
+            request_headers: table::htp_table_t::with_capacity(32),
             request_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
             request_content_encoding:
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+                decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
             request_content_type: None,
             request_content_length: -1,
             hook_request_body_data: DataHook::new(),
             hook_response_body_data: DataHook::new(),
             request_urlenp_body: None,
             request_mpartp: None,
-            request_params: htp_table::htp_table_t::with_capacity(32),
-            request_cookies: htp_table::htp_table_t::with_capacity(32),
+            request_params: table::htp_table_t::with_capacity(32),
+            request_cookies: table::htp_table_t::with_capacity(32),
             request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -490,18 +490,18 @@ impl htp_tx_t {
             response_protocol_number: Protocol::UNKNOWN,
             response_status: None,
             response_status_number: 0,
-            response_status_expected_number: htp_config::htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            response_status_expected_number: config::htp_unwanted_t::HTP_UNWANTED_IGNORE,
             response_message: None,
             seen_100continue: false,
-            response_headers: htp_table::htp_table_t::with_capacity(32),
+            response_headers: table::htp_table_t::with_capacity(32),
             response_message_len: 0,
             response_entity_len: 0,
             response_content_length: -1,
             response_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
             response_content_encoding:
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+                decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
             response_content_encoding_processing:
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+                decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
             response_content_type: None,
             out_decompressor: std::ptr::null_mut(),
             flags: Flags::empty(),
@@ -617,10 +617,9 @@ impl htp_tx_t {
                 //      which is bound to fail (because it will contain commas).
             }
             // Get the body length.
-            if let Some(content_length) = htp_util::htp_parse_content_length(
-                (*(*cl).value).as_slice(),
-                Some(&mut *self.connp),
-            ) {
+            if let Some(content_length) =
+                util::parse_content_length((*(*cl).value).as_slice(), Some(&mut *self.connp))
+            {
                 // We have a request body of known length.
                 self.request_content_length = content_length;
                 self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
@@ -641,11 +640,10 @@ impl htp_tx_t {
             self.flags |= Flags::HTP_REQUEST_INVALID
         }
         // Check for PUT requests, which we need to treat as file uploads.
-        if self.request_method_number == htp_request::htp_method_t::HTP_M_PUT && self.req_has_body()
-        {
+        if self.request_method_number == request::htp_method_t::HTP_M_PUT && self.req_has_body() {
             // Prepare to treat PUT request body as a file.
-            (*self.connp).put_file = Some(htp_util::htp_file_t::new(
-                htp_util::htp_file_source_t::HTP_FILE_PUT,
+            (*self.connp).put_file = Some(util::htp_file_t::new(
+                util::htp_file_source_t::HTP_FILE_PUT,
                 None,
             ));
         }
@@ -661,9 +659,7 @@ impl htp_tx_t {
         // Examine the Host header.
         if let Some((_, header)) = self.request_headers.get_nocase_nozero_mut("host") {
             // Host information available in the headers.
-            if let Ok((_, (hostname, port_nmb, valid))) =
-                htp_util::htp_parse_hostport(&mut header.value)
-            {
+            if let Ok((_, (hostname, port_nmb, valid))) = util::parse_hostport(&mut header.value) {
                 if !valid {
                     self.flags |= Flags::HTP_HOSTH_INVALID
                 }
@@ -709,24 +705,25 @@ impl htp_tx_t {
         }
         // Determine Content-Type.
         if let Some((_, ct)) = self.request_headers.get_nocase_nozero("content-type") {
-            self.request_content_type = Some(htp_util::parse_ct_header(ct.value.as_slice())?);
+            self.request_content_type = Some(util::parse_ct_header(ct.value.as_slice())?);
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies {
-            htp_cookies::htp_parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
+            cookies::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
         }
         // Parse authentication information.
         if (*(*self.connp).cfg).parse_request_auth {
-            htp_parsers::htp_parse_authorization((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)
-                .or_else(|rc| {
-                if rc == Status::DECLINED {
-                    // Don't fail the stream if an authorization header is invalid, just set a flag.
-                    self.flags |= Flags::HTP_AUTH_INVALID;
-                    Ok(())
-                } else {
-                    Err(rc)
-                }
-            })?;
+            parsers::parse_authorization((*self.connp).in_tx_mut().ok_or(Status::ERROR)?).or_else(
+                |rc| {
+                    if rc == Status::DECLINED {
+                        // Don't fail the stream if an authorization header is invalid, just set a flag.
+                        self.flags |= Flags::HTP_AUTH_INVALID;
+                        Ok(())
+                    } else {
+                        Err(rc)
+                    }
+                },
+            )?;
         }
         // Finalize sending raw header data.
         (*self.connp).req_receiver_finalize_clear()?;
@@ -770,7 +767,7 @@ impl htp_tx_t {
         self.request_entity_len = (self.request_entity_len as u64).wrapping_add(len as u64) as i64;
         // Send data to the callbacks.
         let mut data = htp_tx_data_t::new(self, data as *mut u8, len, false);
-        htp_util::htp_req_run_hook_body_data(self.connp, &mut data).map_err(|e| {
+        util::req_run_hook_body_data(self.connp, &mut data).map_err(|e| {
             htp_error!(
                 self.connp,
                 htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
@@ -863,9 +860,9 @@ impl htp_tx_t {
             (self.response_message_len as u64).wrapping_add(d.len as u64) as i64;
         let connp = self.connp;
         match self.response_content_encoding_processing {
-            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-            | htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-            | htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA => {
+            decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+            | decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+            | decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA => {
                 // In severe memory stress these could be NULL
                 if self.out_decompressor.is_null() || (*self.out_decompressor).decompress.is_none()
                 {
@@ -910,12 +907,12 @@ impl htp_tx_t {
                     self.destroy_decompressors();
                 }
             }
-            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE => {
+            decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE => {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
                 self.response_entity_len =
                     (self.response_entity_len as u64).wrapping_add(d.len as u64) as i64;
-                htp_util::htp_res_run_hook_body_data(self.connp, &mut d)?;
+                util::res_run_hook_body_data(self.connp, &mut d)?;
             }
             _ => {
                 // Internal error.
@@ -934,13 +931,13 @@ impl htp_tx_t {
     }
 
     pub unsafe fn destroy_decompressors(&mut self) {
-        let mut comp: *mut htp_decompressors::htp_decompressor_t = self.out_decompressor;
+        let mut comp: *mut decompressors::htp_decompressor_t = self.out_decompressor;
         while !comp.is_null() {
-            let next: *mut htp_decompressors::htp_decompressor_t = (*comp).next;
+            let next: *mut decompressors::htp_decompressor_t = (*comp).next;
             (*comp).destroy.expect("non-null function pointer")(comp);
             comp = next
         }
-        self.out_decompressor = 0 as *mut htp_decompressors::htp_decompressor_t;
+        self.out_decompressor = 0 as *mut decompressors::htp_decompressor_t;
     }
 
     pub unsafe fn state_request_complete_partial(&mut self) -> Result<()> {
@@ -965,7 +962,7 @@ impl htp_tx_t {
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be
         // destroyed later.
-        let connp: *mut htp_connection_parser::htp_connp_t = self.connp;
+        let connp: *mut connection_parser::htp_connp_t = self.connp;
         // Determine what happens next, and remove this transaction from the parser.
         if self.is_protocol_0_9 {
             (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
@@ -1040,14 +1037,16 @@ impl htp_tx_t {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_line(&mut self) -> Result<()> {
         // Determine how to process the request URI.
-        if self.request_method_number == htp_request::htp_method_t::HTP_M_CONNECT {
+        if self.request_method_number == request::htp_method_t::HTP_M_CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
-            self.parsed_uri_raw = Some(htp_util::htp_parse_uri_hostport(
+            self.parsed_uri_raw = Some(util::parse_uri_hostport(
                 self.request_uri.as_ref().ok_or(Status::ERROR)?,
                 &mut self.flags,
             ));
+        } else if let Some(uri) = self.request_uri.as_ref() {
+            self.parsed_uri_raw = Some(util::parse_uri(uri.as_slice()));
         } else {
-            self.parsed_uri_raw = Some(htp_util::htp_parse_uri(self.request_uri.as_ref()));
+            self.parsed_uri_raw = Some(util::htp_uri_t::new());
         }
         // Parse the request URI into htp_tx_t::parsed_uri_raw.
         // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
@@ -1057,7 +1056,7 @@ impl htp_tx_t {
         }
         // Check parsed_uri hostname.
         if let Some(hostname) = self.get_parsed_uri_hostname() {
-            if !htp_util::htp_validate_hostname(hostname.as_slice()) {
+            if !util::validate_hostname(hostname.as_slice()) {
                 self.flags |= Flags::HTP_HOSTU_INVALID
             }
         }
@@ -1069,7 +1068,7 @@ impl htp_tx_t {
         (*(*self.connp).cfg).hook_request_line.run_all(self)?;
         if let Some(parsed_uri) = &self.parsed_uri {
             let (partial_normalized_uri, complete_normalized_uri) =
-                htp_util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, parsed_uri);
+                util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, parsed_uri);
             self.partial_normalized_uri = partial_normalized_uri;
             self.complete_normalized_uri = complete_normalized_uri;
         }
@@ -1126,7 +1125,7 @@ impl htp_tx_t {
             // that many inbound transactions have been processed, and that the parser is
             // waiting on a response that we have not seen yet.
             if (*self.connp).in_status
-                == htp_connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
+                == connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
                 && (*self.connp).in_tx() == (*self.connp).out_tx()
             {
                 return Err(Status::DATA_OTHER);
@@ -1141,7 +1140,7 @@ impl htp_tx_t {
         }
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be destroyed later.
-        let connp: *mut htp_connection_parser::htp_connp_t = self.connp;
+        let connp: *mut connection_parser::htp_connp_t = self.connp;
         // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
         self.finalize()?;
         // Disconnect transaction from the parser.
@@ -1159,22 +1158,22 @@ impl htp_tx_t {
         // Determine content encoding.
         let mut ce_multi_comp = false;
         self.response_content_encoding =
-            htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+            decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
         if let Some((_, ce)) = self.response_headers.get_nocase_nozero("content-encoding") {
             // fast paths: regular gzip and friends
             if ce.value.cmp_nocase_nozero("gzip") == Ordering::Equal
                 || ce.value.cmp_nocase_nozero("x-gzip") == Ordering::Equal
             {
                 self.response_content_encoding =
-                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+                    decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
             } else if ce.value.cmp_nocase_nozero("deflate") == Ordering::Equal
                 || ce.value.cmp_nocase_nozero("x-deflate") == Ordering::Equal
             {
                 self.response_content_encoding =
-                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                    decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
             } else if ce.value.cmp_nocase_nozero("lzma") == Ordering::Equal {
                 self.response_content_encoding =
-                    htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                    decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
             } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
                 // exceptional cases: enter slow path
                 ce_multi_comp = true
@@ -1185,7 +1184,7 @@ impl htp_tx_t {
             self.response_content_encoding_processing = self.response_content_encoding
         } else {
             self.response_content_encoding_processing =
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+                decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
             ce_multi_comp = false
         }
         // Finalize sending raw header data.
@@ -1204,11 +1203,11 @@ impl htp_tx_t {
         //    forces decompression by setting response_content_encoding to one of the
         //    supported algorithms.
         if self.response_content_encoding_processing
-            == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+            == decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
             || self.response_content_encoding_processing
-                == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                == decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
             || self.response_content_encoding_processing
-                == htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                == decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
             || ce_multi_comp
         {
             if !self.out_decompressor.is_null() {
@@ -1216,7 +1215,7 @@ impl htp_tx_t {
             }
             // normal case
             if !ce_multi_comp {
-                self.out_decompressor = htp_decompressors::htp_gzip_decompressor_create(
+                self.out_decompressor = decompressors::htp_gzip_decompressor_create(
                     self.connp,
                     self.response_content_encoding_processing,
                 );
@@ -1232,14 +1231,14 @@ impl htp_tx_t {
                 self.response_headers.get_nocase_nozero("content-encoding")
             {
                 let mut layers: i32 = 0;
-                let mut comp: *mut htp_decompressors::htp_decompressor_t =
-                    0 as *mut htp_decompressors::htp_decompressor_t;
+                let mut comp: *mut decompressors::htp_decompressor_t =
+                    0 as *mut decompressors::htp_decompressor_t;
                 let tokens = ce.value.split_str_collect(", ");
                 let connp = self.connp;
                 for tok in tokens {
                     let token = bstr::bstr_t::from(tok);
-                    let mut cetype: htp_decompressors::htp_content_encoding_t =
-                        htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+                    let mut cetype: decompressors::htp_content_encoding_t =
+                        decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                     // check depth limit (0 means no limit)
                     if (*(*connp).cfg).response_decompression_layer_limit != 0 && {
                         layers += 1;
@@ -1262,7 +1261,7 @@ impl htp_tx_t {
                                     "C-E gzip has abnormal value"
                                 );
                             }
-                            cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
                         } else if token.index_of_nocase("deflate").is_some() {
                             if !(token.cmp("deflate") == Ordering::Equal
                                 || token.cmp("x-deflate") == Ordering::Equal)
@@ -1273,12 +1272,11 @@ impl htp_tx_t {
                                     "C-E deflate has abnormal value"
                                 );
                             }
-                            cetype =
-                                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
                         } else if token.index_of_nocase("lzma").is_some() {
-                            cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
                         } else if token.index_of_nocase("inflate").is_some() {
-                            cetype = htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
                         } else {
                             // continue
                             htp_warn!(
@@ -1287,15 +1285,13 @@ impl htp_tx_t {
                                 "C-E unknown setting"
                             );
                         }
-                        if cetype != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
-                        {
+                        if cetype != decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE {
                             if comp.is_null() {
                                 self.response_content_encoding_processing = cetype;
-                                self.out_decompressor =
-                                    htp_decompressors::htp_gzip_decompressor_create(
-                                        self.connp,
-                                        self.response_content_encoding_processing,
-                                    );
+                                self.out_decompressor = decompressors::htp_gzip_decompressor_create(
+                                    self.connp,
+                                    self.response_content_encoding_processing,
+                                );
                                 if self.out_decompressor.is_null() {
                                     return Err(Status::ERROR);
                                 }
@@ -1305,9 +1301,8 @@ impl htp_tx_t {
                                 );
                                 comp = self.out_decompressor
                             } else {
-                                (*comp).next = htp_decompressors::htp_gzip_decompressor_create(
-                                    self.connp, cetype,
-                                );
+                                (*comp).next =
+                                    decompressors::htp_gzip_decompressor_create(self.connp, cetype);
                                 if (*comp).next.is_null() {
                                     return Err(Status::ERROR);
                                 }
@@ -1322,7 +1317,7 @@ impl htp_tx_t {
                 }
             }
         } else if self.response_content_encoding_processing
-            != htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+            != decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
         {
             return Err(Status::ERROR);
         }
@@ -1342,7 +1337,7 @@ impl htp_tx_t {
         if self.is_protocol_0_9 {
             self.response_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY;
             self.response_content_encoding_processing =
-                htp_decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+                decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
             self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
             (*self.connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
             (*self.connp).out_body_data_left = -1
@@ -1351,7 +1346,7 @@ impl htp_tx_t {
             self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
         }
         // If at this point we have no method and no uri and our status
-        // is still htp_request::htp_connp_REQ_LINE, we likely have timed out request
+        // is still request::htp_connp_REQ_LINE, we likely have timed out request
         // or a overly long request
         if self.request_method.is_none()
             && self.request_uri.is_none()
@@ -1394,7 +1389,7 @@ impl htp_tx_t {
 
     /// Normalize a previously-parsed request URI.
     pub unsafe fn normalize_parsed_uri(&mut self) {
-        let mut uri = htp_util::htp_uri_t::new();
+        let mut uri = util::htp_uri_t::new();
         if let Some(incomplete) = &self.parsed_uri_raw {
             uri.scheme = incomplete.normalized_scheme();
             uri.username =
@@ -1472,7 +1467,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
     // Keep track of actual response body length.
     tx.response_entity_len = (tx.response_entity_len as u64).wrapping_add(d.len() as u64) as i64;
     // Invoke all callbacks.
-    let rc: Status = htp_util::htp_res_run_hook_body_data(tx.connp, d).into();
+    let rc: Status = util::res_run_hook_body_data(tx.connp, d).into();
     if rc != Status::OK {
         return Status::ERROR;
     }

@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::{htp_transaction, htp_util, list::List, log};
+use crate::{list::List, log, transaction, util};
 use std::net::IpAddr;
 
 pub type htp_time_t = libc::timeval;
@@ -17,11 +17,11 @@ pub struct htp_conn_t {
     /// Transactions carried out on this connection. The list may contain
     /// NULL elements when some of the transactions are deleted (and then
     /// removed from a connection by calling htp_conn_remove_tx().
-    transactions: htp_transaction::htp_txs_t,
+    transactions: transaction::htp_txs_t,
     /// Log messages associated with this connection.
     messages: log::htp_logs_t,
     /// Parsing flags: HTP_CONN_PIPELINED.
-    pub flags: htp_util::ConnectionFlags,
+    pub flags: util::ConnectionFlags,
     /// When was this connection opened? Can be NULL.
     pub open_timestamp: htp_time_t,
     /// When was this connection closed? Can be NULL.
@@ -41,7 +41,7 @@ impl htp_conn_t {
             server_port: None,
             transactions: List::with_capacity(16),
             messages: List::with_capacity(8),
-            flags: htp_util::ConnectionFlags::HTP_CONN_UNKNOWN,
+            flags: util::ConnectionFlags::HTP_CONN_UNKNOWN,
             open_timestamp: htp_time_t {
                 tv_sec: 0,
                 tv_usec: 0,
@@ -56,7 +56,7 @@ impl htp_conn_t {
     }
 
     /// Push a transaction to this connection's tx list.
-    pub fn push_tx(&mut self, tx: htp_transaction::htp_tx_t) {
+    pub fn push_tx(&mut self, tx: transaction::htp_tx_t) {
         self.transactions.push(tx)
     }
 
@@ -66,12 +66,12 @@ impl htp_conn_t {
     }
 
     /// Get the transactions for this connection.
-    pub fn txs(&self) -> &htp_transaction::htp_txs_t {
+    pub fn txs(&self) -> &transaction::htp_txs_t {
         &self.transactions
     }
 
     /// Get the transactions for this connection as a mutable reference.
-    pub fn txs_mut(&mut self) -> &mut htp_transaction::htp_txs_t {
+    pub fn txs_mut(&mut self) -> &mut transaction::htp_txs_t {
         &mut self.transactions
     }
 
@@ -81,28 +81,28 @@ impl htp_conn_t {
     }
 
     /// Get a transaction by tx_id from this connection.
-    pub fn tx(&self, tx_id: usize) -> Option<&htp_transaction::htp_tx_t> {
+    pub fn tx(&self, tx_id: usize) -> Option<&transaction::htp_tx_t> {
         self.transactions.get(tx_id)
     }
 
     /// Get a transaction by tx_id from this connection as a pointer.
-    pub fn tx_ptr(&self, tx_id: usize) -> *const htp_transaction::htp_tx_t {
+    pub fn tx_ptr(&self, tx_id: usize) -> *const transaction::htp_tx_t {
         self.transactions
             .get(tx_id)
-            .map(|tx| tx as *const htp_transaction::htp_tx_t)
+            .map(|tx| tx as *const transaction::htp_tx_t)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get a transaction by tx_id from this connection as a mutable reference.
-    pub fn tx_mut(&mut self, tx_id: usize) -> Option<&mut htp_transaction::htp_tx_t> {
+    pub fn tx_mut(&mut self, tx_id: usize) -> Option<&mut transaction::htp_tx_t> {
         self.transactions.get_mut(tx_id)
     }
 
     /// Get a transaction by tx_id from this connection as a mutable pointer.
-    pub fn tx_mut_ptr(&mut self, tx_id: usize) -> *mut htp_transaction::htp_tx_t {
+    pub fn tx_mut_ptr(&mut self, tx_id: usize) -> *mut transaction::htp_tx_t {
         self.transactions
             .get_mut(tx_id)
-            .map(|tx| tx as *mut htp_transaction::htp_tx_t)
+            .map(|tx| tx as *mut transaction::htp_tx_t)
             .unwrap_or(std::ptr::null_mut())
     }
 

@@ -1,10 +1,9 @@
-use crate::error::Result;
-use crate::htp_config::{
+use crate::config::{
     htp_cfg_t, htp_decoder_cfg_t, htp_unwanted_t, htp_unwanted_t::*, htp_url_encoding_handling_t,
 };
+use crate::error::Result;
 use crate::{
-    bstr, htp_config, htp_connection_parser, htp_request::htp_method_t, htp_transaction,
-    utf8_decoder, Status,
+    bstr, config, connection_parser, request::htp_method_t, transaction, utf8_decoder, Status,
 };
 use bitflags;
 use nom::{
@@ -14,7 +13,7 @@ use nom::{
         take_while_m_n,
     },
     character::complete::{char, digit1},
-    character::is_space,
+    character::is_space as nom_is_space,
     combinator::{map, not, opt, peek},
     multi::{fold_many0, many0},
     number::complete::be_u8,
@@ -359,7 +358,7 @@ impl htp_file_data_t<'_> {
 /// Is character a linear white space character?
 ///
 /// Returns true or false
-pub fn htp_is_lws(c: u8) -> bool {
+pub fn is_lws(c: u8) -> bool {
     match c as char {
         ' ' | '\t' => true,
         _ => false,
@@ -369,7 +368,7 @@ pub fn htp_is_lws(c: u8) -> bool {
 /// Is character a separator character?
 ///
 /// Returns true or false
-pub fn htp_is_separator(c: u8) -> bool {
+pub fn is_separator(c: u8) -> bool {
     // separators = "(" | ")" | "<" | ">" | "@"
     // | "," | ";" | ":" | "\" | <">
     // | "/" | "[" | "]" | "?" | "="
@@ -383,30 +382,18 @@ pub fn htp_is_separator(c: u8) -> bool {
 
 /// Is character a text character?
 ///
-/// Returns 0 or 1
-pub unsafe fn htp_is_text(c: i32) -> i32 {
-    if c == '\t' as i32 {
-        return 1;
-    }
-    if c < 32 {
-        return 0;
-    }
-    1
+/// Returns true or false
+pub fn is_text(c: i32) -> bool {
+    c == '\t' as i32 || c >= 32
 }
 
 /// Is character a token character?
 ///
 /// Returns true or false
-pub fn htp_is_token(c: u8) -> bool {
+pub fn is_token(c: u8) -> bool {
     // token = 1*<any CHAR except CTLs or separators>
     // CHAR  = <any US-ASCII character (octets 0 - 127)>
-    if c < 32 || c > 126 {
-        return false;
-    }
-    if htp_is_separator(c) {
-        return false;
-    }
-    true
+    !(c < 32 || c > 126 || is_separator(c))
 }
 
 pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
@@ -417,7 +404,7 @@ pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a
 /// the end of the line provided as input.
 ///
 /// Returns a slice with all line terminators removed
-pub fn htp_chomp(mut data: &[u8]) -> &[u8] {
+pub fn chomp(mut data: &[u8]) -> &[u8] {
     loop {
         let last_char = data.last();
         if last_char == Some(&('\n' as u8)) || last_char == Some(&('\r' as u8)) {
@@ -432,7 +419,7 @@ pub fn htp_chomp(mut data: &[u8]) -> &[u8] {
 /// Is character a white space character?
 ///
 /// Returns true or false
-pub fn htp_is_space(c: u8) -> bool {
+pub fn is_space(c: u8) -> bool {
     match c as char {
         ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c' => true,
         _ => false,
@@ -470,7 +457,7 @@ pub fn take_until_no_case<'a>(tag: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a
 }
 
 /// Converts request method string into a method type.
-pub fn htp_convert_bstr_to_method(method: &bstr::bstr_t) -> htp_method_t {
+pub fn convert_bstr_to_method(method: &bstr::bstr_t) -> htp_method_t {
     match method.as_slice() {
         b"GET" => htp_method_t::HTP_M_GET,
         b"PUT" => htp_method_t::HTP_M_PUT,
@@ -507,7 +494,7 @@ pub fn htp_convert_bstr_to_method(method: &bstr::bstr_t) -> htp_method_t {
 /// Is the given line empty?
 ///
 /// Returns true or false
-pub fn htp_is_line_empty(data: &[u8]) -> bool {
+pub fn is_line_empty(data: &[u8]) -> bool {
     match data {
         b"\x0d" | b"\x0a" | b"\x0d\x0a" => true,
         _ => false,
@@ -517,9 +504,9 @@ pub fn htp_is_line_empty(data: &[u8]) -> bool {
 /// Does line consist entirely of whitespace characters?
 ///
 /// Returns bool
-pub fn htp_is_line_whitespace(data: &[u8]) -> bool {
+pub fn is_line_whitespace(data: &[u8]) -> bool {
     for c in data {
-        if !htp_is_space(*c) {
+        if !is_space(*c) {
             return false;
         }
     }
@@ -534,10 +521,10 @@ pub fn ascii_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &
     move |input| {
         map(
             tuple((
-                take_while(|c| is_space(c)),
+                take_while(|c| nom_is_space(c)),
                 take_till(|c: u8| c.is_ascii_digit()),
                 digit1,
-                take_while(|c| is_space(c)),
+                take_while(|c| nom_is_space(c)),
             )),
             |(_, leading_data, digits, _)| (leading_data, digits),
         )(input)
@@ -552,9 +539,9 @@ fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         map(
             tuple((
-                take_while(|c| is_space(c)),
+                take_while(|c| nom_is_space(c)),
                 take_while1(|c: u8| c.is_ascii_hexdigit()),
-                take_while(|c| is_space(c)),
+                take_while(|c| nom_is_space(c)),
             )),
             |(_, digits, _)| digits,
         )(input)
@@ -565,9 +552,9 @@ fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// White space is allowed before and after the number.
 ///
 /// Returns Content-Length as a number or None if parsing failed.
-pub fn htp_parse_content_length<'a>(
+pub fn parse_content_length<'a>(
     input: &'a [u8],
-    connp: Option<&mut htp_connection_parser::htp_connp_t>,
+    connp: Option<&mut connection_parser::htp_connp_t>,
 ) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
         if let Some(connp) = connp {
@@ -575,7 +562,7 @@ pub fn htp_parse_content_length<'a>(
                 // Contains invalid characters! But still attempt to process
                 unsafe {
                     htp_warn!(
-                        connp as *mut htp_connection_parser::htp_connp_t,
+                        connp as *mut connection_parser::htp_connp_t,
                         htp_log_code::CONTENT_LENGTH_EXTRA_DATA_START,
                         "C-L value with extra data in the beginning"
                     );
@@ -586,7 +573,7 @@ pub fn htp_parse_content_length<'a>(
                 // Ok to have junk afterwards
                 unsafe {
                     htp_warn!(
-                        connp as *mut htp_connection_parser::htp_connp_t,
+                        connp as *mut connection_parser::htp_connp_t,
                         htp_log_code::CONTENT_LENGTH_EXTRA_DATA_END,
                         "C-L value with extra data in the end"
                     );
@@ -606,9 +593,7 @@ pub fn htp_parse_content_length<'a>(
 /// and after the number.
 ///
 /// Returns a chunked_length or None if empty.
-pub fn htp_parse_chunked_length<'a>(
-    input: &'a [u8],
-) -> std::result::Result<Option<i32>, &'static str> {
+pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i32>, &'static str> {
     if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
         if trailing_data.len() == 0 && chunked_length.len() == 0 {
             return Ok(None);
@@ -625,41 +610,38 @@ pub fn htp_parse_chunked_length<'a>(
 /// Determines if the given line is a continuation (of some previous line).
 ///
 /// Returns false or true, respectively.
-pub fn htp_connp_is_line_folded(data: &[u8]) -> bool {
+pub fn connp_is_line_folded(data: &[u8]) -> bool {
     if data.is_empty() {
         return false;
     }
-    htp_is_folding_char(data[0])
+    is_folding_char(data[0])
 }
 
-pub fn htp_is_folding_char(c: u8) -> bool {
-    if htp_is_lws(c) || c == 0 {
-        return true;
-    }
-    false
+pub fn is_folding_char(c: u8) -> bool {
+    is_lws(c) || c == 0
 }
 
 /// Determines if the given line is a request terminator.
 ///
 /// Returns true or false
-pub fn htp_connp_is_line_terminator(
-    server_personality: htp_config::htp_server_personality_t,
+pub fn connp_is_line_terminator(
+    server_personality: config::htp_server_personality_t,
     data: &[u8],
     next_no_lf: bool,
 ) -> bool {
     // Is this the end of request headers?
-    if server_personality == htp_config::htp_server_personality_t::HTP_SERVER_IIS_5_0 {
+    if server_personality == config::htp_server_personality_t::HTP_SERVER_IIS_5_0 {
         // IIS 5 will accept a whitespace line as a terminator
-        if htp_is_line_whitespace(data) {
+        if is_line_whitespace(data) {
             return true;
         }
     }
 
     // Treat an empty line as terminator
-    if htp_is_line_empty(data) {
+    if is_line_empty(data) {
         return true;
     }
-    if data.len() == 2 && htp_is_lws(data[0]) && data[1] == '\n' as u8 {
+    if data.len() == 2 && is_lws(data[0]) && data[1] == '\n' as u8 {
         return next_no_lf;
     }
     false
@@ -668,11 +650,11 @@ pub fn htp_connp_is_line_terminator(
 /// Determines if the given line can be ignored when it appears before a request.
 ///
 /// Returns true or false
-pub fn htp_connp_is_line_ignorable(
-    server_personality: htp_config::htp_server_personality_t,
+pub fn connp_is_line_ignorable(
+    server_personality: config::htp_server_personality_t,
     data: &[u8],
 ) -> bool {
-    htp_connp_is_line_terminator(server_personality, data, false)
+    connp_is_line_terminator(server_personality, data, false)
 }
 
 /// Attempts to convert the provided port slice to a u16
@@ -697,11 +679,11 @@ fn convert_port(port: &[u8]) -> Option<u16> {
 ///
 /// Returns a remaining unparsed data, parsed hostname, parsed port, converted port number,
 /// and a flag indicating whether the parsed data is valid
-pub fn htp_parse_hostport(
+pub fn parse_hostport(
     hostport: &bstr::bstr_t,
 ) -> IResult<&[u8], (&[u8], Option<(&[u8], Option<u16>)>, bool)> {
     let (input, host) = hostname()((hostport).as_slice())?;
-    let mut valid = htp_validate_hostname(host);
+    let mut valid = validate_hostname(host);
     if let Ok((_, p)) = port()(input) {
         if let Some(port) = convert_port(p) {
             return Ok((input, (host, Some((p, Some(port))), valid)));
@@ -718,9 +700,9 @@ pub fn htp_parse_hostport(
 /// Parses hostport provided in the URI.
 ///
 /// Returns htp_uri_t.
-pub fn htp_parse_uri_hostport(hostport: &bstr::bstr_t, flags: &mut Flags) -> htp_uri_t {
+pub fn parse_uri_hostport(hostport: &bstr::bstr_t, flags: &mut Flags) -> htp_uri_t {
     let mut uri = htp_uri_t::new();
-    if let Ok((_, (host, port_nmb, mut valid))) = htp_parse_hostport(hostport) {
+    if let Ok((_, (host, port_nmb, mut valid))) = parse_hostport(hostport) {
         uri.set_hostname(&host.to_ascii_lowercase());
         if let Some((port, port_nmb)) = port_nmb {
             uri.set_port(port);
@@ -917,17 +899,6 @@ pub fn parse_uri(input: &[u8]) -> htp_uri_t {
 
     if let Ok((_, parsed_uri)) = res {
         parsed_uri
-    } else {
-        htp_uri_t::new()
-    }
-}
-
-/// Parses request URI, making no attempt to validate the contents.
-///
-/// Returns htp_uri_t.
-pub fn htp_parse_uri(input: Option<&bstr::bstr_t>) -> htp_uri_t {
-    if let Some(input) = input {
-        parse_uri(input.as_slice())
     } else {
         htp_uri_t::new()
     }
@@ -1373,7 +1344,7 @@ pub fn urldecode_uri_inplace(
     flags: &mut Flags,
     input: &mut bstr::bstr_t,
 ) -> Result<()> {
-    if let Ok((_, (consumed, f, _))) = htp_urldecode_ex(input.as_slice(), decoder_cfg) {
+    if let Ok((_, (consumed, f, _))) = urldecode_ex(input.as_slice(), decoder_cfg) {
         (*input).clear();
         input.add(consumed.as_slice());
         if f.contains(Flags::HTP_URLEN_INVALID_ENCODING) {
@@ -1391,13 +1362,13 @@ pub fn urldecode_uri_inplace(
     }
 }
 
-pub fn htp_tx_urldecode_params_inplace(
-    tx: &mut htp_transaction::htp_tx_t,
+pub fn tx_urldecode_params_inplace(
+    tx: &mut transaction::htp_tx_t,
     input: &mut bstr::bstr_t,
 ) -> Result<()> {
     let decoder_cfg = unsafe { (*(tx.cfg)).decoder_cfg };
     if let Ok((_, (consumed, flags, expected_status))) =
-        htp_urldecode_ex(input.as_slice(), &decoder_cfg)
+        urldecode_ex(input.as_slice(), &decoder_cfg)
     {
         (*input).clear();
         input.add(consumed.as_slice());
@@ -1413,12 +1384,12 @@ pub fn htp_tx_urldecode_params_inplace(
 /// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub fn htp_urldecode_inplace(
+pub fn urldecode_inplace(
     cfg: &htp_decoder_cfg_t,
     input: &mut bstr::bstr_t,
     flags: &mut Flags,
 ) -> Result<()> {
-    if let Ok((_, (consumed, flag, _))) = htp_urldecode_ex(input.as_slice(), cfg) {
+    if let Ok((_, (consumed, flag, _))) = urldecode_ex(input.as_slice(), cfg) {
         (*input).clear();
         input.add(consumed.as_slice());
         *flags |= flag;
@@ -1637,7 +1608,7 @@ fn url_parse_unencoded_byte<'a>(
 /// code will be set.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be consumed or output.
-fn htp_urldecode_ex<'a>(
+fn urldecode_ex<'a>(
     input: &'a [u8],
     cfg: &'a htp_decoder_cfg_t,
 ) -> IResult<&'a [u8], (Vec<u8>, Flags, htp_unwanted_t)> {
@@ -1734,7 +1705,7 @@ pub fn generate_normalized_uri(
     }
     if let Some(mut query) = parsed_uri.query.clone() {
         let mut flags = Flags::empty();
-        let _ = htp_urldecode_inplace(decoder_cfg, &mut query, &mut flags);
+        let _ = urldecode_inplace(decoder_cfg, &mut query, &mut flags);
         partial_normalized_uri.add("?");
         partial_normalized_uri.add(query.as_slice());
     }
@@ -1786,19 +1757,19 @@ pub fn normalize_uri_path_inplace(s: &mut bstr::bstr_t) {
 /// words "http" at the beginning.
 ///
 /// Returns true for good enough (treat as response body) or false for not good enough
-pub fn htp_treat_response_line_as_body(data: &[u8]) -> bool {
+pub fn treat_response_line_as_body(data: &[u8]) -> bool {
     // Browser behavior:
     //      Firefox 3.5.x: (?i)^\s*http
     //      IE: (?i)^\s*http\s*/
     //      Safari: ^HTTP/\d+\.\d+\s+\d{3}
 
-    tuple((opt(take_htp_is_space), tag_no_case("http")))(data).is_err()
+    tuple((opt(take_is_space), tag_no_case("http")))(data).is_err()
 }
 
 /// Run the REQUEST_BODY_DATA hook.
-pub unsafe fn htp_req_run_hook_body_data(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    d: *mut htp_transaction::htp_tx_data_t,
+pub unsafe fn req_run_hook_body_data(
+    connp: *mut connection_parser::htp_connp_t,
+    d: *mut transaction::htp_tx_data_t,
 ) -> Result<()> {
     // Do not invoke callbacks with an empty data chunk
     if !(*d).data().is_null() && (*d).len() == 0 {
@@ -1819,9 +1790,9 @@ pub unsafe fn htp_req_run_hook_body_data(
 }
 
 /// Run the RESPONSE_BODY_DATA hook.
-pub unsafe fn htp_res_run_hook_body_data(
-    connp: *mut htp_connection_parser::htp_connp_t,
-    d: *mut htp_transaction::htp_tx_data_t,
+pub unsafe fn res_run_hook_body_data(
+    connp: *mut connection_parser::htp_connp_t,
+    d: *mut transaction::htp_tx_data_t,
 ) -> Result<()> {
     let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
         out_tx
@@ -1868,7 +1839,7 @@ pub fn parse_ct_header(header: &[u8]) -> Result<bstr::bstr_t> {
 /// Implements relaxed (not strictly RFC) hostname validation.
 ///
 /// Returns true if the supplied hostname is valid; false if it is not.
-pub fn htp_validate_hostname<'a>(input: &'a [u8]) -> bool {
+pub fn validate_hostname<'a>(input: &'a [u8]) -> bool {
     if input.len() == 0 || input.len() > 255 {
         return false;
     }
@@ -1906,20 +1877,20 @@ pub fn htp_validate_hostname<'a>(input: &'a [u8]) -> bool {
 }
 
 /// Returns the LibHTP version string.
-pub unsafe fn htp_get_version() -> *const i8 {
+pub unsafe fn get_version() -> *const i8 {
     HTP_VERSION_STRING_FULL.as_ptr() as *const i8
 }
 
 /// Splits by colon and removes leading whitespace from value
 pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
     let (value, (header, _)) = tuple((take_until(":"), char(':')))(data)?;
-    let (value, _) = take_is_space(value)?;
+    let (value, _) = nom_take_is_space(value)?;
     Ok((header, value))
 }
 
 // Removes whitespace as defined by nom (tab and ' ')
-pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| is_space(c))(data)
+pub fn nom_take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| nom_is_space(c))(data)
 }
 
 /// Returns data before the first null character if it exists
@@ -1936,19 +1907,19 @@ pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
-/// Take spaces as defined by htp_is_space
-pub fn take_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| htp_is_space(c))(data)
+/// Take spaces as defined by is_space
+pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| is_space(c))(data)
 }
 
-/// Take any non-space character as defined by htp_is_space
-pub fn take_not_htp_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| !htp_is_space(c))(data)
+/// Take any non-space character as defined by is_space
+pub fn take_not_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c: u8| !is_space(c))(data)
 }
 
 // Returns true if each character is a token
 pub fn is_word_token(data: &[u8]) -> bool {
-    !data.iter().any(|c| !htp_is_token(*c))
+    !data.iter().any(|c| !is_token(*c))
 }
 
 // Tests

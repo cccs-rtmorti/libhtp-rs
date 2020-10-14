@@ -1,6 +1,6 @@
 use crate::error::Result;
-use crate::htp_transaction::Protocol;
-use crate::{bstr, htp_connection_parser, htp_transaction, htp_util, Status};
+use crate::transaction::Protocol;
+use crate::{bstr, connection_parser, transaction, util, Status};
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_until, take_while},
@@ -13,13 +13,13 @@ use nom::{
 /// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains trailing and/or leading whitespace and/or leading zeros))
 pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], bool)> {
     let (remaining, (_, _, leading, _, trailing, version, _)) = tuple((
-        htp_util::take_ascii_whitespace(),
+        util::take_ascii_whitespace(),
         tag_no_case("HTTP"),
-        htp_util::take_ascii_whitespace(),
+        util::take_ascii_whitespace(),
         tag("/"),
         take_while(|c: u8| c.is_ascii_whitespace() || c == '0' as u8),
         alt((tag(".9"), tag("1.0"), tag("1.1"))),
-        htp_util::take_ascii_whitespace(),
+        util::take_ascii_whitespace(),
     ))(input)?;
     Ok((
         remaining,
@@ -33,10 +33,7 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
 /// characters are discovered, however, a warning will be logged.
 ///
 /// Returns Protocol version or invalid.
-pub fn htp_parse_protocol<'a>(
-    input: &'a [u8],
-    connp: &mut htp_connection_parser::htp_connp_t,
-) -> Protocol {
+pub fn parse_protocol<'a>(input: &'a [u8], connp: &mut connection_parser::htp_connp_t) -> Protocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
         if remaining.len() > 0 {
             return Protocol::INVALID;
@@ -44,7 +41,7 @@ pub fn htp_parse_protocol<'a>(
         if contains_trailing {
             unsafe {
                 htp_warn!(
-                    connp as *mut htp_connection_parser::htp_connp_t,
+                    connp as *mut connection_parser::htp_connp_t,
                     htp_log_code::PROTOCOL_CONTAINS_EXTRA_DATA,
                     "Protocol version contains leading and/or trailing whitespace and/or leading zeros"
                 )
@@ -64,8 +61,8 @@ pub fn htp_parse_protocol<'a>(
 /// Determines the numerical value of a response status given as a string.
 ///
 /// Returns Status code as a u16 on success or None on failure
-pub fn htp_parse_status(status: &[u8]) -> Option<u16> {
-    if let Ok((trailing_data, (leading_data, status_code))) = htp_util::ascii_digits()(status) {
+pub fn parse_status(status: &[u8]) -> Option<u16> {
+    if let Ok((trailing_data, (leading_data, status_code))) = util::ascii_digits()(status) {
         if trailing_data.len() > 0 || leading_data.len() > 0 {
             //There are invalid characters in the status code
             return None;
@@ -82,7 +79,7 @@ pub fn htp_parse_status(status: &[u8]) -> Option<u16> {
 }
 
 /// Parses Digest Authorization request header.
-fn htp_parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'a [u8], Vec<u8>> {
+fn parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'a [u8], Vec<u8>> {
     // Extract the username
     let (mut remaining_input, _) = tuple((
         take_until("username="),
@@ -109,9 +106,9 @@ fn htp_parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'
 }
 
 /// Parses Basic Authorization request header.
-pub fn htp_parse_authorization_basic(
-    in_tx: &mut htp_transaction::htp_tx_t,
-    auth_header: &htp_transaction::htp_header_t,
+pub fn parse_authorization_basic(
+    in_tx: &mut transaction::htp_tx_t,
+    auth_header: &transaction::htp_header_t,
 ) -> Result<()> {
     let data = &auth_header.value;
 
@@ -148,24 +145,23 @@ pub fn htp_parse_authorization_basic(
 }
 
 /// Parses Authorization request header.
-pub fn htp_parse_authorization(in_tx: &mut htp_transaction::htp_tx_t) -> Result<()> {
+pub fn parse_authorization(in_tx: &mut transaction::htp_tx_t) -> Result<()> {
     let auth_header =
         if let Some((_, auth_header)) = in_tx.request_headers.get_nocase_nozero("authorization") {
             auth_header.clone()
         } else {
-            in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_NONE;
+            in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_NONE;
             return Ok(());
         };
     // TODO Need a flag to raise when failing to parse authentication headers.
     if auth_header.value.starts_with_nocase("basic") {
         // Basic authentication
-        in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_BASIC;
-        return htp_parse_authorization_basic(in_tx, &auth_header);
+        in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_BASIC;
+        return parse_authorization_basic(in_tx, &auth_header);
     } else if auth_header.value.starts_with_nocase("digest") {
         // Digest authentication
-        in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
-        if let Ok((_, auth_username)) = htp_parse_authorization_digest(auth_header.value.as_slice())
-        {
+        in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
+        if let Ok((_, auth_username)) = parse_authorization_digest(auth_header.value.as_slice()) {
             if let Some(username) = &mut in_tx.request_auth_username {
                 username.clear();
                 username.add(auth_username);
@@ -177,7 +173,7 @@ pub fn htp_parse_authorization(in_tx: &mut htp_transaction::htp_tx_t) -> Result<
         return Err(Status::DECLINED);
     } else {
         // Unrecognized authentication method
-        in_tx.request_auth_type = htp_transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
+        in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
     }
     Ok(())
 }
@@ -186,58 +182,58 @@ pub fn htp_parse_authorization(in_tx: &mut htp_transaction::htp_tx_t) -> Result<
 fn AuthDigest() {
     assert_eq!(
         b"ivan\"r\"".to_vec(),
-        htp_parse_authorization_digest(b"   username=   \"ivan\\\"r\\\"\"")
+        parse_authorization_digest(b"   username=   \"ivan\\\"r\\\"\"")
             .unwrap()
             .1
     );
     assert_eq!(
         b"ivan\"r\"".to_vec(),
-        htp_parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"")
+        parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"")
             .unwrap()
             .1
     );
     assert_eq!(
         b"ivan\"r\"".to_vec(),
-        htp_parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"   ")
+        parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"   ")
             .unwrap()
             .1
     );
     assert_eq!(
         b"ivanr".to_vec(),
-        htp_parse_authorization_digest(b"username=\"ivanr\"   ")
+        parse_authorization_digest(b"username=\"ivanr\"   ")
             .unwrap()
             .1
     );
     assert_eq!(
         b"ivanr".to_vec(),
-        htp_parse_authorization_digest(b"username=   \"ivanr\"   ")
+        parse_authorization_digest(b"username=   \"ivanr\"   ")
             .unwrap()
             .1
     );
-    assert!(htp_parse_authorization_digest(b"username=ivanr\"   ").is_err()); //Missing opening quote
-    assert!(htp_parse_authorization_digest(b"username=\"ivanr   ").is_err()); //Missing closing quote
+    assert!(parse_authorization_digest(b"username=ivanr\"   ").is_err()); //Missing opening quote
+    assert!(parse_authorization_digest(b"username=\"ivanr   ").is_err()); //Missing closing quote
 }
 
 #[test]
 fn Status() {
     let status = bstr::bstr_t::from("   200    ");
-    assert_eq!(Some(200u16), htp_parse_status(&status));
+    assert_eq!(Some(200u16), parse_status(&status));
 
     let status = bstr::bstr_t::from("  \t 404    ");
-    assert_eq!(Some(404u16), htp_parse_status(&status));
+    assert_eq!(Some(404u16), parse_status(&status));
 
     let status = bstr::bstr_t::from("123");
-    assert_eq!(Some(123u16), htp_parse_status(&status));
+    assert_eq!(Some(123u16), parse_status(&status));
 
     let status = bstr::bstr_t::from("99");
-    assert!(htp_parse_status(&status).is_none());
+    assert!(parse_status(&status).is_none());
 
     let status = bstr::bstr_t::from("1000");
-    assert!(htp_parse_status(&status).is_none());
+    assert!(parse_status(&status).is_none());
 
     let status = bstr::bstr_t::from("200 OK");
-    assert!(htp_parse_status(&status).is_none());
+    assert!(parse_status(&status).is_none());
 
     let status = bstr::bstr_t::from("NOT 200");
-    assert!(htp_parse_status(&status).is_none());
+    assert!(parse_status(&status).is_none());
 }

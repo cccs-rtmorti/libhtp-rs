@@ -18,8 +18,8 @@
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-use crate::htp_config::htp_decoder_cfg_t;
-use crate::htp_util::Flags;
+use crate::config::htp_decoder_cfg_t;
+use crate::util::Flags;
 
 static utf8d: [u8; 400] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

@@ -4,7 +4,7 @@ use crate::hook::{
     TxNativeCallbackFn,
 };
 use crate::log::htp_log_level_t;
-use crate::{htp_content_handlers, htp_transaction, Status};
+use crate::{content_handlers, transaction, Status};
 
 #[derive(Clone)]
 pub struct htp_cfg_t {
@@ -21,7 +21,7 @@ pub struct htp_cfg_t {
     /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
     /// The function to use to transform parameters after parsing.
-    pub parameter_processor: Option<fn(_: &mut htp_transaction::htp_param_t) -> Result<()>>,
+    pub parameter_processor: Option<fn(_: &mut transaction::htp_param_t) -> Result<()>>,
     /// Decoder configuration for url path.
     pub decoder_cfg: htp_decoder_cfg_t,
     /// Whether to decompress compressed response bodies.
@@ -405,7 +405,7 @@ impl htp_cfg_t {
     /// stored in request bodies, when they are in multipart/form-data format.
     pub fn register_multipart_parser(&mut self) {
         self.hook_request_headers
-            .register(htp_content_handlers::htp_ch_multipart_callback_request_headers)
+            .register(content_handlers::htp_ch_multipart_callback_request_headers)
     }
 
     /// Registers a REQUEST_COMPLETE callback.
@@ -501,9 +501,9 @@ impl htp_cfg_t {
     #[allow(dead_code)]
     pub fn register_urlencoded_parser(&mut self) {
         self.hook_request_line
-            .register(htp_content_handlers::htp_ch_urlencoded_callback_request_line);
+            .register(content_handlers::htp_ch_urlencoded_callback_request_line);
         self.hook_request_headers
-            .register(htp_content_handlers::htp_ch_urlencoded_callback_request_headers)
+            .register(content_handlers::htp_ch_urlencoded_callback_request_headers)
     }
 
     /// Configures the maximum size of the buffer LibHTP will use when all data is not available

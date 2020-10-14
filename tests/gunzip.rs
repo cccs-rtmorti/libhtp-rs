@@ -1,12 +1,12 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
-use htp::htp_config;
-use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_connection_parser::*;
-use htp::htp_decompressors::htp_content_encoding_t::*;
-use htp::htp_decompressors::*;
-use htp::htp_transaction::*;
+use htp::config;
+use htp::config::htp_server_personality_t::*;
+use htp::connection_parser::*;
+use htp::decompressors::htp_content_encoding_t::*;
+use htp::decompressors::*;
+use htp::transaction::*;
 use htp::Status;
 use std::env;
 use std::path::PathBuf;
@@ -26,7 +26,7 @@ extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
 
 #[derive(Debug)]
 struct Test {
-    cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut config::htp_cfg_t,
     connp: *mut htp_connp_t,
     output: *mut bstr_t,
     o_boxing_wizards: *mut bstr_t,
@@ -42,7 +42,7 @@ enum TestError {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg = htp_config::create();
+            let cfg = config::create();
             assert!(!cfg.is_null());
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             let connp = htp_connp_create(cfg);

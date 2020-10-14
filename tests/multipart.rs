@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 use htp::bstr::*;
 use htp::c_api::htp_connp_create;
-use htp::htp_config;
-use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_connection_parser::*;
-use htp::htp_multipart::*;
-use htp::htp_transaction::*;
+use htp::config;
+use htp::config::htp_server_personality_t::*;
+use htp::connection_parser::*;
+use htp::multipart::*;
+use htp::transaction::*;
 use htp::Status;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr};
@@ -15,7 +15,7 @@ mod common;
 
 struct Test {
     connp: *mut htp_connp_t,
-    cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut config::htp_cfg_t,
     body: *mut htp_multipart_t,
     mpartp: Option<htp_mpartp_t>,
     tx: *mut htp_tx_t,
@@ -24,7 +24,7 @@ struct Test {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut htp_config::htp_cfg_t = htp_config::create();
+            let cfg: *mut config::htp_cfg_t = config::create();
             assert!(!cfg.is_null());
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_multipart_parser();

@@ -1,5 +1,5 @@
-use htp::htp_connection_parser::htp_connp_t;
-use htp::htp_transaction::htp_tx_t;
+use htp::connection_parser::htp_connp_t;
+use htp::transaction::htp_tx_t;
 
 // TODO: this function is only used for testing, remove when we are ready to do so.
 #[allow(dead_code)]

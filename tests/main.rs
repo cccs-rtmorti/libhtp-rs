@@ -1,16 +1,16 @@
 #![allow(non_snake_case)]
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
+use htp::config;
+use htp::config::htp_server_personality_t::*;
+use htp::connection_parser::*;
 use htp::error::Result;
-use htp::htp_config;
-use htp::htp_config::htp_server_personality_t::*;
-use htp::htp_connection_parser::*;
-use htp::htp_transaction::htp_auth_type_t::*;
-use htp::htp_transaction::htp_data_source_t::*;
-use htp::htp_transaction::htp_tx_req_progress_t::*;
-use htp::htp_transaction::htp_tx_res_progress_t::*;
-use htp::htp_transaction::*;
-use htp::htp_util::*;
 use htp::log::*;
+use htp::transaction::htp_auth_type_t::*;
+use htp::transaction::htp_data_source_t::*;
+use htp::transaction::htp_tx_req_progress_t::*;
+use htp::transaction::htp_tx_res_progress_t::*;
+use htp::transaction::*;
+use htp::util::*;
 use std::convert::TryInto;
 use std::env;
 use std::iter::IntoIterator;
@@ -97,7 +97,7 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut htp_config::htp_cfg_t,
+    cfg: *mut config::htp_cfg_t,
     connp: *mut htp_connp_t,
     basedir: PathBuf,
 }
@@ -116,7 +116,7 @@ impl Test {
         };
 
         unsafe {
-            let cfg: *mut htp_config::htp_cfg_t = htp_config::create();
+            let cfg: *mut config::htp_cfg_t = config::create();
             assert!(!cfg.is_null());
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();

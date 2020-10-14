@@ -1,6 +1,6 @@
+use crate::config::htp_server_personality_t;
 use crate::error::Result;
-use crate::htp_config::htp_server_personality_t;
-use crate::{bstr, hook::DataHook, htp_config, htp_connection, htp_transaction, htp_util, Status};
+use crate::{bstr, config, connection, hook::DataHook, transaction, util, Status};
 use std::net::IpAddr;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -46,9 +46,9 @@ pub type htp_time_t = libc::timeval;
 pub struct htp_connp_t {
     // General fields
     /// Current parser configuration structure.
-    pub cfg: *mut htp_config::htp_cfg_t,
+    pub cfg: *mut config::htp_cfg_t,
     /// The connection structure associated with this parser.
-    pub conn: htp_connection::htp_conn_t,
+    pub conn: connection::htp_conn_t,
     /// Opaque user data associated with this parser.
     pub user_data: *mut core::ffi::c_void,
     // Request parser fields
@@ -155,14 +155,14 @@ pub struct htp_connp_t {
     /// The hook that should be receiving raw connection data.
     pub out_data_receiver_hook: Option<DataHook>,
     /// On a PUT request, this field contains additional file data.
-    pub put_file: Option<htp_util::htp_file_t>,
+    pub put_file: Option<util::htp_file_t>,
 }
 
 impl htp_connp_t {
-    pub fn new(cfg: *mut htp_config::htp_cfg_t) -> Self {
+    pub fn new(cfg: *mut config::htp_cfg_t) -> Self {
         Self {
             cfg,
-            conn: htp_connection::htp_conn_t::new(),
+            conn: connection::htp_conn_t::new(),
             user_data: std::ptr::null_mut(),
             in_status: htp_stream_state_t::HTP_STREAM_NEW,
             out_status: htp_stream_state_t::HTP_STREAM_NEW,
@@ -220,9 +220,9 @@ impl htp_connp_t {
     pub fn create_tx(&mut self) -> Result<usize> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
-            self.conn.flags |= htp_util::ConnectionFlags::HTP_CONN_PIPELINED
+            self.conn.flags |= util::ConnectionFlags::HTP_CONN_PIPELINED
         }
-        htp_transaction::htp_tx_t::new(self).map(|tx_id| {
+        transaction::htp_tx_t::new(self).map(|tx_id| {
             self.in_tx = Some(tx_id);
             self.in_reset();
             tx_id
@@ -244,38 +244,38 @@ impl htp_connp_t {
     }
 
     /// Get the in_tx or None if not set.
-    pub fn in_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
+    pub fn in_tx(&self) -> Option<&transaction::htp_tx_t> {
         self.in_tx.and_then(|in_tx| self.conn.tx(in_tx))
     }
 
     /// Get the in_tx as a mutable reference or None if not set.
-    pub fn in_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
+    pub fn in_tx_mut(&mut self) -> Option<&mut transaction::htp_tx_t> {
         self.in_tx.and_then(move |in_tx| self.conn.tx_mut(in_tx))
     }
 
     /// Get the in_tx as a mutable reference or Status::ERROR if not set.
-    pub fn in_tx_mut_ok(&mut self) -> Result<&mut htp_transaction::htp_tx_t> {
+    pub fn in_tx_mut_ok(&mut self) -> Result<&mut transaction::htp_tx_t> {
         self.in_tx
             .and_then(move |in_tx| self.conn.tx_mut(in_tx))
             .ok_or(Status::ERROR)
     }
 
     /// Get the in_tx as a pointer or NULL if not set.
-    pub fn in_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
+    pub fn in_tx_ptr(&self) -> *const transaction::htp_tx_t {
         self.in_tx()
-            .map(|in_tx| in_tx as *const htp_transaction::htp_tx_t)
+            .map(|in_tx| in_tx as *const transaction::htp_tx_t)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get the in_tx as a mutable pointer or NULL if not set.
-    pub fn in_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
+    pub fn in_tx_mut_ptr(&mut self) -> *mut transaction::htp_tx_t {
         self.in_tx_mut()
-            .map(|in_tx| in_tx as *mut htp_transaction::htp_tx_t)
+            .map(|in_tx| in_tx as *mut transaction::htp_tx_t)
             .unwrap_or(std::ptr::null_mut())
     }
 
     /// Set the in_tx to the provided transaction.
-    pub fn set_in_tx(&mut self, tx: &htp_transaction::htp_tx_t) {
+    pub fn set_in_tx(&mut self, tx: &transaction::htp_tx_t) {
         self.in_tx = Some(tx.index);
     }
 
@@ -290,38 +290,38 @@ impl htp_connp_t {
     }
 
     /// Get the out_tx or None if not set.
-    pub fn out_tx(&self) -> Option<&htp_transaction::htp_tx_t> {
+    pub fn out_tx(&self) -> Option<&transaction::htp_tx_t> {
         self.out_tx.and_then(|out_tx| self.conn.tx(out_tx))
     }
 
     /// Get the out_tx as a mutable reference or None if not set.
-    pub fn out_tx_mut(&mut self) -> Option<&mut htp_transaction::htp_tx_t> {
+    pub fn out_tx_mut(&mut self) -> Option<&mut transaction::htp_tx_t> {
         self.out_tx.and_then(move |out_tx| self.conn.tx_mut(out_tx))
     }
 
     /// Get the out_tx as a mutable reference or Status::ERROR if not set.
-    pub fn out_tx_mut_ok(&mut self) -> Result<&mut htp_transaction::htp_tx_t> {
+    pub fn out_tx_mut_ok(&mut self) -> Result<&mut transaction::htp_tx_t> {
         self.out_tx
             .and_then(move |out_tx| self.conn.tx_mut(out_tx))
             .ok_or(Status::ERROR)
     }
 
     /// Get the out_tx as a pointer or NULL if not set.
-    pub fn out_tx_ptr(&self) -> *const htp_transaction::htp_tx_t {
+    pub fn out_tx_ptr(&self) -> *const transaction::htp_tx_t {
         self.out_tx()
-            .map(|out_tx| out_tx as *const htp_transaction::htp_tx_t)
+            .map(|out_tx| out_tx as *const transaction::htp_tx_t)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get the out_tx as a mutable pointer or NULL if not set.
-    pub fn out_tx_mut_ptr(&mut self) -> *mut htp_transaction::htp_tx_t {
+    pub fn out_tx_mut_ptr(&mut self) -> *mut transaction::htp_tx_t {
         self.out_tx_mut()
-            .map(|out_tx| out_tx as *mut htp_transaction::htp_tx_t)
+            .map(|out_tx| out_tx as *mut transaction::htp_tx_t)
             .unwrap_or(std::ptr::null_mut())
     }
 
     /// Set the out_tx to the provided transaction.
-    pub fn set_out_tx(&mut self, tx: &htp_transaction::htp_tx_t) {
+    pub fn set_out_tx(&mut self, tx: &transaction::htp_tx_t) {
         self.out_tx = Some(tx.index);
     }
 
