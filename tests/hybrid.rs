@@ -57,7 +57,7 @@ impl HybridParsing_Get_User_Data {
     }
 }
 
-fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_START_invoked += 1;
@@ -65,7 +65,7 @@ fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut htp_tx_t) -> Result<()> {
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_LINE_invoked += 1;
@@ -73,7 +73,7 @@ fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut htp_tx_t) -> Result<()> {
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_HEADERS_invoked += 1;
@@ -81,7 +81,7 @@ fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut htp_tx_t) -> Result<()> {
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
@@ -89,7 +89,7 @@ fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut htp_tx_t) -> Result<()> 
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_START_invoked += 1;
@@ -97,7 +97,7 @@ fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut htp_tx_t) -> Result<()> {
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_LINE_invoked += 1;
@@ -105,7 +105,7 @@ fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut htp_tx_t) -> Result<()> {
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
@@ -113,7 +113,7 @@ fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut htp_tx_t) -> Result<()> 
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut Data) -> Result<()> {
     unsafe {
         let user_data = (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data;
 
@@ -175,7 +175,7 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut htp_tx_data_t) -> Resul
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
@@ -183,7 +183,7 @@ fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut htp_tx_t) -> Result<()>
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Result<()> {
+fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut Transaction) -> Result<()> {
     unsafe {
         let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
@@ -192,31 +192,31 @@ fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut htp_tx_t) -> Result<
 }
 
 /// Set one request header.
-unsafe fn req_set_header<S: AsRef<[u8]>>(tx: &mut htp_tx_t, name: S, value: S) {
+unsafe fn req_set_header<S: AsRef<[u8]>>(tx: &mut Transaction, name: S, value: S) {
     tx.request_headers.add(
         name.as_ref().into(),
-        htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+        Header::new(name.as_ref().into(), value.as_ref().into()),
     )
 }
 
 /// Set request line. When used, this function should always be called first,
 /// with more specific functions following. Must not contain line terminators.
-unsafe fn req_set_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Result<()> {
-    tx.request_line = Some(bstr_t::from(line.as_ref()));
+unsafe fn req_set_line<S: AsRef<[u8]>>(tx: &mut Transaction, line: S) -> Result<()> {
+    tx.request_line = Some(Bstr::from(line.as_ref()));
     (*tx.connp).parse_request_line()
 }
 
 /// Set response line. Use this function is you have a single buffer containing
 /// the entire line. If you have individual request line pieces, use the other
 /// available functions.
-unsafe fn res_set_status_line<S: AsRef<[u8]>>(tx: &mut htp_tx_t, line: S) -> Result<()> {
-    tx.response_line = Some(bstr_t::from(line.as_ref()));
+unsafe fn res_set_status_line<S: AsRef<[u8]>>(tx: &mut Transaction, line: S) -> Result<()> {
+    tx.response_line = Some(Bstr::from(line.as_ref()));
     (*tx.connp).parse_response_line()
 }
 
 struct HybridParsingTest {
-    connp: *mut htp_connp_t,
-    cfg: *mut config::htp_cfg_t,
+    connp: *mut ConnectionParser,
+    cfg: *mut config::Config,
     connp_open: bool,
     user_data: HybridParsing_Get_User_Data,
 }
@@ -224,7 +224,7 @@ struct HybridParsingTest {
 impl HybridParsingTest {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut config::htp_cfg_t = config::create();
+            let cfg: *mut config::Config = config::create();
             assert!(!cfg.is_null());
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
@@ -297,7 +297,7 @@ fn GetTest() {
     unsafe {
         let mut t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Configure user data and callbacks
@@ -413,7 +413,7 @@ fn PostUrlecodedTest() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Request begins
@@ -465,7 +465,7 @@ const HYBRID_PARSING_COMPRESSED_RESPONSE: &[u8] =
       kwpQrauxh5dFqnyj3uVYgJJCxD5W1g5HSud5Jo3WTQek0mR8UgNlDYZOLcz0ZMuH3y+YKzDAaMDJ\
       SrihOVL32QceVXUy4QAAAA==";
 
-extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
+extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut Transaction) {
     unsafe {
         (*tx).state_request_start().unwrap();
 
@@ -483,7 +483,7 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx: *mut htp_tx_t) {
 
         (*tx).state_response_headers().unwrap();
 
-        let body = bstr_t::from(base64::decode(HYBRID_PARSING_COMPRESSED_RESPONSE).unwrap());
+        let body = Bstr::from(base64::decode(HYBRID_PARSING_COMPRESSED_RESPONSE).unwrap());
 
         (*tx).res_process_body_data(body.as_slice()).unwrap();
 
@@ -497,7 +497,7 @@ fn CompressedResponse() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(tx);
@@ -512,7 +512,7 @@ fn ParamCaseSensitivity() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Request begins
@@ -540,7 +540,7 @@ fn PostUrlecodedChunked() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction.
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Request begins.
@@ -580,7 +580,7 @@ fn RequestLineParsing1() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Request begins
@@ -614,7 +614,7 @@ fn RequestLineParsing1() {
 fn RequestLineParsing2() {
     unsafe {
         let t = HybridParsingTest::new();
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Feed data to the parser.
@@ -637,7 +637,7 @@ fn RequestLineParsing2() {
 fn RequestLineParsing3() {
     unsafe {
         let t = HybridParsingTest::new();
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Feed data to the parser.
@@ -659,7 +659,7 @@ fn RequestLineParsing3() {
 fn RequestLineParsing4() {
     unsafe {
         let t = HybridParsingTest::new();
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Feed data to the parser.
@@ -680,7 +680,7 @@ fn RequestLineParsing4() {
 fn ParsedUriSupplied() {
     unsafe {
         let t = HybridParsingTest::new();
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Feed data to the parser.
@@ -688,8 +688,8 @@ fn ParsedUriSupplied() {
         (*tx).state_request_start().unwrap();
         req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0").unwrap();
 
-        let mut u = htp_uri_t::new();
-        u.path = Some(bstr_t::from("/123"));
+        let mut u = Uri::new();
+        u.path = Some(Bstr::from("/123"));
         (*tx).parsed_uri = Some(u);
         (*tx).state_request_line().unwrap();
 
@@ -716,7 +716,7 @@ fn TestRepeatCallbacks() {
     unsafe {
         let mut t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Configure user data and callbacks
@@ -799,7 +799,7 @@ fn DeleteTransactionBeforeComplete() {
     unsafe {
         let mut t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Request begins
@@ -821,7 +821,7 @@ fn ResponseLineIncomplete() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
 
         assert!(!tx.is_null());
         (*tx).state_response_start().unwrap();
@@ -841,7 +841,7 @@ fn ResponseLineIncomplete1() {
     unsafe {
         let t = HybridParsingTest::new();
         // Create a new LibHTP transaction
-        let tx = htp_connp_tx_create(t.connp) as *mut htp_tx_t;
+        let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
 
         assert!(!tx.is_null());
         (*tx).state_response_start().unwrap();

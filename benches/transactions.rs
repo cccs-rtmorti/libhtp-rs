@@ -43,8 +43,8 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut config::htp_cfg_t,
-    connp: *mut htp_connp_t,
+    cfg: *mut config::Config,
+    connp: *mut ConnectionParser,
 }
 
 impl Test {

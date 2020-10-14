@@ -5,46 +5,46 @@ use std::ops::Index;
 use std::slice::SliceIndex;
 
 #[derive(Clone, Debug)]
-pub struct htp_table_t<T> {
-    pub elements: Vec<(bstr::bstr_t, T)>,
+pub struct Table<T> {
+    pub elements: Vec<(bstr::Bstr, T)>,
 }
 
-impl<T> Index<usize> for htp_table_t<T> {
-    type Output = (bstr::bstr_t, T);
-    fn index(&self, idx: usize) -> &(bstr::bstr_t, T) {
+impl<T> Index<usize> for Table<T> {
+    type Output = (bstr::Bstr, T);
+    fn index(&self, idx: usize) -> &(bstr::Bstr, T) {
         &self.elements[idx]
     }
 }
 
-impl<'a, T> IntoIterator for &'a htp_table_t<T> {
-    type Item = &'a (bstr::bstr_t, T);
-    type IntoIter = std::slice::Iter<'a, (bstr::bstr_t, T)>;
+impl<'a, T> IntoIterator for &'a Table<T> {
+    type Item = &'a (bstr::Bstr, T);
+    type IntoIter = std::slice::Iter<'a, (bstr::Bstr, T)>;
 
-    fn into_iter(self) -> std::slice::Iter<'a, (bstr::bstr_t, T)> {
+    fn into_iter(self) -> std::slice::Iter<'a, (bstr::Bstr, T)> {
         self.elements.iter()
     }
 }
 
-impl<'a, T> IntoIterator for &'a mut htp_table_t<T> {
-    type Item = &'a mut (bstr::bstr_t, T);
-    type IntoIter = std::slice::IterMut<'a, (bstr::bstr_t, T)>;
+impl<'a, T> IntoIterator for &'a mut Table<T> {
+    type Item = &'a mut (bstr::Bstr, T);
+    type IntoIter = std::slice::IterMut<'a, (bstr::Bstr, T)>;
 
-    fn into_iter(self) -> std::slice::IterMut<'a, (bstr::bstr_t, T)> {
+    fn into_iter(self) -> std::slice::IterMut<'a, (bstr::Bstr, T)> {
         self.elements.iter_mut()
     }
 }
 
-impl<T> IntoIterator for htp_table_t<T> {
-    type Item = (bstr::bstr_t, T);
-    type IntoIter = std::vec::IntoIter<(bstr::bstr_t, T)>;
+impl<T> IntoIterator for Table<T> {
+    type Item = (bstr::Bstr, T);
+    type IntoIter = std::vec::IntoIter<(bstr::Bstr, T)>;
 
-    fn into_iter(self) -> std::vec::IntoIter<(bstr::bstr_t, T)> {
+    fn into_iter(self) -> std::vec::IntoIter<(bstr::Bstr, T)> {
         self.elements.into_iter()
     }
 }
 
-impl<T> htp_table_t<T> {
-    /// Make a new owned htp_table_t with given capacity
+impl<T> Table<T> {
+    /// Make a new owned Table with given capacity
     pub fn with_capacity(size: usize) -> Self {
         Self {
             elements: Vec::with_capacity(size),
@@ -52,20 +52,20 @@ impl<T> htp_table_t<T> {
     }
 
     /// Add a new tuple (key, item) to the table
-    pub fn add(&mut self, key: bstr::bstr_t, item: T) {
+    pub fn add(&mut self, key: bstr::Bstr, item: T) {
         self.elements.push((key, item));
     }
 
     pub fn get<I>(&self, index: I) -> Option<&I::Output>
     where
-        I: SliceIndex<[(bstr::bstr_t, T)]>,
+        I: SliceIndex<[(bstr::Bstr, T)]>,
     {
         self.elements.get(index)
     }
 
     pub fn get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
     where
-        I: SliceIndex<[(bstr::bstr_t, T)]>,
+        I: SliceIndex<[(bstr::Bstr, T)]>,
     {
         self.elements.get_mut(index)
     }
@@ -73,7 +73,7 @@ impl<T> htp_table_t<T> {
     /// Search the table for the first tuple with a key matching the given slice, ingnoring ascii case in self
     ///
     /// Returns None if no match is found.
-    pub fn get_nocase<K: AsRef<[u8]>>(&self, key: K) -> Option<&(bstr::bstr_t, T)> {
+    pub fn get_nocase<K: AsRef<[u8]>>(&self, key: K) -> Option<&(bstr::Bstr, T)> {
         self.elements
             .iter()
             .find(|x| x.0.cmp_nocase(key.as_ref()) == Ordering::Equal)
@@ -82,7 +82,7 @@ impl<T> htp_table_t<T> {
     /// Search the table for the first tuple with a key matching the given slice, ingnoring ascii case in self
     ///
     /// Returns None if no match is found.
-    pub fn get_nocase_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut (bstr::bstr_t, T)> {
+    pub fn get_nocase_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut (bstr::Bstr, T)> {
         self.elements
             .iter_mut()
             .find(|x| x.0.cmp_nocase(key.as_ref()) == Ordering::Equal)
@@ -91,7 +91,7 @@ impl<T> htp_table_t<T> {
     /// Search the table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
     ///
     /// Returns None if no match is found.
-    pub fn get_nocase_nozero<K: AsRef<[u8]>>(&self, key: K) -> Option<&(bstr::bstr_t, T)> {
+    pub fn get_nocase_nozero<K: AsRef<[u8]>>(&self, key: K) -> Option<&(bstr::Bstr, T)> {
         self.elements
             .iter()
             .find(|x| x.0.cmp_nocase_nozero(key.as_ref()) == Ordering::Equal)
@@ -103,7 +103,7 @@ impl<T> htp_table_t<T> {
     pub fn get_nocase_nozero_mut<K: AsRef<[u8]>>(
         &mut self,
         key: K,
-    ) -> Option<&mut (bstr::bstr_t, T)> {
+    ) -> Option<&mut (bstr::Bstr, T)> {
         self.elements
             .iter_mut()
             .find(|x| x.0.cmp_nocase_nozero(key.as_ref()) == Ordering::Equal)
@@ -119,22 +119,22 @@ impl<T> htp_table_t<T> {
 
 #[test]
 fn Add() {
-    let mut t = htp_table_t::with_capacity(1);
-    let mut k = bstr::bstr_t::from("Key");
+    let mut t = Table::with_capacity(1);
+    let mut k = bstr::Bstr::from("Key");
     assert_eq!(0, t.size());
     t.add(k, "Value1");
     assert_eq!(1, t.size());
-    k = bstr::bstr_t::from("AnotherKey");
+    k = bstr::Bstr::from("AnotherKey");
     t.add(k, "Value2");
     assert_eq!(2, t.size());
 }
 
 #[test]
 fn GetNoCase() {
-    let mut t = htp_table_t::with_capacity(2);
-    let mut k = bstr::bstr_t::from("Key1");
+    let mut t = Table::with_capacity(2);
+    let mut k = bstr::Bstr::from("Key1");
     t.add(k, "Value1");
-    k = bstr::bstr_t::from("KeY2");
+    k = bstr::Bstr::from("KeY2");
     t.add(k, "Value2");
 
     let mut result = t.get_nocase("KEY1");
@@ -158,10 +158,10 @@ fn GetNoCase() {
 
 #[test]
 fn GetNocaseNozero() {
-    let mut t = htp_table_t::with_capacity(2);
-    let mut k = bstr::bstr_t::from("K\x00\x00\x00\x00ey\x001");
+    let mut t = Table::with_capacity(2);
+    let mut k = bstr::Bstr::from("K\x00\x00\x00\x00ey\x001");
     t.add(k, "Value1");
-    k = bstr::bstr_t::from("K\x00e\x00\x00Y2");
+    k = bstr::Bstr::from("K\x00e\x00\x00Y2");
     t.add(k, "Value2");
 
     let mut result = t.get_nocase_nozero("key1");
@@ -185,10 +185,10 @@ fn GetNocaseNozero() {
 
 #[test]
 fn IndexAccess() {
-    let mut t = htp_table_t::with_capacity(2);
-    let mut k = bstr::bstr_t::from("Key1");
+    let mut t = Table::with_capacity(2);
+    let mut k = bstr::Bstr::from("Key1");
     t.add(k, "Value1");
-    k = bstr::bstr_t::from("KeY2");
+    k = bstr::Bstr::from("KeY2");
     t.add(k, "Value2");
 
     let res = &t[1];
@@ -203,22 +203,22 @@ fn IndexAccess() {
 
 #[test]
 fn Iterators() {
-    let mut table = htp_table_t::with_capacity(2);
+    let mut table = Table::with_capacity(2);
     table.add("1".into(), "abc".to_string());
     table.add("2".into(), "def".to_string());
 
-    let mut iter_ref: std::slice::Iter<(bstr::bstr_t, String)> = (&table).into_iter();
-    let (key1, _): &(bstr::bstr_t, String) = iter_ref.next().unwrap();
+    let mut iter_ref: std::slice::Iter<(bstr::Bstr, String)> = (&table).into_iter();
+    let (key1, _): &(bstr::Bstr, String) = iter_ref.next().unwrap();
     assert_eq!(key1, &"1");
     assert_eq!(table.get_nocase("1").unwrap().1, "abc");
 
-    let mut iter_mut_ref: std::slice::IterMut<(bstr::bstr_t, String)> = (&mut table).into_iter();
-    let (key1, ref mut val1): &mut (bstr::bstr_t, String) = iter_mut_ref.next().unwrap();
+    let mut iter_mut_ref: std::slice::IterMut<(bstr::Bstr, String)> = (&mut table).into_iter();
+    let (key1, ref mut val1): &mut (bstr::Bstr, String) = iter_mut_ref.next().unwrap();
     *val1 = "xyz".to_string();
     assert_eq!(key1, &"1");
     assert_eq!(table.get_nocase("1").unwrap().1, "xyz");
 
-    let mut iter_owned: std::vec::IntoIter<(bstr::bstr_t, String)> = table.into_iter();
+    let mut iter_owned: std::vec::IntoIter<(bstr::Bstr, String)> = table.into_iter();
     let (key1, val1) = iter_owned.next().unwrap();
     assert_eq!(key1, "1");
     assert_eq!(val1, "xyz");

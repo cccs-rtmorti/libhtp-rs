@@ -1,9 +1,9 @@
-use htp::connection_parser::htp_connp_t;
-use htp::transaction::htp_tx_t;
+use htp::connection_parser::ConnectionParser;
+use htp::transaction::Transaction;
 
 // TODO: this function is only used for testing, remove when we are ready to do so.
 #[allow(dead_code)]
-pub unsafe fn htp_connp_tx_create(connp: *mut htp_connp_t) -> *mut htp_tx_t {
+pub unsafe fn htp_connp_tx_create(connp: *mut ConnectionParser) -> *mut Transaction {
     if let Ok(tx_id) = (*connp).create_tx() {
         (*connp).conn.tx_mut_ptr(tx_id)
     } else {
@@ -155,7 +155,7 @@ macro_rules! assert_response_header_flag_contains {
     }};
 }
 
-/// Assert the table of htp_param_t contains a param with the given name value pair
+/// Assert the table of Param contains a param with the given name value pair
 ///
 /// Example usage:
 /// assert_contains_param!(params, "name", "value");
@@ -179,7 +179,7 @@ macro_rules! assert_contains_param {
     }};
 }
 
-/// Assert the table of htp_param_t contains a param from the given source with a matching name value pair
+/// Assert the table of Param contains a param from the given source with a matching name value pair
 ///
 /// Example usage:
 /// assert_contains_param_source!(params, source, "name", "value");

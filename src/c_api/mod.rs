@@ -1,11 +1,11 @@
 use crate::bstr;
 use crate::config;
-use crate::connection::htp_conn_t;
-use crate::connection_parser::{htp_connp_t, htp_stream_state_t, htp_time_t};
+use crate::connection::Connection;
+use crate::connection_parser::{htp_stream_state_t, htp_time_t, ConnectionParser};
 use crate::hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn};
 use crate::list;
 use crate::log::{self, *};
-use crate::transaction::{htp_header_t, htp_headers_t, htp_tx_t};
+use crate::transaction::{htp_headers_t, Header, Transaction};
 use crate::util;
 use crate::Status;
 use std::convert::TryFrom;
@@ -18,13 +18,13 @@ pub mod uri;
 /// configuration time must not be changed afterwards in order to support lock-less
 /// copying.
 #[no_mangle]
-pub unsafe extern "C" fn htp_config_create() -> *mut config::htp_cfg_t {
+pub unsafe extern "C" fn htp_config_create() -> *mut config::Config {
     config::create()
 }
 
 /// Destroy a configuration structure.
 #[no_mangle]
-pub unsafe extern "C" fn htp_config_destroy(cfg: *mut config::htp_cfg_t) {
+pub unsafe extern "C" fn htp_config_destroy(cfg: *mut config::Config) {
     if !cfg.is_null() {
         (*cfg).destroy()
     }
@@ -33,7 +33,7 @@ pub unsafe extern "C" fn htp_config_destroy(cfg: *mut config::htp_cfg_t) {
 /// Registers a REQUEST_BODY_DATA callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_body_data(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: DataExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn htp_config_register_request_body_data(
 /// Registers a REQUEST_COMPLETE callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_complete(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn htp_config_register_request_complete(
 /// Registers a REQUEST_HEADERS callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_headers(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn htp_config_register_request_headers(
 /// Registers a REQUEST_HEADER_DATA callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_header_data(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: DataExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn htp_config_register_request_header_data(
 /// Registers a REQUEST_LINE callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_line(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn htp_config_register_request_line(
 /// request begins and before any parsing is done.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_start(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn htp_config_register_request_start(
 /// Registers a HTP_REQUEST_TRAILER callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer(
 /// Registers a REQUEST_TRAILER_DATA callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_request_trailer_data(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: DataExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn htp_config_register_request_trailer_data(
 /// Registers a RESPONSE_BODY_DATA callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_body_data(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: DataExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn htp_config_register_response_body_data(
 /// Registers a RESPONSE_COMPLETE callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_complete(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn htp_config_register_response_complete(
 /// Registers a RESPONSE_HEADERS callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_headers(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn htp_config_register_response_headers(
 /// Registers a RESPONSE_HEADER_DATA callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_header_data(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: DataExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn htp_config_register_response_header_data(
 /// Registers a RESPONSE_START callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_start(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -177,7 +177,7 @@ pub unsafe extern "C" fn htp_config_register_response_start(
 /// Registers a RESPONSE_TRAILER callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer(
 /// Registers a RESPONSE_TRAILER_DATA callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_response_trailer_data(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: DataExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -199,7 +199,7 @@ pub unsafe extern "C" fn htp_config_register_response_trailer_data(
 /// Registers a TRANSACTION_COMPLETE callback.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_transaction_complete(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: TxExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -212,7 +212,7 @@ pub unsafe extern "C" fn htp_config_register_transaction_complete(
 /// such as "/one\two/three" will be converted to "/one/two/three".
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -225,7 +225,7 @@ pub unsafe extern "C" fn htp_config_set_backslash_convert_slashes(
 /// is used as the default replacement byte.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     b: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
 /// Configures the maximum compression bomb size LibHTP will decompress.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     bomblimit: libc::size_t,
 ) {
     if !cfg.is_null() {
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
 /// case-insensitive filesystems.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_convert_lowercase(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -261,7 +261,7 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
 /// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_field_limit(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     field_limit: libc::size_t,
 ) {
     if !cfg.is_null() {
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn htp_config_set_field_limit(
 /// Configures the maximum memlimit LibHTP will pass to liblzma.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_lzma_memlimit(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     memlimit: libc::size_t,
 ) {
     if !cfg.is_null() {
@@ -285,7 +285,7 @@ pub unsafe extern "C" fn htp_config_set_lzma_memlimit(
 /// used, the NUL byte will remain in the path.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -296,7 +296,7 @@ pub unsafe extern "C" fn htp_config_set_nul_encoded_terminates(
 /// Configures the handling of raw NUL bytes. If enabled, raw NUL terminates strings.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -307,7 +307,7 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(
 /// Enable or disable request cookie parsing. Enabled by default.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     parse_request_cookies: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -321,7 +321,7 @@ pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
 /// will be converted to "/one/two/three/four" (assuming all 3 options are enabled).
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_path_separators_compress(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -334,7 +334,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_compress(
 /// is taking place.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_plusspace_decode(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn htp_config_set_plusspace_decode(
 /// characters will be converted too (and subsequently normalized to forward slashes).
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_path_separators_decode(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -359,7 +359,7 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
 /// Configures many layers of compression we try to decompress.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     limit: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -370,7 +370,7 @@ pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
 /// Configure desired server personality.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_server_personality(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     personality: config::htp_server_personality_t,
 ) -> Status {
     if !cfg.is_null() {
@@ -384,7 +384,7 @@ pub unsafe extern "C" fn htp_config_set_server_personality(
 /// will be treated as invalid URL encoding if decoding is not desirable.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -395,7 +395,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
 /// Configures how the server handles to invalid URL encoding.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     handling: config::htp_url_encoding_handling_t,
 ) {
     if !cfg.is_null() {
@@ -407,7 +407,7 @@ pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
 /// stream using best-fit mapping.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     enabled: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -419,7 +419,10 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
 ///
 /// timestamp is optional
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_close(connp: *mut htp_connp_t, timestamp: *const htp_time_t) {
+pub unsafe extern "C" fn htp_connp_close(
+    connp: *mut ConnectionParser,
+    timestamp: *const htp_time_t,
+) {
     if let Some(connp) = connp.as_mut() {
         connp.close(timestamp.as_ref().map(|val| val.clone()))
     }
@@ -433,32 +436,32 @@ pub unsafe extern "C" fn htp_connp_close(connp: *mut htp_connp_t, timestamp: *co
 ///
 /// Returns a new connection parser instance, or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_create(cfg: *mut config::htp_cfg_t) -> *mut htp_connp_t {
-    Box::into_raw(Box::new(htp_connp_t::new(cfg)))
+pub unsafe extern "C" fn htp_connp_create(cfg: *mut config::Config) -> *mut ConnectionParser {
+    Box::into_raw(Box::new(ConnectionParser::new(cfg)))
 }
 
 /// Destroys the connection parser, its data structures, as well
 /// as the connection and its transactions.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut htp_connp_t) {
+pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut ConnectionParser) {
     let _ = Box::from_raw(connp);
 }
 
 /// Returns the connection associated with the connection parser.
 ///
-/// Returns htp_conn_t instance, or NULL if one is not available.
+/// Returns Connection instance, or NULL if one is not available.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_connection(connp: *mut htp_connp_t) -> *mut htp_conn_t {
+pub unsafe extern "C" fn htp_connp_connection(connp: *mut ConnectionParser) -> *mut Connection {
     connp
         .as_mut()
-        .map(|val| &mut val.conn as *mut htp_conn_t)
+        .map(|val| &mut val.conn as *mut Connection)
         .unwrap_or(std::ptr::null_mut())
 }
 
 /// Retrieve the user data associated with this connection parser.
 /// Returns user data, or NULL if there isn't any.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_user_data(connp: *mut htp_connp_t) -> *mut libc::c_void {
+pub unsafe extern "C" fn htp_connp_user_data(connp: *mut ConnectionParser) -> *mut libc::c_void {
     connp
         .as_mut()
         .map(|val| val.user_data)
@@ -470,7 +473,7 @@ pub unsafe extern "C" fn htp_connp_user_data(connp: *mut htp_connp_t) -> *mut li
 /// timestamp is optional
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_open(
-    connp: *mut htp_connp_t,
+    connp: *mut ConnectionParser,
     client_addr: *const libc::c_char,
     client_port: libc::c_int,
     server_addr: *const libc::c_char,
@@ -519,7 +522,7 @@ pub unsafe extern "C" fn htp_connp_open(
 /// timestamp is optional
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_close(
-    connp: *mut htp_connp_t,
+    connp: *mut ConnectionParser,
     timestamp: *const htp_time_t,
 ) {
     if let Some(connp) = connp.as_mut() {
@@ -534,7 +537,7 @@ pub unsafe extern "C" fn htp_connp_req_close(
 ///         HTP_STREAM_CLOSED and HTP_STREAM_TUNNEL are also possible.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_data(
-    connp: *mut htp_connp_t,
+    connp: *mut ConnectionParser,
     timestamp: *const htp_time_t,
     data: *const libc::c_void,
     len: libc::size_t,
@@ -552,7 +555,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
 /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_res_data(
-    connp: *mut htp_connp_t,
+    connp: *mut ConnectionParser,
     timestamp: *const htp_time_t,
     data: *const libc::c_void,
     len: libc::size_t,
@@ -567,7 +570,7 @@ pub unsafe extern "C" fn htp_connp_res_data(
 /// Associate user data with the supplied parser.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_set_user_data(
-    connp: *mut htp_connp_t,
+    connp: *mut ConnectionParser,
     user_data: *mut libc::c_void,
 ) {
     if let Some(connp) = connp.as_mut() {
@@ -587,7 +590,7 @@ pub unsafe extern "C" fn htp_get_version() -> *const libc::c_char {
 /// The caller must free this result with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_message_log(
-    conn: *const htp_conn_t,
+    conn: *const Connection,
     msg_id: usize,
 ) -> *mut std::os::raw::c_char {
     conn.as_ref()
@@ -603,7 +606,7 @@ pub unsafe extern "C" fn htp_conn_message_log(
 /// The caller must free this result with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_message_file(
-    conn: *const htp_conn_t,
+    conn: *const Connection,
     msg_id: usize,
 ) -> *mut std::os::raw::c_char {
     conn.as_ref()
@@ -618,7 +621,7 @@ pub unsafe extern "C" fn htp_conn_message_file(
 /// Returns a code or ERROR on error
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_message_code(
-    conn: *const htp_conn_t,
+    conn: *const Connection,
     msg_id: usize,
 ) -> log::htp_log_code {
     conn.as_ref()
@@ -631,7 +634,7 @@ pub unsafe extern "C" fn htp_conn_message_code(
 ///
 /// Returns the number of messages or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_message_size(conn: *const htp_conn_t) -> isize {
+pub unsafe extern "C" fn htp_conn_message_size(conn: *const Connection) -> isize {
     if let Some(conn) = conn.as_ref() {
         isize::try_from(conn.message_size()).unwrap_or(-1)
     } else {
@@ -643,7 +646,7 @@ pub unsafe extern "C" fn htp_conn_message_size(conn: *const htp_conn_t) -> isize
 ///
 /// Returns the number of transactions or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_tx_size(conn: *const htp_conn_t) -> isize {
+pub unsafe extern "C" fn htp_conn_tx_size(conn: *const Connection) -> isize {
     if let Some(conn) = conn.as_ref() {
         isize::try_from(conn.tx_size()).unwrap_or(-1)
     } else {
@@ -655,7 +658,7 @@ pub unsafe extern "C" fn htp_conn_tx_size(conn: *const htp_conn_t) -> isize {
 ///
 /// Returns the transaction or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_tx(conn: *mut htp_conn_t, tx_id: usize) -> *mut htp_tx_t {
+pub unsafe extern "C" fn htp_conn_tx(conn: *mut Connection, tx_id: usize) -> *mut Transaction {
     if let Some(conn) = conn.as_mut() {
         conn.tx_mut_ptr(tx_id)
     } else {
@@ -665,14 +668,14 @@ pub unsafe extern "C" fn htp_conn_tx(conn: *mut htp_conn_t, tx_id: usize) -> *mu
 
 /// Returns the in_data_counter
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_in_data_counter(conn: *const htp_conn_t) -> i64 {
+pub unsafe extern "C" fn htp_conn_in_data_counter(conn: *const Connection) -> i64 {
     nullcheck!(conn);
     (*conn).in_data_counter
 }
 
 /// Returns the out_data_counter
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const htp_conn_t) -> i64 {
+pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const Connection) -> i64 {
     nullcheck!(conn);
     (*conn).out_data_counter
 }
@@ -687,7 +690,7 @@ pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const htp_conn_t) -> i
 pub unsafe extern "C" fn htp_headers_get(
     headers: *const htp_headers_t,
     ckey: *const libc::c_char,
-) -> *const htp_header_t {
+) -> *const Header {
     if let (Some(headers), Some(ckey)) = (headers.as_ref(), ckey.as_ref()) {
         if let Some((_, value)) =
             headers.get_nocase_nozero(std::ffi::CStr::from_ptr(ckey).to_bytes())
@@ -711,7 +714,7 @@ pub unsafe extern "C" fn htp_headers_get(
 pub unsafe extern "C" fn htp_headers_get_index(
     headers: *const htp_headers_t,
     index: usize,
-) -> *const htp_header_t {
+) -> *const Header {
     if let Some(headers) = headers.as_ref() {
         if let Some((_, value)) = headers.get(index) {
             value
@@ -743,7 +746,7 @@ pub unsafe extern "C" fn htp_headers_size(headers: *const htp_headers_t) -> isiz
 ///
 /// Returns the name or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_header_name(header: *const htp_header_t) -> *const bstr::bstr_t {
+pub unsafe extern "C" fn htp_header_name(header: *const Header) -> *const bstr::Bstr {
     if let Some(header) = header.as_ref() {
         &header.name
     } else {
@@ -757,7 +760,7 @@ pub unsafe extern "C" fn htp_header_name(header: *const htp_header_t) -> *const 
 ///
 /// Returns the pointer or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_header_name_ptr(header: *const htp_header_t) -> *const u8 {
+pub unsafe extern "C" fn htp_header_name_ptr(header: *const Header) -> *const u8 {
     if let Some(header) = header.as_ref() {
         bstr::bstr_ptr(&header.name)
     } else {
@@ -771,7 +774,7 @@ pub unsafe extern "C" fn htp_header_name_ptr(header: *const htp_header_t) -> *co
 ///
 /// Returns the length or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_header_name_len(header: *const htp_header_t) -> isize {
+pub unsafe extern "C" fn htp_header_name_len(header: *const Header) -> isize {
     if let Some(header) = header.as_ref() {
         isize::try_from(header.name.len()).unwrap_or(-1)
     } else {
@@ -785,7 +788,7 @@ pub unsafe extern "C" fn htp_header_name_len(header: *const htp_header_t) -> isi
 ///
 /// Returns the value or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_header_value(header: *const htp_header_t) -> *const bstr::bstr_t {
+pub unsafe extern "C" fn htp_header_value(header: *const Header) -> *const bstr::Bstr {
     if let Some(header) = header.as_ref() {
         &header.value
     } else {
@@ -799,7 +802,7 @@ pub unsafe extern "C" fn htp_header_value(header: *const htp_header_t) -> *const
 ///
 /// Returns the pointer or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_header_value_ptr(header: *const htp_header_t) -> *const u8 {
+pub unsafe extern "C" fn htp_header_value_ptr(header: *const Header) -> *const u8 {
     if let Some(header) = header.as_ref() {
         bstr::bstr_ptr(&header.value)
     } else {
@@ -813,7 +816,7 @@ pub unsafe extern "C" fn htp_header_value_ptr(header: *const htp_header_t) -> *c
 ///
 /// Returns the length or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_header_value_len(header: *const htp_header_t) -> isize {
+pub unsafe extern "C" fn htp_header_value_len(header: *const Header) -> isize {
     if let Some(header) = header.as_ref() {
         isize::try_from(header.value.len()).unwrap_or(-1)
     } else {
@@ -827,8 +830,8 @@ pub unsafe extern "C" fn htp_header_value_len(header: *const htp_header_t) -> is
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace(
-    cfg: *mut config::htp_cfg_t,
-    input: *mut bstr::bstr_t,
+    cfg: *mut config::Config,
+    input: *mut bstr::Bstr,
     flags: *mut u64,
 ) -> Status {
     if input.is_null() || flags.is_null() || cfg.is_null() {
@@ -845,7 +848,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
 /// programs that process transactions as they are processed.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     tx_auto_destroy: libc::c_int,
 ) {
     if !cfg.is_null() {
@@ -857,7 +860,7 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
 /// severity equal and higher than the configured log level.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_register_log(
-    cfg: *mut config::htp_cfg_t,
+    cfg: *mut config::Config,
     cbk_fn: LogExternalCallbackFn,
 ) {
     if let Some(cfg) = cfg.as_mut() {
@@ -868,7 +871,7 @@ pub unsafe extern "C" fn htp_config_register_log(
 /// Adds the built-in Multipart parser to the configuration. This parser will extract information
 /// stored in request bodies, when they are in multipart/form-data format.
 #[no_mangle]
-pub unsafe extern "C" fn htp_config_register_multipart_parser(cfg: *mut config::htp_cfg_t) {
+pub unsafe extern "C" fn htp_config_register_multipart_parser(cfg: *mut config::Config) {
     if !cfg.is_null() {
         (*cfg).register_multipart_parser()
     }
@@ -880,7 +883,7 @@ pub unsafe extern "C" fn htp_config_register_multipart_parser(cfg: *mut config::
 ///
 /// Returns active outbound transaction, or NULL if there isn't one.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_out_tx(connp: *mut htp_connp_t) -> *mut htp_tx_t {
+pub unsafe extern "C" fn htp_connp_get_out_tx(connp: *mut ConnectionParser) -> *mut Transaction {
     connp
         .as_mut()
         .map(|connp| connp.out_tx_mut_ptr())
@@ -893,7 +896,7 @@ pub unsafe extern "C" fn htp_connp_get_out_tx(connp: *mut htp_connp_t) -> *mut h
 ///
 /// Returns active inbound transaction, or NULL if there isn't one.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_in_tx(connp: *mut htp_connp_t) -> *mut htp_tx_t {
+pub unsafe extern "C" fn htp_connp_get_in_tx(connp: *mut ConnectionParser) -> *mut Transaction {
     connp
         .as_mut()
         .map(|connp| connp.in_tx_mut_ptr())
@@ -902,7 +905,7 @@ pub unsafe extern "C" fn htp_connp_get_in_tx(connp: *mut htp_connp_t) -> *mut ht
 
 /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_req_data_consumed(connp: *const htp_connp_t) -> i64 {
+pub unsafe extern "C" fn htp_connp_req_data_consumed(connp: *const ConnectionParser) -> i64 {
     if let Some(connp) = connp.as_ref() {
         (*connp).req_data_consumed()
     } else {
@@ -918,7 +921,7 @@ pub unsafe extern "C" fn htp_connp_req_data_consumed(connp: *const htp_connp_t) 
 /// Returns the number of bytes consumed from the last data chunk sent for outbound processing
 /// or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const htp_connp_t) -> i64 {
+pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const ConnectionParser) -> i64 {
     if let Some(connp) = connp.as_ref() {
         (*connp).res_data_consumed()
     } else {
@@ -931,9 +934,9 @@ pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const htp_connp_t) 
 /// already to accommodate all of the data.
 #[no_mangle]
 pub unsafe extern "C" fn bstr_add_c_noex(
-    destination: *mut bstr::bstr_t,
+    destination: *mut bstr::Bstr,
     source: *const libc::c_char,
-) -> *mut bstr::bstr_t {
+) -> *mut bstr::Bstr {
     bstr::bstr_add_c_noex(destination, source)
 }
 
@@ -942,9 +945,9 @@ pub unsafe extern "C" fn bstr_add_c_noex(
 /// already to accommodate all of the data.
 #[no_mangle]
 pub unsafe extern "C" fn bstr_add_noex(
-    destination: *mut bstr::bstr_t,
-    source: *const bstr::bstr_t,
-) -> *mut bstr::bstr_t {
+    destination: *mut bstr::Bstr,
+    source: *const bstr::Bstr,
+) -> *mut bstr::Bstr {
     bstr::bstr_add_noex(destination, source)
 }
 
@@ -952,7 +955,7 @@ pub unsafe extern "C" fn bstr_add_noex(
 ///
 /// Returns New string instance
 #[no_mangle]
-pub unsafe extern "C" fn bstr_alloc(len: libc::size_t) -> *mut bstr::bstr_t {
+pub unsafe extern "C" fn bstr_alloc(len: libc::size_t) -> *mut bstr::Bstr {
     bstr::bstr_alloc(len)
 }
 
@@ -960,7 +963,7 @@ pub unsafe extern "C" fn bstr_alloc(len: libc::size_t) -> *mut bstr::bstr_t {
 ///
 /// Returns New bstring, or NULL if memory allocation failed.
 #[no_mangle]
-pub unsafe extern "C" fn bstr_dup_c(cstr: *const libc::c_char) -> *mut bstr::bstr_t {
+pub unsafe extern "C" fn bstr_dup_c(cstr: *const libc::c_char) -> *mut bstr::Bstr {
     bstr::bstr_dup_c(cstr)
 }
 
@@ -968,10 +971,10 @@ pub unsafe extern "C" fn bstr_dup_c(cstr: *const libc::c_char) -> *mut bstr::bst
 /// returns New bstring, or NULL if memory allocation failed.
 #[no_mangle]
 pub unsafe extern "C" fn bstr_dup_ex(
-    b: *const bstr::bstr_t,
+    b: *const bstr::Bstr,
     offset: libc::size_t,
     len: libc::size_t,
-) -> *mut bstr::bstr_t {
+) -> *mut bstr::Bstr {
     bstr::bstr_dup_ex(b, offset, len)
 }
 
@@ -979,42 +982,42 @@ pub unsafe extern "C" fn bstr_dup_ex(
 /// returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is
 ///         greater than b.
 #[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_c(b: *const bstr::bstr_t, c: *const libc::c_char) -> libc::c_int {
+pub unsafe extern "C" fn bstr_cmp_c(b: *const bstr::Bstr, c: *const libc::c_char) -> libc::c_int {
     bstr::bstr_cmp_c(b, c)
 }
 
 /// Create a new bstring by copying the provided bstring.
 /// returns New bstring, or NULL if memory allocation failed.
 #[no_mangle]
-pub unsafe extern "C" fn bstr_dup(b: *const bstr::bstr_t) -> *mut bstr::bstr_t {
+pub unsafe extern "C" fn bstr_dup(b: *const bstr::Bstr) -> *mut bstr::Bstr {
     bstr::bstr_dup(b)
 }
 
 /// Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
 /// input.
 #[no_mangle]
-pub unsafe extern "C" fn bstr_free(b: *mut bstr::bstr_t) {
+pub unsafe extern "C" fn bstr_free(b: *mut bstr::Bstr) {
     bstr::bstr_free(b)
 }
 
 /// This function was a macro in libhtp
 /// #define bstr_len(X) ((*(X)).len)
 #[no_mangle]
-pub unsafe extern "C" fn bstr_len(x: *const bstr::bstr_t) -> libc::size_t {
+pub unsafe extern "C" fn bstr_len(x: *const bstr::Bstr) -> libc::size_t {
     bstr::bstr_len(x)
 }
 
 /// This function was a macro in libhtp
 /// #define bstr_ptr(X) ( ((*(X)).realptr == NULL) ? ((unsigned char *)(X) + sizeof(bstr)) : (unsigned char *)(*(X)).realptr )
 #[no_mangle]
-pub unsafe extern "C" fn bstr_ptr(x: *const bstr::bstr_t) -> *mut libc::c_uchar {
+pub unsafe extern "C" fn bstr_ptr(x: *const bstr::Bstr) -> *mut libc::c_uchar {
     bstr::bstr_ptr(x)
 }
 
 /// This function was a macro in libhtp
 /// #define bstr_size(X) ((*(X)).size)
 #[no_mangle]
-pub unsafe extern "C" fn bstr_size(x: *const bstr::bstr_t) -> libc::size_t {
+pub unsafe extern "C" fn bstr_size(x: *const bstr::Bstr) -> libc::size_t {
     bstr::bstr_size(x)
 }
 
@@ -1042,7 +1045,7 @@ pub unsafe extern "C" fn bstr_util_mem_to_pint(
 /// returns The newly created NUL-terminated string, or NULL in case of memory
 ///         allocation failure.
 #[no_mangle]
-pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const bstr::bstr_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const bstr::Bstr) -> *mut libc::c_char {
     if b.is_null() {
         return std::ptr::null_mut();
     }
@@ -1087,7 +1090,7 @@ pub unsafe extern "C" fn htp_log_get(
 ) -> *mut libc::c_char {
     let messages = messages as *mut list::List<*mut core::ffi::c_void>;
     if let Some(log) = (*messages).get(idx) {
-        let log = *log as *mut htp_log_t;
+        let log = *log as *mut Log;
         if let Ok(msg_cstr) = CString::new((*log).msg.clone()) {
             return msg_cstr.into_raw();
         }
@@ -1111,7 +1114,7 @@ pub unsafe extern "C" fn htp_log_get_code(
 ) -> htp_log_code {
     let messages = messages as *mut list::List<*mut core::ffi::c_void>;
     if let Some(log) = (*messages).get(idx) {
-        let log = *log as *mut htp_log_t;
+        let log = *log as *mut Log;
         if !log.is_null() {
             return (*log).code;
         }
@@ -1129,7 +1132,7 @@ pub unsafe extern "C" fn htp_log_get_file(
 ) -> *mut libc::c_char {
     let messages = messages as *mut list::List<*mut core::ffi::c_void>;
     if let Some(log) = (*messages).get(idx) {
-        let log = *log as *mut htp_log_t;
+        let log = *log as *mut Log;
         if let Ok(file_cstr) = CString::new((*log).file.clone()) {
             file_cstr.into_raw()
         } else {
@@ -1141,10 +1144,10 @@ pub unsafe extern "C" fn htp_log_get_file(
 }
 
 #[test]
-fn BstrUtilDupToC() {
+fn bstr_tUtilDupToC() {
     unsafe {
         let c: *mut i8;
-        let str: *mut bstr::bstr_t = bstr::bstr_dup_mem(
+        let str: *mut bstr::Bstr = bstr::bstr_dup_mem(
             b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
             20,
         );

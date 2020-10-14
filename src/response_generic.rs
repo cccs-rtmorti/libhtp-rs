@@ -5,7 +5,7 @@ use crate::{bstr, connection_parser, parsers, transaction, util, Status};
 use nom::{error::ErrorKind, sequence::tuple, Err::Error};
 use std::cmp::Ordering;
 
-impl connection_parser::htp_connp_t {
+impl connection_parser::ConnectionParser {
     /// Generic response line parser.
     pub unsafe fn parse_response_line_generic(&mut self) -> Result<()> {
         let tx = self.out_tx_mut_ok()?;
@@ -35,7 +35,7 @@ impl connection_parser::htp_connp_t {
             }
 
             let out_tx = self.out_tx_mut_ok()?;
-            out_tx.response_protocol = Some(bstr::bstr_t::from(response_protocol));
+            out_tx.response_protocol = Some(bstr::Bstr::from(response_protocol));
             self.out_tx_mut_ok()?.response_protocol_number =
                 parsers::parse_protocol(response_protocol, self);
 
@@ -44,7 +44,7 @@ impl connection_parser::htp_connp_t {
             }
 
             let out_tx = self.out_tx_mut_ok()?;
-            out_tx.response_status = Some(bstr::bstr_t::from(status_code));
+            out_tx.response_status = Some(bstr::Bstr::from(status_code));
 
             if let Some(status_number) = parsers::parse_status(status_code) {
                 out_tx.response_status_number = status_number as i32;
@@ -56,7 +56,7 @@ impl connection_parser::htp_connp_t {
                 return Ok(());
             }
 
-            out_tx.response_message = Some(bstr::bstr_t::from(message));
+            out_tx.response_message = Some(bstr::Bstr::from(message));
         } else {
             return Err(Status::ERROR);
         }
@@ -67,7 +67,7 @@ impl connection_parser::htp_connp_t {
     pub unsafe fn parse_response_header_generic(
         &mut self,
         data: &[u8],
-    ) -> Result<transaction::htp_header_t> {
+    ) -> Result<transaction::Header> {
         let data = util::chomp(&data);
         let mut flags = Flags::empty();
 
@@ -89,7 +89,7 @@ impl connection_parser::htp_connp_t {
                         // Only once per transaction.
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
                             "Response field invalid: empty name."
                         );
@@ -109,7 +109,7 @@ impl connection_parser::htp_connp_t {
                             // Only once per transaction.
                             self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                             htp_log!(
-                                self as *mut connection_parser::htp_connp_t,
+                                self as *mut connection_parser::ConnectionParser,
                                 htp_log_level_t::HTP_LOG_WARNING,
                                 htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
                                 "Response field invalid: LWS after name"
@@ -135,7 +135,7 @@ impl connection_parser::htp_connp_t {
                     {
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
                             "Response header name is not a token."
                         );
@@ -159,7 +159,7 @@ impl connection_parser::htp_connp_t {
                     self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                     self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::RESPONSE_FIELD_MISSING_COLON,
                         "Response field invalid: missing colon."
                     );
@@ -172,14 +172,14 @@ impl connection_parser::htp_connp_t {
         // No null char in val
         if value.contains(&0) {
             htp_log!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_level_t::HTP_LOG_WARNING,
                 htp_log_code::REQUEST_HEADER_INVALID,
                 "Response header value contains null."
             );
         }
 
-        Ok(transaction::htp_header_t::new_with_flags(
+        Ok(transaction::Header::new_with_flags(
             header.into(),
             value.into(),
             flags,
@@ -220,7 +220,7 @@ impl connection_parser::htp_connp_t {
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     // Ambiguous response C-L value.
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                         "Ambiguous response C-L value"
                     );
@@ -241,7 +241,7 @@ impl connection_parser::htp_connp_t {
         }
         if repeated {
             htp_warn!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );

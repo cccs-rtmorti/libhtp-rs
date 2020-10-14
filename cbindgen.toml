@@ -23,11 +23,24 @@ style = "both"
 
 [export.rename]
 "Status" = "htp_status_t"
+"Config" = "htp_cfg_t"
+"Connection" = "htp_conn_t"
+"ConnectionParser" = "htp_connp_t"
+"File" = "htp_file_t"
+"FileData" = "htp_file_data_t"
+"Header" = "htp_header_t"
+"Param" = "htp_param_t"
+"Data" = "htp_tx_data_t"
+"Transaction" = "htp_tx_t"
+"Uri" = "htp_uri_t"
+"Bstr" = "bstr"
+"Table" = "htp_table_t"
+"Log" = "htp_log_t"
 
 [export]
-include = ["htp_header_t", "htp_method_t", "Protocol",
+include = ["htp_method_t", "Protocol",
            "htp_stream_state_t"]
-exclude = ["Flags", "htp_connp_t", "inflate",
+exclude = ["Flags", "inflate",
 	   "inflateEnd", "iconv", "iconv_close",
            "iconv_open", "inflateInit2_", "mkstemp",
            "umask", "unlink",

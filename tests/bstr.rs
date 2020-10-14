@@ -9,7 +9,7 @@ mod common;
 #[test]
 fn Bstr_Alloc() {
     unsafe {
-        let p1: *mut bstr_t;
+        let p1: *mut Bstr;
         p1 = bstr_alloc(10);
         assert_eq!(10, bstr_size(p1));
         assert_eq!(0, bstr_len(p1));
@@ -20,8 +20,8 @@ fn Bstr_Alloc() {
 #[test]
 fn Bstr_ExpandLocal() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
 
         p1 = bstr_alloc(10);
         p2 = bstr_expand(p1, 100);
@@ -36,8 +36,8 @@ fn Bstr_ExpandLocal() {
 #[test]
 fn Bstr_ExpandSmaller() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
 
         p1 = bstr_alloc(100);
         p2 = bstr_expand(p1, 10);
@@ -55,15 +55,15 @@ fn Bstr_ExpandSmaller() {
 #[test]
 fn Bstr_ExpandPtr() {
 unsafe{
-    let b: *mut bstr_t;
-    b = (bstr*) libc::malloc(std::mem::size_of::<bstr_t>());
+    let b: *mut Bstr;
+    b = (bstr*) libc::malloc(std::mem::size_of::<Bstr>());
     assert!(!b.is_null());
     (*b).ptr = (unsigned char*) libc::malloc(10);
     (*b).len = 0;
     (*b).size = 10;
     assert!(!bstr_ptr(b).is_null());
 
-    let p2: *mut bstr_t;
+    let p2: *mut Bstr;
     p2 = bstr_expand(b, 100);
     EXPECT_TRUE(p2 != NULL);
     assert_eq!(100, bstr_size(p2));
@@ -77,7 +77,7 @@ unsafe{
 #[test]
 fn Bstr_DupC() {
     unsafe {
-        let p1: *mut bstr_t;
+        let p1: *mut Bstr;
         p1 = bstr_dup_c(cstr!("arfarf"));
 
         assert_eq!(6, bstr_size(p1));
@@ -98,8 +98,8 @@ fn Bstr_DupC() {
 #[test]
 fn Bstr_DupStr() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
         p1 = bstr_dup_str("s0123456789abcdefghijklmnopqrstuvwxyz");
         p2 = bstr_dup(p1);
 
@@ -121,11 +121,11 @@ fn Bstr_DupStr() {
 #[test]
 fn Bstr_DupBin() {
     unsafe {
-        let src: *mut bstr_t = bstr_dup_mem(
+        let src: *mut Bstr = bstr_dup_mem(
             b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
             20,
         );
-        let dst: *mut bstr_t;
+        let dst: *mut Bstr;
         dst = bstr_dup(src);
 
         assert_eq!(bstr_len(src), bstr_len(dst));
@@ -146,8 +146,8 @@ fn Bstr_DupBin() {
 #[test]
 fn Bstr_DupEx() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
         p1 = bstr_dup_str("0123456789abcdefghijkl");
         p2 = bstr_dup_ex(p1, 4, 10);
 
@@ -170,7 +170,7 @@ fn Bstr_DupEx() {
 #[test]
 fn Bstr_DupMem() {
     unsafe {
-        let dst: *mut bstr_t;
+        let dst: *mut Bstr;
         dst = bstr_dup_mem(
             b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
             18,
@@ -191,8 +191,8 @@ fn Bstr_DupMem() {
 #[test]
 fn Bstr_DupLower() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
         p1 = bstr_dup_str("0123456789ABCDEFGhIJKL");
         p2 = bstr_dup_lower(p1);
 
@@ -213,7 +213,7 @@ fn Bstr_DupLower() {
 #[test]
 fn Bstr_ChrRchr() {
     unsafe {
-        let p1: *mut bstr_t = bstr_dup_str("0123456789abcdefghijklmnopqrstuvwxyz");
+        let p1: *mut Bstr = bstr_dup_str("0123456789abcdefghijklmnopqrstuvwxyz");
         assert_eq!(13, bstr_chr(p1, b'd' as i32));
         assert_eq!(-1, bstr_chr(p1, b'?' as i32));
         assert_eq!(13, bstr_chr(p1, b'd' as i32));
@@ -226,10 +226,10 @@ fn Bstr_ChrRchr() {
 #[test]
 fn Bstr_Cmp() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
-        let p3: *mut bstr_t;
-        let p4: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
+        let p3: *mut Bstr;
+        let p4: *mut Bstr;
         p1 = bstr_dup_str("arfarf");
         p2 = bstr_dup_str("arfarf");
         p3 = bstr_dup_str("arfArf");
@@ -253,9 +253,9 @@ fn Bstr_Cmp() {
 #[test]
 fn Bstr_CmpNocase() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
-        let p3: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
+        let p3: *mut Bstr;
         p1 = bstr_dup_str("arfarf");
         p2 = bstr_dup_str("arfarf");
         p3 = bstr_dup_str("arfArf");
@@ -275,7 +275,7 @@ fn Bstr_CmpNocase() {
 #[test]
 fn Bstr_CmpC() {
     unsafe {
-        let p1: *mut bstr_t;
+        let p1: *mut Bstr;
         p1 = bstr_dup_str("arfarf");
         assert_eq!(0, bstr_cmp_c(p1, cstr!("arfarf")));
         assert_eq!(-1, bstr_cmp_c(p1, cstr!("arfarf2")));
@@ -289,7 +289,7 @@ fn Bstr_CmpC() {
 #[test]
 fn Bstr_CmpStr() {
     unsafe {
-        let p1: *mut bstr_t;
+        let p1: *mut Bstr;
         p1 = bstr_dup_str("arfarf");
         assert_eq!(0, bstr_cmp_str(p1, "arfarf"));
         assert_eq!(-1, bstr_cmp_str(p1, "arfarf2"));
@@ -303,7 +303,7 @@ fn Bstr_CmpStr() {
 #[test]
 fn Bstr_CmpStrNocase() {
     unsafe {
-        let p1: *mut bstr_t;
+        let p1: *mut Bstr;
         p1 = bstr_dup_str("arfarf");
         assert_eq!(0, bstr_cmp_str_nocase(p1, "arfarf"));
         assert_eq!(0, bstr_cmp_str_nocase(p1, "arfARF"));
@@ -317,8 +317,8 @@ fn Bstr_CmpStrNocase() {
 #[test]
 fn Bstr_ToLowercase() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
         p1 = bstr_dup_str("aRf3ArF");
         p2 = bstr_to_lowercase(p1);
 
@@ -333,8 +333,8 @@ fn Bstr_ToLowercase() {
 #[test]
 fn Bstr_AddMem() {
     unsafe {
-        let p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let p1: *mut Bstr;
+        let p2: *mut Bstr;
         p1 = bstr_dup_str("testtest");
         p2 = bstr_add_mem(p1, cstr!("12345678") as *const core::ffi::c_void, 4);
 
@@ -347,9 +347,9 @@ fn Bstr_AddMem() {
 #[test]
 fn Bstr_AddNoex() {
     unsafe {
-        let mut p1: *mut bstr_t;
-        let p2: *mut bstr_t;
-        let p3: *mut bstr_t;
+        let mut p1: *mut Bstr;
+        let p2: *mut Bstr;
+        let p3: *mut Bstr;
         p1 = bstr_alloc(10);
         p1 = bstr_add_c_noex(p1, cstr!("12345"));
         p2 = bstr_dup_str("abcdef");
@@ -365,8 +365,8 @@ fn Bstr_AddNoex() {
 #[test]
 fn Bstr_AddCNoex() {
     unsafe {
-        let mut p1: *mut bstr_t;
-        let p2: *mut bstr_t;
+        let mut p1: *mut Bstr;
+        let p2: *mut Bstr;
         p1 = bstr_alloc(10);
         p1 = bstr_add_c_noex(p1, cstr!("12345"));
         p2 = bstr_add_c_noex(p1, cstr!("abcdefghijk"));
@@ -381,7 +381,7 @@ fn Bstr_AddCNoex() {
 #[test]
 fn Bstr_CharAtEnd() {
     unsafe {
-        let str: *mut bstr_t = bstr_dup_mem(
+        let str: *mut Bstr = bstr_dup_mem(
             b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
             20,
         );
@@ -396,8 +396,8 @@ fn Bstr_CharAtEnd() {
 #[test]
 fn Bstr_Chop() {
     unsafe {
-        let p1: *mut bstr_t = bstr_dup_str("abcdef");
-        let p2: *mut bstr_t = bstr_alloc(10);
+        let p1: *mut Bstr = bstr_dup_str("abcdef");
+        let p2: *mut Bstr = bstr_alloc(10);
         bstr_chop(p1);
         assert_eq!(0, bstr_cmp_str(p1, "abcde"));
 
@@ -412,7 +412,7 @@ fn Bstr_Chop() {
 #[test]
 fn Bstr_AdjustLen() {
     unsafe {
-        let p1: *mut bstr_t = bstr_dup_str("abcdef");
+        let p1: *mut Bstr = bstr_dup_str("abcdef");
 
         bstr_adjust_len(p1, 3);
         assert_eq!(3, bstr_len(p1));
@@ -546,7 +546,7 @@ fn Bstr_UtilMemTrim() {
         bstr_util_mem_trim(data_ptr as *mut *mut u8, &mut len);
 
         let src = std::slice::from_raw_parts(data as *const u8, len);
-        let b = bstr_t::from("0123456789");
+        let b = Bstr::from("0123456789");
         assert!(b.eq(src));
     }
 }

@@ -1,14 +1,12 @@
 use crate::error::Result;
-use crate::multipart::MultipartFlags;
+use crate::multipart::Flags;
 use crate::{bstr, multipart, transaction, urlencoded, Status};
 
 /// This callback function feeds request body data to a Urlencoded parser
 /// and, later, feeds the parsed parameters to the correct structures.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub fn htp_ch_urlencoded_callback_request_body_data(
-    d: *mut transaction::htp_tx_data_t,
-) -> Result<()> {
+pub fn htp_ch_urlencoded_callback_request_body_data(d: *mut transaction::Data) -> Result<()> {
     unsafe {
         let tx = (*d).tx().as_mut().ok_or(Status::ERROR)?;
         if !(*d).data().is_null() {
@@ -25,9 +23,9 @@ pub fn htp_ch_urlencoded_callback_request_body_data(
             if let Some(urlenp) = (*tx).request_urlenp_body.clone() {
                 // Add all parameters to the transaction.
                 for (name, value) in urlenp.params.elements.iter() {
-                    let param = transaction::htp_param_t::new(
-                        bstr::bstr_t::from((*name).as_slice()),
-                        bstr::bstr_t::from((*value).as_slice()),
+                    let param = transaction::Param::new(
+                        bstr::Bstr::from((*name).as_slice()),
+                        bstr::Bstr::from((*value).as_slice()),
                         transaction::htp_data_source_t::HTP_SOURCE_BODY,
                         transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
                     );
@@ -49,7 +47,7 @@ pub fn htp_ch_urlencoded_callback_request_body_data(
 ///
 /// Returns HTP_OK if a new parser has been setup, HTP_DECLINED if the MIME type
 ///         is not appropriate for this parser, and HTP_ERROR on failure.
-pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::htp_tx_t) -> Result<()> {
+pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::Transaction) -> Result<()> {
     unsafe {
         // Check the request content type to see if it matches our MIME type.
         if !(*tx)
@@ -61,7 +59,7 @@ pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::htp_tx_t
             return Err(Status::DECLINED);
         }
         // Create parser instance.
-        (*tx).request_urlenp_body = Some(urlencoded::htp_urlenp_t::new(tx));
+        (*tx).request_urlenp_body = Some(urlencoded::UrlEncodedParser::new(tx));
         // Register a request body data callback.
         (*tx)
             .hook_request_body_data
@@ -74,7 +72,7 @@ pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::htp_tx_t
 ///
 /// Returns HTP_OK if query string was parsed, HTP_DECLINED if there was no query
 ///         string, and HTP_ERROR on failure.
-pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::htp_tx_t) -> Result<()> {
+pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::Transaction) -> Result<()> {
     unsafe {
         let tx = tx.as_mut().ok_or(Status::ERROR)?;
         // Proceed only if there's something for us to parse.
@@ -88,7 +86,7 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::htp_tx_t) -
             return Err(Status::DECLINED);
         }
         // We have a non-zero length query string.
-        let mut urlenp = urlencoded::htp_urlenp_t::new(tx);
+        let mut urlenp = urlencoded::UrlEncodedParser::new(tx);
         if let Some(query) = (*tx)
             .parsed_uri
             .as_ref()
@@ -99,9 +97,9 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::htp_tx_t) -
 
         // Add all parameters to the transaction.
         for (name, value) in urlenp.params.elements.iter() {
-            let param = transaction::htp_param_t::new(
-                bstr::bstr_t::from(name.as_slice()),
-                bstr::bstr_t::from(value.as_slice()),
+            let param = transaction::Param::new(
+                bstr::Bstr::from(name.as_slice()),
+                bstr::Bstr::from(value.as_slice()),
                 transaction::htp_data_source_t::HTP_SOURCE_QUERY_STRING,
                 transaction::htp_parser_id_t::HTP_PARSER_URLENCODED,
             );
@@ -114,9 +112,7 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::htp_tx_t) -
 /// Finalize Multipart processing.
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
-pub fn htp_ch_multipart_callback_request_body_data(
-    d: *mut transaction::htp_tx_data_t,
-) -> Result<()> {
+pub fn htp_ch_multipart_callback_request_body_data(d: *mut transaction::Data) -> Result<()> {
     unsafe {
         let tx = (*d).tx().as_mut().ok_or(Status::ERROR)?;
         if let Some(parser) = &mut (*tx).request_mpartp {
@@ -128,13 +124,13 @@ pub fn htp_ch_multipart_callback_request_body_data(
                 // Finalize parsing.
                 // Ignore result.
                 let _ = parser.finalize();
-                let body: *mut multipart::htp_multipart_t = parser.get_multipart();
+                let body: *mut multipart::Multipart = parser.get_multipart();
                 for part in &(*body).parts {
                     // Use text parameters.
                     if (*(*part)).type_0 == multipart::htp_multipart_type_t::MULTIPART_PART_TEXT {
-                        let param = transaction::htp_param_t::new(
-                            bstr::bstr_t::from((*(*(*part)).name).as_slice()),
-                            bstr::bstr_t::from((*(*(*part)).value).as_slice()),
+                        let param = transaction::Param::new(
+                            bstr::Bstr::from((*(*(*part)).name).as_slice()),
+                            bstr::Bstr::from((*(*(*part)).value).as_slice()),
                             transaction::htp_data_source_t::HTP_SOURCE_BODY,
                             transaction::htp_parser_id_t::HTP_PARSER_MULTIPART,
                         );
@@ -152,7 +148,7 @@ pub fn htp_ch_multipart_callback_request_body_data(
 ///
 /// Returns HTP_OK if a new parser has been setup, HTP_DECLINED if the MIME type
 ///         is not appropriate for this parser, and HTP_ERROR on failure.
-pub fn htp_ch_multipart_callback_request_headers(tx: *mut transaction::htp_tx_t) -> Result<()> {
+pub fn htp_ch_multipart_callback_request_headers(tx: *mut transaction::Transaction) -> Result<()> {
     unsafe {
         // The field request_content_type does not contain the entire C-T
         // value and so we cannot use it to look for a boundary, but we can
@@ -167,11 +163,10 @@ pub fn htp_ch_multipart_callback_request_headers(tx: *mut transaction::htp_tx_t)
         } else {
             return Err(Status::ERROR);
         };
-        let mut flags: MultipartFlags = MultipartFlags::empty();
+        let mut flags = Flags::empty();
         if let Some(boundary) = multipart::find_boundary(&(*(*ct).value).as_slice(), &mut flags) {
             // Create a Multipart parser instance.
-            (*tx).request_mpartp =
-                multipart::htp_mpartp_t::new((*(*tx).connp).cfg, boundary, flags);
+            (*tx).request_mpartp = multipart::Parser::new((*(*tx).connp).cfg, boundary, flags);
             if (*tx).request_mpartp.is_none() {
                 return Err(Status::ERROR);
             }

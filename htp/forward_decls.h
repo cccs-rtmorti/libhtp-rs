@@ -1,20 +1,3 @@
-/*
- * Forward declarations of needed structs
- */
-typedef struct htp_cfg_t htp_cfg_t;
-typedef struct htp_conn_t htp_conn_t;
-typedef struct htp_connp_t htp_connp_t;
-typedef struct htp_file_t htp_file_t;
-typedef struct htp_file_data_t htp_file_data_t;
-typedef struct htp_header_t htp_header_t;
-typedef struct htp_header_line_t htp_header_line_t;
-typedef struct htp_param_t htp_param_t;
-typedef struct htp_mpartp_t htp_mpartp_t;
-typedef struct htp_tx_data_t htp_tx_data_t;
-typedef struct htp_tx_t htp_tx_t;
-typedef struct htp_uri_t htp_uri_t;
-typedef struct bstr_t bstr;
-typedef struct htp_table_t htp_table_t;
 /* Needed to suppress type issues in the exposed
  * decompression state. Will go away when decompression
  * is cleaned up.

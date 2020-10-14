@@ -35,11 +35,11 @@ pub enum htp_parser_id_t {
 
 /// Represents a single request parameter.
 #[derive(Clone, Debug)]
-pub struct htp_param_t {
+pub struct Param {
     /// Parameter name.
-    pub name: bstr::bstr_t,
+    pub name: bstr::Bstr,
     /// Parameter value.
-    pub value: bstr::bstr_t,
+    pub value: bstr::Bstr,
     /// Source of the parameter, for example HTP_SOURCE_QUERY_STRING.
     pub source: htp_data_source_t,
     /// Type of the data structure referenced below.
@@ -49,15 +49,15 @@ pub struct htp_param_t {
     pub parser_data: *mut core::ffi::c_void,
 }
 
-impl htp_param_t {
-    /// Make a new owned htp_param_t
+impl Param {
+    /// Make a new owned Param
     pub fn new(
-        name: bstr::bstr_t,
-        value: bstr::bstr_t,
+        name: bstr::Bstr,
+        value: bstr::Bstr,
         source: htp_data_source_t,
         parser_id: htp_parser_id_t,
     ) -> Self {
-        htp_param_t {
+        Param {
             name,
             value,
             source,
@@ -70,9 +70,9 @@ impl htp_param_t {
 #[derive(Debug, Clone)]
 /// This structure is used to pass transaction data (for example
 /// request and response body buffers) to callbacks.
-pub struct htp_tx_data_t {
+pub struct Data {
     /// Transaction pointer.
-    tx: *mut htp_tx_t,
+    tx: *mut Transaction,
     /// Pointer to the data buffer.
     data: *const u8,
     /// Buffer length.
@@ -83,8 +83,8 @@ pub struct htp_tx_data_t {
     is_last: bool,
 }
 
-impl htp_tx_data_t {
-    pub fn new(tx: *mut htp_tx_t, data: *const u8, len: usize, is_last: bool) -> Self {
+impl Data {
+    pub fn new(tx: *mut Transaction, data: *const u8, len: usize, is_last: bool) -> Self {
         Self {
             tx,
             data,
@@ -93,7 +93,7 @@ impl htp_tx_data_t {
         }
     }
 
-    pub fn tx(&self) -> *mut htp_tx_t {
+    pub fn tx(&self) -> *mut Transaction {
         self.tx
     }
 
@@ -137,23 +137,23 @@ pub enum htp_transfer_coding_t {
 
 /// Represents a single request or response header.
 #[derive(Clone)]
-pub struct htp_header_t {
+pub struct Header {
     /// Header name.
-    pub name: bstr::bstr_t,
+    pub name: bstr::Bstr,
     /// Header value.
-    pub value: bstr::bstr_t,
+    pub value: bstr::Bstr,
     /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
     pub flags: Flags,
 }
 
-pub type htp_headers_t = table::htp_table_t<htp_header_t>;
+pub type htp_headers_t = table::Table<Header>;
 
-impl htp_header_t {
-    pub fn new(name: bstr::bstr_t, value: bstr::bstr_t) -> Self {
+impl Header {
+    pub fn new(name: bstr::Bstr, value: bstr::Bstr) -> Self {
         Self::new_with_flags(name, value, Flags::empty())
     }
 
-    pub fn new_with_flags(name: bstr::bstr_t, value: bstr::bstr_t, flags: Flags) -> Self {
+    pub fn new_with_flags(name: bstr::Bstr, value: bstr::Bstr, flags: Flags) -> Self {
         Self { name, value, flags }
     }
 }
@@ -220,11 +220,11 @@ pub enum Protocol {
 }
 
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
-pub struct htp_tx_t {
+pub struct Transaction {
     /// The connection parser associated with this transaction.
-    pub connp: *mut connection_parser::htp_connp_t,
+    pub connp: *mut connection_parser::ConnectionParser,
     /// The configuration structure associated with this transaction.
-    pub cfg: *mut config::htp_cfg_t,
+    pub cfg: *mut config::Config,
     /// Is the configuration structure shared with other transactions or connections? If
     /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
     pub is_config_shared: bool,
@@ -235,19 +235,19 @@ pub struct htp_tx_t {
     /// Contains a count of how many empty lines were skipped before the request line.
     pub request_ignored_lines: u32,
     /// The first line of this request.
-    pub request_line: Option<bstr::bstr_t>,
+    pub request_line: Option<bstr::Bstr>,
     /// Request method.
-    pub request_method: Option<bstr::bstr_t>,
+    pub request_method: Option<bstr::Bstr>,
     /// Request method, as number. Available only if we were able to recognize the request method.
     pub request_method_number: request::htp_method_t,
     /// Request URI, raw, as given to us on the request line. This field can take different forms,
     /// for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
-    /// string when one is provided. Use htp_tx_t::parsed_uri if you need to access to specific
+    /// string when one is provided. Use Transaction::parsed_uri if you need to access to specific
     /// URI elements. Can be NULL if the request line contains only a request method (which is
     /// an extreme case of HTTP/0.9, but passes in practice.
-    pub request_uri: Option<bstr::bstr_t>,
+    pub request_uri: Option<bstr::Bstr>,
     /// Request protocol, as text. Can be NULL if no protocol was specified.
-    pub request_protocol: Option<bstr::bstr_t>,
+    pub request_protocol: Option<bstr::Bstr>,
     /// Protocol version as a number. Multiply the high version number by 100, then add the low
     /// version number. You should prefer to work the pre-defined Protocol constants.
     pub request_protocol_number: Protocol,
@@ -260,17 +260,17 @@ pub struct htp_tx_t {
     /// appropriate normalization and transformation applied, per configuration. No information
     /// is added. In extreme cases when no URI is provided on the request line, all fields
     /// will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
-    /// htp_tx_t::request_uri or htp_tx_t::parsed_uri_raw.
-    pub parsed_uri: Option<util::htp_uri_t>,
+    /// Transaction::request_uri or Transaction::parsed_uri_raw.
+    pub parsed_uri: Option<util::Uri>,
     /// This structure holds the individual components parsed out of the request URI, but
     /// without any modification. The purpose of this field is to allow you to look at the data as it
     /// was supplied on the request line. Fields can be NULL, depending on what data was supplied.
     /// The port_number field is always -1.
-    pub parsed_uri_raw: Option<util::htp_uri_t>,
+    pub parsed_uri_raw: Option<util::Uri>,
     ///  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
-    pub complete_normalized_uri: Option<bstr::bstr_t>,
+    pub complete_normalized_uri: Option<bstr::Bstr>,
     ///  This structure holds the normalized uri, including path, query, and fragment
-    pub partial_normalized_uri: Option<bstr::bstr_t>,
+    pub partial_normalized_uri: Option<bstr::Bstr>,
     /// HTTP 1.1 RFC
     ///
     /// 4.3 Message Body
@@ -311,7 +311,7 @@ pub struct htp_tx_t {
     /// This field contain the request content type when that information is
     /// available in request headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
-    pub request_content_type: Option<bstr::bstr_t>,
+    pub request_content_type: Option<bstr::Bstr>,
     /// Contains the value specified in the Content-Length header. The value of this
     /// field will be -1 from the beginning of the transaction and until request
     /// headers are processed. It will stay -1 if the C-L header was not provided,
@@ -325,26 +325,26 @@ pub struct htp_tx_t {
     pub hook_response_body_data: DataHook,
     /// Request body URLENCODED parser. Available only when the request body is in the
     /// application/x-www-form-urlencoded format and the parser was configured to run.
-    pub request_urlenp_body: Option<urlencoded::htp_urlenp_t>,
+    pub request_urlenp_body: Option<urlencoded::UrlEncodedParser>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
-    pub request_mpartp: Option<multipart::htp_mpartp_t>,
+    pub request_mpartp: Option<multipart::Parser>,
     /// Request parameters.
-    pub request_params: table::htp_table_t<htp_param_t>,
+    pub request_params: table::Table<Param>,
     /// Request cookies
-    pub request_cookies: table::htp_table_t<bstr::bstr_t>,
+    pub request_cookies: table::Table<bstr::Bstr>,
     /// Authentication type used in the request.
     pub request_auth_type: htp_auth_type_t,
     /// Authentication username.
-    pub request_auth_username: Option<bstr::bstr_t>,
-    /// Authentication password. Available only when htp_tx_t::request_auth_type is HTP_AUTH_BASIC.
-    pub request_auth_password: Option<bstr::bstr_t>,
+    pub request_auth_username: Option<bstr::Bstr>,
+    /// Authentication password. Available only when Transaction::request_auth_type is HTP_AUTH_BASIC.
+    pub request_auth_password: Option<bstr::Bstr>,
     /// Request hostname. Per the RFC, the hostname will be taken from the Host header
     /// when available. If the host information is also available in the URI, it is used
     /// instead of whatever might be in the Host header. Can be NULL. This field does
     /// not contain port information.
-    pub request_hostname: Option<bstr::bstr_t>,
-    /// Request port number, if presented. The rules for htp_tx_t::request_host apply. Set to
+    pub request_hostname: Option<bstr::Bstr>,
+    /// Request port number, if presented. The rules for Transaction::request_host apply. Set to
     /// None by default.
     pub request_port_number: Option<u16>,
 
@@ -352,15 +352,15 @@ pub struct htp_tx_t {
     /// How many empty lines did we ignore before reaching the status line?
     pub response_ignored_lines: u32,
     /// Response line.
-    pub response_line: Option<bstr::bstr_t>,
+    pub response_line: Option<bstr::Bstr>,
     /// Response protocol, as text. Can be NULL.
-    pub response_protocol: Option<bstr::bstr_t>,
+    pub response_protocol: Option<bstr::Bstr>,
     /// Response protocol as number. Available only if we were able to parse the protocol version,
     /// INVALID otherwise. UNKNOWN until parsing is attempted.
     pub response_protocol_number: Protocol,
     /// Response status code, as text. Starts as NULL and can remain NULL on
     /// an invalid response that does not specify status code.
-    pub response_status: Option<bstr::bstr_t>,
+    pub response_status: Option<bstr::Bstr>,
     /// Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
     /// otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
     pub response_status_number: i32,
@@ -368,10 +368,10 @@ pub struct htp_tx_t {
     /// backend server will reject a request with a particular status code.
     pub response_status_expected_number: config::htp_unwanted_t,
     /// The message associated with the response status code. Can be NULL.
-    pub response_message: Option<bstr::bstr_t>,
+    pub response_message: Option<bstr::Bstr>,
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: bool,
-    /// Parsed response headers. Contains instances of htp_header_t.
+    /// Parsed response headers. Contains instances of Header.
     pub response_headers: htp_headers_t,
 
     /// HTTP 1.1 RFC
@@ -424,7 +424,7 @@ pub struct htp_tx_t {
     /// This field will contain the response content type when that information
     /// is available in response headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
-    pub response_content_type: Option<bstr::bstr_t>,
+    pub response_content_type: Option<bstr::Bstr>,
     /// Response decompressor used to decompress response body data.
     pub out_decompressor: *mut decompressors::htp_decompressor_t,
 
@@ -444,10 +444,10 @@ pub struct htp_tx_t {
     pub res_header_repetitions: u16,
 }
 
-pub type htp_txs_t = List<htp_tx_t>;
+pub type htp_txs_t = List<Transaction>;
 
-impl htp_tx_t {
-    pub fn new(connp: &mut connection_parser::htp_connp_t) -> Result<usize> {
+impl Transaction {
+    pub fn new(connp: &mut connection_parser::ConnectionParser) -> Result<usize> {
         let tx = Self {
             connp,
             cfg: connp.cfg,
@@ -467,7 +467,7 @@ impl htp_tx_t {
             partial_normalized_uri: None,
             request_message_len: 0,
             request_entity_len: 0,
-            request_headers: table::htp_table_t::with_capacity(32),
+            request_headers: table::Table::with_capacity(32),
             request_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
             request_content_encoding:
                 decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
@@ -477,8 +477,8 @@ impl htp_tx_t {
             hook_response_body_data: DataHook::new(),
             request_urlenp_body: None,
             request_mpartp: None,
-            request_params: table::htp_table_t::with_capacity(32),
-            request_cookies: table::htp_table_t::with_capacity(32),
+            request_params: table::Table::with_capacity(32),
+            request_cookies: table::Table::with_capacity(32),
             request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -493,7 +493,7 @@ impl htp_tx_t {
             response_status_expected_number: config::htp_unwanted_t::HTP_UNWANTED_IGNORE,
             response_message: None,
             seen_100continue: false,
-            response_headers: table::htp_table_t::with_capacity(32),
+            response_headers: table::Table::with_capacity(32),
             response_message_len: 0,
             response_entity_len: 0,
             response_content_length: -1,
@@ -543,10 +543,10 @@ impl htp_tx_t {
     }
 
     /// Adds one parameter to the request. THis function will take over the
-    /// responsibility for the provided htp_param_t structure.
+    /// responsibility for the provided Param structure.
     ///
     /// Returns HTP_OK on success, HTP_ERROR on failure.
-    pub unsafe fn req_add_param(&mut self, mut param: htp_param_t) -> Result<()> {
+    pub unsafe fn req_add_param(&mut self, mut param: Param) -> Result<()> {
         if let Some(parameter_processor_fn) = (*self.cfg).parameter_processor {
             parameter_processor_fn(&mut param)?
         }
@@ -642,15 +642,13 @@ impl htp_tx_t {
         // Check for PUT requests, which we need to treat as file uploads.
         if self.request_method_number == request::htp_method_t::HTP_M_PUT && self.req_has_body() {
             // Prepare to treat PUT request body as a file.
-            (*self.connp).put_file = Some(util::htp_file_t::new(
-                util::htp_file_source_t::HTP_FILE_PUT,
-                None,
-            ));
+            (*self.connp).put_file =
+                Some(util::File::new(util::htp_file_source_t::HTP_FILE_PUT, None));
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
         if let Some(hostname) = self.get_parsed_uri_hostname() {
-            self.request_hostname = Some(bstr::bstr_t::from(hostname.as_slice()));
+            self.request_hostname = Some(bstr::Bstr::from(hostname.as_slice()));
         }
 
         if let Some(port_number) = self.get_parsed_uri_port_number() {
@@ -668,7 +666,7 @@ impl htp_tx_t {
                 if self.request_hostname.is_none() {
                     // There is no host information in the URI. Place the
                     // hostname from the headers into the parsed_uri structure.
-                    let mut hostname = bstr::bstr_t::from(hostname);
+                    let mut hostname = bstr::Bstr::from(hostname);
                     hostname.make_ascii_lowercase();
                     self.request_hostname = Some(hostname);
                     if let Some((_, port)) = port_nmb {
@@ -766,7 +764,7 @@ impl htp_tx_t {
         // Keep track of the body length.
         self.request_entity_len = (self.request_entity_len as u64).wrapping_add(len as u64) as i64;
         // Send data to the callbacks.
-        let mut data = htp_tx_data_t::new(self, data as *mut u8, len, false);
+        let mut data = Data::new(self, data as *mut u8, len, false);
         util::req_run_hook_body_data(self.connp, &mut data).map_err(|e| {
             htp_error!(
                 self.connp,
@@ -819,7 +817,7 @@ impl htp_tx_t {
     pub unsafe fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
         self.response_headers.add(
             name.as_ref().into(),
-            htp_header_t::new(name.as_ref().into(), value.as_ref().into()),
+            Header::new(name.as_ref().into(), value.as_ref().into()),
         )
     }
 
@@ -854,7 +852,7 @@ impl htp_tx_t {
     ) -> Result<()> {
         // NULL data is allowed in this private function; it's
         // used to indicate the end of response body.
-        let mut d = htp_tx_data_t::new(self, data as *const u8, len, false);
+        let mut d = Data::new(self, data as *const u8, len, false);
         // Keep track of body size before decompression.
         self.response_message_len =
             (self.response_message_len as u64).wrapping_add(d.len as u64) as i64;
@@ -962,7 +960,7 @@ impl htp_tx_t {
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be
         // destroyed later.
-        let connp: *mut connection_parser::htp_connp_t = self.connp;
+        let connp: *mut connection_parser::ConnectionParser = self.connp;
         // Determine what happens next, and remove this transaction from the parser.
         if self.is_protocol_0_9 {
             (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
@@ -1046,10 +1044,10 @@ impl htp_tx_t {
         } else if let Some(uri) = self.request_uri.as_ref() {
             self.parsed_uri_raw = Some(util::parse_uri(uri.as_slice()));
         } else {
-            self.parsed_uri_raw = Some(util::htp_uri_t::new());
+            self.parsed_uri_raw = Some(util::Uri::new());
         }
-        // Parse the request URI into htp_tx_t::parsed_uri_raw.
-        // Build htp_tx_t::parsed_uri, but only if it was not explicitly set already.
+        // Parse the request URI into Transaction::parsed_uri_raw.
+        // Build Transaction::parsed_uri, but only if it was not explicitly set already.
         if self.parsed_uri.is_none() {
             // Keep the original URI components, but create a copy which we can normalize and use internally.
             self.normalize_parsed_uri();
@@ -1140,7 +1138,7 @@ impl htp_tx_t {
         }
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be destroyed later.
-        let connp: *mut connection_parser::htp_connp_t = self.connp;
+        let connp: *mut connection_parser::ConnectionParser = self.connp;
         // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
         self.finalize()?;
         // Disconnect transaction from the parser.
@@ -1224,7 +1222,7 @@ impl htp_tx_t {
                 }
                 (*self.out_decompressor).callback = Some(
                     htp_tx_res_process_body_data_decompressor_callback
-                        as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
+                        as unsafe extern "C" fn(_: *mut Data) -> Status,
                 )
             // multiple ce value case
             } else if let Some((_, ce)) =
@@ -1236,7 +1234,7 @@ impl htp_tx_t {
                 let tokens = ce.value.split_str_collect(", ");
                 let connp = self.connp;
                 for tok in tokens {
-                    let token = bstr::bstr_t::from(tok);
+                    let token = bstr::Bstr::from(tok);
                     let mut cetype: decompressors::htp_content_encoding_t =
                         decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
                     // check depth limit (0 means no limit)
@@ -1297,7 +1295,7 @@ impl htp_tx_t {
                                 }
                                 (*self.out_decompressor).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
-                                        as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
+                                        as unsafe extern "C" fn(_: *mut Data) -> Status,
                                 );
                                 comp = self.out_decompressor
                             } else {
@@ -1308,7 +1306,7 @@ impl htp_tx_t {
                                 }
                                 (*(*comp).next).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
-                                        as unsafe extern "C" fn(_: *mut htp_tx_data_t) -> Status,
+                                        as unsafe extern "C" fn(_: *mut Data) -> Status,
                                 );
                                 comp = (*comp).next
                             }
@@ -1369,13 +1367,13 @@ impl htp_tx_t {
             && self.response_progress == htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
     }
 
-    pub fn get_parsed_uri_query(&self) -> Option<&bstr::bstr_t> {
+    pub fn get_parsed_uri_query(&self) -> Option<&bstr::Bstr> {
         self.parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.query.as_ref())
     }
 
-    pub fn get_parsed_uri_hostname(&self) -> Option<&bstr::bstr_t> {
+    pub fn get_parsed_uri_hostname(&self) -> Option<&bstr::Bstr> {
         self.parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.hostname.as_ref())
@@ -1389,7 +1387,7 @@ impl htp_tx_t {
 
     /// Normalize a previously-parsed request URI.
     pub unsafe fn normalize_parsed_uri(&mut self) {
-        let mut uri = util::htp_uri_t::new();
+        let mut uri = util::Uri::new();
         if let Some(incomplete) = &self.parsed_uri_raw {
             uri.scheme = incomplete.normalized_scheme();
             uri.username =
@@ -1412,8 +1410,8 @@ impl htp_tx_t {
     }
 }
 
-impl Drop for htp_tx_t {
-    /// Destroys all the fields inside an htp_tx_t.
+impl Drop for Transaction {
+    /// Destroys all the fields inside an Transaction.
     fn drop(&mut self) {
         unsafe {
             self.destroy_decompressors();
@@ -1425,7 +1423,7 @@ impl Drop for htp_tx_t {
     }
 }
 
-impl PartialEq for htp_tx_t {
+impl PartialEq for Transaction {
     fn eq(&self, other: &Self) -> bool {
         unsafe { (*self.connp).conn == (*other.connp).conn && self.index == other.index }
     }
@@ -1451,9 +1449,7 @@ unsafe fn htp_timer_track(
     Ok(())
 }
 
-unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(
-    d: *mut htp_tx_data_t,
-) -> Status {
+unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut Data) -> Status {
     let d = if let Some(d) = d.as_mut() {
         d
     } else {

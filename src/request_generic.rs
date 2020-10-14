@@ -8,7 +8,7 @@ use nom::error::ErrorKind;
 use nom::sequence::tuple;
 use std::cmp::Ordering;
 
-impl connection_parser::htp_connp_t {
+impl connection_parser::ConnectionParser {
     /// Extract one request header. A header can span multiple lines, in
     /// which case they will be folded into one before parsing is attempted.
     ///
@@ -48,7 +48,7 @@ impl connection_parser::htp_connp_t {
                 // Ambiguous response C-L value.
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
                         "Ambiguous request C-L value"
                     );
@@ -69,7 +69,7 @@ impl connection_parser::htp_connp_t {
         }
         if repeated {
             htp_warn!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::REQUEST_HEADER_REPETITION,
                 "Repetition for header"
             );
@@ -81,7 +81,7 @@ impl connection_parser::htp_connp_t {
     pub unsafe fn parse_request_header_generic(
         &mut self,
         data: &[u8],
-    ) -> Result<transaction::htp_header_t> {
+    ) -> Result<transaction::Header> {
         let mut flags = Flags::empty();
         let data = util::chomp(&data);
 
@@ -98,7 +98,7 @@ impl connection_parser::htp_connp_t {
                     {
                         flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::REQUEST_INVALID_EMPTY_NAME,
                             "Request field invalid: empty name"
                         );
@@ -116,7 +116,7 @@ impl connection_parser::htp_connp_t {
                         {
                             flags |= Flags::HTP_FIELD_INVALID;
                             htp_warn!(
-                                self as *mut connection_parser::htp_connp_t,
+                                self as *mut connection_parser::ConnectionParser,
                                 htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
                                 "Request field invalid: LWS after name"
                             );
@@ -145,7 +145,7 @@ impl connection_parser::htp_connp_t {
                     {
                         self.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::REQUEST_HEADER_INVALID,
                             "Request header name is not a token"
                         );
@@ -164,7 +164,7 @@ impl connection_parser::htp_connp_t {
                 {
                     self.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::REQUEST_FIELD_MISSING_COLON,
                         "Request field invalid: colon missing"
                     );
@@ -177,7 +177,7 @@ impl connection_parser::htp_connp_t {
             }
         };
 
-        Ok(transaction::htp_header_t::new_with_flags(
+        Ok(transaction::Header::new_with_flags(
             name.into(),
             value.into(),
             flags,
@@ -221,7 +221,7 @@ impl connection_parser::htp_connp_t {
         if let Ok((remaining, (ls, method, ws))) = method_parser(data) {
             if !ls.is_empty() {
                 htp_warn!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
                     "Request line: leading whitespace"
                 );
@@ -239,9 +239,9 @@ impl connection_parser::htp_connp_t {
 
             if mstart {
                 self.in_tx_mut_ok()?.request_method =
-                    Some(bstr::bstr_t::from([&ls[..], &method[..]].concat()));
+                    Some(bstr::Bstr::from([&ls[..], &method[..]].concat()));
             } else {
-                self.in_tx_mut_ok()?.request_method = Some(bstr::bstr_t::from(method));
+                self.in_tx_mut_ok()?.request_method = Some(bstr::Bstr::from(method));
             }
 
             if let Some(request_method) = &self.in_tx_mut_ok()?.request_method {
@@ -252,7 +252,7 @@ impl connection_parser::htp_connp_t {
             // Too much performance overhead for fuzzing
             if ws.iter().any(|&c| c != 0x20) {
                 htp_warn!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::METHOD_DELIM_NON_COMPLIANT,
                     "Request line: non-compliant delimiter between Method and URI"
                 );
@@ -266,7 +266,7 @@ impl connection_parser::htp_connp_t {
                     == request::htp_method_t::HTP_M_UNKNOWN
                 {
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
                         "Request line: unknown method only"
                     );
@@ -285,7 +285,7 @@ impl connection_parser::htp_connp_t {
                 if uri.len() == remaining.len() && uri.iter().any(|&c| is_space(c)) {
                     // warn regardless if we've seen non-compliant chars
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::URI_DELIM_NON_COMPLIANT,
                         "Request line: URI contains non-compliant delimiter"
                     );
@@ -297,7 +297,7 @@ impl connection_parser::htp_connp_t {
                         protocol = protocol2;
                     }
                 }
-                self.in_tx_mut_ok()?.request_uri = Some(bstr::bstr_t::from(uri));
+                self.in_tx_mut_ok()?.request_uri = Some(bstr::Bstr::from(uri));
                 // Is there protocol information available?
                 if protocol.is_empty() {
                     // No, this looks like a HTTP/0.9 request.
@@ -307,7 +307,7 @@ impl connection_parser::htp_connp_t {
                         == request::htp_method_t::HTP_M_UNKNOWN
                     {
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
                             "Request line: unknown method and no protocol"
                         );
@@ -315,7 +315,7 @@ impl connection_parser::htp_connp_t {
                     return Ok(());
                 }
                 // The protocol information continues until the end of the line.
-                self.in_tx_mut_ok()?.request_protocol = Some(bstr::bstr_t::from(protocol));
+                self.in_tx_mut_ok()?.request_protocol = Some(bstr::Bstr::from(protocol));
                 self.in_tx_mut_ok()?.request_protocol_number =
                     parsers::parse_protocol(protocol, &mut *self);
                 if self.in_tx_mut_ok()?.request_method_number
@@ -323,7 +323,7 @@ impl connection_parser::htp_connp_t {
                     && self.in_tx_mut_ok()?.request_protocol_number == Protocol::INVALID
                 {
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
                         "Request line: unknown method and invalid protocol"
                     );

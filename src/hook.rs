@@ -1,43 +1,43 @@
 use crate::error::Result;
-use crate::log::htp_log_t;
-use crate::transaction::{htp_tx_data_t, htp_tx_t};
-use crate::util::htp_file_data_t;
+use crate::log::Log;
+use crate::transaction::{Data, Transaction};
+use crate::util::FileData;
 use crate::Status;
 
 /// External (C) callback function prototype
-pub type TxExternalCallbackFn = unsafe extern "C" fn(tx: *mut htp_tx_t) -> Status;
+pub type TxExternalCallbackFn = unsafe extern "C" fn(tx: *mut Transaction) -> Status;
 
 /// Native (rust) callback function prototype
-pub type TxNativeCallbackFn = fn(tx: *mut htp_tx_t) -> Result<()>;
+pub type TxNativeCallbackFn = fn(tx: *mut Transaction) -> Result<()>;
 
-/// Hook for htp_tx_t
+/// Hook for Transaction
 pub type TxHook = Hook<TxExternalCallbackFn, TxNativeCallbackFn>;
 
 /// External (C) callback function prototype
-pub type DataExternalCallbackFn = unsafe extern "C" fn(data: *mut htp_tx_data_t) -> Status;
+pub type DataExternalCallbackFn = unsafe extern "C" fn(data: *mut Data) -> Status;
 
 /// Native (rust) callback function prototype
-pub type DataNativeCallbackFn = fn(data: *mut htp_tx_data_t) -> Result<()>;
+pub type DataNativeCallbackFn = fn(data: *mut Data) -> Result<()>;
 
-/// Hook for htp_tx_data_t
+/// Hook for Data
 pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
 
 /// External (C) callback function prototype
-pub type FileDataExternalCallbackFn = unsafe extern "C" fn(data: *mut htp_file_data_t) -> Status;
+pub type FileDataExternalCallbackFn = unsafe extern "C" fn(data: *mut FileData) -> Status;
 
 /// Native (rust) callback function prototype
-pub type FileDataNativeCallbackFn = fn(data: *mut htp_file_data_t) -> Result<()>;
+pub type FileDataNativeCallbackFn = fn(data: *mut FileData) -> Result<()>;
 
 /// Hook for htp_tx_filedata_t
 pub type FileDataHook = Hook<FileDataExternalCallbackFn, FileDataNativeCallbackFn>;
 
 /// External (C) callback function prototype
-pub type LogExternalCallbackFn = unsafe extern "C" fn(log: *mut htp_log_t) -> Status;
+pub type LogExternalCallbackFn = unsafe extern "C" fn(log: *mut Log) -> Status;
 
 /// Native (rust) callback function prototype
-pub type LogNativeCallbackFn = fn(log: *mut htp_log_t) -> Result<()>;
+pub type LogNativeCallbackFn = fn(log: *mut Log) -> Result<()>;
 
-/// Hook for htp_log_t
+/// Hook for Log
 pub type LogHook = Hook<LogExternalCallbackFn, LogNativeCallbackFn>;
 
 /// Callback list
@@ -70,7 +70,7 @@ impl TxHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, tx: *mut htp_tx_t) -> Result<()> {
+    pub fn run_all(&self, tx: *mut Transaction) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -97,7 +97,7 @@ impl DataHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, data: *mut htp_tx_data_t) -> Result<()> {
+    pub fn run_all(&self, data: *mut Data) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -124,7 +124,7 @@ impl FileDataHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, data: *mut htp_file_data_t) -> Result<()> {
+    pub fn run_all(&self, data: *mut FileData) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -151,7 +151,7 @@ impl LogHook {
     ///
     /// This function will exit early if a callback fails to return Status::OK
     /// or Status::DECLINED.
-    pub fn run_all(&self, log: *mut htp_log_t) -> Result<()> {
+    pub fn run_all(&self, log: *mut Log) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -188,11 +188,11 @@ mod test {
 
     #[test]
     fn test_callback() {
-        unsafe extern "C" fn foo(_: *mut htp_tx_data_t) -> Status {
+        unsafe extern "C" fn foo(_: *mut Data) -> Status {
             Status::OK
         }
         let mut hook = DataHook::new();
-        let mut data = htp_tx_data_t::new(std::ptr::null_mut(), std::ptr::null_mut(), 0, false);
+        let mut data = Data::new(std::ptr::null_mut(), std::ptr::null_mut(), 0, false);
 
         hook.register(|_| Ok(()));
         hook.register_extern(foo);

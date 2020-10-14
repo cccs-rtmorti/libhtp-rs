@@ -7,7 +7,7 @@ use crate::log::htp_log_level_t;
 use crate::{content_handlers, transaction, Status};
 
 #[derive(Clone)]
-pub struct htp_cfg_t {
+pub struct Config {
     /// The maximum size of the buffer that is used when the current
     /// input chunk does not contain all the necessary data (e.g., a very header
     /// line that spans several packets).
@@ -21,9 +21,9 @@ pub struct htp_cfg_t {
     /// Server personality identifier.
     pub server_personality: htp_server_personality_t,
     /// The function to use to transform parameters after parsing.
-    pub parameter_processor: Option<fn(_: &mut transaction::htp_param_t) -> Result<()>>,
+    pub parameter_processor: Option<fn(_: &mut transaction::Param) -> Result<()>>,
     /// Decoder configuration for url path.
-    pub decoder_cfg: htp_decoder_cfg_t,
+    pub decoder_cfg: DecoderConfig,
     /// Whether to decompress compressed response bodies.
     pub response_decompression_enabled: bool,
     /// Whether to parse request cookies.
@@ -52,7 +52,7 @@ pub struct htp_cfg_t {
     /// Request headers hook, invoked after all request headers are seen.
     pub hook_request_headers: TxHook,
     /// Request body data hook, invoked every time body data is available. Each
-    /// invocation will provide a htp_tx_data_t instance. Chunked data
+    /// invocation will provide a Data instance. Chunked data
     /// will be dechunked before the data is passed to this hook. Decompression
     /// is not currently implemented. At the end of the request body
     /// there will be a call with the data pointer set to NULL.
@@ -82,7 +82,7 @@ pub struct htp_cfg_t {
     /// Response headers book, invoked after all response headers have been seen.
     pub hook_response_headers: TxHook,
     /// Response body data hook, invoked every time body data is available. Each
-    /// invocation will provide a htp_tx_data_t instance. Chunked data
+    /// invocation will provide a Data instance. Chunked data
     /// will be dechunked before the data is passed to this hook. By default,
     /// compressed data will be decompressed, but decompression can be disabled
     /// in configuration. At the end of the response body there will be a call
@@ -108,7 +108,7 @@ pub struct htp_cfg_t {
     // Request Line parsing options.
 
     // TODO this was added here to maintain a stable ABI, once we can break that
-    // we may want to move this into htp_decoder_cfg_t (VJ)
+    // we may want to move this into DecoderConfig (VJ)
     /// Reaction to leading whitespace on the request line
     pub requestline_leading_whitespace_unwanted: htp_unwanted_t,
     /// How many layers of compression we will decompress (0 => no limit).
@@ -121,7 +121,7 @@ pub struct htp_cfg_t {
     pub compression_time_limit: i32,
 }
 
-impl Default for htp_cfg_t {
+impl Default for Config {
     fn default() -> Self {
         Self {
             field_limit: 18000,
@@ -166,7 +166,7 @@ impl Default for htp_cfg_t {
 }
 
 #[derive(Copy, Clone)]
-pub struct htp_decoder_cfg_t {
+pub struct DecoderConfig {
     // Path-specific decoding options.
     /// Convert backslash characters to slashes.
     pub backslash_convert_slashes: bool,
@@ -212,7 +212,7 @@ pub struct htp_decoder_cfg_t {
     pub bestfit_replacement_byte: u8,
 }
 
-impl Default for htp_decoder_cfg_t {
+impl Default for DecoderConfig {
     fn default() -> Self {
         Self {
             backslash_convert_slashes: false,
@@ -367,13 +367,13 @@ static bestfit_1252: [u8; 1173] = [
     0x7b, 0xff, 0x5c, 0x7c, 0xff, 0x5d, 0x7d, 0xff, 0x5e, 0x7e, 0, 0, 0,
 ];
 
-fn config_alloc() -> *mut htp_cfg_t {
-    let cfg: htp_cfg_t = Default::default();
+fn config_alloc() -> *mut Config {
+    let cfg: Config = Default::default();
     let b = Box::new(cfg);
     Box::into_raw(b)
 }
 
-fn config_free(cfg: *mut htp_cfg_t) {
+fn config_free(cfg: *mut Config) {
     if !cfg.is_null() {
         unsafe {
             Box::from_raw(cfg);
@@ -384,12 +384,12 @@ fn config_free(cfg: *mut htp_cfg_t) {
 /// Creates a new configuration structure. Configuration structures created at
 /// configuration time must not be changed afterwards in order to support lock-less
 /// copying.
-pub fn create() -> *mut htp_cfg_t {
-    let cfg: *mut htp_cfg_t = config_alloc();
+pub fn create() -> *mut Config {
+    let cfg: *mut Config = config_alloc();
     cfg
 }
 
-impl htp_cfg_t {
+impl Config {
     /// Destroy a configuration structure.
     pub fn destroy(&mut self) {
         config_free(self);

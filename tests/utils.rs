@@ -74,7 +74,7 @@ fn Space() {
 
 #[test]
 fn Method() {
-    let method = bstr_t::from("GET");
+    let method = Bstr::from("GET");
     assert_eq!(htp_method_t::HTP_M_GET, convert_bstr_to_method(&method));
 }
 
@@ -121,23 +121,23 @@ fn IsLineFolded() {
 
 #[derive(Clone)]
 struct uri_expected {
-    scheme: Option<bstr_t>,
-    username: Option<bstr_t>,
-    password: Option<bstr_t>,
-    hostname: Option<bstr_t>,
-    port: Option<bstr_t>,
-    path: Option<bstr_t>,
-    query: Option<bstr_t>,
-    fragment: Option<bstr_t>,
+    scheme: Option<Bstr>,
+    username: Option<Bstr>,
+    password: Option<Bstr>,
+    hostname: Option<Bstr>,
+    port: Option<Bstr>,
+    path: Option<Bstr>,
+    query: Option<Bstr>,
+    fragment: Option<Bstr>,
 }
 
 #[derive(Clone)]
 struct uri_test {
-    uri: Option<bstr_t>,
+    uri: Option<Bstr>,
     expected: uri_expected,
 }
 
-fn bstr_equal_c(b: *const bstr_t, c: *const i8) -> bool {
+fn bstr_equal_c(b: *const Bstr, c: *const i8) -> bool {
     unsafe {
         if (c == std::ptr::null()) || (b == std::ptr::null()) {
             (c == std::ptr::null()) && (b == std::ptr::null())
@@ -150,8 +150,8 @@ fn bstr_equal_c(b: *const bstr_t, c: *const i8) -> bool {
 fn append_message<W: Write>(
     o: &mut W,
     label: *const i8,
-    expected: Option<&bstr_t>,
-    actual: Option<&bstr_t>,
+    expected: Option<&Bstr>,
+    actual: Option<&Bstr>,
 ) -> Result<(), std::io::Error> {
     unsafe {
         o.write_fmt(format_args!(
@@ -179,7 +179,7 @@ fn append_message<W: Write>(
     }
 }
 
-fn UriIsExpected(expected: uri_expected, actual: &htp_uri_t) -> Result<(), std::io::Error> {
+fn UriIsExpected(expected: uri_expected, actual: &Uri) -> Result<(), std::io::Error> {
     let mut msg: Vec<u8> = vec![];
     let mut equal: bool = true;
 
@@ -283,92 +283,40 @@ impl UriTest {
             uri_tests: {
                 [
                     uri_test {
-                        uri: Some(bstr_t::from(
+                        uri: Some(Bstr::from(
                             "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
                         )),
                         expected: uri_expected {
-                            scheme: Some(bstr_t::from("http")),
-                            username: Some(bstr_t::from("user")),
-                            password: Some(bstr_t::from("pass")),
-                            hostname: Some(bstr_t::from("www.example.com")),
-                            port: Some(bstr_t::from("1234")),
-                            path: Some(bstr_t::from("/path1/path2")),
-                            query: Some(bstr_t::from("a=b&c=d")),
-                            fragment: Some(bstr_t::from("frag")),
+                            scheme: Some(Bstr::from("http")),
+                            username: Some(Bstr::from("user")),
+                            password: Some(Bstr::from("pass")),
+                            hostname: Some(Bstr::from("www.example.com")),
+                            port: Some(Bstr::from("1234")),
+                            path: Some(Bstr::from("/path1/path2")),
+                            query: Some(Bstr::from("a=b&c=d")),
+                            fragment: Some(Bstr::from("frag")),
                         },
                     },
                     uri_test {
-                        uri: Some(bstr_t::from("http://host.com/path")),
+                        uri: Some(Bstr::from("http://host.com/path")),
                         expected: uri_expected {
-                            scheme: Some(bstr_t::from("http")),
+                            scheme: Some(Bstr::from("http")),
                             username: None,
                             password: None,
-                            hostname: Some(bstr_t::from("host.com")),
+                            hostname: Some(Bstr::from("host.com")),
                             port: None,
-                            path: Some(bstr_t::from("/path")),
+                            path: Some(Bstr::from("/path")),
                             query: None,
                             fragment: None,
                         },
                     },
                     uri_test {
-                        uri: Some(bstr_t::from("http://host.com")),
+                        uri: Some(Bstr::from("http://host.com")),
                         expected: uri_expected {
-                            scheme: Some(bstr_t::from("http")),
+                            scheme: Some(Bstr::from("http")),
                             username: None,
                             password: None,
-                            hostname: Some(bstr_t::from("host.com")),
-                            port: None,
-                            path: None,
-                            query: None,
-                            fragment: None,
-                        },
-                    },
-                    uri_test {
-                        uri: Some(bstr_t::from("http://")),
-                        expected: uri_expected {
-                            scheme: Some(bstr_t::from("http")),
-                            username: None,
-                            password: None,
-                            hostname: None,
-                            port: None,
-                            path: Some(bstr_t::from("//")),
-                            query: None,
-                            fragment: None,
-                        },
-                    },
-                    uri_test {
-                        uri: Some(bstr_t::from("/path")),
-                        expected: uri_expected {
-                            scheme: None,
-                            username: None,
-                            password: None,
-                            hostname: None,
-                            port: None,
-                            path: Some(bstr_t::from("/path")),
-                            query: None,
-                            fragment: None,
-                        },
-                    },
-                    uri_test {
-                        uri: Some(bstr_t::from("://")),
-                        expected: uri_expected {
-                            scheme: Some(bstr_t::from("")),
-                            username: None,
-                            password: None,
-                            hostname: None,
-                            port: None,
-                            path: Some(bstr_t::from("//")),
-                            query: None,
-                            fragment: None,
-                        },
-                    },
-                    uri_test {
-                        uri: Some(bstr_t::from("")),
-                        expected: uri_expected {
-                            scheme: None,
-                            username: None,
-                            password: None,
-                            hostname: None,
+                            hostname: Some(Bstr::from("host.com")),
                             port: None,
                             path: None,
                             query: None,
@@ -376,12 +324,64 @@ impl UriTest {
                         },
                     },
                     uri_test {
-                        uri: Some(bstr_t::from("http://user@host.com")),
+                        uri: Some(Bstr::from("http://")),
                         expected: uri_expected {
-                            scheme: Some(bstr_t::from("http")),
-                            username: Some(bstr_t::from("user")),
+                            scheme: Some(Bstr::from("http")),
+                            username: None,
                             password: None,
-                            hostname: Some(bstr_t::from("host.com")),
+                            hostname: None,
+                            port: None,
+                            path: Some(Bstr::from("//")),
+                            query: None,
+                            fragment: None,
+                        },
+                    },
+                    uri_test {
+                        uri: Some(Bstr::from("/path")),
+                        expected: uri_expected {
+                            scheme: None,
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: Some(Bstr::from("/path")),
+                            query: None,
+                            fragment: None,
+                        },
+                    },
+                    uri_test {
+                        uri: Some(Bstr::from("://")),
+                        expected: uri_expected {
+                            scheme: Some(Bstr::from("")),
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: Some(Bstr::from("//")),
+                            query: None,
+                            fragment: None,
+                        },
+                    },
+                    uri_test {
+                        uri: Some(Bstr::from("")),
+                        expected: uri_expected {
+                            scheme: None,
+                            username: None,
+                            password: None,
+                            hostname: None,
+                            port: None,
+                            path: None,
+                            query: None,
+                            fragment: None,
+                        },
+                    },
+                    uri_test {
+                        uri: Some(Bstr::from("http://user@host.com")),
+                        expected: uri_expected {
+                            scheme: Some(Bstr::from("http")),
+                            username: Some(Bstr::from("user")),
+                            password: None,
+                            hostname: Some(Bstr::from("host.com")),
                             port: None,
                             path: None,
                             query: None,
@@ -416,7 +416,7 @@ fn ParseUri() {
         let uri = if test.uri.is_some() {
             parse_uri(test.uri.as_ref().unwrap().as_slice())
         } else {
-            htp_uri_t::new()
+            Uri::new()
         };
         if let Err(x) = UriIsExpected(test.expected, &uri) {
             println!("{}", x);
@@ -428,8 +428,8 @@ fn ParseUri() {
 
 #[test]
 fn ParseHostPort_1() {
-    let mut i = bstr_t::from("www.example.com");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from("www.example.com");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -439,8 +439,8 @@ fn ParseHostPort_1() {
 
 #[test]
 fn ParseHostPort_2() {
-    let mut i = bstr_t::from(" www.example.com ");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from(" www.example.com ");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -450,8 +450,8 @@ fn ParseHostPort_2() {
 
 #[test]
 fn ParseHostPort_3() {
-    let mut i = bstr_t::from(" www.example.com:8001 ");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from(" www.example.com:8001 ");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -461,8 +461,8 @@ fn ParseHostPort_3() {
 
 #[test]
 fn ParseHostPort_4() {
-    let mut i = bstr_t::from(" www.example.com :  8001 ");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from(" www.example.com :  8001 ");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -472,8 +472,8 @@ fn ParseHostPort_4() {
 
 #[test]
 fn ParseHostPort_5() {
-    let mut i = bstr_t::from("www.example.com.");
-    let e = bstr_t::from("www.example.com.");
+    let mut i = Bstr::from("www.example.com.");
+    let e = Bstr::from("www.example.com.");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -483,8 +483,8 @@ fn ParseHostPort_5() {
 
 #[test]
 fn ParseHostPort_6() {
-    let mut i = bstr_t::from("www.example.com.:8001");
-    let e = bstr_t::from("www.example.com.");
+    let mut i = Bstr::from("www.example.com.:8001");
+    let e = Bstr::from("www.example.com.");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -494,8 +494,8 @@ fn ParseHostPort_6() {
 
 #[test]
 fn ParseHostPort_7() {
-    let mut i = bstr_t::from("www.example.com:");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from("www.example.com:");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -505,8 +505,8 @@ fn ParseHostPort_7() {
 
 #[test]
 fn ParseHostPort_8() {
-    let mut i = bstr_t::from("www.example.com:ff");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from("www.example.com:ff");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -516,8 +516,8 @@ fn ParseHostPort_8() {
 
 #[test]
 fn ParseHostPort_9() {
-    let mut i = bstr_t::from("www.example.com:0");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from("www.example.com:0");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -527,8 +527,8 @@ fn ParseHostPort_9() {
 
 #[test]
 fn ParseHostPort_10() {
-    let mut i = bstr_t::from("www.example.com:65536");
-    let e = bstr_t::from("www.example.com");
+    let mut i = Bstr::from("www.example.com:65536");
+    let e = Bstr::from("www.example.com");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -538,8 +538,8 @@ fn ParseHostPort_10() {
 
 #[test]
 fn ParseHostPort_11() {
-    let mut i = bstr_t::from("[::1]:8080");
-    let e = bstr_t::from("[::1]");
+    let mut i = Bstr::from("[::1]:8080");
+    let e = Bstr::from("[::1]");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -549,8 +549,8 @@ fn ParseHostPort_11() {
 
 #[test]
 fn ParseHostPort_12() {
-    let mut i = bstr_t::from("[::1]:");
-    let e = bstr_t::from("[::1]");
+    let mut i = Bstr::from("[::1]:");
+    let e = Bstr::from("[::1]");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -560,8 +560,8 @@ fn ParseHostPort_12() {
 
 #[test]
 fn ParseHostPort_13() {
-    let mut i = bstr_t::from("[::1]x");
-    let e = bstr_t::from("[::1]");
+    let mut i = Bstr::from("[::1]x");
+    let e = Bstr::from("[::1]");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -571,8 +571,8 @@ fn ParseHostPort_13() {
 
 #[test]
 fn ParseHostPort_14() {
-    let mut i = bstr_t::from("[::1");
-    let e = bstr_t::from("[::1");
+    let mut i = Bstr::from("[::1");
+    let e = Bstr::from("[::1");
     let (_, (host, port, valid)) = parse_hostport(&mut i).unwrap();
 
     assert!(e.eq_nocase(host));
@@ -817,31 +817,31 @@ fn ParseFragment() {
 #[test]
 fn ParseContentType() {
     assert_eq!(
-        bstr_t::from("multipart/form-data"),
+        Bstr::from("multipart/form-data"),
         parse_ct_header(b"multipart/form-data").unwrap()
     );
     assert_eq!(
-        bstr_t::from("multipart/form-data"),
+        Bstr::from("multipart/form-data"),
         parse_ct_header(b"multipart/form-data;boundary=X").unwrap()
     );
     assert_eq!(
-        bstr_t::from("multipart/form-data"),
+        Bstr::from("multipart/form-data"),
         parse_ct_header(b"multipart/form-data boundary=X").unwrap()
     );
     assert_eq!(
-        bstr_t::from("multipart/form-data"),
+        Bstr::from("multipart/form-data"),
         parse_ct_header(b"multipart/form-data,boundary=X").unwrap()
     );
     assert_eq!(
-        bstr_t::from("multipart/form-data"),
+        Bstr::from("multipart/form-data"),
         parse_ct_header(b"multipart/FoRm-data").unwrap()
     );
     assert_eq!(
-        bstr_t::from("multipart/form-data\t"),
+        Bstr::from("multipart/form-data\t"),
         parse_ct_header(b"multipart/form-data\t boundary=X").unwrap()
     );
     assert_eq!(
-        bstr_t::from("multipart/form-data"),
+        Bstr::from("multipart/form-data"),
         parse_ct_header(b"   \tmultipart/form-data boundary=X").unwrap()
     );
 }
@@ -915,9 +915,9 @@ fn ValidateHostname_13() {
 }
 
 struct DecodingTest {
-    connp: *mut htp_connp_t,
-    cfg: *mut config::htp_cfg_t,
-    tx: *mut htp_tx_t,
+    connp: *mut ConnectionParser,
+    cfg: *mut config::Config,
+    tx: *mut Transaction,
 }
 
 impl DecodingTest {
@@ -939,7 +939,7 @@ impl DecodingTest {
             );
             let tx_id = (*ret.connp).create_tx().unwrap();
             ret.tx = (*ret.connp).conn.tx_mut_ptr(tx_id);
-            (*ret.tx).parsed_uri = Some(htp_uri_t::new());
+            (*ret.tx).parsed_uri = Some(Uri::new());
         }
         ret
     }
@@ -956,8 +956,8 @@ impl Drop for DecodingTest {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace1_Identity() {
-    let mut i = bstr_t::from("/dest");
-    let e = bstr_t::from("/dest");
+    let mut i = Bstr::from("/dest");
+    let e = Bstr::from("/dest");
     unsafe {
         let test = DecodingTest::new();
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
@@ -967,8 +967,8 @@ fn DecodingTest_DecodeUrlencodedInplace1_Identity() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace2_Urlencoded() {
-    let mut i = bstr_t::from("/%64est");
-    let e = bstr_t::from("/dest");
+    let mut i = Bstr::from("/%64est");
+    let e = Bstr::from("/dest");
     unsafe {
         let test = DecodingTest::new();
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
@@ -978,8 +978,8 @@ fn DecodingTest_DecodeUrlencodedInplace2_Urlencoded() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
-    let mut i = bstr_t::from("/%xxest");
-    let e = bstr_t::from("/%xxest");
+    let mut i = Bstr::from("/%xxest");
+    let e = Bstr::from("/%xxest");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -992,8 +992,8 @@ fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
-    let mut i = bstr_t::from("/%xxest");
-    let e = bstr_t::from("/xxest");
+    let mut i = Bstr::from("/%xxest");
+    let e = Bstr::from("/xxest");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1006,8 +1006,8 @@ fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
-    let mut i = bstr_t::from("/%}9est");
-    let e = bstr_t::from("/iest");
+    let mut i = Bstr::from("/%}9est");
+    let e = Bstr::from("/iest");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1020,8 +1020,8 @@ fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace6_UrlencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%a");
-    let e = bstr_t::from("/%a");
+    let mut i = Bstr::from("/%a");
+    let e = Bstr::from("/%a");
     unsafe {
         let test = DecodingTest::new();
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
@@ -1031,8 +1031,8 @@ fn DecodingTest_DecodeUrlencodedInplace6_UrlencodedInvalidNotEnoughBytes() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace7_UrlencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%");
-    let e = bstr_t::from("/%");
+    let mut i = Bstr::from("/%");
+    let e = Bstr::from("/%");
     unsafe {
         let test = DecodingTest::new();
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
@@ -1042,8 +1042,8 @@ fn DecodingTest_DecodeUrlencodedInplace7_UrlencodedInvalidNotEnoughBytes() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
-    let mut i = bstr_t::from("/%u0064");
-    let e = bstr_t::from("/d");
+    let mut i = Bstr::from("/%u0064");
+    let e = Bstr::from("/d");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1054,8 +1054,8 @@ fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
-    let mut i = bstr_t::from("/%u0064");
-    let e = bstr_t::from("/%u0064");
+    let mut i = Bstr::from("/%u0064");
+    let e = Bstr::from("/%u0064");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(false);
@@ -1069,8 +1069,8 @@ fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%u006");
-    let e = bstr_t::from("/%u006");
+    let mut i = Bstr::from("/%u006");
+    let e = Bstr::from("/%u006");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1084,8 +1084,8 @@ fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
-    let mut i = bstr_t::from("/%u006");
-    let e = bstr_t::from("/%u006");
+    let mut i = Bstr::from("/%u006");
+    let e = Bstr::from("/%u006");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1099,8 +1099,8 @@ fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
-    let mut i = bstr_t::from("/%uXXXX");
-    let e = bstr_t::from("/uXXXX");
+    let mut i = Bstr::from("/%uXXXX");
+    let e = Bstr::from("/uXXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1114,8 +1114,8 @@ fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
-    let mut i = bstr_t::from("/%u00}9");
-    let e = bstr_t::from("/i");
+    let mut i = Bstr::from("/%u00}9");
+    let e = Bstr::from("/i");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1129,8 +1129,8 @@ fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
-    let mut i = bstr_t::from("/%u00");
-    let e = bstr_t::from("/%u00");
+    let mut i = Bstr::from("/%u00");
+    let e = Bstr::from("/%u00");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1144,8 +1144,8 @@ fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
-    let mut i = bstr_t::from("/%u0");
-    let e = bstr_t::from("/%u0");
+    let mut i = Bstr::from("/%u0");
+    let e = Bstr::from("/%u0");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1159,8 +1159,8 @@ fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
-    let mut i = bstr_t::from("/%u");
-    let e = bstr_t::from("/%u");
+    let mut i = Bstr::from("/%u");
+    let e = Bstr::from("/%u");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1174,8 +1174,8 @@ fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace17_UrlencodedNul() {
-    let mut i = bstr_t::from("/%00");
-    let e = bstr_t::from("/\0");
+    let mut i = Bstr::from("/%00");
+    let e = Bstr::from("/\0");
     unsafe {
         let test = DecodingTest::new();
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
@@ -1185,8 +1185,8 @@ fn DecodingTest_DecodeUrlencodedInplace17_UrlencodedNul() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace18_UrlencodedNulTerminates() {
-    let mut i = bstr_t::from("/%00ABC");
-    let e = bstr_t::from("/");
+    let mut i = Bstr::from("/%00ABC");
+    let e = Bstr::from("/");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_nul_encoded_terminates(true);
@@ -1197,8 +1197,8 @@ fn DecodingTest_DecodeUrlencodedInplace18_UrlencodedNulTerminates() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
-    let mut i = bstr_t::from("/\0ABC");
-    let e = bstr_t::from("/");
+    let mut i = Bstr::from("/\0ABC");
+    let e = Bstr::from("/");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_nul_raw_terminates(true);
@@ -1209,8 +1209,8 @@ fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
 
 #[test]
 fn DecodingTes_DecodeUrlencodedInplace20_UencodedBestFit() {
-    let mut i = bstr_t::from("/%u0107");
-    let e = bstr_t::from("/c");
+    let mut i = Bstr::from("/%u0107");
+    let e = Bstr::from("/c");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1221,9 +1221,9 @@ fn DecodingTes_DecodeUrlencodedInplace20_UencodedBestFit() {
 
 #[test]
 fn DecodingTest_DecodeUrlencodedInplace21_UencodedCaseInsensitive() {
-    let mut i_lower = bstr_t::from("/%u0064");
-    let mut i_upper = bstr_t::from("/%U0064");
-    let e = bstr_t::from("/d");
+    let mut i_lower = Bstr::from("/%u0064");
+    let mut i_upper = Bstr::from("/%U0064");
+    let e = Bstr::from("/d");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1236,8 +1236,8 @@ fn DecodingTest_DecodeUrlencodedInplace21_UencodedCaseInsensitive() {
 
 #[test]
 fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%a");
-    let e = bstr_t::from("/%a");
+    let mut i = Bstr::from("/%a");
+    let e = Bstr::from("/%a");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1256,8 +1256,8 @@ fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
 
 #[test]
 fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
-    let mut i = bstr_t::from("/%uX");
-    let e = bstr_t::from("/%uX");
+    let mut i = Bstr::from("/%uX");
+    let e = Bstr::from("/%uX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1277,8 +1277,8 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
 
 #[test]
 fn DecodingTest_DecodePathInplace3_UencodedValid() {
-    let mut i = bstr_t::from("/%u0107");
-    let e = bstr_t::from("/c");
+    let mut i = Bstr::from("/%u0107");
+    let e = Bstr::from("/c");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1297,8 +1297,8 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
 
 #[test]
 fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
-    let mut i = bstr_t::from("/%uXXXX");
-    let e = bstr_t::from("/uXXXX");
+    let mut i = Bstr::from("/%uXXXX");
+    let e = Bstr::from("/uXXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1318,8 +1318,8 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
 
 #[test]
 fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
-    let mut i = bstr_t::from("/%uXXXX");
-    let e = bstr_t::from("/%uXXXX");
+    let mut i = Bstr::from("/%uXXXX");
+    let e = Bstr::from("/%uXXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1339,8 +1339,8 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
 
 #[test]
 fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
-    let mut i = bstr_t::from("/%u00}9");
-    let e = bstr_t::from("/i");
+    let mut i = Bstr::from("/%u00}9");
+    let e = Bstr::from("/i");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1360,8 +1360,8 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
 
 #[test]
 fn DecodingTest_DecodePathInplace7_UencodedNul() {
-    let mut i = bstr_t::from("/%u0000");
-    let e = bstr_t::from("/\0");
+    let mut i = Bstr::from("/%u0000");
+    let e = Bstr::from("/\0");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1381,8 +1381,8 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
 
 #[test]
 fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
-    let mut i = bstr_t::from("/%uXXX");
-    let e = bstr_t::from("/uXXX");
+    let mut i = Bstr::from("/%uXXX");
+    let e = Bstr::from("/uXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1402,8 +1402,8 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
 
 #[test]
 fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
-    let mut i = bstr_t::from("/%uXXX");
-    let e = bstr_t::from("/%uXXX");
+    let mut i = Bstr::from("/%uXXX");
+    let e = Bstr::from("/%uXXX");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
@@ -1423,8 +1423,8 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
 
 #[test]
 fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
-    let mut i = bstr_t::from("/%00123");
-    let e = bstr_t::from("/\x00123");
+    let mut i = Bstr::from("/%00123");
+    let e = Bstr::from("/\x00123");
     unsafe {
         let test = DecodingTest::new();
         decode_uri_path_inplace(
@@ -1440,8 +1440,8 @@ fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
 
 #[test]
 fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
-    let mut i = bstr_t::from("/%00123");
-    let e = bstr_t::from("/");
+    let mut i = Bstr::from("/%00123");
+    let e = Bstr::from("/");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_nul_encoded_terminates(true);
@@ -1458,8 +1458,8 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
 
 #[test]
 fn DecodingTest_DecodePathInplace12_EncodedSlash() {
-    let mut i = bstr_t::from("/one%2ftwo");
-    let e = bstr_t::from("/one%2ftwo");
+    let mut i = Bstr::from("/one%2ftwo");
+    let e = Bstr::from("/one%2ftwo");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_path_separators_decode(false);
@@ -1476,8 +1476,8 @@ fn DecodingTest_DecodePathInplace12_EncodedSlash() {
 
 #[test]
 fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
-    let mut i = bstr_t::from("/one%2ftwo");
-    let e = bstr_t::from("/one/two");
+    let mut i = Bstr::from("/one%2ftwo");
+    let e = Bstr::from("/one/two");
     unsafe {
         let test = DecodingTest::new();
 
@@ -1495,8 +1495,8 @@ fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
 
 #[test]
 fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
-    let mut i = bstr_t::from("/%HH");
-    let e = bstr_t::from("/%HH");
+    let mut i = Bstr::from("/%HH");
+    let e = Bstr::from("/%HH");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1515,8 +1515,8 @@ fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
 
 #[test]
 fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
-    let mut i = bstr_t::from("/%HH");
-    let e = bstr_t::from("/HH");
+    let mut i = Bstr::from("/%HH");
+    let e = Bstr::from("/HH");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1535,8 +1535,8 @@ fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
 
 #[test]
 fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
-    let mut i = bstr_t::from("/%}9");
-    let e = bstr_t::from("/i");
+    let mut i = Bstr::from("/%}9");
+    let e = Bstr::from("/i");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1555,8 +1555,8 @@ fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
 
 #[test]
 fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
-    let mut i = bstr_t::from("/%H");
-    let e = bstr_t::from("/H");
+    let mut i = Bstr::from("/%H");
+    let e = Bstr::from("/H");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1575,8 +1575,8 @@ fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
 
 #[test]
 fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
-    let mut i = bstr_t::from("/%H");
-    let e = bstr_t::from("/%H");
+    let mut i = Bstr::from("/%H");
+    let e = Bstr::from("/%H");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1595,8 +1595,8 @@ fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
 
 #[test]
 fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
-    let mut i = bstr_t::from("/%H");
-    let e = bstr_t::from("/%H");
+    let mut i = Bstr::from("/%H");
+    let e = Bstr::from("/%H");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_url_encoding_invalid_handling(
@@ -1615,8 +1615,8 @@ fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
 
 #[test]
 fn DecodingTest_DecodePathInplace20_RawNul1() {
-    let mut i = bstr_t::from("/\x00123");
-    let e = bstr_t::from("/");
+    let mut i = Bstr::from("/\x00123");
+    let e = Bstr::from("/");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_nul_raw_terminates(true);
@@ -1632,8 +1632,8 @@ fn DecodingTest_DecodePathInplace20_RawNul1() {
 
 #[test]
 fn DecodingTest_DecodePathInplace21_RawNul1() {
-    let mut i = bstr_t::from("/\x00123");
-    let e = bstr_t::from("/\x00123");
+    let mut i = Bstr::from("/\x00123");
+    let e = Bstr::from("/\x00123");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_nul_raw_terminates(false);
@@ -1649,8 +1649,8 @@ fn DecodingTest_DecodePathInplace21_RawNul1() {
 
 #[test]
 fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
-    let mut i = bstr_t::from("/one\\two");
-    let e = bstr_t::from("/one/two");
+    let mut i = Bstr::from("/one\\two");
+    let e = Bstr::from("/one/two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_backslash_convert_slashes(true);
@@ -1666,8 +1666,8 @@ fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
 
 #[test]
 fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
-    let mut i = bstr_t::from("/one\\two");
-    let e = bstr_t::from("/one\\two");
+    let mut i = Bstr::from("/one\\two");
+    let e = Bstr::from("/one\\two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_backslash_convert_slashes(false);
@@ -1683,8 +1683,8 @@ fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
 
 #[test]
 fn DecodingTest_DecodePathInplace24_CompressSeparators() {
-    let mut i = bstr_t::from("/one//two");
-    let e = bstr_t::from("/one/two");
+    let mut i = Bstr::from("/one//two");
+    let e = Bstr::from("/one/two");
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_path_separators_compress(true);
@@ -1700,7 +1700,7 @@ fn DecodingTest_DecodePathInplace24_CompressSeparators() {
 
 #[test]
 fn DecodingTest_InvalidUtf8() {
-    let mut i = bstr_t::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec());
+    let mut i = Bstr::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec());
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_utf8_convert_bestfit(true);
@@ -1715,9 +1715,9 @@ fn DecodingTest_InvalidUtf8() {
 }
 
 struct UrlEncodedParserTest {
-    connp: *mut htp_connp_t,
-    cfg: *mut config::htp_cfg_t,
-    tx: *mut htp_tx_t,
+    connp: *mut ConnectionParser,
+    cfg: *mut config::Config,
+    tx: *mut Transaction,
 }
 
 impl UrlEncodedParserTest {
@@ -1757,7 +1757,7 @@ impl Drop for UrlEncodedParserTest {
 #[test]
 fn UrlencodedParser_Empty() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"");
 
     assert_eq!(0, urlenp.params.size());
@@ -1766,7 +1766,7 @@ fn UrlencodedParser_Empty() {
 #[test]
 fn UrlencodedParser_EmptyKey1() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1776,7 +1776,7 @@ fn UrlencodedParser_EmptyKey1() {
 #[test]
 fn UrlencodedParser_EmptyKey2() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1786,7 +1786,7 @@ fn UrlencodedParser_EmptyKey2() {
 #[test]
 fn UrlencodedParser_EmptyKey3() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=1&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq("1"));
@@ -1796,7 +1796,7 @@ fn UrlencodedParser_EmptyKey3() {
 #[test]
 fn UrlencodedParser_EmptyKey4() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"&=");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1806,7 +1806,7 @@ fn UrlencodedParser_EmptyKey4() {
 #[test]
 fn UrlencodedParser_EmptyKey5() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"&&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1816,7 +1816,7 @@ fn UrlencodedParser_EmptyKey5() {
 #[test]
 fn UrlencodedParser_EmptyKeyAndValue() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1826,7 +1826,7 @@ fn UrlencodedParser_EmptyKeyAndValue() {
 #[test]
 fn UrlencodedParser_OnePairEmptyValue() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p=");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1836,7 +1836,7 @@ fn UrlencodedParser_OnePairEmptyValue() {
 #[test]
 fn UrlencodedParser_OnePairEmptyKey() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=p");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq("p"));
@@ -1846,7 +1846,7 @@ fn UrlencodedParser_OnePairEmptyKey() {
 #[test]
 fn UrlencodedParser_OnePair() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p=1");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
@@ -1856,7 +1856,7 @@ fn UrlencodedParser_OnePair() {
 #[test]
 fn UrlencodedParser_TwoPairs() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p=1&q=2");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
@@ -1867,7 +1867,7 @@ fn UrlencodedParser_TwoPairs() {
 #[test]
 fn UrlencodedParser_KeyNoValue1() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1877,7 +1877,7 @@ fn UrlencodedParser_KeyNoValue1() {
 #[test]
 fn UrlencodedParser_KeyNoValue2() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p&");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1887,7 +1887,7 @@ fn UrlencodedParser_KeyNoValue2() {
 #[test]
 fn UrlencodedParser_KeyNoValue3() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p&q");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1898,7 +1898,7 @@ fn UrlencodedParser_KeyNoValue3() {
 #[test]
 fn UrlencodedParser_KeyNoValue4() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p&q=2");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1909,7 +1909,7 @@ fn UrlencodedParser_KeyNoValue4() {
 #[test]
 fn UrlencodedParser_Partial1() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_finalize(&mut urlenp);
 
@@ -1920,7 +1920,7 @@ fn UrlencodedParser_Partial1() {
 #[test]
 fn UrlencodedParser_Partial2() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"x");
     urlenp_finalize(&mut urlenp);
@@ -1932,7 +1932,7 @@ fn UrlencodedParser_Partial2() {
 #[test]
 fn UrlencodedParser_Partial3() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"x&");
     urlenp_finalize(&mut urlenp);
@@ -1944,7 +1944,7 @@ fn UrlencodedParser_Partial3() {
 #[test]
 fn UrlencodedParser_Partial4() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"=");
     urlenp_finalize(&mut urlenp);
@@ -1956,7 +1956,7 @@ fn UrlencodedParser_Partial4() {
 #[test]
 fn UrlencodedParser_Partial5() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"");
     urlenp_parse_partial(&mut urlenp, b"");
@@ -1970,7 +1970,7 @@ fn UrlencodedParser_Partial5() {
 #[test]
 fn UrlencodedParser_Partial6() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = htp_urlenp_t::new(test.tx);
+    let mut urlenp = UrlEncodedParser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"px");
     urlenp_parse_partial(&mut urlenp, b"n");
     urlenp_parse_partial(&mut urlenp, b"");
@@ -2116,12 +2116,12 @@ fn List_Expand2() {
 
 #[test]
 fn Table_Misc() {
-    let mut t: htp_table_t<&str> = htp_table_t::with_capacity(2);
+    let mut t: Table<&str> = Table::with_capacity(2);
 
-    let mut pkey = bstr_t::with_capacity(1);
+    let mut pkey = Bstr::with_capacity(1);
     pkey.add("p");
 
-    let mut qkey = bstr_t::with_capacity(1);
+    let mut qkey = Bstr::with_capacity(1);
     qkey.add("q");
 
     t.add(pkey, "1");
@@ -2133,43 +2133,43 @@ fn Table_Misc() {
 
 #[test]
 fn Util_NormalizeUriPath() {
-    let mut s = bstr_t::from("/a/b/c/./../../g");
+    let mut s = Bstr::from("/a/b/c/./../../g");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq("/a/g"));
 
-    let mut s = bstr_t::from("mid/content=5/../6");
+    let mut s = Bstr::from("mid/content=5/../6");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq("mid/6"));
 
-    let mut s = bstr_t::from("./one");
+    let mut s = Bstr::from("./one");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq("one"));
 
-    let mut s = bstr_t::from("../one");
+    let mut s = Bstr::from("../one");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq("one"));
 
-    let mut s = bstr_t::from(".");
+    let mut s = Bstr::from(".");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
-    let mut s = bstr_t::from("..");
+    let mut s = Bstr::from("..");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
-    let mut s = bstr_t::from("one/.");
+    let mut s = Bstr::from("one/.");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq("one"));
 
-    let mut s = bstr_t::from("one/..");
+    let mut s = Bstr::from("one/..");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
-    let mut s = bstr_t::from("one/../");
+    let mut s = Bstr::from("one/../");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq(""));
 
-    let mut s = bstr_t::from("/../../../images.gif");
+    let mut s = Bstr::from("/../../../images.gif");
     normalize_uri_path_inplace(&mut s);
     assert!(s.eq("/images.gif"));
 }
@@ -2180,8 +2180,8 @@ fn UrlencodedParser_UrlDecode1() {
         let test = UrlEncodedParserTest::new();
         let mut flags: Flags = Flags::empty();
 
-        let mut s = bstr_t::from("/one/tw%u006f/three/%u123");
-        let mut e = bstr_t::from("/one/two/three/%u123");
+        let mut s = Bstr::from("/one/tw%u006f/three/%u123");
+        let mut e = Bstr::from("/one/two/three/%u123");
         (*test.cfg).set_u_encoding_decode(true);
         (*test.cfg).set_url_encoding_invalid_handling(
             config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -2189,8 +2189,8 @@ fn UrlencodedParser_UrlDecode1() {
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
-        s = bstr_t::from("/one/tw%u006f/three/%uXXXX");
-        e = bstr_t::from("/one/two/three/%uXXXX");
+        s = Bstr::from("/one/tw%u006f/three/%uXXXX");
+        e = Bstr::from("/one/two/three/%uXXXX");
         (*test.cfg).set_u_encoding_decode(true);
         (*test.cfg).set_url_encoding_invalid_handling(
             config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
@@ -2198,8 +2198,8 @@ fn UrlencodedParser_UrlDecode1() {
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
-        s = bstr_t::from("/one/tw%u006f/three/%u123");
-        e = bstr_t::from("/one/two/three/u123");
+        s = Bstr::from("/one/tw%u006f/three/%u123");
+        e = Bstr::from("/one/two/three/u123");
         (*test.cfg).set_u_encoding_decode(true);
         (*test.cfg).set_url_encoding_invalid_handling(
             config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -2207,8 +2207,8 @@ fn UrlencodedParser_UrlDecode1() {
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
-        s = bstr_t::from("/one/tw%u006f/three/%3");
-        e = bstr_t::from("/one/two/three/3");
+        s = Bstr::from("/one/tw%u006f/three/%3");
+        e = Bstr::from("/one/two/three/3");
         (*test.cfg).set_u_encoding_decode(true);
         (*test.cfg).set_url_encoding_invalid_handling(
             config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
@@ -2216,8 +2216,8 @@ fn UrlencodedParser_UrlDecode1() {
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
-        s = bstr_t::from("/one/tw%u006f/three/%3");
-        e = bstr_t::from("/one/two/three/%3");
+        s = Bstr::from("/one/tw%u006f/three/%3");
+        e = Bstr::from("/one/two/three/%3");
         (*test.cfg).set_u_encoding_decode(true);
         (*test.cfg).set_url_encoding_invalid_handling(
             config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,

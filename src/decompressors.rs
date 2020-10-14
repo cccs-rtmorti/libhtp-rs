@@ -51,12 +51,9 @@ pub enum htp_content_encoding_t {
 #[derive(Copy, Clone)]
 pub struct htp_decompressor_t {
     pub decompress: Option<
-        unsafe extern "C" fn(
-            _: *mut htp_decompressor_t,
-            _: *mut transaction::htp_tx_data_t,
-        ) -> Status,
+        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut transaction::Data) -> Status,
     >,
-    pub callback: Option<unsafe extern "C" fn(_: *mut transaction::htp_tx_data_t) -> Status>,
+    pub callback: Option<unsafe extern "C" fn(_: *mut transaction::Data) -> Status>,
     pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
     pub time_before: libc::timeval,
@@ -249,7 +246,7 @@ unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
 /// Returns HTP_OK on success, HTP_ERROR or some other negative integer on failure.
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
-    d: *mut transaction::htp_tx_data_t,
+    d: *mut transaction::Data,
 ) -> Status {
     let mut consumed: usize = 0;
     let mut rc: i32 = 0;
@@ -272,7 +269,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             } else {
                 std::ptr::null()
             };
-            transaction::htp_tx_data_t::new((*d).tx(), data, len, (*d).is_last())
+            transaction::Data::new((*d).tx(), data, len, (*d).is_last())
         };
         if !(*drec).super_0.next.is_null()
             && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
@@ -311,12 +308,8 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             if (*drec).stream.avail_out == 0 {
                 (*drec).crc = crc32((*drec).crc, (*drec).buffer, 8192);
                 // Prepare data for callback.
-                let mut d2_0 = transaction::htp_tx_data_t::new(
-                    (*d).tx(),
-                    (*drec).buffer,
-                    8192,
-                    (*d).is_last(),
-                );
+                let mut d2_0 =
+                    transaction::Data::new((*d).tx(), (*drec).buffer, 8192, (*d).is_last());
                 if !(*drec).super_0.next.is_null()
                     && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
                 {
@@ -445,7 +438,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 // Update CRC
                 // Prepare data for the callback.
                 let mut d2_1 =
-                    transaction::htp_tx_data_t::new((*d).tx(), (*drec).buffer, len, (*d).is_last());
+                    transaction::Data::new((*d).tx(), (*drec).buffer, len, (*d).is_last());
                 if !(*drec).super_0.next.is_null()
                     && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
                 {
@@ -524,7 +517,7 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(drec: *mut htp_decompressor_g
 ///
 /// Returns New htp_decompressor_t instance on success, or NULL on failure.
 pub unsafe fn htp_gzip_decompressor_create(
-    connp: *mut connection_parser::htp_connp_t,
+    connp: *mut connection_parser::ConnectionParser,
     format: htp_content_encoding_t,
 ) -> *mut htp_decompressor_t {
     let mut drec: *mut htp_decompressor_gzip_t =
@@ -536,20 +529,17 @@ pub unsafe fn htp_gzip_decompressor_create(
         Option<
             unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
-                _: *mut transaction::htp_tx_data_t,
+                _: *mut transaction::Data,
             ) -> Status,
         >,
         Option<
-            unsafe extern "C" fn(
-                _: *mut htp_decompressor_t,
-                _: *mut transaction::htp_tx_data_t,
-            ) -> Status,
+            unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut transaction::Data) -> Status,
         >,
     >(Some(
         htp_gzip_decompressor_decompress
             as unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
-                _: *mut transaction::htp_tx_data_t,
+                _: *mut transaction::Data,
             ) -> Status,
     ));
     (*drec).super_0.destroy = ::std::mem::transmute::<

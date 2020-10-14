@@ -95,7 +95,7 @@ pub enum htp_log_level_t {
 
 /// Represents a single log entry.
 #[derive(Clone)]
-pub struct htp_log_t {
+pub struct Log {
     /// Client IP address.
     pub client_addr: Option<IpAddr>,
     /// Client port.
@@ -117,17 +117,17 @@ pub struct htp_log_t {
     pub line: u32,
 }
 
-pub type htp_logs_t = List<htp_log_t>;
+pub type htp_logs_t = List<Log>;
 
-impl htp_log_t {
+impl Log {
     pub fn new(
-        connp: &mut connection_parser::htp_connp_t,
+        connp: &mut connection_parser::ConnectionParser,
         file: &str,
         line: u32,
         level: htp_log_level_t,
         code: htp_log_code,
         msg: String,
-    ) -> htp_log_t {
+    ) -> Log {
         Self {
             client_addr: (*connp).conn.client_addr,
             client_port: (*connp).conn.client_port,
@@ -143,7 +143,7 @@ impl htp_log_t {
 }
 
 pub fn log(
-    connp: &mut connection_parser::htp_connp_t,
+    connp: &mut connection_parser::ConnectionParser,
     file: &str,
     line: u32,
     level: htp_log_level_t,
@@ -153,7 +153,7 @@ pub fn log(
     if let Some(cfg) = unsafe { connp.cfg.as_ref() } {
         // Ignore messages below our log level.
         if level <= cfg.log_level {
-            let mut log = htp_log_t::new(connp, file, line, level, code, msg);
+            let mut log = Log::new(connp, file, line, level, code, msg);
             // Ignore if the hooks fail to run
             let _ = cfg.hook_log.run_all(&mut log);
             connp.conn.push_message(log);

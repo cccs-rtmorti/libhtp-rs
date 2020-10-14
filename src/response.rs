@@ -8,13 +8,13 @@ use std::cmp::Ordering;
 
 pub type htp_time_t = libc::timeval;
 
-impl connection_parser::htp_connp_t {
+impl connection_parser::ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     ///
     /// Returns HTP_OK, or a value returned from a callback.
     fn res_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
         let mut data = unsafe {
-            transaction::htp_tx_data_t::new(
+            transaction::Data::new(
                 self.out_tx_mut_ptr(),
                 self.out_current_data
                     .offset(self.out_current_receiver_offset as isize),
@@ -121,7 +121,7 @@ impl connection_parser::htp_connp_t {
             }
             if newlen > (*self.out_tx_mut_ok()?.cfg).field_limit {
                 htp_error!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::RESPONSE_FIELD_TOO_LONG,
                     format!(
                         "Response the buffer limit: size {} limit {}.",
@@ -322,7 +322,7 @@ impl connection_parser::htp_connp_t {
                     transaction::htp_transfer_coding_t::HTP_CODING_IDENTITY;
                 unsafe {
                     htp_error!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::INVALID_RESPONSE_CHUNK_LEN,
                         format!(
                             "Response chunk encoding: Invalid chunk length: {}",
@@ -485,7 +485,7 @@ impl connection_parser::htp_connp_t {
             } else {
                 unsafe {
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::SWITCHING_PROTO_WITH_CONTENT_LENGTH,
                         "Switching Protocol with Content-Length"
                     );
@@ -500,7 +500,7 @@ impl connection_parser::htp_connp_t {
             if self.out_tx_mut_ok()?.seen_100continue {
                 unsafe {
                     htp_error!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::CONTINUE_ALREADY_SEEN,
                         "Already seen 100-Continue."
                     );
@@ -540,7 +540,7 @@ impl connection_parser::htp_connp_t {
             } else {
                 unsafe {
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::RESPONSE_BODY_UNEXPECTED,
                         "Unexpected Response body"
                     );
@@ -556,7 +556,7 @@ impl connection_parser::htp_connp_t {
                 .get_nocase_nozero("content-type")
                 .map(|(_, val)| val.clone());
             if let Some(ct) = &ct_opt {
-                let mut response_content_type = bstr::bstr_t::from(ct.value.as_slice());
+                let mut response_content_type = bstr::Bstr::from(ct.value.as_slice());
                 response_content_type.make_ascii_lowercase();
                 // Ignore parameters
                 let data: *mut u8 = response_content_type.as_mut_ptr();
@@ -586,7 +586,7 @@ impl connection_parser::htp_connp_t {
                 if te.value.cmp_nocase("chunked") != Ordering::Equal {
                     unsafe {
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::RESPONSE_ABNORMAL_TRANSFER_ENCODING,
                             "Transfer-encoding has abnormal chunked value"
                         );
@@ -598,7 +598,7 @@ impl connection_parser::htp_connp_t {
                 if self.out_tx_mut_ok()?.response_protocol_number < Protocol::V1_1 {
                     unsafe {
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::RESPONSE_CHUNKED_OLD_PROTO,
                             "Chunked transfer-encoding on HTTP/0.9 or HTTP/1.0"
                         );
@@ -641,7 +641,7 @@ impl connection_parser::htp_connp_t {
                 } else {
                     unsafe {
                         htp_error!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                             format!(
                                 "Invalid C-L field in response: {}",
@@ -663,7 +663,7 @@ impl connection_parser::htp_connp_t {
                     if ct.value.index_of_nocase("multipart/byteranges").is_some() {
                         unsafe {
                             htp_error!(
-                                self as *mut connection_parser::htp_connp_t,
+                                self as *mut connection_parser::ConnectionParser,
                                 htp_log_code::RESPONSE_MULTIPART_BYTERANGES,
                                 "C-T multipart/byteranges in responses not supported"
                             );
@@ -802,7 +802,7 @@ impl connection_parser::htp_connp_t {
                                         self.out_current_consume_offset += 1;
                                         unsafe {
                                             htp_warn!(
-                                                self as *mut connection_parser::htp_connp_t,
+                                                self as *mut connection_parser::ConnectionParser,
                                                 htp_log_code::DEFORMED_EOL,
                                                 "Weird response end of lines mix"
                                             );
@@ -925,7 +925,7 @@ impl connection_parser::htp_connp_t {
                         self.process_response_header(s)?;
                     } else {
                         // Keep the partial header data for parsing later.
-                        self.out_header = Some(bstr::bstr_t::from(s));
+                        self.out_header = Some(bstr::Bstr::from(s));
                     }
                 } else if self.out_header.is_none() {
                     // Folding; check that there's a previous header line to add to.
@@ -939,14 +939,14 @@ impl connection_parser::htp_connp_t {
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
                         unsafe {
                             htp_warn!(
-                                self as *mut connection_parser::htp_connp_t,
+                                self as *mut connection_parser::ConnectionParser,
                                 htp_log_code::INVALID_RESPONSE_FIELD_FOLDING,
                                 "Invalid response field folding"
                             );
                         }
                     }
                     // Keep the header data for parsing later.
-                    self.out_header = Some(bstr::bstr_t::from(s));
+                    self.out_header = Some(bstr::Bstr::from(s));
                 } else {
                     let mut colon_pos: usize = 0;
                     while colon_pos < len
@@ -971,7 +971,7 @@ impl connection_parser::htp_connp_t {
                             self.out_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
                             unsafe {
                                 htp_warn!(
-                                    self as *mut connection_parser::htp_connp_t,
+                                    self as *mut connection_parser::ConnectionParser,
                                     htp_log_code::INVALID_RESPONSE_FIELD_FOLDING,
                                     "Invalid response field folding"
                                 );
@@ -980,7 +980,7 @@ impl connection_parser::htp_connp_t {
                         if let Some(out_header) = self.out_header.take() {
                             self.process_response_header(out_header.as_slice())?;
                         }
-                        self.out_header = Some(bstr::bstr_t::from(&s[1..]));
+                        self.out_header = Some(bstr::Bstr::from(&s[1..]));
                     } else if let Some(out_header) = &mut self.out_header {
                         // Add to the existing header.
                         out_header.add(s);
@@ -1096,7 +1096,7 @@ impl connection_parser::htp_connp_t {
                     }
                     return Ok(());
                 }
-                self.out_tx_mut_ok()?.response_line = Some(bstr::bstr_t::from(s));
+                self.out_tx_mut_ok()?.response_line = Some(bstr::Bstr::from(s));
                 self.parse_response_line()?;
                 unsafe { self.state_response_line()? };
                 self.res_clear_buffer();
@@ -1161,7 +1161,7 @@ impl connection_parser::htp_connp_t {
             // Interpret remaining bytes as body data
             unsafe {
                 htp_warn!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::RESPONSE_BODY_UNEXPECTED,
                     "Unexpected response body"
                 );
@@ -1207,7 +1207,7 @@ impl connection_parser::htp_connp_t {
         if self.out_tx().is_none() {
             unsafe {
                 htp_error!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::UNABLE_TO_MATCH_RESPONSE_TO_REQUEST,
                     "Unable to match response to request"
                 );
@@ -1221,10 +1221,10 @@ impl connection_parser::htp_connp_t {
             self.set_out_tx_id(Some(tx_id));
             let out_tx = self.out_tx_mut_ok()?;
 
-            let mut uri = util::htp_uri_t::new();
+            let mut uri = util::Uri::new();
             uri.set_path(b"/libhtp::request_uri_not_seen");
             out_tx.parsed_uri = Some(uri);
-            out_tx.request_uri = Some(bstr::bstr_t::from("/libhtp::request_uri_not_seen"));
+            out_tx.request_uri = Some(bstr::Bstr::from("/libhtp::request_uri_not_seen"));
             self.in_state = State::FINALIZE;
             // We've used one transaction
             self.out_next_tx_index = self.out_next_tx_index.wrapping_add(1)
@@ -1253,7 +1253,7 @@ impl connection_parser::htp_connp_t {
         if self.out_status == connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
             unsafe {
                 htp_info!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::PARSER_STATE_ERROR,
                     "Outbound parser is in HTP_STREAM_STOP"
                 );
@@ -1264,7 +1264,7 @@ impl connection_parser::htp_connp_t {
         if self.out_status == connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
             unsafe {
                 htp_error!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::PARSER_STATE_ERROR,
                     "Outbound parser is in HTP_STREAM_ERROR"
                 );
@@ -1276,7 +1276,7 @@ impl connection_parser::htp_connp_t {
             self.out_status = connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
             unsafe {
                 htp_error!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::MISSING_OUTBOUND_TRANSACTION_DATA,
                     "Missing outbound transaction data"
                 );
@@ -1292,7 +1292,7 @@ impl connection_parser::htp_connp_t {
         {
             unsafe {
                 htp_error!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
                     "Zero-length data chunks are not allowed"
                 );

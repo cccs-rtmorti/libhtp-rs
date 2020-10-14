@@ -16,9 +16,9 @@ mod common;
 use common::htp_connp_tx_create;
 
 #[no_mangle]
-extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
+extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> Status {
     unsafe {
-        let output_ptr: *mut *mut bstr_t = (*(*d).tx()).user_data() as *mut *mut bstr_t;
+        let output_ptr: *mut *mut Bstr = (*(*d).tx()).user_data() as *mut *mut Bstr;
         *output_ptr = bstr_dup_mem((*d).data() as *const core::ffi::c_void, (*d).len());
     }
     Status::OK
@@ -26,11 +26,11 @@ extern "C" fn GUnzip_decompressor_callback(d: *mut htp_tx_data_t) -> Status {
 
 #[derive(Debug)]
 struct Test {
-    cfg: *mut config::htp_cfg_t,
-    connp: *mut htp_connp_t,
-    output: *mut bstr_t,
-    o_boxing_wizards: *mut bstr_t,
-    tx: *mut htp_tx_t,
+    cfg: *mut config::Config,
+    connp: *mut ConnectionParser,
+    output: *mut Bstr,
+    o_boxing_wizards: *mut Bstr,
+    tx: *mut Transaction,
     decompressor: *mut htp_decompressor_t,
 }
 
@@ -81,11 +81,10 @@ impl Test {
 
         let mut data = std::fs::read(filepath).map_err(TestError::Io)?;
         unsafe {
-            let output_ptr: *mut *mut bstr_t = &mut self.output;
+            let output_ptr: *mut *mut Bstr = &mut self.output;
             (*self.tx).set_user_data(output_ptr as *mut core::ffi::c_void);
 
-            let mut tx =
-                htp_tx_data_t::new(self.tx, data.as_mut_ptr() as *const u8, data.len(), false);
+            let mut tx = Data::new(self.tx, data.as_mut_ptr() as *const u8, data.len(), false);
             let rc = (*self.decompressor).decompress.unwrap()(self.decompressor, &mut tx);
             if rc == Status::OK {
                 Ok(())

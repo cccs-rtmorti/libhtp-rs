@@ -33,7 +33,10 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
 /// characters are discovered, however, a warning will be logged.
 ///
 /// Returns Protocol version or invalid.
-pub fn parse_protocol<'a>(input: &'a [u8], connp: &mut connection_parser::htp_connp_t) -> Protocol {
+pub fn parse_protocol<'a>(
+    input: &'a [u8],
+    connp: &mut connection_parser::ConnectionParser,
+) -> Protocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
         if remaining.len() > 0 {
             return Protocol::INVALID;
@@ -41,7 +44,7 @@ pub fn parse_protocol<'a>(input: &'a [u8], connp: &mut connection_parser::htp_co
         if contains_trailing {
             unsafe {
                 htp_warn!(
-                    connp as *mut connection_parser::htp_connp_t,
+                    connp as *mut connection_parser::ConnectionParser,
                     htp_log_code::PROTOCOL_CONTAINS_EXTRA_DATA,
                     "Protocol version contains leading and/or trailing whitespace and/or leading zeros"
                 )
@@ -107,8 +110,8 @@ fn parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'a [u
 
 /// Parses Basic Authorization request header.
 pub fn parse_authorization_basic(
-    in_tx: &mut transaction::htp_tx_t,
-    auth_header: &transaction::htp_header_t,
+    in_tx: &mut transaction::Transaction,
+    auth_header: &transaction::Header,
 ) -> Result<()> {
     let data = &auth_header.value;
 
@@ -138,14 +141,14 @@ pub fn parse_authorization_basic(
     };
 
     let (username, password) = decoded.split_at(i);
-    in_tx.request_auth_username = Some(bstr::bstr_t::from(username));
-    in_tx.request_auth_password = Some(bstr::bstr_t::from(&password[1..]));
+    in_tx.request_auth_username = Some(bstr::Bstr::from(username));
+    in_tx.request_auth_password = Some(bstr::Bstr::from(&password[1..]));
 
     Ok(())
 }
 
 /// Parses Authorization request header.
-pub fn parse_authorization(in_tx: &mut transaction::htp_tx_t) -> Result<()> {
+pub fn parse_authorization(in_tx: &mut transaction::Transaction) -> Result<()> {
     let auth_header =
         if let Some((_, auth_header)) = in_tx.request_headers.get_nocase_nozero("authorization") {
             auth_header.clone()
@@ -167,7 +170,7 @@ pub fn parse_authorization(in_tx: &mut transaction::htp_tx_t) -> Result<()> {
                 username.add(auth_username);
                 return Ok(());
             } else {
-                in_tx.request_auth_username = Some(bstr::bstr_t::from(auth_username));
+                in_tx.request_auth_username = Some(bstr::Bstr::from(auth_username));
             }
         }
         return Err(Status::DECLINED);
@@ -216,24 +219,24 @@ fn AuthDigest() {
 
 #[test]
 fn Status() {
-    let status = bstr::bstr_t::from("   200    ");
+    let status = bstr::Bstr::from("   200    ");
     assert_eq!(Some(200u16), parse_status(&status));
 
-    let status = bstr::bstr_t::from("  \t 404    ");
+    let status = bstr::Bstr::from("  \t 404    ");
     assert_eq!(Some(404u16), parse_status(&status));
 
-    let status = bstr::bstr_t::from("123");
+    let status = bstr::Bstr::from("123");
     assert_eq!(Some(123u16), parse_status(&status));
 
-    let status = bstr::bstr_t::from("99");
+    let status = bstr::Bstr::from("99");
     assert!(parse_status(&status).is_none());
 
-    let status = bstr::bstr_t::from("1000");
+    let status = bstr::Bstr::from("1000");
     assert!(parse_status(&status).is_none());
 
-    let status = bstr::bstr_t::from("200 OK");
+    let status = bstr::Bstr::from("200 OK");
     assert!(parse_status(&status).is_none());
 
-    let status = bstr::bstr_t::from("NOT 200");
+    let status = bstr::Bstr::from("NOT 200");
     assert!(parse_status(&status).is_none());
 }

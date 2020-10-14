@@ -44,12 +44,12 @@ pub enum htp_method_t {
 
 pub type htp_time_t = libc::timeval;
 
-impl connection_parser::htp_connp_t {
+impl connection_parser::ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     ///
     /// Returns HTP_OK, or a value returned from a callback.
     unsafe fn req_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
-        let mut data = transaction::htp_tx_data_t::new(
+        let mut data = transaction::Data::new(
             self.in_tx_mut_ptr(),
             self.in_current_data
                 .offset(self.in_current_receiver_offset as isize),
@@ -150,7 +150,7 @@ impl connection_parser::htp_connp_t {
         }
         if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit {
             htp_error!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::REQUEST_FIELD_TOO_LONG,
                 format!(
                     "Request buffer over the limit: size {} limit {}.",
@@ -266,7 +266,7 @@ impl connection_parser::htp_connp_t {
         while pos < len && !util::is_space(*data.offset(pos as isize)) {
             pos = pos.wrapping_add(1)
         }
-        let method = bstr::bstr_t::from(std::slice::from_raw_parts(
+        let method = bstr::Bstr::from(std::slice::from_raw_parts(
             data.offset(mstart as isize),
             pos.wrapping_sub(mstart),
         ));
@@ -425,7 +425,7 @@ impl connection_parser::htp_connp_t {
                 } else {
                     // Invalid chunk length.
                     htp_error!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::INVALID_REQUEST_CHUNK_LEN,
                         "Request chunk encoding: Invalid chunk length"
                     );
@@ -585,7 +585,7 @@ impl connection_parser::htp_connp_t {
                         self.process_request_header(s)?;
                     } else {
                         // Keep the partial header data for parsing later.
-                        self.in_header = Some(bstr::bstr_t::from(s));
+                        self.in_header = Some(bstr::Bstr::from(s));
                     }
                 } else if self.in_header.is_none() {
                     // Folding; check that there's a previous header line to add to.
@@ -598,13 +598,13 @@ impl connection_parser::htp_connp_t {
                     {
                         self.in_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
                         htp_warn!(
-                            self as *mut connection_parser::htp_connp_t,
+                            self as *mut connection_parser::ConnectionParser,
                             htp_log_code::INVALID_REQUEST_FIELD_FOLDING,
                             "Invalid request field folding"
                         );
                     }
                     // Keep the header data for parsing later.
-                    self.in_header = Some(bstr::bstr_t::from(s));
+                    self.in_header = Some(bstr::Bstr::from(s));
                 } else if let Some(header) = &mut self.in_header {
                     // Add to the existing header.
                     header.add(&s);
@@ -633,7 +633,7 @@ impl connection_parser::htp_connp_t {
             while pos < self.in_current_len {
                 if *self.in_current_data.offset(pos as isize) == ':' as u8 {
                     htp_warn!(
-                        self as *mut connection_parser::htp_connp_t,
+                        self as *mut connection_parser::ConnectionParser,
                         htp_log_code::REQUEST_LINE_NO_PROTOCOL,
                         "Request line: missing protocol"
                     );
@@ -685,7 +685,7 @@ impl connection_parser::htp_connp_t {
         let s = std::slice::from_raw_parts(data as *const u8, len);
         let s = util::chomp(&s);
         len = s.len();
-        self.in_tx_mut_ok()?.request_line = Some(bstr::bstr_t::from(s));
+        self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(s));
         self.parse_request_line()?;
         // Finalize request line parsing.
         self.state_request_line()?;
@@ -795,7 +795,7 @@ impl connection_parser::htp_connp_t {
             self.req_clear_buffer();
             return rc;
         } else {
-            let method = bstr::bstr_t::from(std::slice::from_raw_parts(
+            let method = bstr::Bstr::from(std::slice::from_raw_parts(
                 data.offset(mstart as isize),
                 pos.wrapping_sub(mstart),
             ));
@@ -804,7 +804,7 @@ impl connection_parser::htp_connp_t {
                 // else continue
                 // Interpret remaining bytes as body data
                 htp_warn!(
-                    self as *mut connection_parser::htp_connp_t,
+                    self as *mut connection_parser::ConnectionParser,
                     htp_log_code::REQUEST_BODY_UNEXPECTED,
                     "Unexpected request body"
                 );
@@ -881,7 +881,7 @@ impl connection_parser::htp_connp_t {
         // Return if the connection is in stop state.
         if self.in_status == connection_parser::htp_stream_state_t::HTP_STREAM_STOP {
             htp_info!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::PARSER_STATE_ERROR,
                 "Inbound parser is in HTP_STREAM_STOP"
             );
@@ -890,7 +890,7 @@ impl connection_parser::htp_connp_t {
         // Return if the connection had a fatal error earlier
         if self.in_status == connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
             htp_error!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::PARSER_STATE_ERROR,
                 "Inbound parser is in HTP_STREAM_ERROR"
             );
@@ -900,7 +900,7 @@ impl connection_parser::htp_connp_t {
         if self.in_tx().is_none() && self.in_state != State::IDLE {
             self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
             htp_error!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::MISSING_INBOUND_TRANSACTION_DATA,
                 "Missing inbound transaction data"
             );
@@ -914,7 +914,7 @@ impl connection_parser::htp_connp_t {
             && self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
         {
             htp_error!(
-                self as *mut connection_parser::htp_connp_t,
+                self as *mut connection_parser::ConnectionParser,
                 htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
                 "Zero-length data chunks are not allowed"
             );

@@ -1,14 +1,14 @@
-use crate::bstr::bstr_t;
-use crate::util::htp_uri_t;
+use crate::bstr::Bstr;
+use crate::util::Uri;
 
 /// Get the scheme of a uri.
 ///
 /// Returns the scheme for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_scheme(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_scheme(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.scheme.as_ref())
-        .map(|scheme| scheme as *const bstr_t)
+        .map(|scheme| scheme as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -16,10 +16,10 @@ pub unsafe extern "C" fn htp_uri_scheme(uri: *const htp_uri_t) -> *const bstr_t 
 ///
 /// Returns the username for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_username(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_username(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.username.as_ref())
-        .map(|username| username as *const bstr_t)
+        .map(|username| username as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -27,10 +27,10 @@ pub unsafe extern "C" fn htp_uri_username(uri: *const htp_uri_t) -> *const bstr_
 ///
 /// Returns the password for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_password(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_password(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.password.as_ref())
-        .map(|password| password as *const bstr_t)
+        .map(|password| password as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -38,10 +38,10 @@ pub unsafe extern "C" fn htp_uri_password(uri: *const htp_uri_t) -> *const bstr_
 ///
 /// Returns the hostname for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_hostname(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_hostname(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.hostname.as_ref())
-        .map(|hostname| hostname as *const bstr_t)
+        .map(|hostname| hostname as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -49,10 +49,10 @@ pub unsafe extern "C" fn htp_uri_hostname(uri: *const htp_uri_t) -> *const bstr_
 ///
 /// Returns the port for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_port(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_port(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.port.as_ref())
-        .map(|port| port as *const bstr_t)
+        .map(|port| port as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn htp_uri_port(uri: *const htp_uri_t) -> *const bstr_t {
 ///
 /// Returns the port_number for uri or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_port_number(uri: *const htp_uri_t) -> i32 {
+pub unsafe extern "C" fn htp_uri_port_number(uri: *const Uri) -> i32 {
     uri.as_ref()
         .and_then(|uri| uri.port_number)
         .map(|port| port as i32)
@@ -71,10 +71,10 @@ pub unsafe extern "C" fn htp_uri_port_number(uri: *const htp_uri_t) -> i32 {
 ///
 /// Returns the path for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_path(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_path(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.path.as_ref())
-        .map(|path| path as *const bstr_t)
+        .map(|path| path as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -82,10 +82,10 @@ pub unsafe extern "C" fn htp_uri_path(uri: *const htp_uri_t) -> *const bstr_t {
 ///
 /// Returns the query for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_query(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_query(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.query.as_ref())
-        .map(|query| query as *const bstr_t)
+        .map(|query| query as *const Bstr)
         .unwrap_or(std::ptr::null())
 }
 
@@ -93,9 +93,9 @@ pub unsafe extern "C" fn htp_uri_query(uri: *const htp_uri_t) -> *const bstr_t {
 ///
 /// Returns the fragment for uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_uri_fragment(uri: *const htp_uri_t) -> *const bstr_t {
+pub unsafe extern "C" fn htp_uri_fragment(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
         .and_then(|uri| uri.fragment.as_ref())
-        .map(|fragment| fragment as *const bstr_t)
+        .map(|fragment| fragment as *const Bstr)
         .unwrap_or(std::ptr::null())
 }

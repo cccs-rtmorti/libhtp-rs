@@ -5,29 +5,29 @@ use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct bstr_t {
+pub struct Bstr {
     // Wrap a BString under the hood. We want to be able to
     // implement behaviours on top of this if needed, so we wrap
     // it instead of exposing it directly in our public API.
     s: BString,
 }
 
-impl bstr_t {
-    /// Make a new owned bstr_t
+impl Bstr {
+    /// Make a new owned Bstr
     pub fn new() -> Self {
-        bstr_t {
+        Bstr {
             s: BString::from(Vec::new()),
         }
     }
 
-    /// Make a new owned bstr_t with given capacity
+    /// Make a new owned Bstr with given capacity
     pub fn with_capacity(len: usize) -> Self {
-        bstr_t {
+        Bstr {
             s: BString::from(Vec::with_capacity(len)),
         }
     }
 
-    /// Split the bstr_t into a a collection of substrings, seperated by the given byte string.
+    /// Split the Bstr into a a collection of substrings, seperated by the given byte string.
     /// Each element yielded is guaranteed not to include the splitter substring.
     /// Returns a Vector of the substrings.
     pub fn split_str_collect<'b, B: ?Sized + AsRef<[u8]>>(&'b self, splitter: &'b B) -> Vec<&[u8]> {
@@ -119,10 +119,10 @@ impl bstr_t {
     }
 }
 
-// Trait Implementations for bstr_t
+// Trait Implementations for Bstr
 
 /// Let callers access BString functions
-impl Deref for bstr_t {
+impl Deref for Bstr {
     type Target = BString;
 
     fn deref(&self) -> &Self::Target {
@@ -131,36 +131,36 @@ impl Deref for bstr_t {
 }
 
 /// Let callers access mutable BString functions
-impl DerefMut for bstr_t {
+impl DerefMut for Bstr {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.s
     }
 }
 
-impl From<&[u8]> for bstr_t {
+impl From<&[u8]> for Bstr {
     fn from(src: &[u8]) -> Self {
-        bstr_t {
+        Bstr {
             s: BString::from(src),
         }
     }
 }
 
-impl From<&str> for bstr_t {
+impl From<&str> for Bstr {
     fn from(src: &str) -> Self {
         src.as_bytes().into()
     }
 }
 
-impl From<Vec<u8>> for bstr_t {
+impl From<Vec<u8>> for Bstr {
     fn from(src: Vec<u8>) -> Self {
-        bstr_t {
+        Bstr {
             s: BString::from(src),
         }
     }
 }
 
-/// Compare a bstr_t to a &str byte for byte
-impl PartialEq<&str> for bstr_t {
+/// Compare a Bstr to a &str byte for byte
+impl PartialEq<&str> for Bstr {
     fn eq(&self, rhs: &&str) -> bool {
         self.as_bytes() == rhs.as_bytes()
     }
@@ -338,25 +338,25 @@ macro_rules! ordering2int {
 // C-Style interface
 
 /// Return the length of the string
-pub unsafe fn bstr_len(x: *const bstr_t) -> usize {
+pub unsafe fn bstr_len(x: *const Bstr) -> usize {
     (*x).len()
 }
 
 /// Return the capacity of the string
-pub unsafe fn bstr_size(x: *const bstr_t) -> usize {
+pub unsafe fn bstr_size(x: *const Bstr) -> usize {
     (*x).capacity()
 }
 
 /// Return a pointer to the underlying vector
-pub unsafe fn bstr_ptr(x: *const bstr_t) -> *mut u8 {
+pub unsafe fn bstr_ptr(x: *const Bstr) -> *mut u8 {
     (*x).as_ptr() as *mut u8
 }
 
 /// Allocate a zero-length bstring, reserving space for at least size bytes.
 ///
 /// Returns New string instance
-pub unsafe fn bstr_alloc(len: usize) -> *mut bstr_t {
-    let b = bstr_t {
+pub unsafe fn bstr_alloc(len: usize) -> *mut Bstr {
+    let b = Bstr {
         s: BString::from(Vec::with_capacity(len)),
     };
     let boxed = Box::new(b);
@@ -364,7 +364,7 @@ pub unsafe fn bstr_alloc(len: usize) -> *mut bstr_t {
 }
 
 /// Deallocate the supplied bstring instance. Allows NULL on input.
-pub unsafe fn bstr_free(b: *mut bstr_t) {
+pub unsafe fn bstr_free(b: *mut Bstr) {
     if !b.is_null() {
         // b will be dropped when this box goes out of scope
         Box::from_raw(b);
@@ -376,7 +376,7 @@ pub unsafe fn bstr_free(b: *mut bstr_t) {
 /// You must replace the original destination pointer with the returned one.
 ///
 /// Returns Updated bstring
-pub unsafe fn bstr_add(destination: *mut bstr_t, source: *const bstr_t) -> *mut bstr_t {
+pub unsafe fn bstr_add(destination: *mut Bstr, source: *const Bstr) -> *mut Bstr {
     nullcheck!(destination, source);
 
     (*destination).add((*source).as_slice());
@@ -388,7 +388,7 @@ pub unsafe fn bstr_add(destination: *mut bstr_t, source: *const bstr_t) -> *mut 
 /// replace the original destination pointer with the returned one.
 ///
 /// Returns Updated bstring
-pub unsafe fn bstr_add_c(destination: *mut bstr_t, csource: *const i8) -> *mut bstr_t {
+pub unsafe fn bstr_add_c(destination: *mut Bstr, csource: *const i8) -> *mut Bstr {
     nullcheck!(destination, csource);
 
     let cs = CStr::from_ptr(csource);
@@ -399,7 +399,7 @@ pub unsafe fn bstr_add_c(destination: *mut bstr_t, csource: *const i8) -> *mut b
 /// Append as many bytes from the source to destination bstring. The
 /// destination storage will not be expanded if there is not enough space in it
 /// already to accommodate all of the data.
-pub unsafe fn bstr_add_c_noex(destination: *mut bstr_t, source: *const i8) -> *mut bstr_t {
+pub unsafe fn bstr_add_c_noex(destination: *mut Bstr, source: *const i8) -> *mut Bstr {
     nullcheck!(destination, source);
 
     let cs = CStr::from_ptr(source);
@@ -413,10 +413,10 @@ pub unsafe fn bstr_add_c_noex(destination: *mut bstr_t, source: *const i8) -> *m
 ///
 /// Returns Updated bstring
 pub unsafe fn bstr_add_mem(
-    destination: *mut bstr_t,
+    destination: *mut Bstr,
     data: *const core::ffi::c_void,
     len: usize,
-) -> *mut bstr_t {
+) -> *mut Bstr {
     nullcheck!(destination, data);
 
     let s = std::slice::from_raw_parts(data as *const u8, len);
@@ -427,7 +427,7 @@ pub unsafe fn bstr_add_mem(
 /// Append as many bytes from the source bstring to destination bstring. The
 /// destination storage will not be expanded if there is not enough space in it
 /// already to accommodate all of the data.
-pub unsafe fn bstr_add_noex(destination: *mut bstr_t, source: *const bstr_t) -> *mut bstr_t {
+pub unsafe fn bstr_add_noex(destination: *mut Bstr, source: *const Bstr) -> *mut Bstr {
     nullcheck!(destination, source);
 
     (*destination).add_noex((*source).as_slice());
@@ -437,7 +437,7 @@ pub unsafe fn bstr_add_noex(destination: *mut bstr_t, source: *const bstr_t) -> 
 /// Adjust bstring length. You will need to use this method whenever
 /// you work directly with the string contents, and end up changing
 /// its length by direct structure manipulation.
-pub unsafe fn bstr_adjust_len(b: *mut bstr_t, newlen: usize) {
+pub unsafe fn bstr_adjust_len(b: *mut Bstr, newlen: usize) {
     nullcheck!(b);
     // FIXME: This is wildly unsafe. This function should not exist. It only
     // exists because some callers grab the mut pointer and mess with the
@@ -450,8 +450,8 @@ pub unsafe fn bstr_adjust_len(b: *mut bstr_t, newlen: usize) {
 /// Adjust bstring size. This does not change the size of the storage behind
 /// the bstring, just changes the field that keeps track of how many bytes
 /// there are in the storage. You will need to use this function only if
-/// you're messing with bstr_t internals. Use with caution.
-pub unsafe fn bstr_adjust_size(mut _b: *mut bstr_t, mut _newsize: usize) {
+/// you're messing with Bstr internals. Use with caution.
+pub unsafe fn bstr_adjust_size(mut _b: *mut Bstr, mut _newsize: usize) {
     // FIXME: This really shouldn't exist. What it wants to do
     // doesn't map to the universe where the underlying datatype
     // knows how big it is, so this is a no-op.
@@ -460,7 +460,7 @@ pub unsafe fn bstr_adjust_size(mut _b: *mut bstr_t, mut _newsize: usize) {
 /// Return the byte at the given position.
 ///
 /// Returns The byte at the given location, or -1 if the position is out of range.
-pub unsafe fn bstr_char_at(b: *const bstr_t, pos: usize) -> i32 {
+pub unsafe fn bstr_char_at(b: *const Bstr, pos: usize) -> i32 {
     nullcheck!(b);
 
     match (*b).get(pos) {
@@ -473,7 +473,7 @@ pub unsafe fn bstr_char_at(b: *const bstr_t, pos: usize) -> i32 {
 /// byte at position 0 is the last byte in the string.)
 ///
 /// Returns The byte at the given location, or -1 if the position is out of range.
-pub unsafe fn bstr_char_at_end(b: *const bstr_t, pos: usize) -> i32 {
+pub unsafe fn bstr_char_at_end(b: *const Bstr, pos: usize) -> i32 {
     nullcheck!(b);
 
     if let Some(idx) = bstr_len(b).checked_sub(pos + 1) {
@@ -487,7 +487,7 @@ pub unsafe fn bstr_char_at_end(b: *const bstr_t, pos: usize) -> i32 {
 /// Remove the last byte from bstring, assuming it contains at least one byte. This
 /// function will not reduce the storage that backs the string, only the amount
 /// of data used.
-pub unsafe fn bstr_chop(b: *mut bstr_t) {
+pub unsafe fn bstr_chop(b: *mut Bstr) {
     nullcheck!(b);
 
     (*b).pop();
@@ -496,7 +496,7 @@ pub unsafe fn bstr_chop(b: *mut bstr_t) {
 /// Return the first position of the provided byte.
 ///
 /// Returns The first position of the byte, or -1 if it could not be found
-pub unsafe fn bstr_chr(b: *const bstr_t, c: i32) -> i32 {
+pub unsafe fn bstr_chr(b: *const Bstr, c: i32) -> i32 {
     nullcheck!(b);
 
     if let Some(idx) = (*b).find_byte(c as u8) {
@@ -509,14 +509,14 @@ pub unsafe fn bstr_chr(b: *const bstr_t, c: i32) -> i32 {
 ///
 /// Returns Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
 ///         greater than b1.
-pub unsafe fn bstr_cmp(b1: *const bstr_t, b2: *const bstr_t) -> i32 {
+pub unsafe fn bstr_cmp(b1: *const Bstr, b2: *const Bstr) -> i32 {
     nullcheck!(b1, b2);
 
     ordering2int!((*b1).cmp(&(*b2).as_slice()))
 }
 
 /// Case-sensitive comparison of a bstring and a NUL-terminated string.
-pub unsafe fn bstr_cmp_c(b: *const bstr_t, c: *const i8) -> i32 {
+pub unsafe fn bstr_cmp_c(b: *const Bstr, c: *const i8) -> i32 {
     nullcheck!(b, c);
 
     let cs = CStr::from_ptr(c);
@@ -524,7 +524,7 @@ pub unsafe fn bstr_cmp_c(b: *const bstr_t, c: *const i8) -> i32 {
 }
 
 /// Case-sensitive comparison of a bstring and an input.
-pub unsafe fn bstr_cmp_str<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
+pub unsafe fn bstr_cmp_str<S: AsRef<[u8]>>(b: *const Bstr, s: S) -> i32 {
     nullcheck!(b);
 
     ordering2int!((*b).cmp(s.as_ref()))
@@ -533,7 +533,7 @@ pub unsafe fn bstr_cmp_str<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
 /// Case-insensitive comparison of a bstring with an input.
 ///
 /// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
-pub unsafe fn bstr_cmp_str_nocase<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
+pub unsafe fn bstr_cmp_str_nocase<S: AsRef<[u8]>>(b: *const Bstr, s: S) -> i32 {
     nullcheck!(b);
 
     ordering2int!((*b).cmp_nocase(s.as_ref()))
@@ -542,7 +542,7 @@ pub unsafe fn bstr_cmp_str_nocase<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32
 /// Case-insensitive zero-skipping comparison of a bstring with an input.
 ///
 /// Returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is greater than b.
-pub unsafe fn bstr_cmp_str_nocasenorzero<S: AsRef<[u8]>>(b: *const bstr_t, s: S) -> i32 {
+pub unsafe fn bstr_cmp_str_nocasenorzero<S: AsRef<[u8]>>(b: *const Bstr, s: S) -> i32 {
     nullcheck!(b);
 
     ordering2int!((*b).cmp_nocase_nozero(s.as_ref()))
@@ -552,7 +552,7 @@ pub unsafe fn bstr_cmp_str_nocasenorzero<S: AsRef<[u8]>>(b: *const bstr_t, s: S)
 ///
 /// Returns Zero on string match, 1 if b1 is greater than b2, and -1 if b2 is
 ///         greater than b1.
-pub unsafe fn bstr_cmp_nocase(b1: *const bstr_t, b2: *const bstr_t) -> i32 {
+pub unsafe fn bstr_cmp_nocase(b1: *const Bstr, b2: *const Bstr) -> i32 {
     nullcheck!(b1, b2);
 
     ordering2int!((*b1).cmp_nocase((*b2).as_slice()))
@@ -561,7 +561,7 @@ pub unsafe fn bstr_cmp_nocase(b1: *const bstr_t, b2: *const bstr_t) -> i32 {
 /// Create a new bstring by copying the provided bstring.
 ///
 /// Returns New bstring, or NULL if memory allocation failed.
-pub unsafe fn bstr_dup(b: *const bstr_t) -> *mut bstr_t {
+pub unsafe fn bstr_dup(b: *const Bstr) -> *mut Bstr {
     nullcheck!(b);
 
     // Normally all of these would just be b.clone(), but because
@@ -578,7 +578,7 @@ pub unsafe fn bstr_dup(b: *const bstr_t) -> *mut bstr_t {
 /// Create a new bstring by copying the provided input.
 ///
 /// Returns New bstring, or NULL if memory allocation failed.
-pub unsafe fn bstr_dup_str<S: AsRef<[u8]>>(s: S) -> *mut bstr_t {
+pub unsafe fn bstr_dup_str<S: AsRef<[u8]>>(s: S) -> *mut Bstr {
     let new = bstr_alloc(s.as_ref().len());
     (*new).add(s.as_ref());
     new
@@ -587,7 +587,7 @@ pub unsafe fn bstr_dup_str<S: AsRef<[u8]>>(s: S) -> *mut bstr_t {
 /// Create a new bstring by copying the provided NUL-terminated string.
 ///
 /// Returns New bstring, or NULL if memory allocation failed.
-pub unsafe fn bstr_dup_c(cstr: *const i8) -> *mut bstr_t {
+pub unsafe fn bstr_dup_c(cstr: *const i8) -> *mut Bstr {
     nullcheck!(cstr);
 
     let cs = CStr::from_ptr(cstr).to_bytes();
@@ -597,7 +597,7 @@ pub unsafe fn bstr_dup_c(cstr: *const i8) -> *mut bstr_t {
 }
 
 /// Create a new bstring by copying a part of the provided bstring.
-pub unsafe fn bstr_dup_ex(b: *const bstr_t, offset: usize, len: usize) -> *mut bstr_t {
+pub unsafe fn bstr_dup_ex(b: *const Bstr, offset: usize, len: usize) -> *mut Bstr {
     nullcheck!(b);
 
     let start = offset;
@@ -614,7 +614,7 @@ pub unsafe fn bstr_dup_ex(b: *const bstr_t, offset: usize, len: usize) -> *mut b
 /// Create a copy of the provided bstring, then convert it to lowercase.
 ///
 /// Returns New bstring, or NULL if memory allocation failed
-pub unsafe fn bstr_dup_lower(b: *const bstr_t) -> *mut bstr_t {
+pub unsafe fn bstr_dup_lower(b: *const Bstr) -> *mut Bstr {
     nullcheck!(b);
 
     let new = bstr_alloc((*b).len());
@@ -626,7 +626,7 @@ pub unsafe fn bstr_dup_lower(b: *const bstr_t) -> *mut bstr_t {
 /// Create a new bstring by copying the provided memory region.
 ///
 /// Returns New bstring, or NULL if memory allocation failed
-pub unsafe fn bstr_dup_mem(data: *const core::ffi::c_void, len: usize) -> *mut bstr_t {
+pub unsafe fn bstr_dup_mem(data: *const core::ffi::c_void, len: usize) -> *mut Bstr {
     let new = bstr_alloc(len);
 
     if !data.is_null() {
@@ -639,7 +639,7 @@ pub unsafe fn bstr_dup_mem(data: *const core::ffi::c_void, len: usize) -> *mut b
 /// Create a new bstring by copying the provided bstring.
 ///
 /// Returns New bstring, or NULL if memory allocation failed.
-pub unsafe fn bstr_clone(b: &bstr_t) -> *mut bstr_t {
+pub unsafe fn bstr_clone(b: &Bstr) -> *mut Bstr {
     let new = bstr_alloc(b.len());
     (*new).add(b.as_slice());
     new
@@ -652,7 +652,7 @@ pub unsafe fn bstr_clone(b: &bstr_t) -> *mut bstr_t {
 ///
 /// Returns Updated string instance, or NULL if memory allocation failed or if
 ///         attempt was made to "expand" the bstring to a smaller size.
-pub unsafe fn bstr_expand(b: *mut bstr_t, newsize: usize) -> *mut bstr_t {
+pub unsafe fn bstr_expand(b: *mut Bstr, newsize: usize) -> *mut Bstr {
     if b.is_null() {
         return std::ptr::null_mut();
     }
@@ -670,7 +670,7 @@ pub unsafe fn bstr_expand(b: *mut bstr_t, newsize: usize) -> *mut bstr_t {
 /// Find the needle in the haystack.
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of<S: AsRef<[u8]>>(haystack: *const bstr_t, needle: S) -> i32 {
+pub unsafe fn bstr_index_of<S: AsRef<[u8]>>(haystack: *const Bstr, needle: S) -> i32 {
     nullcheck!(haystack);
 
     match (*haystack).find(needle) {
@@ -683,7 +683,7 @@ pub unsafe fn bstr_index_of<S: AsRef<[u8]>>(haystack: *const bstr_t, needle: S) 
 /// Ignore case differences.
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_nocase<S: AsRef<[u8]>>(haystack: *const bstr_t, needle: S) -> i32 {
+pub unsafe fn bstr_index_of_nocase<S: AsRef<[u8]>>(haystack: *const Bstr, needle: S) -> i32 {
     nullcheck!(haystack);
 
     match (*haystack).index_of_nocase(needle.as_ref()) {
@@ -696,10 +696,7 @@ pub unsafe fn bstr_index_of_nocase<S: AsRef<[u8]>>(haystack: *const bstr_t, need
 /// Ignore case differences. Skip zeroes in haystack
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
-pub unsafe fn bstr_index_of_nocasenorzero<S: AsRef<[u8]>>(
-    haystack: *const bstr_t,
-    needle: S,
-) -> i32 {
+pub unsafe fn bstr_index_of_nocasenorzero<S: AsRef<[u8]>>(haystack: *const Bstr, needle: S) -> i32 {
     nullcheck!(haystack);
 
     match (*haystack).index_of_nocase_nozero(needle.as_ref()) {
@@ -712,7 +709,7 @@ pub unsafe fn bstr_index_of_nocasenorzero<S: AsRef<[u8]>>(
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
 pub unsafe fn bstr_index_of_mem(
-    haystack: *const bstr_t,
+    haystack: *const Bstr,
     data: *const core::ffi::c_void,
     len: usize,
 ) -> i32 {
@@ -730,7 +727,7 @@ pub unsafe fn bstr_index_of_mem(
 ///
 /// Returns Position of the match, or -1 if the needle could not be found.
 pub unsafe fn bstr_index_of_mem_nocase(
-    haystack: *const bstr_t,
+    haystack: *const Bstr,
     data: *const core::ffi::c_void,
     len: usize,
 ) -> i32 {
@@ -746,7 +743,7 @@ pub unsafe fn bstr_index_of_mem_nocase(
 /// Return the last position of a character (byte).
 ///
 /// Returns The last position of the character, or -1 if it could not be found.
-pub unsafe fn bstr_rchr(b: *const bstr_t, c: i32) -> i32 {
+pub unsafe fn bstr_rchr(b: *const Bstr, c: i32) -> i32 {
     nullcheck!(b);
 
     match (*b).rfind_byte(c as u8) {
@@ -759,7 +756,7 @@ pub unsafe fn bstr_rchr(b: *const bstr_t, c: i32) -> i32 {
 /// it does not create a new string.
 ///
 /// Returns The same bstring received on input
-pub unsafe fn bstr_to_lowercase(b: *mut bstr_t) -> *mut bstr_t {
+pub unsafe fn bstr_to_lowercase(b: *mut Bstr) -> *mut Bstr {
     if b.is_null() {
         return std::ptr::null_mut();
     }
@@ -869,7 +866,7 @@ pub unsafe fn bstr_util_mem_trim(data: *mut *mut u8, len: *mut usize) {
 
 #[test]
 fn Compare() {
-    let b = bstr_t::from("ABCDefgh");
+    let b = Bstr::from("ABCDefgh");
     // direct equality
     assert_eq!(Ordering::Equal, b.cmp("ABCDefgh"));
     // case sensitive
@@ -886,7 +883,7 @@ fn Compare() {
 
 #[test]
 fn CompareNocase() {
-    let b = bstr_t::from("ABCDefgh");
+    let b = Bstr::from("ABCDefgh");
     assert_eq!(Ordering::Equal, b.cmp_nocase("ABCDefgh"));
     assert_eq!(Ordering::Equal, b.cmp_nocase("abcdefgh"));
     assert_eq!(Ordering::Equal, b.cmp_nocase("ABCDEFGH"));
@@ -898,7 +895,7 @@ fn CompareNocase() {
 fn CompareNocaseNozero() {
     // nocase_nozero only applies to the source string. The caller
     // is not expected to pass in a search string with nulls in it.
-    let b = bstr_t::from("A\x00B\x00\x00C\x00Defg\x00h");
+    let b = Bstr::from("A\x00B\x00\x00C\x00Defg\x00h");
     assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("ABCDefgh"));
     assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("abcdefgh"));
     assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("ABCDEFGH"));
@@ -908,18 +905,18 @@ fn CompareNocaseNozero() {
 
 #[test]
 fn Add() {
-    let mut b = bstr_t::from("ABCD");
+    let mut b = Bstr::from("ABCD");
     b.add("efgh");
     assert_eq!(Ordering::Equal, b.cmp("ABCDefgh"));
 }
 
 #[test]
 fn AddNoEx() {
-    let mut b = bstr_t::from("ABCD");
+    let mut b = Bstr::from("ABCD");
     b.add_noex("efghijklmnopqrstuvwxyz");
     assert_eq!(4, b.len());
 
-    let mut c = bstr_t::with_capacity(10);
+    let mut c = Bstr::with_capacity(10);
     c.add_noex("ABCD");
     assert_eq!(4, c.len());
     c.add_noex("efghijklmnopqrstuvwxyz");
@@ -929,19 +926,19 @@ fn AddNoEx() {
 
 #[test]
 fn StartsWith() {
-    let b = bstr_t::from("ABCD");
+    let b = Bstr::from("ABCD");
     assert!(b.starts_with("AB"));
 }
 
 #[test]
 fn StartsWithNocase() {
-    let b = bstr_t::from("ABCD");
+    let b = Bstr::from("ABCD");
     assert!(b.starts_with_nocase("Ab"));
 }
 
 #[test]
 fn IndexOf() {
-    let b = bstr_t::from("ABCDefgh");
+    let b = Bstr::from("ABCDefgh");
     assert_eq!(Some(4), b.index_of("e"));
     assert_eq!(Some(0), b.index_of("A"));
     assert_eq!(Some(7), b.index_of("h"));
@@ -953,7 +950,7 @@ fn IndexOf() {
 
 #[test]
 fn IndexOfNocase() {
-    let b = bstr_t::from("ABCDefgh");
+    let b = Bstr::from("ABCDefgh");
     assert_eq!(Some(4), b.index_of_nocase("E"));
     assert_eq!(Some(0), b.index_of_nocase("a"));
     assert_eq!(Some(0), b.index_of_nocase("A"));
@@ -965,7 +962,7 @@ fn IndexOfNocase() {
 
 #[test]
 fn IndexOfNocaseNozero() {
-    let b = bstr_t::from("A\x00B\x00\x00C\x00Defg\x00h");
+    let b = Bstr::from("A\x00B\x00\x00C\x00Defg\x00h");
     assert_eq!(Some(8), b.index_of_nocase_nozero("E"));
     assert_eq!(Some(0), b.index_of_nocase_nozero("a"));
     assert_eq!(Some(0), b.index_of_nocase_nozero("A"));

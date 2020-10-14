@@ -18,7 +18,7 @@
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-use crate::config::htp_decoder_cfg_t;
+use crate::config::DecoderConfig;
 use crate::util::Flags;
 
 static utf8d: [u8; 400] = [
@@ -56,7 +56,7 @@ static utf8d_allow_overlong: [u8; 400] = [
 
 #[derive(Clone)]
 pub struct Utf8Decoder {
-    cfg: htp_decoder_cfg_t,
+    cfg: DecoderConfig,
     state: u32,
     seq: u32,
     codepoint: u32,
@@ -67,7 +67,7 @@ pub struct Utf8Decoder {
 
 impl Utf8Decoder {
     /// Make a new owned Utf8Decoder
-    pub fn new(cfg: htp_decoder_cfg_t) -> Self {
+    pub fn new(cfg: DecoderConfig) -> Self {
         Self {
             cfg,
             state: 0,

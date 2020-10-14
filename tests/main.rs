@@ -97,8 +97,8 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut config::htp_cfg_t,
-    connp: *mut htp_connp_t,
+    cfg: *mut config::Config,
+    connp: *mut ConnectionParser,
     basedir: PathBuf,
 }
 
@@ -116,7 +116,7 @@ impl Test {
         };
 
         unsafe {
-            let cfg: *mut config::htp_cfg_t = config::create();
+            let cfg: *mut config::Config = config::create();
             assert!(!cfg.is_null());
             (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
@@ -509,7 +509,7 @@ fn HeaderHostParsing() {
         assert!(t.run("10-host-in-headers.t").is_ok());
         assert_eq!(4, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
         assert!((*tx1)
             .request_hostname
@@ -517,7 +517,7 @@ fn HeaderHostParsing() {
             .unwrap()
             .eq("www.example.com"));
 
-        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
         assert!((*tx2)
             .request_hostname
@@ -525,7 +525,7 @@ fn HeaderHostParsing() {
             .unwrap()
             .eq("www.example.com."));
 
-        let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
+        let tx3: *mut Transaction = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
         assert!((*tx3)
             .request_hostname
@@ -533,7 +533,7 @@ fn HeaderHostParsing() {
             .unwrap()
             .eq("www.example.com"));
 
-        let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
+        let tx4: *mut Transaction = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
         assert!((*tx4)
             .request_hostname
@@ -646,12 +646,12 @@ fn ConnectRequestWithExtraData() {
 
         assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert!((*tx1).is_complete());
 
-        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert!((*tx2).is_complete());
@@ -724,18 +724,18 @@ fn AmbiguousHost() {
 
         assert_eq!(5, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
         assert!((*tx1).is_complete());
         assert!(!(*tx1).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
 
-        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
         assert!((*tx2).is_complete());
         assert!((*tx2).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
         assert!((*tx2).request_hostname.as_ref().unwrap().eq("example.com"));
 
-        let tx3: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(2);
+        let tx3: *mut Transaction = (*t.connp).conn.tx_mut_ptr(2);
         assert!(!tx3.is_null());
         assert!((*tx3).is_complete());
         assert!(!(*tx3).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -746,7 +746,7 @@ fn AmbiguousHost() {
             .eq("www.example.com"));
         assert_eq!(Some(8001), (*tx3).request_port_number);
 
-        let tx4: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(3);
+        let tx4: *mut Transaction = (*t.connp).conn.tx_mut_ptr(3);
         assert!(!tx4.is_null());
         assert!((*tx4).is_complete());
         assert!((*tx4).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -757,7 +757,7 @@ fn AmbiguousHost() {
             .eq("www.example.com"));
         assert_eq!(Some(8002), (*tx4).request_port_number);
 
-        let tx5: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(4);
+        let tx5: *mut Transaction = (*t.connp).conn.tx_mut_ptr(4);
         assert!(!tx5.is_null());
         assert!((*tx5).is_complete());
         assert!(!(*tx5).flags.contains(Flags::HTP_HOST_AMBIGUOUS));
@@ -839,7 +839,7 @@ fn SmallChunks() {
     assert!(t.run("25-small-chunks.t").is_ok());
 }
 
-fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut htp_tx_data_t) -> Result<()> {
+fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -905,7 +905,7 @@ fn RequestHeaderData() {
     }
 }
 
-fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut htp_tx_data_t) -> Result<()> {
+fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -960,7 +960,7 @@ fn RequestTrailerData() {
     }
 }
 
-fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut htp_tx_data_t) -> Result<()> {
+fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -1027,9 +1027,7 @@ fn ResponseHeaderData() {
     }
 }
 
-fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
-    d: *mut htp_tx_data_t,
-) -> Result<()> {
+fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
         let len = (*d).len();
@@ -1843,7 +1841,7 @@ fn EmptyLineBetweenRequests() {
 
         assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
 
         /*part of previous request body assert_eq!(1, (*tx).request_ignored_lines);*/
@@ -1858,13 +1856,13 @@ fn PostNoBody() {
 
         assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
         assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
 
-        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2116,7 +2114,7 @@ fn ResponseNoBody() {
 
         assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
@@ -2124,7 +2122,7 @@ fn ResponseNoBody() {
 
         assert_response_header_eq!(tx1, "Server", "Apache");
 
-        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2142,7 +2140,7 @@ fn ResponseFoldedHeaders() {
 
         assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let tx1: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
@@ -2150,7 +2148,7 @@ fn ResponseFoldedHeaders() {
 
         assert_response_header_eq!(tx1, "Server", "Apache Server");
 
-        let tx2: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(1);
+        let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
@@ -2391,7 +2389,7 @@ fn RequestInvalid() {
 
         assert_eq!(2, (*t.connp).conn.tx_size());
 
-        let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let mut tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2507,7 +2505,7 @@ fn RequestsCut() {
         assert!(t.run("97-requests-cut.t").is_ok());
 
         assert_eq!(2, (*t.connp).conn.tx_size());
-        let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let mut tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2526,7 +2524,7 @@ fn ResponsesCut() {
         assert!(t.run("98-responses-cut.t").is_ok());
 
         assert_eq!(2, (*t.connp).conn.tx_size());
-        let mut tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let mut tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
@@ -2548,7 +2546,7 @@ fn AuthDigest_EscapedQuote() {
     unsafe {
         assert!(t.run("100-auth-digest-escaped-quote.t").is_ok());
 
-        let tx: *mut htp_tx_t = (*t.connp).conn.tx_mut_ptr(0);
+        let tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
         assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);

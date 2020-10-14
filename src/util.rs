@@ -1,5 +1,5 @@
 use crate::config::{
-    htp_cfg_t, htp_decoder_cfg_t, htp_unwanted_t, htp_unwanted_t::*, htp_url_encoding_handling_t,
+    htp_unwanted_t, htp_unwanted_t::*, htp_url_encoding_handling_t, Config, DecoderConfig,
 };
 use crate::error::Result;
 use crate::{
@@ -99,20 +99,20 @@ pub enum htp_file_source_t {
 /// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
 /// request bodies can be treated as files.
 #[derive(Debug)]
-pub struct htp_file_t {
+pub struct File {
     /// Where did this file come from? Possible values: HTP_FILE_MULTIPART and HTP_FILE_PUT.
     pub source: htp_file_source_t,
     /// File name, as provided (e.g., in the Content-Disposition multipart part header.
-    pub filename: Option<bstr::bstr_t>,
+    pub filename: Option<bstr::Bstr>,
     /// File length.
     pub len: usize,
     /// The file used for external storage.
     pub tmpfile: Option<NamedTempFile>,
 }
 
-impl htp_file_t {
-    pub fn new(source: htp_file_source_t, filename: Option<bstr::bstr_t>) -> htp_file_t {
-        htp_file_t {
+impl File {
+    pub fn new(source: htp_file_source_t, filename: Option<bstr::Bstr>) -> File {
+        File {
             source,
             filename,
             len: 0,
@@ -143,13 +143,13 @@ impl htp_file_t {
     /// Update file length and invoke any file data callbacks on the provided cfg
     pub fn handle_file_data(
         &mut self,
-        cfg: *mut htp_cfg_t,
+        cfg: *mut Config,
         data: *const u8,
         len: usize,
     ) -> Result<()> {
         self.len = self.len.wrapping_add(len);
         // Package data for the callbacks.
-        let mut file_data = htp_file_data_t::new(&self, data, len);
+        let mut file_data = FileData::new(&self, data, len);
         unsafe {
             // Send data to callbacks
             (*cfg).hook_request_file_data.run_all(&mut file_data)
@@ -162,31 +162,31 @@ impl htp_file_t {
 /// corresponding field will be set to NULL or -1, depending on the
 /// field type.
 #[derive(Clone, Debug)]
-pub struct htp_uri_t {
+pub struct Uri {
     /// Scheme, e.g., "http".
-    pub scheme: Option<bstr::bstr_t>,
+    pub scheme: Option<bstr::Bstr>,
     /// Username.
-    pub username: Option<bstr::bstr_t>,
+    pub username: Option<bstr::Bstr>,
     /// Password.
-    pub password: Option<bstr::bstr_t>,
+    pub password: Option<bstr::Bstr>,
     /// Hostname.
-    pub hostname: Option<bstr::bstr_t>,
+    pub hostname: Option<bstr::Bstr>,
     /// Port, as string.
-    pub port: Option<bstr::bstr_t>,
+    pub port: Option<bstr::Bstr>,
     /// Port, as number. This field will be None if there was
     /// no port information in the URI or the port information
     /// was invalid (e.g., it's not a number or it falls out of range.
     pub port_number: Option<u16>,
     /// The path part of this URI.
-    pub path: Option<bstr::bstr_t>,
+    pub path: Option<bstr::Bstr>,
     /// Query string.
-    pub query: Option<bstr::bstr_t>,
+    pub query: Option<bstr::Bstr>,
     /// Fragment identifier. This field will rarely be available in a server-side
     /// setting, but it's not impossible to see it.
-    pub fragment: Option<bstr::bstr_t>,
+    pub fragment: Option<bstr::Bstr>,
 }
 
-impl htp_uri_t {
+impl Uri {
     pub fn new() -> Self {
         Self {
             scheme: None,
@@ -202,23 +202,23 @@ impl htp_uri_t {
     }
 
     pub fn set_scheme(&mut self, scheme: &[u8]) {
-        self.scheme = Some(bstr::bstr_t::from(scheme));
+        self.scheme = Some(bstr::Bstr::from(scheme));
     }
 
     pub fn set_username(&mut self, username: &[u8]) {
-        self.username = Some(bstr::bstr_t::from(username));
+        self.username = Some(bstr::Bstr::from(username));
     }
 
     pub fn set_password(&mut self, password: &[u8]) {
-        self.password = Some(bstr::bstr_t::from(password));
+        self.password = Some(bstr::Bstr::from(password));
     }
 
     pub fn set_hostname(&mut self, hostname: &[u8]) {
-        self.hostname = Some(bstr::bstr_t::from(hostname));
+        self.hostname = Some(bstr::Bstr::from(hostname));
     }
 
     pub fn set_port(&mut self, port: &[u8]) {
-        self.port = Some(bstr::bstr_t::from(port));
+        self.port = Some(bstr::Bstr::from(port));
     }
 
     pub fn set_port_number(&mut self, port: u16) {
@@ -226,18 +226,18 @@ impl htp_uri_t {
     }
 
     pub fn set_path(&mut self, path: &[u8]) {
-        self.path = Some(bstr::bstr_t::from(path));
+        self.path = Some(bstr::Bstr::from(path));
     }
 
     pub fn set_query(&mut self, query: &[u8]) {
-        self.query = Some(bstr::bstr_t::from(query));
+        self.query = Some(bstr::Bstr::from(query));
     }
 
     pub fn set_fragment(&mut self, fragment: &[u8]) {
-        self.fragment = Some(bstr::bstr_t::from(fragment));
+        self.fragment = Some(bstr::Bstr::from(fragment));
     }
 
-    pub fn normalized_scheme(&self) -> Option<bstr::bstr_t> {
+    pub fn normalized_scheme(&self) -> Option<bstr::Bstr> {
         if let Some(mut scheme) = self.scheme.clone() {
             scheme.make_ascii_lowercase();
             Some(scheme)
@@ -248,9 +248,9 @@ impl htp_uri_t {
 
     pub fn normalized_username(
         &self,
-        decoder_cfg: &htp_decoder_cfg_t,
+        decoder_cfg: &DecoderConfig,
         flags: &mut Flags,
-    ) -> Option<bstr::bstr_t> {
+    ) -> Option<bstr::Bstr> {
         if let Some(mut username) = self.username.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut username);
             Some(username)
@@ -261,9 +261,9 @@ impl htp_uri_t {
 
     pub fn normalized_password(
         &self,
-        decoder_cfg: &htp_decoder_cfg_t,
+        decoder_cfg: &DecoderConfig,
         flags: &mut Flags,
-    ) -> Option<bstr::bstr_t> {
+    ) -> Option<bstr::Bstr> {
         if let Some(mut password) = self.password.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut password);
             Some(password)
@@ -274,9 +274,9 @@ impl htp_uri_t {
 
     pub fn normalized_hostname(
         &self,
-        decoder_cfg: &htp_decoder_cfg_t,
+        decoder_cfg: &DecoderConfig,
         flags: &mut Flags,
-    ) -> Option<bstr::bstr_t> {
+    ) -> Option<bstr::Bstr> {
         if let Some(mut hostname) = self.hostname.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut hostname);
             hostname.make_ascii_lowercase();
@@ -306,9 +306,9 @@ impl htp_uri_t {
 
     pub fn normalized_fragment(
         &self,
-        decoder_cfg: &htp_decoder_cfg_t,
+        decoder_cfg: &DecoderConfig,
         flags: &mut Flags,
-    ) -> Option<bstr::bstr_t> {
+    ) -> Option<bstr::Bstr> {
         if let Some(mut fragment) = self.fragment.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut fragment);
             Some(fragment)
@@ -319,10 +319,10 @@ impl htp_uri_t {
 
     pub fn normalized_path(
         &self,
-        decoder_cfg: &htp_decoder_cfg_t,
+        decoder_cfg: &DecoderConfig,
         flags: &mut Flags,
         status: &mut htp_unwanted_t,
-    ) -> Option<bstr::bstr_t> {
+    ) -> Option<bstr::Bstr> {
         if let Some(mut path) = self.path.clone() {
             // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
             // compress separators and convert backslashes.
@@ -340,18 +340,18 @@ impl htp_uri_t {
 }
 
 /// Represents a chunk of file data.
-pub struct htp_file_data_t<'a> {
+pub struct FileData<'a> {
     /// File information.
-    pub file: &'a htp_file_t,
+    pub file: &'a File,
     /// Pointer to the data buffer.
     pub data: *const u8,
     /// Buffer length.
     pub len: usize,
 }
 
-impl htp_file_data_t<'_> {
-    pub fn new(file: &htp_file_t, data: *const u8, len: usize) -> htp_file_data_t {
-        htp_file_data_t { file, data, len }
+impl FileData<'_> {
+    pub fn new(file: &File, data: *const u8, len: usize) -> FileData {
+        FileData { file, data, len }
     }
 }
 
@@ -457,7 +457,7 @@ pub fn take_until_no_case<'a>(tag: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a
 }
 
 /// Converts request method string into a method type.
-pub fn convert_bstr_to_method(method: &bstr::bstr_t) -> htp_method_t {
+pub fn convert_bstr_to_method(method: &bstr::Bstr) -> htp_method_t {
     match method.as_slice() {
         b"GET" => htp_method_t::HTP_M_GET,
         b"PUT" => htp_method_t::HTP_M_PUT,
@@ -554,7 +554,7 @@ fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// Returns Content-Length as a number or None if parsing failed.
 pub fn parse_content_length<'a>(
     input: &'a [u8],
-    connp: Option<&mut connection_parser::htp_connp_t>,
+    connp: Option<&mut connection_parser::ConnectionParser>,
 ) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
         if let Some(connp) = connp {
@@ -562,7 +562,7 @@ pub fn parse_content_length<'a>(
                 // Contains invalid characters! But still attempt to process
                 unsafe {
                     htp_warn!(
-                        connp as *mut connection_parser::htp_connp_t,
+                        connp as *mut connection_parser::ConnectionParser,
                         htp_log_code::CONTENT_LENGTH_EXTRA_DATA_START,
                         "C-L value with extra data in the beginning"
                     );
@@ -573,7 +573,7 @@ pub fn parse_content_length<'a>(
                 // Ok to have junk afterwards
                 unsafe {
                     htp_warn!(
-                        connp as *mut connection_parser::htp_connp_t,
+                        connp as *mut connection_parser::ConnectionParser,
                         htp_log_code::CONTENT_LENGTH_EXTRA_DATA_END,
                         "C-L value with extra data in the end"
                     );
@@ -680,7 +680,7 @@ fn convert_port(port: &[u8]) -> Option<u16> {
 /// Returns a remaining unparsed data, parsed hostname, parsed port, converted port number,
 /// and a flag indicating whether the parsed data is valid
 pub fn parse_hostport(
-    hostport: &bstr::bstr_t,
+    hostport: &bstr::Bstr,
 ) -> IResult<&[u8], (&[u8], Option<(&[u8], Option<u16>)>, bool)> {
     let (input, host) = hostname()((hostport).as_slice())?;
     let mut valid = validate_hostname(host);
@@ -699,9 +699,9 @@ pub fn parse_hostport(
 
 /// Parses hostport provided in the URI.
 ///
-/// Returns htp_uri_t.
-pub fn parse_uri_hostport(hostport: &bstr::bstr_t, flags: &mut Flags) -> htp_uri_t {
-    let mut uri = htp_uri_t::new();
+/// Returns Uri.
+pub fn parse_uri_hostport(hostport: &bstr::Bstr, flags: &mut Flags) -> Uri {
+    let mut uri = Uri::new();
     if let Ok((_, (host, port_nmb, mut valid))) = parse_hostport(hostport) {
         uri.set_hostname(&host.to_ascii_lowercase());
         if let Some((port, port_nmb)) = port_nmb {
@@ -849,13 +849,13 @@ pub fn fragment<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// Parses request URI, making no attempt to validate the contents.
 ///
 /// It attempts, but is not guaranteed to successfully parse out a scheme, username, password, hostname, port, query, and fragment.
-/// If it fails to parse a path, it will return an empty htp_uri_t.
+/// If it fails to parse a path, it will return an empty Uri.
 /// Note: only attempts to extract a username, password, and hostname and subsequently port if it successfully parsed a scheme.
 /// e.g. input: "http:://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
-/// e.g. output: htp_uri_t {Some("http"), Some("user"), Some("pass"), Some("www.example.com"), None, Some("1234"), Some("/path1/path2"), Some("a=b&c=d"), Some("frag") }
+/// e.g. output: Uri {Some("http"), Some("user"), Some("pass"), Some("www.example.com"), None, Some("1234"), Some("/path1/path2"), Some("a=b&c=d"), Some("frag") }
 ///
-/// Returns htp_uri_t.
-pub fn parse_uri(input: &[u8]) -> htp_uri_t {
+/// Returns Uri.
+pub fn parse_uri(input: &[u8]) -> Uri {
     let res = map(
         tuple((
             opt(tuple((
@@ -868,7 +868,7 @@ pub fn parse_uri(input: &[u8]) -> htp_uri_t {
             opt(fragment()),
         )),
         |(scheme_authority, path, query, fragment)| {
-            let mut uri = htp_uri_t::new();
+            let mut uri = Uri::new();
             if let Some(path) = path {
                 uri.set_path(path);
             }
@@ -900,7 +900,7 @@ pub fn parse_uri(input: &[u8]) -> htp_uri_t {
     if let Ok((_, parsed_uri)) = res {
         parsed_uri
     } else {
-        htp_uri_t::new()
+        Uri::new()
     }
 }
 
@@ -933,10 +933,10 @@ fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
 /// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
 /// be stored in the input path if the transaction cfg indicates it
 pub fn utf8_decode_and_validate_uri_path_inplace(
-    cfg: &htp_decoder_cfg_t,
+    cfg: &DecoderConfig,
     flags: &mut Flags,
     status: &mut htp_unwanted_t,
-    path: &mut bstr::bstr_t,
+    path: &mut bstr::Bstr,
 ) {
     let mut decoder = utf8_decoder::Utf8Decoder::new(*cfg);
     decoder.decode_and_validate(path.as_slice());
@@ -958,7 +958,7 @@ pub fn utf8_decode_and_validate_uri_path_inplace(
 /// Returns decoded byte
 fn decode_u_encoding_path<'a>(
     i: &'a [u8],
-    cfg: &htp_decoder_cfg_t,
+    cfg: &DecoderConfig,
 ) -> IResult<&'a [u8], (u8, Flags, htp_unwanted_t)> {
     let mut flags = Flags::empty();
     let mut expected_status_code = HTP_UNWANTED_IGNORE;
@@ -1001,7 +1001,7 @@ fn decode_u_encoding_path<'a>(
 /// Returns decoded byte
 fn decode_u_encoding_params<'a>(
     i: &'a [u8],
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> IResult<&'a [u8], (u8, Flags)> {
     let (i, c1) = x2c(&i)?;
     let (i, c2) = x2c(&i)?;
@@ -1038,7 +1038,7 @@ fn decode_u_encoding_params<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn path_decode_valid_uencoding<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |remaining_input| {
         let (left, _) = tag_no_case("u")(remaining_input)?;
@@ -1080,7 +1080,7 @@ fn path_decode_valid_uencoding<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn path_decode_invalid_uencoding<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |remaining_input| {
         let mut output = remaining_input;
@@ -1122,7 +1122,7 @@ fn path_decode_invalid_uencoding<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn path_decode_valid_hex<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |remaining_input| {
         let original_remaining = remaining_input;
@@ -1161,7 +1161,7 @@ fn path_decode_valid_hex<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn path_decode_invalid_hex<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |remaining_input| {
         let mut remaining = remaining_input;
@@ -1196,7 +1196,7 @@ fn path_decode_invalid_hex<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn path_decode_percent<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |i| {
         let (remaining_input, c) = char('%')(i)?;
@@ -1241,7 +1241,7 @@ fn path_decode_percent<'a>(
 ///
 /// Returns parsed byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn path_parse_other<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |i| {
         let (remaining_input, byte) = be_u8(i)?;
@@ -1265,7 +1265,7 @@ fn path_parse_other<'a>(
 /// Checks for control characters and converts them according to the cfg settings
 ///
 /// Returns decoded byte and expected_status_code
-fn path_decode_control(mut byte: u8, cfg: &htp_decoder_cfg_t) -> (u8, htp_unwanted_t) {
+fn path_decode_control(mut byte: u8, cfg: &DecoderConfig) -> (u8, htp_unwanted_t) {
     // Note: What if an invalid encoding decodes into a path
     //       separator? This is theoretical at the moment, because
     //       the only platform we know doesn't convert separators is
@@ -1293,7 +1293,7 @@ fn path_decode_control(mut byte: u8, cfg: &htp_decoder_cfg_t) -> (u8, htp_unwant
 /// provided configuration structure.
 fn path_decode<'a>(
     input: &'a [u8],
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> IResult<&'a [u8], (Vec<u8>, Flags, htp_unwanted_t)> {
     fold_many0(
         alt((path_decode_percent(cfg), path_parse_other(cfg))),
@@ -1324,10 +1324,10 @@ fn path_decode<'a>(
 /// Decode the parsed uri path inplace according to the settings in the
 /// transaction configuration structure.
 pub fn decode_uri_path_inplace(
-    decoder_cfg: &htp_decoder_cfg_t,
+    decoder_cfg: &DecoderConfig,
     flag: &mut Flags,
     status: &mut htp_unwanted_t,
-    path: &mut bstr::bstr_t,
+    path: &mut bstr::Bstr,
 ) {
     if let Ok((_, (consumed, flags, expected_status_code))) =
         path_decode(path.as_slice(), &decoder_cfg)
@@ -1340,9 +1340,9 @@ pub fn decode_uri_path_inplace(
 }
 
 pub fn urldecode_uri_inplace(
-    decoder_cfg: &htp_decoder_cfg_t,
+    decoder_cfg: &DecoderConfig,
     flags: &mut Flags,
-    input: &mut bstr::bstr_t,
+    input: &mut bstr::Bstr,
 ) -> Result<()> {
     if let Ok((_, (consumed, f, _))) = urldecode_ex(input.as_slice(), decoder_cfg) {
         (*input).clear();
@@ -1363,8 +1363,8 @@ pub fn urldecode_uri_inplace(
 }
 
 pub fn tx_urldecode_params_inplace(
-    tx: &mut transaction::htp_tx_t,
-    input: &mut bstr::bstr_t,
+    tx: &mut transaction::Transaction,
+    input: &mut bstr::Bstr,
 ) -> Result<()> {
     let decoder_cfg = unsafe { (*(tx.cfg)).decoder_cfg };
     if let Ok((_, (consumed, flags, expected_status))) =
@@ -1385,8 +1385,8 @@ pub fn tx_urldecode_params_inplace(
 ///
 /// Returns HTP_OK on success, HTP_ERROR on failure.
 pub fn urldecode_inplace(
-    cfg: &htp_decoder_cfg_t,
-    input: &mut bstr::bstr_t,
+    cfg: &DecoderConfig,
+    input: &mut bstr::Bstr,
     flags: &mut Flags,
 ) -> Result<()> {
     if let Ok((_, (consumed, flag, _))) = urldecode_ex(input.as_slice(), cfg) {
@@ -1404,7 +1404,7 @@ pub fn urldecode_inplace(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn url_decode_valid_uencoding<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |input| {
         let (left, _) = alt((char('u'), char('U')))(input)?;
@@ -1425,7 +1425,7 @@ fn url_decode_valid_uencoding<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn url_decode_invalid_uencoding<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |mut input| {
         let (left, _) = alt((char('u'), char('U')))(input)?;
@@ -1480,7 +1480,7 @@ fn url_decode_valid_hex<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn url_decode_invalid_hex<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |mut input| {
         not(alt((char('u'), char('U'))))(input)?;
@@ -1518,7 +1518,7 @@ fn url_decode_invalid_hex<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn url_decode_percent<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |i| {
         let (input, _) = char('%')(i)?;
@@ -1561,7 +1561,7 @@ fn url_decode_percent<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn url_decode_plus<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |input| {
         let (input, byte) = map(char('+'), |byte| {
@@ -1581,7 +1581,7 @@ fn url_decode_plus<'a>(
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
 fn url_parse_unencoded_byte<'a>(
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, htp_unwanted_t, Flags, bool)> {
     move |input| {
         let (input, byte) = be_u8(input)?;
@@ -1610,7 +1610,7 @@ fn url_parse_unencoded_byte<'a>(
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be consumed or output.
 fn urldecode_ex<'a>(
     input: &'a [u8],
-    cfg: &'a htp_decoder_cfg_t,
+    cfg: &'a DecoderConfig,
 ) -> IResult<&'a [u8], (Vec<u8>, Flags, htp_unwanted_t)> {
     fold_many0(
         alt((
@@ -1633,9 +1633,9 @@ fn urldecode_ex<'a>(
 }
 
 pub fn generate_normalized_uri(
-    decoder_cfg: &htp_decoder_cfg_t,
-    parsed_uri: &htp_uri_t,
-) -> (Option<bstr::bstr_t>, Option<bstr::bstr_t>) {
+    decoder_cfg: &DecoderConfig,
+    parsed_uri: &Uri,
+) -> (Option<bstr::Bstr>, Option<bstr::Bstr>) {
     // On the first pass determine the length of the final bstrs
     let mut partial_len = 0usize;
     let mut complete_len = 0usize;
@@ -1676,8 +1676,8 @@ pub fn generate_normalized_uri(
         .unwrap_or(0); // #
     complete_len += partial_len;
     // On the second pass construct the string
-    let mut normalized_uri = bstr::bstr_t::with_capacity(complete_len);
-    let mut partial_normalized_uri = bstr::bstr_t::with_capacity(partial_len);
+    let mut normalized_uri = bstr::Bstr::with_capacity(complete_len);
+    let mut partial_normalized_uri = bstr::Bstr::with_capacity(partial_len);
 
     if let Some(scheme) = parsed_uri.scheme.as_ref() {
         normalized_uri.add(scheme.as_slice());
@@ -1745,7 +1745,7 @@ fn normalize_uri_path(input: &[u8]) -> Vec<u8> {
 
 /// Normalize URL path in place. This function implements the remove dot segments algorithm
 /// specified in RFC 3986, section 5.2.4.
-pub fn normalize_uri_path_inplace(s: &mut bstr::bstr_t) {
+pub fn normalize_uri_path_inplace(s: &mut bstr::Bstr) {
     let consumed = normalize_uri_path(s.as_slice());
     s.clear();
     s.add(consumed.as_slice());
@@ -1768,8 +1768,8 @@ pub fn treat_response_line_as_body(data: &[u8]) -> bool {
 
 /// Run the REQUEST_BODY_DATA hook.
 pub unsafe fn req_run_hook_body_data(
-    connp: *mut connection_parser::htp_connp_t,
-    d: *mut transaction::htp_tx_data_t,
+    connp: *mut connection_parser::ConnectionParser,
+    d: *mut transaction::Data,
 ) -> Result<()> {
     // Do not invoke callbacks with an empty data chunk
     if !(*d).data().is_null() && (*d).len() == 0 {
@@ -1791,8 +1791,8 @@ pub unsafe fn req_run_hook_body_data(
 
 /// Run the RESPONSE_BODY_DATA hook.
 pub unsafe fn res_run_hook_body_data(
-    connp: *mut connection_parser::htp_connp_t,
-    d: *mut transaction::htp_tx_data_t,
+    connp: *mut connection_parser::ConnectionParser,
+    d: *mut transaction::Data,
 ) -> Result<()> {
     let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
         out_tx
@@ -1826,9 +1826,9 @@ fn content_type_header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]>
 /// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
 ///
 /// Returns Status::OK if successful; Status::ERROR if not
-pub fn parse_ct_header(header: &[u8]) -> Result<bstr::bstr_t> {
+pub fn parse_ct_header(header: &[u8]) -> Result<bstr::Bstr> {
     if let Ok((_, content_type)) = content_type_header()(header) {
-        let mut ct = bstr::bstr_t::from(content_type);
+        let mut ct = bstr::Bstr::from(content_type);
         ct.make_ascii_lowercase();
         Ok(ct)
     } else {
@@ -1925,25 +1925,25 @@ pub fn is_word_token(data: &[u8]) -> bool {
 // Tests
 #[test]
 fn GenerateNormalizedUri1() {
-    let cfg = htp_decoder_cfg_t::default();
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
-    htp_uri.username = Some(bstr::bstr_t::from("user"));
-    htp_uri.password = Some(bstr::bstr_t::from("pass"));
-    htp_uri.hostname = Some(bstr::bstr_t::from("www.example.com"));
-    htp_uri.port = Some(bstr::bstr_t::from("1234"));
-    htp_uri.path = Some(bstr::bstr_t::from("/path1/path2"));
-    htp_uri.query = Some(bstr::bstr_t::from("a=b&c=d"));
-    htp_uri.fragment = Some(bstr::bstr_t::from("frag"));
+    let cfg = DecoderConfig::default();
+    let mut htp_uri = Uri::new();
+    htp_uri.scheme = Some(bstr::Bstr::from("http"));
+    htp_uri.username = Some(bstr::Bstr::from("user"));
+    htp_uri.password = Some(bstr::Bstr::from("pass"));
+    htp_uri.hostname = Some(bstr::Bstr::from("www.example.com"));
+    htp_uri.port = Some(bstr::Bstr::from("1234"));
+    htp_uri.path = Some(bstr::Bstr::from("/path1/path2"));
+    htp_uri.query = Some(bstr::Bstr::from("a=b&c=d"));
+    htp_uri.fragment = Some(bstr::Bstr::from("frag"));
 
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
     assert_eq!(
         partial_normalized_uri,
-        Some(bstr::bstr_t::from("/path1/path2?a=b&c=d#frag"))
+        Some(bstr::Bstr::from("/path1/path2?a=b&c=d#frag"))
     );
     assert_eq!(
         normalized_uri,
-        Some(bstr::bstr_t::from(
+        Some(bstr::Bstr::from(
             "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
         ))
     );
@@ -1951,65 +1951,65 @@ fn GenerateNormalizedUri1() {
 
 #[test]
 fn GenerateNormalizedUri2() {
-    let cfg = htp_decoder_cfg_t::default();
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
-    htp_uri.hostname = Some(bstr::bstr_t::from("host.com"));
-    htp_uri.path = Some(bstr::bstr_t::from("/path"));
+    let cfg = DecoderConfig::default();
+    let mut htp_uri = Uri::new();
+    htp_uri.scheme = Some(bstr::Bstr::from("http"));
+    htp_uri.hostname = Some(bstr::Bstr::from("host.com"));
+    htp_uri.path = Some(bstr::Bstr::from("/path"));
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
-    assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("/path")));
+    assert_eq!(partial_normalized_uri, Some(bstr::Bstr::from("/path")));
     assert_eq!(
         normalized_uri,
-        Some(bstr::bstr_t::from("http://host.com/path"))
+        Some(bstr::Bstr::from("http://host.com/path"))
     );
 }
 
 #[test]
 fn GenerateNormalizedUri3() {
-    let cfg = htp_decoder_cfg_t::default();
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
-    htp_uri.hostname = Some(bstr::bstr_t::from("host.com"));
+    let cfg = DecoderConfig::default();
+    let mut htp_uri = Uri::new();
+    htp_uri.scheme = Some(bstr::Bstr::from("http"));
+    htp_uri.hostname = Some(bstr::Bstr::from("host.com"));
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
     assert_eq!(partial_normalized_uri, None);
-    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("http://host.com")));
+    assert_eq!(normalized_uri, Some(bstr::Bstr::from("http://host.com")));
 }
 
 #[test]
 fn GenerateNormalizedUri4() {
-    let cfg = htp_decoder_cfg_t::default();
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
-    htp_uri.path = Some(bstr::bstr_t::from("//"));
+    let cfg = DecoderConfig::default();
+    let mut htp_uri = Uri::new();
+    htp_uri.scheme = Some(bstr::Bstr::from("http"));
+    htp_uri.path = Some(bstr::Bstr::from("//"));
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
-    assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("//")));
-    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("http:////")));
+    assert_eq!(partial_normalized_uri, Some(bstr::Bstr::from("//")));
+    assert_eq!(normalized_uri, Some(bstr::Bstr::from("http:////")));
 }
 
 #[test]
 fn GenerateNormalizedUri5() {
-    let cfg = htp_decoder_cfg_t::default();
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.path = Some(bstr::bstr_t::from("/path"));
+    let cfg = DecoderConfig::default();
+    let mut htp_uri = Uri::new();
+    htp_uri.path = Some(bstr::Bstr::from("/path"));
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
-    assert_eq!(partial_normalized_uri, Some(bstr::bstr_t::from("/path")));
-    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("/path")));
+    assert_eq!(partial_normalized_uri, Some(bstr::Bstr::from("/path")));
+    assert_eq!(normalized_uri, Some(bstr::Bstr::from("/path")));
 }
 
 #[test]
 fn GenerateNormalizedUri6() {
-    let cfg = htp_decoder_cfg_t::default();
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.scheme = Some(bstr::bstr_t::from(""));
+    let cfg = DecoderConfig::default();
+    let mut htp_uri = Uri::new();
+    htp_uri.scheme = Some(bstr::Bstr::from(""));
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
     assert_eq!(partial_normalized_uri, None);
-    assert_eq!(normalized_uri, Some(bstr::bstr_t::from("://")));
+    assert_eq!(normalized_uri, Some(bstr::Bstr::from("://")));
 }
 
 #[test]
 fn GenerateNormalizedUri7() {
-    let cfg = htp_decoder_cfg_t::default();
-    let htp_uri = htp_uri_t::new();
+    let cfg = DecoderConfig::default();
+    let htp_uri = Uri::new();
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, None);
@@ -2017,17 +2017,17 @@ fn GenerateNormalizedUri7() {
 
 #[test]
 fn GenerateNormalizedUri8() {
-    let cfg = htp_decoder_cfg_t::default();
+    let cfg = DecoderConfig::default();
 
-    let mut htp_uri = htp_uri_t::new();
-    htp_uri.scheme = Some(bstr::bstr_t::from("http"));
-    htp_uri.username = Some(bstr::bstr_t::from("user"));
-    htp_uri.hostname = Some(bstr::bstr_t::from("host.com"));
+    let mut htp_uri = Uri::new();
+    htp_uri.scheme = Some(bstr::Bstr::from("http"));
+    htp_uri.username = Some(bstr::Bstr::from("user"));
+    htp_uri.hostname = Some(bstr::Bstr::from("host.com"));
     let (partial_normalized_uri, normalized_uri) = generate_normalized_uri(&cfg, &htp_uri);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(
         normalized_uri,
-        Some(bstr::bstr_t::from("http://user:@host.com"))
+        Some(bstr::Bstr::from("http://user:@host.com"))
     );
 }
 

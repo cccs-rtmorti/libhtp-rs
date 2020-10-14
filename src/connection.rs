@@ -4,7 +4,7 @@ use std::net::IpAddr;
 
 pub type htp_time_t = libc::timeval;
 
-pub struct htp_conn_t {
+pub struct Connection {
     /// Client IP address.
     pub client_addr: Option<IpAddr>,
     /// Client port.
@@ -32,7 +32,7 @@ pub struct htp_conn_t {
     pub out_data_counter: i64,
 }
 
-impl htp_conn_t {
+impl Connection {
     pub fn new() -> Self {
         Self {
             client_addr: None,
@@ -56,7 +56,7 @@ impl htp_conn_t {
     }
 
     /// Push a transaction to this connection's tx list.
-    pub fn push_tx(&mut self, tx: transaction::htp_tx_t) {
+    pub fn push_tx(&mut self, tx: transaction::Transaction) {
         self.transactions.push(tx)
     }
 
@@ -81,33 +81,33 @@ impl htp_conn_t {
     }
 
     /// Get a transaction by tx_id from this connection.
-    pub fn tx(&self, tx_id: usize) -> Option<&transaction::htp_tx_t> {
+    pub fn tx(&self, tx_id: usize) -> Option<&transaction::Transaction> {
         self.transactions.get(tx_id)
     }
 
     /// Get a transaction by tx_id from this connection as a pointer.
-    pub fn tx_ptr(&self, tx_id: usize) -> *const transaction::htp_tx_t {
+    pub fn tx_ptr(&self, tx_id: usize) -> *const transaction::Transaction {
         self.transactions
             .get(tx_id)
-            .map(|tx| tx as *const transaction::htp_tx_t)
+            .map(|tx| tx as *const transaction::Transaction)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get a transaction by tx_id from this connection as a mutable reference.
-    pub fn tx_mut(&mut self, tx_id: usize) -> Option<&mut transaction::htp_tx_t> {
+    pub fn tx_mut(&mut self, tx_id: usize) -> Option<&mut transaction::Transaction> {
         self.transactions.get_mut(tx_id)
     }
 
     /// Get a transaction by tx_id from this connection as a mutable pointer.
-    pub fn tx_mut_ptr(&mut self, tx_id: usize) -> *mut transaction::htp_tx_t {
+    pub fn tx_mut_ptr(&mut self, tx_id: usize) -> *mut transaction::Transaction {
         self.transactions
             .get_mut(tx_id)
-            .map(|tx| tx as *mut transaction::htp_tx_t)
+            .map(|tx| tx as *mut transaction::Transaction)
             .unwrap_or(std::ptr::null_mut())
     }
 
     /// Push a log message to this connection's log list.
-    pub fn push_message(&mut self, log: log::htp_log_t) {
+    pub fn push_message(&mut self, log: log::Log) {
         self.messages.push(log);
     }
 
@@ -122,7 +122,7 @@ impl htp_conn_t {
     }
 
     /// Get a log message by id from this connection.
-    pub fn message(&self, msg_id: usize) -> Option<&log::htp_log_t> {
+    pub fn message(&self, msg_id: usize) -> Option<&log::Log> {
         self.messages.get(msg_id)
     }
 
@@ -166,7 +166,7 @@ impl htp_conn_t {
     }
 }
 
-impl PartialEq for htp_conn_t {
+impl PartialEq for Connection {
     fn eq(&self, rhs: &Self) -> bool {
         self.client_addr == rhs.client_addr
             && self.client_port == rhs.client_port
