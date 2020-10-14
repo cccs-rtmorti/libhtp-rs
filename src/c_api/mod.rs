@@ -260,13 +260,12 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(
 /// in the current buffer (e.g., a very long header line that might span several packets). This
 /// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
 #[no_mangle]
-pub unsafe extern "C" fn htp_config_set_field_limits(
+pub unsafe extern "C" fn htp_config_set_field_limit(
     cfg: *mut htp_config::htp_cfg_t,
-    soft_limit: libc::size_t,
-    hard_limit: libc::size_t,
+    field_limit: libc::size_t,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_field_limits(soft_limit, hard_limit)
+        (*cfg).set_field_limit(field_limit)
     }
 }
 

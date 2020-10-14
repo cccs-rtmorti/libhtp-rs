@@ -1928,7 +1928,7 @@ fn LongRequestLine1() {
 fn LongRequestLine2() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_field_limits(0, 16);
+        (*t.cfg).set_field_limit(16);
         assert!(t.run("67-long-request-line.t").is_err());
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);
@@ -1973,7 +1973,7 @@ fn TestGenericPersonality() {
 fn LongResponseHeader() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_field_limits(0, 16);
+        (*t.cfg).set_field_limit(16);
         assert!(t.run("69-long-response-header.t").is_err());
 
         let tx = (*t.connp).conn.tx_mut_ptr(0);

@@ -127,7 +127,7 @@ impl htp_connection_parser::htp_connp_t {
 
     /// If there is any data left in the inbound data chunk, this function will preserve
     /// it for later consumption. The maximum amount accepted for buffering is controlled
-    /// by htp_config_t::field_limit_hard.
+    /// by htp_config_t::field_limit.
     ///
     /// Returns HTP_OK, or HTP_ERROR on fatal failure.
     unsafe fn req_buffer(&mut self) -> Result<()> {
@@ -148,14 +148,14 @@ impl htp_connection_parser::htp_connp_t {
         if let Some(header) = &self.in_header {
             newlen = newlen.wrapping_add(header.len())
         }
-        if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit_hard {
+        if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit {
             htp_error!(
                 self as *mut htp_connection_parser::htp_connp_t,
                 htp_log_code::REQUEST_FIELD_TOO_LONG,
                 format!(
                     "Request buffer over the limit: size {} limit {}.",
                     newlen,
-                    (*self.in_tx_mut_ok()?.cfg).field_limit_hard
+                    (*self.in_tx_mut_ok()?.cfg).field_limit
                 )
             );
             return Err(Status::ERROR);

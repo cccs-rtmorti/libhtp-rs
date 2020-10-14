@@ -11,10 +11,7 @@ pub struct htp_cfg_t {
     /// The maximum size of the buffer that is used when the current
     /// input chunk does not contain all the necessary data (e.g., a very header
     /// line that spans several packets).
-    pub field_limit_hard: usize,
-    /// Soft field limit length. If this limit is reached the parser will issue
-    /// a warning but continue to run. NOT IMPLEMENTED.
-    pub field_limit_soft: usize,
+    pub field_limit: usize,
     /// Log level, which will be used when deciding whether to store or
     /// ignore the messages issued by the parser.
     pub log_level: htp_log_level_t,
@@ -29,10 +26,6 @@ pub struct htp_cfg_t {
     pub decoder_cfg: htp_decoder_cfg_t,
     /// Whether to decompress compressed response bodies.
     pub response_decompression_enabled: bool,
-    /// Not fully implemented at the moment.
-    pub request_encoding: *mut i8,
-    /// Not fully implemented at the moment.
-    pub internal_encoding: *mut i8,
     /// Whether to parse request cookies.
     pub parse_request_cookies: bool,
     /// Whether to parse HTTP Authentication headers.
@@ -131,16 +124,13 @@ pub struct htp_cfg_t {
 impl Default for htp_cfg_t {
     fn default() -> Self {
         Self {
-            field_limit_hard: 18000,
-            field_limit_soft: 9000,
+            field_limit: 18000,
             log_level: htp_log_level_t::HTP_LOG_NOTICE,
             tx_auto_destroy: false,
             server_personality: htp_server_personality_t::HTP_SERVER_MINIMAL,
             parameter_processor: None,
             decoder_cfg: Default::default(),
             response_decompression_enabled: true,
-            request_encoding: std::ptr::null_mut(),
-            internal_encoding: std::ptr::null_mut(),
             parse_request_cookies: true,
             parse_request_auth: true,
             extract_request_files: false,
@@ -520,9 +510,8 @@ impl htp_cfg_t {
     /// in the current buffer (e.g., a very long header line that might span several packets). This
     /// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
     /// soft_limit is NOT IMPLEMENTED.
-    pub fn set_field_limits(&mut self, soft_limit: usize, hard_limit: usize) {
-        self.field_limit_soft = soft_limit;
-        self.field_limit_hard = hard_limit;
+    pub fn set_field_limit(&mut self, field_limit: usize) {
+        self.field_limit = field_limit;
     }
 
     /// Configures the maximum memlimit LibHTP will pass to liblzma.
