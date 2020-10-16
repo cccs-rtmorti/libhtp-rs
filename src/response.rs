@@ -255,7 +255,8 @@ impl connection_parser::ConnectionParser {
         let mut i: usize = 0;
         while i < len {
             let c = unsafe { *data.offset(i as isize) };
-            if c == 0xd || c == 0xa || c == 0x20 || c == 0x9 || c == 0xb || c == 0xc {
+            if is_chunked_ctl_char(c as u8) {
+                // ctl char, still good.
             } else if c.is_ascii_digit()
                 || c >= 'a' as u8 && c <= 'f' as u8
                 || c >= 'A' as u8 && c <= 'F' as u8
@@ -288,7 +289,10 @@ impl connection_parser::ConnectionParser {
                 return Err(Status::DATA_BUFFER);
             }
             // Have we reached the end of the line? Or is this not chunked after all?
-            if !(self.out_next_byte == '\n' as i32 || !self.data_probe_chunk_length()) {
+            if !(self.out_next_byte == '\n' as i32
+                || (!is_chunked_ctl_char(self.out_next_byte as u8)
+                    && !self.data_probe_chunk_length()))
+            {
                 continue;
             }
             let mut data: *mut u8 = 0 as *mut u8;
@@ -448,11 +452,15 @@ impl connection_parser::ConnectionParser {
                 return unsafe { self.state_response_headers().into() };
             } else if self.out_tx_mut_ok()?.response_status_number == 407 {
                 // proxy telling us to auth
-                self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_DATA
+                if self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
+                    self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_DATA
+                }
             } else {
                 // This is a failed CONNECT stream, which means that
                 // we can unblock request parsing
-                self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
+                if self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
+                    self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_DATA
+                }
                 // We are going to continue processing this transaction,
                 // adding a note for ourselves to stop at the end (because
                 // we don't want to see the beginning of a new transaction).
@@ -478,7 +486,9 @@ impl connection_parser::ConnectionParser {
         if self.out_tx_mut_ok()?.response_status_number == 101 {
             if te_opt.is_none() && cl_opt.is_none() {
                 self.out_state = State::FINALIZE;
-                self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
+                if self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_ERROR {
+                    self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL
+                }
                 self.out_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
                 // we may have response headers
                 return unsafe { self.state_response_headers().into() };
@@ -1412,4 +1422,8 @@ impl connection_parser::ConnectionParser {
             }
         }
     }
+}
+
+pub fn is_chunked_ctl_char(c: u8) -> bool {
+    c == 0x0d || c == 0x0a || c == 0x20 || c == 0x09 || c == 0x0b || c == 0x0
 }
