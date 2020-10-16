@@ -668,6 +668,10 @@ impl connection_parser::ConnectionParser {
         let mut data: *mut u8 = 0 as *mut u8;
         let mut len: usize = 0;
         self.req_consolidate_data(&mut data, &mut len)?;
+        if len == 0 {
+            self.req_clear_buffer();
+            return Err(Status::DATA);
+        }
         // Is this a line that should be ignored?
         if !data.is_null()
             && util::connp_is_line_ignorable(
@@ -801,20 +805,25 @@ impl connection_parser::ConnectionParser {
             ));
             let method_type = util::convert_bstr_to_method(&method);
             if method_type == htp_method_t::HTP_M_UNKNOWN {
-                // else continue
+                if self.in_body_data_left <= 0 {
+                    // log only once per transaction
+                    htp_warn!(
+                        self as *mut connection_parser::ConnectionParser,
+                        htp_log_code::REQUEST_BODY_UNEXPECTED,
+                        "Unexpected request body"
+                    );
+                } else {
+                    self.in_body_data_left = 1;
+                }
                 // Interpret remaining bytes as body data
-                htp_warn!(
-                    self as *mut connection_parser::ConnectionParser,
-                    htp_log_code::REQUEST_BODY_UNEXPECTED,
-                    "Unexpected request body"
-                );
                 let rc = self
                     .in_tx_mut()
                     .ok_or(Status::ERROR)?
                     .req_process_body_data_ex(data as *const core::ffi::c_void, len);
                 self.req_clear_buffer();
                 return rc;
-            }
+            } // else continue
+            self.in_body_data_left = -1;
         }
         //unread last end of line so that REQ_LINE works
         if self.in_current_read_offset < len as i64 {
@@ -910,9 +919,7 @@ impl connection_parser::ConnectionParser {
         // only if the stream has been closed. We do not allow zero-sized
         // chunks in the API, but we use them internally to force the parsers
         // to finalize parsing.
-        if (data == 0 as *mut core::ffi::c_void || len == 0)
-            && self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
-        {
+        if len == 0 && self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
             htp_error!(
                 self as *mut connection_parser::ConnectionParser,
                 htp_log_code::ZERO_LENGTH_DATA_CHUNKS,
@@ -949,7 +956,29 @@ impl connection_parser::ConnectionParser {
         // Return if there's been an error or if we've run out of data. We are relying
         // on processors to supply error messages, so we'll keep quiet here.
         {
-            let mut rc = self.handle_in_state();
+            let mut rc;
+
+            //handle gap
+            if data.is_null() && len > 0 {
+                match self.in_state {
+                    State::BODY_IDENTITY | State::IGNORE_DATA_AFTER_HTTP_0_9 => {
+                        rc = self.handle_in_state()
+                    }
+                    State::FINALIZE => rc = self.state_request_complete().into(),
+                    _ => {
+                        // go to htp_connp_REQ_CONNECT_PROBE_DATA ?
+                        htp_error!(
+                            self as *mut connection_parser::ConnectionParser,
+                            htp_log_code::INVALID_GAP,
+                            "Gaps are not allowed during this state"
+                        );
+                        return connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED;
+                    }
+                }
+            } else {
+                rc = self.handle_in_state();
+            }
+
             if rc.is_ok() {
                 if self.in_status == connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {
                     return connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;

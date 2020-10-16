@@ -233,6 +233,14 @@ pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(
     }
 }
 
+/// Configures the maximum layers LibHTP will pass to liblzma.
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut config::Config, layer: libc::c_int) {
+    if !cfg.is_null() {
+        (*cfg).set_lzma_layers(layer)
+    }
+}
+
 /// Configures the maximum compression bomb size LibHTP will decompress.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(

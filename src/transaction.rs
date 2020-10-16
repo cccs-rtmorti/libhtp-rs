@@ -1231,6 +1231,8 @@ impl Transaction {
                 let mut layers: i32 = 0;
                 let mut comp: *mut decompressors::htp_decompressor_t =
                     0 as *mut decompressors::htp_decompressor_t;
+                let mut nblzma: i32 = 0;
+
                 let tokens = ce.value.split_str_collect(", ");
                 let connp = self.connp;
                 for tok in tokens {
@@ -1272,7 +1274,16 @@ impl Transaction {
                             }
                             cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
                         } else if token.index_of_nocase("lzma").is_some() {
-                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA;
+                            nblzma = nblzma.wrapping_add(1);
+                            if nblzma > (*(*connp).cfg).response_lzma_layer_limit {
+                                htp_error!(
+                                    connp,
+                                    htp_log_code::COMPRESSION_BOMB_DOUBLE_LZMA,
+                                    "Compression bomb: double lzma encoding"
+                                );
+                                break;
+                            }
                         } else if token.index_of_nocase("inflate").is_some() {
                             cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
                         } else {

@@ -2659,3 +2659,25 @@ fn RequestCookies5() {
         assert_eq!(0, (*tx).request_cookies.size());
     }
 }
+
+#[test]
+fn Expect100() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("105-expect-100.t").is_ok());
+        assert_eq!(2, (*t.connp).conn.tx_size());
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+        assert!((*tx).request_method.as_ref().unwrap().eq("PUT"));
+        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(401, (*tx).response_status_number);
+        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+
+        let tx = (*t.connp).conn.tx_mut_ptr(1);
+        assert!(!tx.is_null());
+        assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
+        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(200, (*tx).response_status_number);
+        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+    }
+}

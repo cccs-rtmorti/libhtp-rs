@@ -76,6 +76,8 @@ pub enum htp_log_code {
     LZMA_DECOMPRESSION_DISABLED,
     CONNECTION_ALREADY_OPEN,
     PROTOCOL_CONTAINS_EXTRA_DATA,
+    INVALID_GAP,
+    COMPRESSION_BOMB_DOUBLE_LZMA,
     /// Error retrieving a log message's code
     ERROR,
 }

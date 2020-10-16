@@ -516,6 +516,22 @@ impl connection_parser::ConnectionParser {
             self.out_tx_mut_ok()?.seen_100continue;
             return Ok(());
         }
+
+        // A request can indicate it waits for headers validation
+        // before sending its body cf
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expect
+        if self.out_tx_mut_ok()?.response_status_number >= 400
+            && self.out_tx_mut_ok()?.response_status_number <= 499
+            && self.in_content_length > 0
+            && self.in_body_data_left == self.in_content_length
+        {
+            if let Some((_, expect)) = self.out_tx_mut_ok()?.request_headers.get_nocase("expect") {
+                if expect.value == "100-continue" {
+                    self.in_state = State::FINALIZE;
+                }
+            }
+        }
+
         // 1. Any response message which MUST NOT include a message-body
         //  (such as the 1xx, 204, and 304 responses and any response to a HEAD
         //  request) is always terminated by the first empty line after the
@@ -1287,9 +1303,7 @@ impl connection_parser::ConnectionParser {
         // only if the stream has been closed. We do not allow zero-sized
         // chunks in the API, but we use it internally to force the parsers
         // to finalize parsing.
-        if (data == 0 as *mut core::ffi::c_void || len == 0)
-            && self.out_status != connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
-        {
+        if len == 0 && self.out_status != connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
             unsafe {
                 htp_error!(
                     self as *mut connection_parser::ConnectionParser,
@@ -1325,7 +1339,31 @@ impl connection_parser::ConnectionParser {
         // on processors to add error messages, so we'll
         // keep quiet here.
         {
-            let mut rc = self.handle_out_state();
+            let mut rc;
+            //handle gap
+            if data.is_null() && len > 0 {
+                match self.out_state {
+                    State::BODY_IDENTITY_CL_KNOWN | State::BODY_IDENTITY_STREAM_CLOSE => {
+                        rc = self.handle_out_state()
+                    }
+                    State::FINALIZE => unsafe {
+                        rc = self.state_response_complete_ex(0);
+                    },
+                    _ => {
+                        unsafe {
+                            htp_error!(
+                                self as *mut connection_parser::ConnectionParser,
+                                htp_log_code::INVALID_GAP,
+                                "Gaps are not allowed during this state"
+                            );
+                        }
+                        return connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED;
+                    }
+                }
+            } else {
+                rc = self.handle_out_state();
+            }
+
             if rc.is_ok() {
                 if self.out_status == connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL {
                     return connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
