@@ -82,6 +82,8 @@ mod content_handlers;
 mod cookies;
 pub mod decompressors;
 pub mod hook;
+#[macro_use]
+mod unicode_bestfit_map;
 pub mod list;
 pub mod multipart;
 mod parsers;

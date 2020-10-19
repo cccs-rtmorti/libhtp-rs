@@ -17,8 +17,7 @@
 //
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-
-use crate::config::DecoderConfig;
+use crate::unicode_bestfit_map::UnicodeBestfitMap;
 use crate::util::Flags;
 
 static utf8d: [u8; 400] = [
@@ -56,7 +55,7 @@ static utf8d_allow_overlong: [u8; 400] = [
 
 #[derive(Clone)]
 pub struct Utf8Decoder {
-    cfg: DecoderConfig,
+    bestfit_map: UnicodeBestfitMap,
     state: u32,
     seq: u32,
     codepoint: u32,
@@ -67,9 +66,9 @@ pub struct Utf8Decoder {
 
 impl Utf8Decoder {
     /// Make a new owned Utf8Decoder
-    pub fn new(cfg: DecoderConfig) -> Self {
+    pub fn new(bestfit_map: UnicodeBestfitMap) -> Self {
         Self {
-            cfg,
+            bestfit_map,
             state: 0,
             seq: 0,
             codepoint: 0,
@@ -126,7 +125,7 @@ impl Utf8Decoder {
                 // assume it's the starting byte of the next character.
                 self.state = 0;
                 self.codepoint = 0;
-                self.decoded_bytes.push(self.cfg.bestfit_replacement_byte);
+                self.decoded_bytes.push(self.bestfit_map.replacement_byte);
                 if self.seq != 1 {
                     self.seq = 0;
                     self.decode_byte(encoded_byte);
@@ -143,7 +142,7 @@ impl Utf8Decoder {
     /// Decode a UTF-8 encoded path. Replaces a possibly-invalid utf8 byte stream
     /// with an ascii stream, storing the result in self.decoded_bytes. Overlong
     /// characters will be decoded and invalid characters will be replaced with
-    /// the replacement byte specified in the cfg. Best-fit mapping will be used
+    /// the replacement byte specified in the bestfit_map. Best-fit mapping will be used
     /// to convert UTF-8 into a single-byte stream.
     pub fn decode_and_validate(&mut self, input: &[u8]) {
         //Reset all internals
@@ -189,24 +188,6 @@ impl Utf8Decoder {
         if self.codepoint < 0x100 {
             return self.codepoint as u8;
         }
-        // Our current implementation converts only the 2-byte codepoints.
-        if self.codepoint > 0xffff {
-            return self.cfg.bestfit_replacement_byte;
-        }
-        let p = self.cfg.bestfit_map;
-        // TODO Optimize lookup.
-        let mut index: usize = 0;
-        while index + 3 < p.len() {
-            let x: u32 = (((p[index] as i32) << 8 as i32) + p[index + 1] as i32) as u32;
-            if x == 0 {
-                return self.cfg.bestfit_replacement_byte;
-            }
-            if x == self.codepoint {
-                return p[index + 2];
-            }
-            // Move to the next triplet
-            index = index.wrapping_add(3)
-        }
-        self.cfg.bestfit_replacement_byte
+        return self.bestfit_map.get(self.codepoint);
     }
 }

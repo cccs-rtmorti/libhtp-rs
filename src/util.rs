@@ -329,7 +329,7 @@ impl Uri {
             // Ignore result.
             let _ = decode_uri_path_inplace(decoder_cfg, flags, status, &mut path);
             // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
-            utf8_decode_and_validate_uri_path_inplace(decoder_cfg, flags, status, &mut path);
+            utf8_decode_and_validate_uri_path_inplace(&decoder_cfg, flags, status, &mut path);
             // RFC normalization.
             normalize_uri_path_inplace(&mut path);
             Some(path)
@@ -938,7 +938,7 @@ pub fn utf8_decode_and_validate_uri_path_inplace(
     status: &mut htp_unwanted_t,
     path: &mut bstr::Bstr,
 ) {
-    let mut decoder = utf8_decoder::Utf8Decoder::new(*cfg);
+    let mut decoder = utf8_decoder::Utf8Decoder::new(cfg.bestfit_map);
     decoder.decode_and_validate(path.as_slice());
     if cfg.utf8_convert_bestfit {
         path.clear();
@@ -964,9 +964,8 @@ fn decode_u_encoding_path<'a>(
     let mut expected_status_code = HTP_UNWANTED_IGNORE;
     let (i, c1) = x2c(&i)?;
     let (i, c2) = x2c(&i)?;
-    let mut r = cfg.bestfit_replacement_byte;
+    let mut r = c2;
     if c1 == 0 {
-        r = c2;
         flags |= Flags::HTP_PATH_OVERLONG_U
     } else {
         // Check for fullwidth form evasion
@@ -975,19 +974,7 @@ fn decode_u_encoding_path<'a>(
         }
         expected_status_code = cfg.u_encoding_unwanted;
         // Use best-fit mapping
-        let p = cfg.bestfit_map;
-        // TODO Optimize lookup.
-        // Have we reached the end of the map?
-        let mut index: usize = 0;
-        while index + 3 < p.len() {
-            if p[index] == c1 && p[index + 1] == c2 {
-                r = p[index + 2];
-                break;
-            } else {
-                // Move to the next triplet
-                index = index.wrapping_add(3)
-            }
-        }
+        r = cfg.bestfit_map.get(bestfit_key!(c1, c2));
     }
     // Check for encoded path separators
     if r == '/' as u8 || cfg.backslash_convert_slashes && r == '\\' as u8 {
@@ -1005,7 +992,6 @@ fn decode_u_encoding_params<'a>(
 ) -> IResult<&'a [u8], (u8, Flags)> {
     let (i, c1) = x2c(&i)?;
     let (i, c2) = x2c(&i)?;
-    let mut r = cfg.bestfit_replacement_byte;
     let mut flags = Flags::empty();
     // Check for overlong usage first.
     if c1 == 0 {
@@ -1018,20 +1004,7 @@ fn decode_u_encoding_params<'a>(
         flags |= Flags::HTP_URLEN_HALF_FULL_RANGE
     }
     // Use best-fit mapping.
-    let p = cfg.bestfit_map;
-    // TODO Optimize lookup.
-    // Have we reached the end of the map?
-    let mut index: usize = 0;
-    while index + 3 < p.len() {
-        if p[index] == c1 && p[index + 1] == c2 {
-            r = p[index + 2];
-            break;
-        } else {
-            // Move to the next triplet
-            index = index.wrapping_add(3)
-        }
-    }
-    Ok((i, (r, flags)))
+    Ok((i, (cfg.bestfit_map.get(bestfit_key!(c1, c2)), flags)))
 }
 
 /// Decodes path valid uencoded params according to the given cfg settings.
@@ -1366,9 +1339,8 @@ pub fn tx_urldecode_params_inplace(
     tx: &mut transaction::Transaction,
     input: &mut bstr::Bstr,
 ) -> Result<()> {
-    let decoder_cfg = unsafe { (*(tx.cfg)).decoder_cfg };
-    if let Ok((_, (consumed, flags, expected_status))) =
-        urldecode_ex(input.as_slice(), &decoder_cfg)
+    let decoder_cfg = unsafe { &(*(tx.cfg)).decoder_cfg };
+    if let Ok((_, (consumed, flags, expected_status))) = urldecode_ex(input.as_slice(), decoder_cfg)
     {
         (*input).clear();
         input.add(consumed.as_slice());
