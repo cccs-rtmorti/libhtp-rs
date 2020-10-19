@@ -2,7 +2,7 @@ use crate::error::Result;
 use crate::transaction::Protocol;
 use crate::util::Flags;
 use crate::util::*;
-use crate::{bstr, config, connection_parser, parsers, request, transaction, util, Status};
+use crate::{bstr, config, connection_parser, parsers, request, transaction, util};
 use nom::bytes::complete::take_while;
 use nom::error::ErrorKind;
 use nom::sequence::tuple;
@@ -184,21 +184,13 @@ impl connection_parser::ConnectionParser {
         ))
     }
 
-    /// Generic request line parser.
-    ///
-    /// Returns HTP_OK or HTP_ERROR
-    pub unsafe fn parse_request_line_generic(&mut self) -> Result<()> {
-        self.parse_request_line_generic_ex(false)
-    }
-
-    pub unsafe fn parse_request_line_generic_ex(&mut self, nul_terminates: bool) -> Result<()> {
+    pub unsafe fn parse_request_line_generic_ex(
+        &mut self,
+        request_line: &[u8],
+        nul_terminates: bool,
+    ) -> Result<()> {
         let mut mstart: bool = false;
-        let data = if let Some(data) = self.in_tx_mut_ok()?.request_line.clone() {
-            data
-        } else {
-            return Err(Status::ERROR);
-        };
-        let mut data = data.as_slice();
+        let mut data: &[u8] = request_line;
         if nul_terminates {
             if let Ok((_, before_null)) = util::take_until_null(data) {
                 data = before_null
@@ -226,14 +218,14 @@ impl connection_parser::ConnectionParser {
                     "Request line: leading whitespace"
                 );
 
-                if (*(*self).cfg).requestline_leading_whitespace_unwanted
+                if (*self.cfg).requestline_leading_whitespace_unwanted
                     != config::htp_unwanted_t::HTP_UNWANTED_IGNORE
                 {
                     // reset mstart so that we copy the whitespace into the method
                     mstart = true;
                     // set expected response code to this anomaly
                     self.in_tx_mut_ok()?.response_status_expected_number =
-                        (*(*self).cfg).requestline_leading_whitespace_unwanted
+                        (*self.cfg).requestline_leading_whitespace_unwanted
                 }
             }
 

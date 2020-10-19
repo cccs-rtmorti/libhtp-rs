@@ -88,7 +88,6 @@ pub mod list;
 pub mod multipart;
 mod parsers;
 pub mod request;
-mod request_apache_2_2;
 mod request_generic;
 pub mod response;
 mod response_generic;

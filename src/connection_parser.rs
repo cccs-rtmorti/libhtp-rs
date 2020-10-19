@@ -387,29 +387,25 @@ impl ConnectionParser {
     }
 
     /// The function used for request line parsing. Depends on the personality.
-    pub fn parse_request_line(&mut self) -> Result<()> {
+    pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
+        self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(request_line));
         unsafe {
             if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                self.parse_request_line_apache_2_2()
+                self.parse_request_line_generic_ex(request_line, true)
             } else {
-                self.parse_request_line_generic()
+                self.parse_request_line_generic_ex(request_line, false)
             }
         }
     }
 
-    /// The function used for response line parsing. Depends on the personality.
-    pub fn parse_response_line(&mut self) -> Result<()> {
-        unsafe { self.parse_response_line_generic() }
+    /// The function used for response line parsing.
+    pub fn parse_response_line(&mut self, response_line: &[u8]) -> Result<()> {
+        self.out_tx_mut_ok()?.response_line = Some(bstr::Bstr::from(response_line));
+        unsafe { self.parse_response_line_generic(response_line) }
     }
 
-    pub fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
-        unsafe {
-            if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
-                self.process_request_header_apache_2_2(data)
-            } else {
-                self.process_request_header_generic(data)
-            }
-        }
+    pub unsafe fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
+        self.process_request_header_generic(data)
     }
 
     pub fn process_response_header(&mut self, data: &[u8]) -> Result<()> {

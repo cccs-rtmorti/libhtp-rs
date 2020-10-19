@@ -202,16 +202,14 @@ unsafe fn req_set_header<S: AsRef<[u8]>>(tx: &mut Transaction, name: S, value: S
 /// Set request line. When used, this function should always be called first,
 /// with more specific functions following. Must not contain line terminators.
 unsafe fn req_set_line<S: AsRef<[u8]>>(tx: &mut Transaction, line: S) -> Result<()> {
-    tx.request_line = Some(Bstr::from(line.as_ref()));
-    (*tx.connp).parse_request_line()
+    (*tx.connp).parse_request_line(line.as_ref())
 }
 
 /// Set response line. Use this function is you have a single buffer containing
 /// the entire line. If you have individual request line pieces, use the other
 /// available functions.
 unsafe fn res_set_status_line<S: AsRef<[u8]>>(tx: &mut Transaction, line: S) -> Result<()> {
-    tx.response_line = Some(Bstr::from(line.as_ref()));
-    (*tx.connp).parse_response_line()
+    (*tx.connp).parse_response_line(line.as_ref())
 }
 
 struct HybridParsingTest {

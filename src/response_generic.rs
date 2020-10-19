@@ -7,17 +7,12 @@ use std::cmp::Ordering;
 
 impl connection_parser::ConnectionParser {
     /// Generic response line parser.
-    pub unsafe fn parse_response_line_generic(&mut self) -> Result<()> {
-        let tx = self.out_tx_mut_ok()?;
-        let data = if let Some(data) = tx.response_line.clone() {
-            data
-        } else {
-            return Err(Status::ERROR);
-        };
-        (*tx).response_protocol_number = Protocol::INVALID;
-        (*tx).response_status = None;
-        (*tx).response_status_number = -1;
-        (*tx).response_message = None;
+    pub unsafe fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
+        let out_tx = self.out_tx_mut_ok()?;
+        out_tx.response_protocol_number = Protocol::INVALID;
+        out_tx.response_status = None;
+        out_tx.response_status_number = -1;
+        out_tx.response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
             util::take_is_space,
@@ -28,13 +23,12 @@ impl connection_parser::ConnectionParser {
         ));
 
         if let Ok((message, (_ls, response_protocol, ws1, status_code, ws2))) =
-            response_line_parser(data.as_slice())
+            response_line_parser(response_line)
         {
             if response_protocol.is_empty() {
                 return Ok(());
             }
 
-            let out_tx = self.out_tx_mut_ok()?;
             out_tx.response_protocol = Some(bstr::Bstr::from(response_protocol));
             self.out_tx_mut_ok()?.response_protocol_number =
                 parsers::parse_protocol(response_protocol, self);

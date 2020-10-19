@@ -1121,8 +1121,7 @@ impl connection_parser::ConnectionParser {
                     }
                     return Ok(());
                 }
-                self.out_tx_mut_ok()?.response_line = Some(bstr::Bstr::from(s));
-                self.parse_response_line()?;
+                self.parse_response_line(s)?;
                 unsafe { self.state_response_line()? };
                 self.res_clear_buffer();
                 // Move on to the next phase.

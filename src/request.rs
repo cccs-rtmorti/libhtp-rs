@@ -689,9 +689,7 @@ impl connection_parser::ConnectionParser {
         // Process request line.
         let s = std::slice::from_raw_parts(data as *const u8, len);
         let s = util::chomp(&s);
-        len = s.len();
-        self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(s));
-        self.parse_request_line()?;
+        self.parse_request_line(s)?;
         // Finalize request line parsing.
         self.state_request_line()?;
         self.req_clear_buffer();
