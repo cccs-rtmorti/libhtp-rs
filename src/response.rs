@@ -893,7 +893,7 @@ impl connection_parser::ConnectionParser {
                 }
                 // Should we terminate headers?
                 if !data.is_null()
-                    && util::connp_is_line_terminator(
+                    && util::is_line_terminator(
                         unsafe { (*self.cfg).server_personality },
                         unsafe { std::slice::from_raw_parts(data, len) },
                         next_no_lf,
@@ -930,7 +930,7 @@ impl connection_parser::ConnectionParser {
                 let s = util::chomp(&s);
                 len = s.len();
                 // Check for header folding.
-                if !util::connp_is_line_folded(s) {
+                if !util::is_line_folded(s) {
                     // New header line.
                     // Parse previous header, if any.
                     if let Some(out_header) = self.out_header.take() {
@@ -1069,10 +1069,9 @@ impl connection_parser::ConnectionParser {
                 self.res_consolidate_data(&mut data, &mut len)?;
                 // Is this a line that should be ignored?
                 if !data.is_null()
-                    && util::connp_is_line_ignorable(
-                        unsafe { (*self.cfg).server_personality },
-                        unsafe { std::slice::from_raw_parts(data, len) },
-                    )
+                    && util::is_line_ignorable(unsafe { (*self.cfg).server_personality }, unsafe {
+                        std::slice::from_raw_parts(data, len)
+                    })
                 {
                     if self.out_status == connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
                         self.out_state = State::FINALIZE
@@ -1262,6 +1261,19 @@ impl connection_parser::ConnectionParser {
             self.out_body_data_left = -1
         }
         unsafe { self.state_response_start() }
+    }
+
+    /// Run the RESPONSE_BODY_DATA hook.
+    pub unsafe fn res_run_hook_body_data(&mut self, d: *mut transaction::Data) -> Result<()> {
+        let out_tx = self.out_tx_mut_ok()?;
+        // Do not invoke callbacks with an empty data chunk.
+        if !(*d).data().is_null() && (*d).len() == 0 {
+            return Ok(());
+        }
+        // Run transaction hooks first
+        out_tx.hook_response_body_data.run_all(d)?;
+        // Run configuration hooks second
+        (*self.cfg).hook_response_body_data.run_all(d)
     }
 
     /// Process a chunk of outbound (server or response) data.

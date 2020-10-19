@@ -355,16 +355,6 @@ impl FileData<'_> {
     }
 }
 
-/// Is character a linear white space character?
-///
-/// Returns true or false
-pub fn is_lws(c: u8) -> bool {
-    match c as char {
-        ' ' | '\t' => true,
-        _ => false,
-    }
-}
-
 /// Is character a separator character?
 ///
 /// Returns true or false
@@ -378,13 +368,6 @@ pub fn is_separator(c: u8) -> bool {
         | '=' | '{' | '}' | ' ' | '\t' => true,
         _ => false,
     }
-}
-
-/// Is character a text character?
-///
-/// Returns true or false
-pub fn is_text(c: i32) -> bool {
-    c == '\t' as i32 || c >= 32
 }
 
 /// Is character a token character?
@@ -505,12 +488,7 @@ pub fn is_line_empty(data: &[u8]) -> bool {
 ///
 /// Returns bool
 pub fn is_line_whitespace(data: &[u8]) -> bool {
-    for c in data {
-        if !is_space(*c) {
-            return false;
-        }
-    }
-    true
+    !data.iter().any(|c| !is_space(*c))
 }
 
 /// Searches for and extracts the next set of ascii digits from the input slice if present
@@ -552,8 +530,8 @@ fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// White space is allowed before and after the number.
 ///
 /// Returns Content-Length as a number or None if parsing failed.
-pub fn parse_content_length<'a>(
-    input: &'a [u8],
+pub fn parse_content_length(
+    input: &[u8],
     connp: Option<&mut connection_parser::ConnectionParser>,
 ) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
@@ -610,7 +588,7 @@ pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i
 /// Determines if the given line is a continuation (of some previous line).
 ///
 /// Returns false or true, respectively.
-pub fn connp_is_line_folded(data: &[u8]) -> bool {
+pub fn is_line_folded(data: &[u8]) -> bool {
     if data.is_empty() {
         return false;
     }
@@ -618,13 +596,13 @@ pub fn connp_is_line_folded(data: &[u8]) -> bool {
 }
 
 pub fn is_folding_char(c: u8) -> bool {
-    is_lws(c) || c == 0
+    nom_is_space(c) || c == 0
 }
 
 /// Determines if the given line is a request terminator.
 ///
 /// Returns true or false
-pub fn connp_is_line_terminator(
+pub fn is_line_terminator(
     server_personality: config::htp_server_personality_t,
     data: &[u8],
     next_no_lf: bool,
@@ -641,7 +619,7 @@ pub fn connp_is_line_terminator(
     if is_line_empty(data) {
         return true;
     }
-    if data.len() == 2 && is_lws(data[0]) && data[1] == '\n' as u8 {
+    if data.len() == 2 && nom_is_space(data[0]) && data[1] == '\n' as u8 {
         return next_no_lf;
     }
     false
@@ -650,18 +628,18 @@ pub fn connp_is_line_terminator(
 /// Determines if the given line can be ignored when it appears before a request.
 ///
 /// Returns true or false
-pub fn connp_is_line_ignorable(
+pub fn is_line_ignorable(
     server_personality: config::htp_server_personality_t,
     data: &[u8],
 ) -> bool {
-    connp_is_line_terminator(server_personality, data, false)
+    is_line_terminator(server_personality, data, false)
 }
 
 /// Attempts to convert the provided port slice to a u16
 ///
 /// Returns port number if a valid one is found. None if fails to convert or the result is 0
 fn convert_port(port: &[u8]) -> Option<u16> {
-    if port.len() == 0 {
+    if port.is_empty() {
         return None;
     }
     if let Ok(res) = std::str::from_utf8(port) {
@@ -1738,49 +1716,6 @@ pub fn treat_response_line_as_body(data: &[u8]) -> bool {
     tuple((opt(take_is_space), tag_no_case("http")))(data).is_err()
 }
 
-/// Run the REQUEST_BODY_DATA hook.
-pub unsafe fn req_run_hook_body_data(
-    connp: *mut connection_parser::ConnectionParser,
-    d: *mut transaction::Data,
-) -> Result<()> {
-    // Do not invoke callbacks with an empty data chunk
-    if !(*d).data().is_null() && (*d).len() == 0 {
-        return Ok(());
-    }
-    // Do not invoke callbacks without a transaction.
-    if let Some(in_tx) = (*connp).in_tx() {
-        // Run transaction hooks first
-        in_tx.hook_request_body_data.run_all(d)?;
-    }
-    // Run configuration hooks second
-    (*(*connp).cfg).hook_request_body_data.run_all(d)?;
-    // On PUT requests, treat request body as file
-    if let Some(file) = &mut (*connp).put_file {
-        file.handle_file_data((*connp).cfg, (*d).data(), (*d).len())?;
-    }
-    Ok(())
-}
-
-/// Run the RESPONSE_BODY_DATA hook.
-pub unsafe fn res_run_hook_body_data(
-    connp: *mut connection_parser::ConnectionParser,
-    d: *mut transaction::Data,
-) -> Result<()> {
-    let out_tx = if let Some(out_tx) = (*connp).out_tx_mut() {
-        out_tx
-    } else {
-        return Err(Status::ERROR);
-    };
-    // Do not invoke callbacks with an empty data chunk.
-    if !(*d).data().is_null() && (*d).len() == 0 {
-        return Ok(());
-    }
-    // Run transaction hooks first
-    out_tx.hook_response_body_data.run_all(d)?;
-    // Run configuration hooks second
-    (*(*connp).cfg).hook_response_body_data.run_all(d)
-}
-
 /// Parses the content type header, trimming any leading whitespace.
 /// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
 ///
@@ -1811,7 +1746,7 @@ pub fn parse_ct_header(header: &[u8]) -> Result<bstr::Bstr> {
 /// Implements relaxed (not strictly RFC) hostname validation.
 ///
 /// Returns true if the supplied hostname is valid; false if it is not.
-pub fn validate_hostname<'a>(input: &'a [u8]) -> bool {
+pub fn validate_hostname(input: &[u8]) -> bool {
     if input.len() == 0 || input.len() > 255 {
         return false;
     }

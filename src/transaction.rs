@@ -765,14 +765,16 @@ impl Transaction {
         self.request_entity_len = (self.request_entity_len as u64).wrapping_add(len as u64) as i64;
         // Send data to the callbacks.
         let mut data = Data::new(self, data as *mut u8, len, false);
-        util::req_run_hook_body_data(self.connp, &mut data).map_err(|e| {
-            htp_error!(
-                self.connp,
-                htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
-                format!("Request body data callback returned error ({:?})", e)
-            );
-            e
-        })
+        (*self.connp)
+            .req_run_hook_body_data(&mut data)
+            .map_err(|e| {
+                htp_error!(
+                    self.connp,
+                    htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                    format!("Request body data callback returned error ({:?})", e)
+                );
+                e
+            })
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
@@ -910,7 +912,7 @@ impl Transaction {
                 // is identical to response_message_len.
                 self.response_entity_len =
                     (self.response_entity_len as u64).wrapping_add(d.len as u64) as i64;
-                util::res_run_hook_body_data(self.connp, &mut d)?;
+                (*self.connp).res_run_hook_body_data(&mut d)?;
             }
             _ => {
                 // Internal error.
@@ -1474,7 +1476,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
     // Keep track of actual response body length.
     tx.response_entity_len = (tx.response_entity_len as u64).wrapping_add(d.len() as u64) as i64;
     // Invoke all callbacks.
-    let rc: Status = util::res_run_hook_body_data(tx.connp, d).into();
+    let rc: Status = (*tx.connp).res_run_hook_body_data(d).into();
     if rc != Status::OK {
         return Status::ERROR;
     }

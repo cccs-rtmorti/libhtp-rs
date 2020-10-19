@@ -114,9 +114,9 @@ fn ParseChunkedLength() {
 
 #[test]
 fn IsLineFolded() {
-    assert_eq!(true, connp_is_line_folded(b"\tline"));
-    assert_eq!(true, connp_is_line_folded(b" line"));
-    assert_eq!(false, connp_is_line_folded(b"line "));
+    assert_eq!(true, is_line_folded(b"\tline"));
+    assert_eq!(true, is_line_folded(b" line"));
+    assert_eq!(false, is_line_folded(b"line "));
 }
 
 #[derive(Clone)]

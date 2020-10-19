@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::hook::DataHook;
 use crate::util::Flags;
 use crate::{bstr, connection_parser, transaction, util, Status};
+use nom::character::is_space as nom_is_space;
 
 /// HTTP methods.
 #[repr(C)]
@@ -548,7 +549,7 @@ impl connection_parser::ConnectionParser {
                 self.req_consolidate_data(&mut data, &mut len)?;
                 // Should we terminate headers?
                 if !data.is_null()
-                    && util::connp_is_line_terminator(
+                    && util::is_line_terminator(
                         (*self.cfg).server_personality,
                         std::slice::from_raw_parts(data, len),
                         false,
@@ -566,7 +567,7 @@ impl connection_parser::ConnectionParser {
                 let s = util::chomp(&s);
                 len = s.len();
                 // Check for header folding.
-                if !util::connp_is_line_folded(s) {
+                if !util::is_line_folded(s) {
                     // New header line.
                     // Parse previous header, if any.
                     if let Some(in_header) = self.in_header.take() {
@@ -644,7 +645,7 @@ impl connection_parser::ConnectionParser {
                         transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS;
                     return Ok(());
                 } else {
-                    if util::is_lws(*self.in_current_data.offset(pos as isize)) {
+                    if nom_is_space(*self.in_current_data.offset(pos as isize)) {
                         // Allows spaces after header name
                         afterspaces = 1
                     } else if util::is_space(*self.in_current_data.offset(pos as isize))
@@ -674,7 +675,7 @@ impl connection_parser::ConnectionParser {
         }
         // Is this a line that should be ignored?
         if !data.is_null()
-            && util::connp_is_line_ignorable(
+            && util::is_line_ignorable(
                 (*self.cfg).server_personality,
                 std::slice::from_raw_parts(data, len),
             )
@@ -876,6 +877,26 @@ impl connection_parser::ConnectionParser {
         // Change state to TRANSACTION_START
         // Ignore the result.
         let _ = self.state_request_start();
+        Ok(())
+    }
+
+    /// Run the REQUEST_BODY_DATA hook.
+    pub unsafe fn req_run_hook_body_data(&mut self, d: *mut transaction::Data) -> Result<()> {
+        // Do not invoke callbacks with an empty data chunk
+        if !(*d).data().is_null() && (*d).len() == 0 {
+            return Ok(());
+        }
+        // Do not invoke callbacks without a transaction.
+        if let Some(in_tx) = self.in_tx() {
+            // Run transaction hooks first
+            in_tx.hook_request_body_data.run_all(d)?;
+        }
+        // Run configuration hooks second
+        (*self.cfg).hook_request_body_data.run_all(d)?;
+        // On PUT requests, treat request body as file
+        if let Some(file) = &mut self.put_file {
+            file.handle_file_data(self.cfg, (*d).data(), (*d).len())?;
+        }
         Ok(())
     }
 
