@@ -1757,7 +1757,7 @@ impl Drop for UrlEncodedParserTest {
 #[test]
 fn UrlencodedParser_Empty() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"");
 
     assert_eq!(0, urlenp.params.size());
@@ -1766,7 +1766,7 @@ fn UrlencodedParser_Empty() {
 #[test]
 fn UrlencodedParser_EmptyKey1() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1776,7 +1776,7 @@ fn UrlencodedParser_EmptyKey1() {
 #[test]
 fn UrlencodedParser_EmptyKey2() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1786,7 +1786,7 @@ fn UrlencodedParser_EmptyKey2() {
 #[test]
 fn UrlencodedParser_EmptyKey3() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=1&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq("1"));
@@ -1796,7 +1796,7 @@ fn UrlencodedParser_EmptyKey3() {
 #[test]
 fn UrlencodedParser_EmptyKey4() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"&=");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1806,7 +1806,7 @@ fn UrlencodedParser_EmptyKey4() {
 #[test]
 fn UrlencodedParser_EmptyKey5() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"&&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1816,7 +1816,7 @@ fn UrlencodedParser_EmptyKey5() {
 #[test]
 fn UrlencodedParser_EmptyKeyAndValue() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
@@ -1826,7 +1826,7 @@ fn UrlencodedParser_EmptyKeyAndValue() {
 #[test]
 fn UrlencodedParser_OnePairEmptyValue() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p=");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1836,7 +1836,7 @@ fn UrlencodedParser_OnePairEmptyValue() {
 #[test]
 fn UrlencodedParser_OnePairEmptyKey() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"=p");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq("p"));
@@ -1846,7 +1846,7 @@ fn UrlencodedParser_OnePairEmptyKey() {
 #[test]
 fn UrlencodedParser_OnePair() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p=1");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
@@ -1856,7 +1856,7 @@ fn UrlencodedParser_OnePair() {
 #[test]
 fn UrlencodedParser_TwoPairs() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p=1&q=2");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
@@ -1867,7 +1867,7 @@ fn UrlencodedParser_TwoPairs() {
 #[test]
 fn UrlencodedParser_KeyNoValue1() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1877,7 +1877,7 @@ fn UrlencodedParser_KeyNoValue1() {
 #[test]
 fn UrlencodedParser_KeyNoValue2() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p&");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1887,7 +1887,7 @@ fn UrlencodedParser_KeyNoValue2() {
 #[test]
 fn UrlencodedParser_KeyNoValue3() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p&q");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1898,7 +1898,7 @@ fn UrlencodedParser_KeyNoValue3() {
 #[test]
 fn UrlencodedParser_KeyNoValue4() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_complete(&mut urlenp, b"p&q=2");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
@@ -1909,7 +1909,7 @@ fn UrlencodedParser_KeyNoValue4() {
 #[test]
 fn UrlencodedParser_Partial1() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_finalize(&mut urlenp);
 
@@ -1920,7 +1920,7 @@ fn UrlencodedParser_Partial1() {
 #[test]
 fn UrlencodedParser_Partial2() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"x");
     urlenp_finalize(&mut urlenp);
@@ -1932,7 +1932,7 @@ fn UrlencodedParser_Partial2() {
 #[test]
 fn UrlencodedParser_Partial3() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"x&");
     urlenp_finalize(&mut urlenp);
@@ -1944,7 +1944,7 @@ fn UrlencodedParser_Partial3() {
 #[test]
 fn UrlencodedParser_Partial4() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"=");
     urlenp_finalize(&mut urlenp);
@@ -1956,7 +1956,7 @@ fn UrlencodedParser_Partial4() {
 #[test]
 fn UrlencodedParser_Partial5() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"p");
     urlenp_parse_partial(&mut urlenp, b"");
     urlenp_parse_partial(&mut urlenp, b"");
@@ -1970,7 +1970,7 @@ fn UrlencodedParser_Partial5() {
 #[test]
 fn UrlencodedParser_Partial6() {
     let test = UrlEncodedParserTest::new();
-    let mut urlenp = UrlEncodedParser::new(test.tx);
+    let mut urlenp = Parser::new(test.tx);
     urlenp_parse_partial(&mut urlenp, b"px");
     urlenp_parse_partial(&mut urlenp, b"n");
     urlenp_parse_partial(&mut urlenp, b"");

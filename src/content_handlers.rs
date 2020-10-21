@@ -59,7 +59,7 @@ pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::Transact
             return Err(Status::DECLINED);
         }
         // Create parser instance.
-        (*tx).request_urlenp_body = Some(urlencoded::UrlEncodedParser::new(tx));
+        (*tx).request_urlenp_body = Some(urlencoded::Parser::new(tx));
         // Register a request body data callback.
         (*tx)
             .hook_request_body_data
@@ -86,7 +86,7 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::Transaction
             return Err(Status::DECLINED);
         }
         // We have a non-zero length query string.
-        let mut urlenp = urlencoded::UrlEncodedParser::new(tx);
+        let mut urlenp = urlencoded::Parser::new(tx);
         if let Some(query) = (*tx)
             .parsed_uri
             .as_ref()

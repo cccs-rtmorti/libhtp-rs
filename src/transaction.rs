@@ -325,7 +325,7 @@ pub struct Transaction {
     pub hook_response_body_data: DataHook,
     /// Request body URLENCODED parser. Available only when the request body is in the
     /// application/x-www-form-urlencoded format and the parser was configured to run.
-    pub request_urlenp_body: Option<urlencoded::UrlEncodedParser>,
+    pub request_urlenp_body: Option<urlencoded::Parser>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: Option<multipart::Parser>,

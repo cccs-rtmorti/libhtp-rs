@@ -10,7 +10,7 @@ use nom::{
 /// This is the main URLENCODED parser structure. It is used to store
 /// parser configuration, temporary parsing data, as well as the parameters.
 #[derive(Clone)]
-pub struct UrlEncodedParser {
+pub struct Parser {
     /// The transaction this parser belongs to.
     pub tx: *mut transaction::Transaction,
     /// The character used to separate parameters. Defaults to & and should
@@ -26,7 +26,7 @@ pub struct UrlEncodedParser {
     field: bstr::Bstr,
 }
 
-impl UrlEncodedParser {
+impl Parser {
     pub fn new(tx: *mut transaction::Transaction) -> Self {
         Self {
             tx,
@@ -43,7 +43,7 @@ impl UrlEncodedParser {
 /// Finalizes parsing, forcing the parser to convert any outstanding
 /// data into parameters. This method should be invoked at the end
 /// of a parsing operation that used urlenp_parse_partial().
-pub fn urlenp_finalize(urlenp: &mut UrlEncodedParser) {
+pub fn urlenp_finalize(urlenp: &mut Parser) {
     urlenp.complete = true;
     urlenp_parse_partial(urlenp, b"")
 }
@@ -52,7 +52,7 @@ pub fn urlenp_finalize(urlenp: &mut UrlEncodedParser) {
 /// that it contains all the data that will be parsed. When this
 /// method is used for parsing the finalization method should not
 /// be invoked.
-pub fn urlenp_parse_complete(urlenp: &mut UrlEncodedParser, data: &[u8]) {
+pub fn urlenp_parse_complete(urlenp: &mut Parser, data: &[u8]) {
     urlenp_parse_partial(urlenp, data);
     urlenp_finalize(urlenp)
 }
@@ -73,7 +73,7 @@ fn urlen_name_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Parses the provided data chunk, searching for argument seperators and '=' to locate names and values,
 /// keeping state to allow streaming parsing, i.e., the parsing where only partial information is available
 /// at any one time. The method urlenp_finalize() must be invoked at the end to finalize parsing.
-pub fn urlenp_parse_partial(urlenp: &mut UrlEncodedParser, data: &[u8]) {
+pub fn urlenp_parse_partial(urlenp: &mut Parser, data: &[u8]) {
     urlenp.field.add(data);
     let input = urlenp.field.clone();
     let mut input = input.as_slice();
