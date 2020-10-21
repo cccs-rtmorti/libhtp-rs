@@ -4,8 +4,8 @@ use crate::hook::{DataHook, DataNativeCallbackFn};
 use crate::list::List;
 use crate::util::Flags;
 use crate::{
-    bstr, config, connection_parser, cookies, decompressors, multipart, parsers, request, table,
-    urlencoded, util, Status,
+    bstr, config, connection_parser, decompressors, multipart, parsers, request, table, urlencoded,
+    util, Status,
 };
 use std::cmp::Ordering;
 
@@ -707,7 +707,7 @@ impl Transaction {
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies {
-            cookies::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
+            parsers::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
         }
         // Parse authentication information.
         if (*(*self.connp).cfg).parse_request_auth {

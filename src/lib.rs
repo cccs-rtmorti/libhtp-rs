@@ -79,7 +79,6 @@ pub mod config;
 mod connection;
 pub mod connection_parser;
 mod content_handlers;
-mod cookies;
 pub mod decompressors;
 pub mod hook;
 #[macro_use]
