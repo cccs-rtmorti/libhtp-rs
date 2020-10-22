@@ -70,27 +70,20 @@ impl Param {
 #[derive(Debug, Clone)]
 /// This structure is used to pass transaction data (for example
 /// request and response body buffers) to callbacks.
-pub struct Data {
+pub struct Data<'a> {
     /// Transaction pointer.
     tx: *mut Transaction,
-    /// Pointer to the data buffer.
-    data: *const u8,
-    /// Buffer length.
-    len: usize,
+    /// Ref to the data buffer.
+    data: Option<&'a [u8]>,
     /// Indicator if this chunk of data is the last in the series. Currently
     /// used only by REQUEST_HEADER_DATA, REQUEST_TRAILER_DATA, RESPONSE_HEADER_DATA,
     /// and RESPONSE_TRAILER_DATA callbacks.
     is_last: bool,
 }
 
-impl Data {
-    pub fn new(tx: *mut Transaction, data: *const u8, len: usize, is_last: bool) -> Self {
-        Self {
-            tx,
-            data,
-            len,
-            is_last,
-        }
+impl<'a> Data<'a> {
+    pub fn new(tx: *mut Transaction, data: Option<&'a [u8]>, is_last: bool) -> Self {
+        Self { tx, data, is_last }
     }
 
     pub fn tx(&self) -> *mut Transaction {
@@ -99,10 +92,13 @@ impl Data {
 
     pub fn data(&self) -> *const u8 {
         self.data
+            .as_ref()
+            .map(|data| data.as_ptr())
+            .unwrap_or(std::ptr::null())
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        self.data.as_ref().map(|data| data.len()).unwrap_or(0)
     }
 
     pub fn is_last(&self) -> bool {
@@ -748,33 +744,32 @@ impl Transaction {
         if data.as_ref().len() == 0 {
             return Ok(());
         }
-        self.req_process_body_data_ex(
-            data.as_ref().as_ptr() as *const core::ffi::c_void,
-            data.as_ref().len(),
-        )
+        self.req_process_body_data_ex(Some(data.as_ref()))
     }
 
-    pub unsafe fn req_process_body_data_ex(
-        &mut self,
-        data: *const core::ffi::c_void,
-        len: usize,
-    ) -> Result<()> {
+    pub fn req_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
         // NULL data is allowed in this private function; it's
         // used to indicate the end of request body.
         // Keep track of the body length.
-        self.request_entity_len = (self.request_entity_len as u64).wrapping_add(len as u64) as i64;
+        if let Some(data) = data {
+            self.request_entity_len =
+                (self.request_entity_len as u64).wrapping_add(data.len() as u64) as i64;
+        }
         // Send data to the callbacks.
-        let mut data = Data::new(self, data as *mut u8, len, false);
-        (*self.connp)
-            .req_run_hook_body_data(&mut data)
-            .map_err(|e| {
-                htp_error!(
-                    self.connp,
-                    htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
-                    format!("Request body data callback returned error ({:?})", e)
-                );
-                e
-            })
+
+        let mut data = Data::new(self, data, false);
+        unsafe {
+            (*self.connp)
+                .req_run_hook_body_data(&mut data)
+                .map_err(|e| {
+                    htp_error!(
+                        self.connp,
+                        htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                        format!("Request body data callback returned error ({:?})", e)
+                    );
+                    e
+                })
+        }
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
@@ -854,10 +849,11 @@ impl Transaction {
     ) -> Result<()> {
         // NULL data is allowed in this private function; it's
         // used to indicate the end of response body.
-        let mut d = Data::new(self, data as *const u8, len, false);
+        let data_slice = std::slice::from_raw_parts(data as *const u8, len);
+        let mut d = Data::new(self, Some(data_slice), false);
         // Keep track of body size before decompression.
         self.response_message_len =
-            (self.response_message_len as u64).wrapping_add(d.len as u64) as i64;
+            (self.response_message_len as u64).wrapping_add(d.len() as u64) as i64;
         let connp = self.connp;
         match self.response_content_encoding_processing {
             decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
@@ -911,7 +907,7 @@ impl Transaction {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
                 self.response_entity_len =
-                    (self.response_entity_len as u64).wrapping_add(d.len as u64) as i64;
+                    (self.response_entity_len as u64).wrapping_add(d.len() as u64) as i64;
                 (*self.connp).res_run_hook_body_data(&mut d)?;
             }
             _ => {
@@ -940,14 +936,16 @@ impl Transaction {
         self.out_decompressor = 0 as *mut decompressors::htp_decompressor_t;
     }
 
-    pub unsafe fn state_request_complete_partial(&mut self) -> Result<()> {
+    pub fn state_request_complete_partial(&mut self) -> Result<()> {
         // Finalize request body.
         if self.req_has_body() {
-            self.req_process_body_data_ex(0 as *const core::ffi::c_void, 0)?;
+            self.req_process_body_data_ex(None)?;
         }
         self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
         // Run hook REQUEST_COMPLETE.
-        (*(*self.connp).cfg).hook_request_complete.run_all(self)?;
+        unsafe {
+            (*(*self.connp).cfg).hook_request_complete.run_all(self)?;
+        }
         Ok(())
     }
 
@@ -955,7 +953,7 @@ impl Transaction {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_complete(&mut self) -> Result<()> {
+    pub fn state_request_complete(&mut self) -> Result<()> {
         if self.request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE {
             self.state_request_complete_partial()?;
         }
@@ -965,15 +963,21 @@ impl Transaction {
         let connp: *mut connection_parser::ConnectionParser = self.connp;
         // Determine what happens next, and remove this transaction from the parser.
         if self.is_protocol_0_9 {
-            (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
+            unsafe {
+                (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
+            }
         } else {
-            (*connp).in_state = State::IDLE;
+            unsafe {
+                (*connp).in_state = State::IDLE;
+            }
         }
         // Check if the entire transaction is complete. This call may
         // destroy the transaction, if auto-destroy is enabled.
         let _ = self.finalize();
         // At this point, tx may no longer be valid.
-        (*connp).clear_in_tx();
+        unsafe {
+            (*connp).clear_in_tx();
+        }
         Ok(())
     }
 
@@ -1085,17 +1089,19 @@ impl Transaction {
         self.state_response_complete_ex(1)
     }
 
-    pub unsafe fn finalize(&mut self) -> Result<()> {
+    pub fn finalize(&mut self) -> Result<()> {
         if !self.is_complete() {
             return Ok(());
         }
-        // Run hook TRANSACTION_COMPLETE.
-        (*(*self.connp).cfg)
-            .hook_transaction_complete
-            .run_all(self)?;
-        // In streaming processing, we destroy the transaction because it will not be needed any more.
-        if (*(*self.connp).cfg).tx_auto_destroy {
-            self.destroy()?;
+        unsafe {
+            // Run hook TRANSACTION_COMPLETE.
+            (*(*self.connp).cfg)
+                .hook_transaction_complete
+                .run_all(self)?;
+            // In streaming processing, we destroy the transaction because it will not be needed any more.
+            if (*(*self.connp).cfg).tx_auto_destroy {
+                self.destroy()?;
+            }
         }
         Ok(())
     }
@@ -1372,7 +1378,7 @@ impl Transaction {
         Ok(())
     }
 
-    pub unsafe fn is_complete(&self) -> bool {
+    pub fn is_complete(&self) -> bool {
         // A transaction is considered complete only when both the request and
         // response are complete. (Sometimes a complete response can be seen
         // even while the request is ongoing.)

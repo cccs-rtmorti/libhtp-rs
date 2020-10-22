@@ -83,8 +83,8 @@ impl Test {
         unsafe {
             let output_ptr: *mut *mut Bstr = &mut self.output;
             (*self.tx).set_user_data(output_ptr as *mut core::ffi::c_void);
-
-            let mut tx = Data::new(self.tx, data.as_mut_ptr() as *const u8, data.len(), false);
+            let data = std::slice::from_raw_parts(data.as_mut_ptr() as *const u8, data.len());
+            let mut tx = Data::new(self.tx, Some(data), false);
             let rc = (*self.decompressor).decompress.unwrap()(self.decompressor, &mut tx);
             if rc == Status::OK {
                 Ok(())

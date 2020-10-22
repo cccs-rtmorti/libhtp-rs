@@ -192,7 +192,7 @@ mod test {
             Status::OK
         }
         let mut hook = DataHook::new();
-        let mut data = Data::new(std::ptr::null_mut(), std::ptr::null_mut(), 0, false);
+        let mut data = Data::new(std::ptr::null_mut(), None, false);
 
         hook.register(|_| Ok(()));
         hook.register_extern(foo);

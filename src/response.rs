@@ -13,20 +13,20 @@ impl connection_parser::ConnectionParser {
     ///
     /// Returns HTP_OK, or a value returned from a callback.
     fn res_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
-        let mut data = unsafe {
-            transaction::Data::new(
-                self.out_tx_mut_ptr(),
+        unsafe {
+            let data = std::slice::from_raw_parts(
                 self.out_current_data
-                    .offset(self.out_current_receiver_offset as isize),
+                    .offset(self.out_current_receiver_offset as isize) as *const u8,
                 (self.out_current_read_offset - self.out_current_receiver_offset) as usize,
-                is_last,
-            )
-        };
-        if let Some(hook) = &self.out_data_receiver_hook {
-            hook.run_all(&mut data)?;
-        } else {
-            return Ok(());
-        };
+            );
+
+            let mut data = transaction::Data::new(self.out_tx_mut_ptr(), Some(data), is_last);
+            if let Some(hook) = &self.out_data_receiver_hook {
+                hook.run_all(&mut data)?;
+            } else {
+                return Ok(());
+            };
+        }
         self.out_current_receiver_offset = self.out_current_read_offset;
         Ok(())
     }
@@ -1239,7 +1239,7 @@ impl connection_parser::ConnectionParser {
             // finalize dangling request waiting for next request or body
             if self.in_state == State::FINALIZE {
                 // Ignore result.
-                let _ = unsafe { self.state_request_complete() };
+                let _ = self.state_request_complete();
             }
             let tx_id = self.create_tx()?;
             self.set_out_tx_id(Some(tx_id));

@@ -12,6 +12,14 @@ pub struct Bstr {
     s: BString,
 }
 
+impl Default for Bstr {
+    fn default() -> Self {
+        Self {
+            s: BString::from(Vec::new()),
+        }
+    }
+}
+
 impl Bstr {
     /// Make a new owned Bstr
     pub fn new() -> Self {

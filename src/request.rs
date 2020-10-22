@@ -1,9 +1,15 @@
 use crate::connection_parser::State;
 use crate::error::Result;
 use crate::hook::DataHook;
-use crate::util::Flags;
+use crate::util::{
+    nom_take_is_space, take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, Flags,
+};
 use crate::{bstr, connection_parser, transaction, util, Status};
-use nom::character::is_space as nom_is_space;
+use nom::{
+    branch::alt, bytes::complete::take_until, character::complete::char,
+    character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
+};
+use std::io::{Cursor, Seek, SeekFrom};
 
 /// HTTP methods.
 #[repr(C)]
@@ -49,12 +55,13 @@ impl connection_parser::ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     ///
     /// Returns HTP_OK, or a value returned from a callback.
-    unsafe fn req_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
+    fn req_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
         let mut data = transaction::Data::new(
             self.in_tx_mut_ptr(),
-            self.in_current_data
-                .offset(self.in_current_receiver_offset as isize),
-            (self.in_current_read_offset - self.in_current_receiver_offset) as usize,
+            Some(
+                &self.in_curr_data.get_ref()[self.in_current_receiver_offset as usize
+                    ..self.in_curr_data.position() as usize],
+            ),
             is_last,
         );
         if let Some(hook) = &self.in_data_receiver_hook {
@@ -62,18 +69,18 @@ impl connection_parser::ConnectionParser {
         } else {
             return Ok(());
         };
-        self.in_current_receiver_offset = self.in_current_read_offset;
+        self.in_current_receiver_offset = self.in_curr_data.position();
         Ok(())
     }
 
     /// Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
     ///
     /// Returns HTP_OK, or a value returned from a callback.
-    unsafe fn req_receiver_set(&mut self, data_receiver_hook: Option<DataHook>) -> Result<()> {
+    fn req_receiver_set(&mut self, data_receiver_hook: Option<DataHook>) -> Result<()> {
         // Ignore result.
         let _ = self.req_receiver_finalize_clear();
         self.in_data_receiver_hook = data_receiver_hook;
-        self.in_current_receiver_offset = self.in_current_read_offset;
+        self.in_current_receiver_offset = self.in_curr_data.position();
         Ok(())
     }
 
@@ -81,7 +88,7 @@ impl connection_parser::ConnectionParser {
     /// hook is then removed so that it receives no more data.
     ///
     /// Returns HTP_OK, or a value returned from a callback.
-    pub unsafe fn req_receiver_finalize_clear(&mut self) -> Result<()> {
+    pub fn req_receiver_finalize_clear(&mut self) -> Result<()> {
         if self.in_data_receiver_hook.is_none() {
             return Ok(());
         }
@@ -94,27 +101,29 @@ impl connection_parser::ConnectionParser {
     /// to configure data receivers, which are sent raw connection data.
     ///
     /// Returns HTP_OK, or a value returned from a callback.
-    unsafe fn req_handle_state_change(&mut self) -> Result<()> {
+    fn req_handle_state_change(&mut self) -> Result<()> {
         if self.in_state_previous == self.in_state {
             return Ok(());
         }
         if self.in_state == State::HEADERS {
-            let header_fn = Some((*self.in_tx_mut_ok()?.cfg).hook_request_header_data.clone());
-            let trailer_fn = Some(
-                (*self.in_tx_mut_ok()?.cfg)
-                    .hook_request_trailer_data
-                    .clone(),
-            );
+            unsafe {
+                let header_fn = Some((*self.in_tx_mut_ok()?.cfg).hook_request_header_data.clone());
+                let trailer_fn = Some(
+                    (*self.in_tx_mut_ok()?.cfg)
+                        .hook_request_trailer_data
+                        .clone(),
+                );
 
-            match self.in_tx_mut_ok()?.request_progress {
-                transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS => {
-                    self.req_receiver_set(header_fn)
-                }
-                transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER => {
-                    self.req_receiver_set(trailer_fn)
-                }
-                _ => Ok(()),
-            }?;
+                match self.in_tx_mut_ok()?.request_progress {
+                    transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS => {
+                        self.req_receiver_set(header_fn)
+                    }
+                    transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER => {
+                        self.req_receiver_set(trailer_fn)
+                    }
+                    _ => Ok(()),
+                }?;
+            }
         }
         // Initially, I had the finalization of raw data sending here, but that
         // caused the last REQUEST_HEADER_DATA hook to be invoked after the
@@ -131,14 +140,7 @@ impl connection_parser::ConnectionParser {
     /// by htp_config_t::field_limit.
     ///
     /// Returns HTP_OK, or HTP_ERROR on fatal failure.
-    unsafe fn req_buffer(&mut self) -> Result<()> {
-        if self.in_current_data.is_null() {
-            return Ok(());
-        }
-        let data: *mut u8 = self
-            .in_current_data
-            .offset(self.in_current_consume_offset as isize);
-        let len: usize = (self.in_current_read_offset - self.in_current_consume_offset) as usize;
+    fn check_buffer_limit(&mut self, len: usize) -> Result<()> {
         if len == 0 {
             return Ok(());
         }
@@ -149,51 +151,21 @@ impl connection_parser::ConnectionParser {
         if let Some(header) = &self.in_header {
             newlen = newlen.wrapping_add(header.len())
         }
-        if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit {
-            htp_error!(
-                self as *mut connection_parser::ConnectionParser,
-                htp_log_code::REQUEST_FIELD_TOO_LONG,
-                format!(
-                    "Request buffer over the limit: size {} limit {}.",
-                    newlen,
-                    (*self.in_tx_mut_ok()?.cfg).field_limit
-                )
-            );
-            return Err(Status::ERROR);
-        }
-        // Copy the data remaining in the buffer.
-        self.in_buf.add(std::slice::from_raw_parts(data, len));
-        // Reset the consumer position.
-        self.in_current_consume_offset = self.in_current_read_offset;
-        Ok(())
-    }
-
-    /// Returns to the caller the memory region that should be processed next. This function
-    /// hides away the buffering process from the rest of the code, allowing it to work with
-    /// non-buffered data that's in the inbound chunk, or buffered data that's in our structures.
-    ///
-    /// Returns HTP_OK
-    unsafe fn req_consolidate_data(&mut self, data: *mut *mut u8, len: *mut usize) -> Result<()> {
-        if !self.in_buf.is_empty() {
-            // We already have some data in the buffer. Add the data from the current
-            // chunk to it and point to the consolidated buffer.
-            self.req_buffer()?;
-            *data = self.in_buf.as_mut_ptr();
-            *len = self.in_buf.len()
-        } else {
-            // We do not have any data buffered; point to the current data chunk.
-            *data = self
-                .in_current_data
-                .offset(self.in_current_consume_offset as isize);
-            *len = (self.in_current_read_offset - self.in_current_consume_offset) as usize
+        unsafe {
+            if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit {
+                htp_error!(
+                    self as *mut connection_parser::ConnectionParser,
+                    htp_log_code::REQUEST_FIELD_TOO_LONG,
+                    format!(
+                        "Request buffer over the limit: size {} limit {}.",
+                        newlen,
+                        (*self.in_tx_mut_ok()?.cfg).field_limit
+                    )
+                );
+                return Err(Status::ERROR);
+            }
         }
         Ok(())
-    }
-
-    /// Clears buffered inbound data and resets the consumer position to the reader position.
-    unsafe fn req_clear_buffer(&mut self) {
-        self.in_current_consume_offset = self.in_current_read_offset;
-        self.in_buf.clear()
     }
 
     /// Performs a check for a CONNECT transaction to decide whether inbound
@@ -202,7 +174,7 @@ impl connection_parser::ConnectionParser {
     /// Returns HTP_OK if the request does not use CONNECT, HTP_DATA_OTHER if
     ///          inbound parsing needs to be suspended until we hear from the
     ///          other side
-    pub unsafe fn REQ_CONNECT_CHECK(&mut self) -> Result<()> {
+    pub fn REQ_CONNECT_CHECK(&mut self) -> Result<()> {
         // If the request uses the CONNECT method, then there will
         // not be a request body, but first we need to wait to see the
         // response in order to determine if the tunneling request
@@ -223,62 +195,35 @@ impl connection_parser::ConnectionParser {
     ///
     /// Returns HTP_OK if the parser can resume parsing, HTP_DATA_BUFFER if
     ///         we need more data.
-    pub unsafe fn REQ_CONNECT_PROBE_DATA(&mut self) -> Result<()> {
-        loop {
-            //;i < max_read; i++) {
-            if self.in_current_read_offset >= self.in_current_len {
-                self.in_next_byte = -1
-            } else {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32
-            }
-            // Have we reached the end of the line? For some reason
-            // we can't test after IN_COPY_BYTE_OR_RETURN */
-            if self.in_next_byte == '\n' as i32 || self.in_next_byte == 0 {
-                break;
-            }
-            if self.in_current_read_offset < self.in_current_len {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32;
-                self.in_current_read_offset += 1;
-                self.in_stream_offset += 1
-            } else {
-                return Err(Status::DATA_BUFFER);
-            }
+    pub fn REQ_CONNECT_PROBE_DATA(&mut self, line: &[u8]) -> Result<()> {
+        let data = if let Ok((_, data)) = take_till_lf_null(line) {
+            data
+        } else {
+            return self.handle_absent_lf(line);
+        };
+
+        if !self.in_buf.is_empty() {
+            self.check_buffer_limit(data.len())?;
         }
-        let mut data: *mut u8 = 0 as *mut u8;
-        let mut len: usize = 0;
-        self.req_consolidate_data(&mut data, &mut len)?;
-        let mut pos: usize = 0;
-        let mut mstart: usize = 0;
-        // skip past leading whitespace. IIS allows this
-        while pos < len && util::is_space(*data.offset(pos as isize)) {
-            pos = pos.wrapping_add(1)
-        }
-        if pos != 0 {
-            mstart = pos
-        }
+        // copy, will still need buffer data for next state.
+        let mut buffered = self.in_buf.clone();
+        buffered.add(data);
+
         // The request method starts at the beginning of the
         // line and ends with the first whitespace character.
-        while pos < len && !util::is_space(*data.offset(pos as isize)) {
-            pos = pos.wrapping_add(1)
-        }
-        let method = bstr::Bstr::from(std::slice::from_raw_parts(
-            data.offset(mstart as isize),
-            pos.wrapping_sub(mstart),
-        ));
-        let method_type = util::convert_bstr_to_method(&method);
-        if method_type != htp_method_t::HTP_M_UNKNOWN {
-            return self.state_request_complete().into();
-        } else {
-            self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
-            self.out_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL
-        }
-        // not calling htp_connp_req_clear_buffer, we're not consuming the data
+        // We skip leading whitespace as IIS allows this.
+        let res = tuple::<_, _, (_, ErrorKind), _>((take_is_space, take_not_is_space))(
+            buffered.as_slice(),
+        );
+        if let Ok((_, (_, method))) = res {
+            let method_type = util::convert_to_method(method);
+            if method_type == htp_method_t::HTP_M_UNKNOWN {
+                self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL;
+                self.out_status = connection_parser::htp_stream_state_t::HTP_STREAM_TUNNEL
+            } else {
+                return self.state_request_complete().into();
+            }
+        };
         Ok(())
     }
 
@@ -288,7 +233,7 @@ impl connection_parser::ConnectionParser {
     ///
     /// Returns HTP_OK if the parser can resume parsing, HTP_DATA_OTHER if
     ///         it needs to continue waiting.
-    pub unsafe fn REQ_CONNECT_WAIT_RESPONSE(&mut self) -> Result<()> {
+    pub fn REQ_CONNECT_WAIT_RESPONSE(&mut self) -> Result<()> {
         // Check that we saw the response line of the current inbound transaction.
         if self.in_tx_mut_ok()?.response_progress
             <= transaction::htp_tx_res_progress_t::HTP_RESPONSE_LINE
@@ -315,61 +260,36 @@ impl connection_parser::ConnectionParser {
     /// Consumes bytes until the end of the current line.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_BODY_CHUNKED_DATA_END(&mut self) -> Result<()> {
-        loop
+    pub fn REQ_BODY_CHUNKED_DATA_END(&mut self, data: &[u8]) -> Result<()> {
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
-        {
-            if self.in_current_read_offset < self.in_current_len {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32;
-                self.in_current_read_offset += 1;
-                self.in_current_consume_offset += 1;
-                self.in_stream_offset += 1
-            } else {
-                return Err(Status::DATA);
-            }
-            self.in_tx_mut_ok()?.request_message_len += 1;
-            if self.in_next_byte == '\n' as i32 {
-                self.in_state = State::BODY_CHUNKED_LENGTH;
-                return Ok(());
-            }
+        if let Ok((_, parsed)) = take_till_lf(data) {
+            let len = parsed.len() as i64;
+            self.in_curr_data.seek(SeekFrom::Current(len))?;
+            self.in_tx_mut_ok()?.request_message_len += len;
+            self.in_state = State::BODY_CHUNKED_LENGTH;
+            return Ok(());
+        } else {
+            self.in_tx_mut_ok()?.request_message_len += data.len() as i64;
+            self.handle_absent_lf(data)
         }
     }
 
     /// Processes a chunk of data.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_BODY_CHUNKED_DATA(&mut self) -> Result<()> {
+    pub fn REQ_BODY_CHUNKED_DATA(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
-        let mut bytes_to_consume: usize = 0;
-        if self.in_current_len - self.in_current_read_offset >= self.in_chunked_length {
-            // Entire chunk available in the buffer; read all of it.
-            bytes_to_consume = self.in_chunked_length as usize
-        } else {
-            // Partial chunk available in the buffer; read as much as we can.
-            bytes_to_consume = (self.in_current_len - self.in_current_read_offset) as usize
-        }
+        let bytes_to_consume: usize = std::cmp::min(data.len(), self.in_chunked_length as usize);
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(Status::DATA);
         }
         // Consume the data.
-        self.req_process_body_data_ex(
-            self.in_current_data
-                .offset(self.in_current_read_offset as isize)
-                as *const core::ffi::c_void,
-            bytes_to_consume,
-        )?;
+        self.req_process_body_data_ex(&data[0..bytes_to_consume])?;
         // Adjust counters.
-        self.in_current_read_offset =
-            (self.in_current_read_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.in_current_consume_offset =
-            (self.in_current_consume_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.in_stream_offset =
-            (self.in_stream_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
+        self.in_curr_data
+            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         self.in_tx_mut_ok()?.request_message_len = (self.in_tx_mut_ok()?.request_message_len as u64)
             .wrapping_add(bytes_to_consume as u64)
             as i64;
@@ -387,85 +307,66 @@ impl connection_parser::ConnectionParser {
     /// Extracts chunk length.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_BODY_CHUNKED_LENGTH(&mut self) -> Result<()> {
-        loop {
-            if self.in_current_read_offset < self.in_current_len {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32;
-                self.in_current_read_offset += 1;
-                self.in_stream_offset += 1
-            } else {
-                return Err(Status::DATA_BUFFER);
+    pub fn REQ_BODY_CHUNKED_LENGTH(&mut self, data: &[u8]) -> Result<()> {
+        if let Ok((_, line)) = take_till_lf(data) {
+            self.in_curr_data
+                .seek(SeekFrom::Current(line.len() as i64))?;
+            if !self.in_buf.is_empty() {
+                self.check_buffer_limit(line.len())?;
             }
-            // Have we reached the end of the line?
-            if self.in_next_byte == '\n' as i32 {
-                let mut data: *mut u8 = 0 as *mut u8;
-                let mut len: usize = 0;
-                self.req_consolidate_data(&mut data, &mut len)?;
-                self.in_tx_mut_ok()?.request_message_len =
-                    (self.in_tx_mut_ok()?.request_message_len as u64).wrapping_add(len as u64)
-                        as i64;
-                let buf: &mut [u8] = std::slice::from_raw_parts_mut(data, len);
-                if let Ok(Some(chunked_len)) = util::parse_chunked_length(buf) {
-                    self.in_chunked_length = chunked_len as i64;
-                } else {
-                    self.in_chunked_length = -1;
-                }
-                self.req_clear_buffer();
-                // Handle chunk length.
-                if self.in_chunked_length > 0 {
-                    // More data available.
-                    self.in_state = State::BODY_CHUNKED_DATA
-                } else if self.in_chunked_length == 0 {
-                    // End of data.
-                    self.in_state = State::HEADERS;
-                    self.in_tx_mut_ok()?.request_progress =
-                        transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER
-                } else {
-                    // Invalid chunk length.
+            let mut data = std::mem::take(&mut self.in_buf);
+            data.add(line);
+
+            self.in_tx_mut_ok()?.request_message_len =
+                (self.in_tx_mut_ok()?.request_message_len as u64).wrapping_add(data.len() as u64)
+                    as i64;
+            if let Ok(Some(chunked_len)) = util::parse_chunked_length(&data) {
+                self.in_chunked_length = chunked_len as i64;
+            } else {
+                self.in_chunked_length = -1;
+            }
+
+            // Handle chunk length.
+            if self.in_chunked_length > 0 {
+                // More data available.
+                self.in_state = State::BODY_CHUNKED_DATA
+            } else if self.in_chunked_length == 0 {
+                // End of data.
+                self.in_state = State::HEADERS;
+                self.in_tx_mut_ok()?.request_progress =
+                    transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER
+            } else {
+                // Invalid chunk length.
+                unsafe {
                     htp_error!(
                         self as *mut connection_parser::ConnectionParser,
                         htp_log_code::INVALID_REQUEST_CHUNK_LEN,
                         "Request chunk encoding: Invalid chunk length"
                     );
-                    return Err(Status::ERROR);
                 }
-                return Ok(());
+                return Err(Status::ERROR);
             }
+            Ok(())
+        } else {
+            return self.handle_absent_lf(data);
         }
     }
 
     /// Processes identity request body.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_BODY_IDENTITY(&mut self) -> Result<()> {
+    pub fn REQ_BODY_IDENTITY(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
-        let mut bytes_to_consume: usize = 0;
-        if self.in_current_len - self.in_current_read_offset >= self.in_body_data_left {
-            bytes_to_consume = self.in_body_data_left as usize
-        } else {
-            bytes_to_consume = (self.in_current_len - self.in_current_read_offset) as usize
-        }
+        let bytes_to_consume: usize = std::cmp::min(data.len(), self.in_body_data_left as usize);
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(Status::DATA);
         }
         // Consume data.
-        self.req_process_body_data_ex(
-            self.in_current_data
-                .offset(self.in_current_read_offset as isize)
-                as *const core::ffi::c_void,
-            bytes_to_consume,
-        )?;
+        self.req_process_body_data_ex(&data[0..bytes_to_consume])?;
         // Adjust counters.
-        self.in_current_read_offset =
-            (self.in_current_read_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.in_current_consume_offset =
-            (self.in_current_consume_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.in_stream_offset =
-            (self.in_stream_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
+        self.in_curr_data
+            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         self.in_tx_mut_ok()?.request_message_len = (self.in_tx_mut_ok()?.request_message_len as u64)
             .wrapping_add(bytes_to_consume as u64)
             as i64;
@@ -483,7 +384,7 @@ impl connection_parser::ConnectionParser {
     /// Determines presence (and encoding) of a request body.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_BODY_DETERMINE(&mut self) -> Result<()> {
+    pub fn REQ_BODY_DETERMINE(&mut self) -> Result<()> {
         // Determine the next state based on the presence of the request
         // body, and the coding used.
         match self.in_tx_mut_ok()?.request_transfer_coding as u32 {
@@ -500,7 +401,7 @@ impl connection_parser::ConnectionParser {
                     self.in_tx_mut_ok()?.request_progress =
                         transaction::htp_tx_req_progress_t::HTP_REQUEST_BODY
                 } else {
-                    (*self.in_tx_mut_ok()?.connp).in_state = State::FINALIZE
+                    unsafe { (*self.in_tx_mut_ok()?.connp).in_state = State::FINALIZE }
                 }
             }
             1 => {
@@ -519,74 +420,66 @@ impl connection_parser::ConnectionParser {
     /// Parses request headers.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_HEADERS(&mut self) -> Result<()> {
+    pub fn REQ_HEADERS(&mut self, data: &[u8]) -> Result<()> {
+        let mut rest = data;
         loop {
             if self.in_status == connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
                 // Parse previous header, if any.
                 if let Some(in_header) = self.in_header.take() {
-                    self.process_request_header(in_header.as_slice())?;
+                    unsafe {
+                        self.process_request_header(in_header.as_slice())?;
+                    }
                 }
-                self.req_clear_buffer();
+                self.in_buf.clear();
                 self.in_tx_mut_ok()?.request_progress =
                     transaction::htp_tx_req_progress_t::HTP_REQUEST_TRAILER;
                 // We've seen all the request headers.
-                return self.state_request_headers().into();
+                unsafe { return self.state_request_headers().into() };
             }
-            if self.in_current_read_offset < self.in_current_len {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32;
-                self.in_current_read_offset += 1;
-                self.in_stream_offset += 1
-            } else {
-                return Err(Status::DATA_BUFFER);
-            }
-            // Have we reached the end of the line?
-            if self.in_next_byte == '\n' as i32 {
-                let mut data: *mut u8 = 0 as *mut u8;
-                let mut len: usize = 0;
-                self.req_consolidate_data(&mut data, &mut len)?;
-                // Should we terminate headers?
-                if !data.is_null()
-                    && util::is_line_terminator(
-                        (*self.cfg).server_personality,
-                        std::slice::from_raw_parts(data, len),
-                        false,
-                    )
-                {
-                    // Parse previous header, if any.
-                    if let Some(in_header) = self.in_header.take() {
-                        self.process_request_header(in_header.as_slice())?;
-                    }
-                    self.req_clear_buffer();
-                    // We've seen all the request headers.
-                    return self.state_request_headers().into();
+
+            if let Ok((remaining, line)) = take_till_lf(rest) {
+                self.in_curr_data
+                    .seek(SeekFrom::Current(line.len() as i64))?;
+                if !self.in_buf.is_empty() {
+                    self.check_buffer_limit(line.len())?;
                 }
-                let s = std::slice::from_raw_parts(data as *const u8, len);
-                let s = util::chomp(&s);
-                len = s.len();
-                // Check for header folding.
-                if !util::is_line_folded(s) {
+                let mut data = std::mem::take(&mut self.in_buf);
+                data.add(line);
+
+                rest = remaining;
+                unsafe {
+                    if util::is_line_terminator((*self.cfg).server_personality, &data, false) {
+                        // Parse previous header, if any.
+                        if let Some(in_header) = self.in_header.take() {
+                            self.process_request_header(in_header.as_slice())?;
+                        }
+                        // We've seen all the request headers.
+                        return self.state_request_headers().into();
+                    }
+                }
+
+                let chomped = util::chomp(&data);
+                if !util::is_line_folded(chomped) {
                     // New header line.
                     // Parse previous header, if any.
                     if let Some(in_header) = self.in_header.take() {
-                        self.process_request_header(in_header.as_slice())?;
+                        unsafe {
+                            self.process_request_header(in_header.as_slice())?;
+                        }
                     }
-                    if self.in_current_read_offset >= self.in_current_len {
-                        self.in_next_byte = -1
-                    } else {
-                        self.in_next_byte = *self
-                            .in_current_data
-                            .offset(self.in_current_read_offset as isize)
-                            as i32;
-                    }
-                    if self.in_next_byte != -1 && !util::is_folding_char(self.in_next_byte as u8) {
-                        // Because we know this header is not folded, we can process the buffer straight away.
-                        self.process_request_header(s)?;
+
+                    if let Some(byte) = remaining.get(0) {
+                        if !util::is_folding_char(*byte) {
+                            // Because we know this header is not folded, we can process the buffer straight away.
+                            unsafe {
+                                self.process_request_header(chomped)?;
+                            }
+                        } else {
+                            self.in_header = Some(bstr::Bstr::from(chomped));
+                        }
                     } else {
                         // Keep the partial header data for parsing later.
-                        self.in_header = Some(bstr::Bstr::from(s));
+                        self.in_header = Some(bstr::Bstr::from(chomped));
                     }
                 } else if self.in_header.is_none() {
                     // Folding; check that there's a previous header line to add to.
@@ -598,19 +491,22 @@ impl connection_parser::ConnectionParser {
                         .contains(Flags::HTP_INVALID_FOLDING)
                     {
                         self.in_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
-                        htp_warn!(
-                            self as *mut connection_parser::ConnectionParser,
-                            htp_log_code::INVALID_REQUEST_FIELD_FOLDING,
-                            "Invalid request field folding"
-                        );
+                        unsafe {
+                            htp_warn!(
+                                self as *mut connection_parser::ConnectionParser,
+                                htp_log_code::INVALID_REQUEST_FIELD_FOLDING,
+                                "Invalid request field folding"
+                            );
+                        }
                     }
                     // Keep the header data for parsing later.
-                    self.in_header = Some(bstr::Bstr::from(s));
+                    self.in_header = Some(bstr::Bstr::from(chomped));
                 } else if let Some(header) = &mut self.in_header {
                     // Add to the existing header.
-                    header.add(&s);
+                    header.add(&chomped);
                 }
-                self.req_clear_buffer();
+            } else {
+                self.handle_absent_lf(rest)?;
             }
         }
     }
@@ -618,46 +514,49 @@ impl connection_parser::ConnectionParser {
     /// Determines request protocol.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_PROTOCOL(&mut self) -> Result<()> {
+    pub fn REQ_PROTOCOL(&mut self, data: &[u8]) -> Result<()> {
         // Is this a short-style HTTP/0.9 request? If it is,
         // we will not want to parse request headers.
         if !self.in_tx_mut_ok()?.is_protocol_0_9 {
             // Switch to request header parsing.
             self.in_state = State::HEADERS;
             self.in_tx_mut_ok()?.request_progress =
-                transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS
+                transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS;
         } else {
-            // Let's check if the protocol was simply missing
-            let mut pos: i64 = self.in_current_read_offset;
-            let mut afterspaces: i32 = 0;
-            // Probe if data looks like a header line
-            while pos < self.in_current_len {
-                if *self.in_current_data.offset(pos as isize) == ':' as u8 {
-                    htp_warn!(
-                        self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::REQUEST_LINE_NO_PROTOCOL,
-                        "Request line: missing protocol"
-                    );
+            let parser =
+                tuple::<_, _, (_, ErrorKind), _>((take_until::<_, &[u8], _>(":"), char(':')));
+            match parser(data) {
+                Ok((_, (hdr, _))) => {
+                    if let Ok((_, space)) = alt((nom_take_is_space, take_is_space))(hdr) {
+                        let mut afterspace = false;
+                        for c in space {
+                            if nom_is_space(*c) {
+                                afterspace = true;
+                            } else if afterspace || util::is_space(*c) {
+                                break;
+                            }
+                        }
+                    }
+                    unsafe {
+                        htp_warn!(
+                            self as *mut connection_parser::ConnectionParser,
+                            htp_log_code::REQUEST_LINE_NO_PROTOCOL,
+                            "Request line: missing protocol"
+                        );
+                    }
+
                     self.in_tx_mut_ok()?.is_protocol_0_9 = false;
                     // Switch to request header parsing.
                     self.in_state = State::HEADERS;
                     self.in_tx_mut_ok()?.request_progress =
                         transaction::htp_tx_req_progress_t::HTP_REQUEST_HEADERS;
                     return Ok(());
-                } else {
-                    if nom_is_space(*self.in_current_data.offset(pos as isize)) {
-                        // Allows spaces after header name
-                        afterspaces = 1
-                    } else if util::is_space(*self.in_current_data.offset(pos as isize))
-                        || afterspaces == 1
-                    {
-                        break;
-                    }
-                    pos += 1
+                }
+                Err(_) => {
+                    // We're done with this request.
+                    self.in_state = State::FINALIZE;
                 }
             }
-            // We're done with this request.
-            self.in_state = State::FINALIZE
         }
         Ok(())
     }
@@ -665,152 +564,113 @@ impl connection_parser::ConnectionParser {
     /// Parse the request line.
     ///
     /// Returns HTP_OK on succesful parse, HTP_ERROR on error.
-    pub unsafe fn REQ_LINE_complete(&mut self) -> Result<()> {
-        let mut data: *mut u8 = 0 as *mut u8;
-        let mut len: usize = 0;
-        self.req_consolidate_data(&mut data, &mut len)?;
-        if len == 0 {
-            self.req_clear_buffer();
+    pub fn REQ_LINE_complete(&mut self, line: &[u8]) -> Result<()> {
+        if !self.in_buf.is_empty() {
+            self.check_buffer_limit(line.len())?;
+        }
+        let mut data = std::mem::take(&mut self.in_buf);
+        data.add(line);
+        if data.len() == 0 {
             return Err(Status::DATA);
         }
         // Is this a line that should be ignored?
-        if !data.is_null()
-            && util::is_line_ignorable(
-                (*self.cfg).server_personality,
-                std::slice::from_raw_parts(data, len),
-            )
-        {
+        let ignore = util::is_line_ignorable(unsafe { (*self.cfg).server_personality }, &data);
+        if ignore {
             // We have an empty/whitespace line, which we'll note, ignore and move on.
             self.in_tx_mut_ok()?.request_ignored_lines =
                 self.in_tx_mut_ok()?.request_ignored_lines.wrapping_add(1);
-            self.req_clear_buffer();
             return Ok(());
         }
         // Process request line.
-        let s = std::slice::from_raw_parts(data as *const u8, len);
-        let s = util::chomp(&s);
-        self.parse_request_line(s)?;
-        // Finalize request line parsing.
-        self.state_request_line()?;
-        self.req_clear_buffer();
+        let data = util::chomp(&data);
+        self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(data));
+        unsafe {
+            self.parse_request_line(data)?;
+            // Finalize request line parsing.
+            self.state_request_line()?;
+        }
         Ok(())
     }
 
     /// Parses request line.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_LINE(&mut self) -> Result<()> {
-        loop {
-            // Get one byte
-            if self.in_current_read_offset >= self.in_current_len {
-                self.in_next_byte = -1
-            } else {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32
+    pub fn REQ_LINE(&mut self, data: &[u8]) -> Result<()> {
+        match take_till_lf(data) {
+            Ok((_, read)) => {
+                self.in_curr_data
+                    .seek(SeekFrom::Current(read.len() as i64))?;
+                self.REQ_LINE_complete(read)
             }
-            if self.in_status == connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED
-                && self.in_next_byte == -1
-            {
-                return self.REQ_LINE_complete();
-            }
-            if self.in_current_read_offset < self.in_current_len {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32;
-                self.in_current_read_offset += 1;
-                self.in_stream_offset += 1
-            } else {
-                return Err(Status::DATA_BUFFER);
-            }
-            // Have we reached the end of the line?
-            if self.in_next_byte == '\n' as i32 {
-                return self.REQ_LINE_complete();
+            _ => {
+                if self.in_status == connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
+                    self.in_curr_data.seek(SeekFrom::End(0))?;
+                    self.REQ_LINE_complete(data)
+                } else {
+                    return self.handle_absent_lf(data);
+                }
             }
         }
     }
 
-    pub unsafe fn REQ_FINALIZE(&mut self) -> Result<()> {
+    pub fn REQ_FINALIZE(&mut self, data: &[u8]) -> Result<()> {
+        let mut work = data;
         if self.in_status != connection_parser::htp_stream_state_t::HTP_STREAM_CLOSED {
-            if self.in_current_read_offset >= self.in_current_len {
-                self.in_next_byte = -1
-            } else {
-                self.in_next_byte = *self
-                    .in_current_data
-                    .offset(self.in_current_read_offset as isize)
-                    as i32
-            }
-            if self.in_next_byte == -1 {
+            let in_next_byte = self
+                .in_curr_data
+                .get_ref()
+                .get(self.in_curr_data.position() as usize);
+            if in_next_byte.is_none() {
                 return self.state_request_complete().into();
             }
-            if self.in_next_byte != '\n' as i32
-                || self.in_current_consume_offset >= self.in_current_read_offset
-            {
-                loop {
-                    //;i < max_read; i++) {
-                    if self.in_current_read_offset < self.in_current_len {
-                        self.in_next_byte = *self
-                            .in_current_data
-                            .offset(self.in_current_read_offset as isize)
-                            as i32;
-                        self.in_current_read_offset += 1;
-                        self.in_stream_offset += 1
-                    } else {
-                        return Err(Status::DATA_BUFFER);
-                    }
-                    // Have we reached the end of the line? For some reason
-                    // we can't test after IN_COPY_BYTE_OR_RETURN */
-                    if self.in_next_byte == '\n' as i32 {
-                        break;
-                    }
+            let lf = in_next_byte
+                .map(|byte| *byte == '\n' as u8)
+                .unwrap_or(false);
+            if !lf {
+                if let Ok((_, line)) = take_till_lf(data) {
+                    self.in_curr_data
+                        .seek(SeekFrom::Current(line.len() as i64))?;
+                    work = line;
+                } else {
+                    return self.handle_absent_lf(data);
                 }
             }
         }
-        let mut data: *mut u8 = 0 as *mut u8;
-        let mut len: usize = 0;
-        self.req_consolidate_data(&mut data, &mut len)?;
-        if len == 0 {
-            //closing
+
+        if !self.in_buf.is_empty() {
+            self.check_buffer_limit(work.len())?;
+        }
+        self.in_buf.add(work);
+        let mut data = std::mem::take(&mut self.in_buf);
+
+        if data.is_empty() {
             return self.state_request_complete().into();
         }
-        let mut pos: usize = 0;
-        let mut mstart: usize = 0;
-        // skip past leading whitespace. IIS allows this
-        while pos < len && util::is_space(*data.offset(pos as isize)) {
-            pos = pos.wrapping_add(1)
-        }
-        if pos != 0 {
-            mstart = pos
-        }
-        // The request method starts at the beginning of the
-        // line and ends with the first whitespace character.
-        while pos < len && !util::is_space(*data.offset(pos as isize)) {
-            pos = pos.wrapping_add(1)
-        }
-        if pos <= mstart {
-            //empty whitespace line
-            let rc = self
-                .in_tx_mut()
-                .ok_or(Status::ERROR)?
-                .req_process_body_data_ex(data as *const core::ffi::c_void, len);
-            self.req_clear_buffer();
-            return rc;
-        } else {
-            let method = bstr::Bstr::from(std::slice::from_raw_parts(
-                data.offset(mstart as isize),
-                pos.wrapping_sub(mstart),
-            ));
-            let method_type = util::convert_bstr_to_method(&method);
+
+        let res = tuple::<_, _, (&[u8], ErrorKind), _>((take_is_space, take_not_is_space))(&data);
+
+        if let Ok((_, (_, method))) = res {
+            if method.is_empty() {
+                // empty whitespace line
+                let rc = self
+                    .in_tx_mut()
+                    .ok_or(Status::ERROR)?
+                    .req_process_body_data_ex(Some(&data));
+                self.in_buf.clear();
+                return rc;
+            }
+
+            let method_type = util::convert_to_method(method);
             if method_type == htp_method_t::HTP_M_UNKNOWN {
                 if self.in_body_data_left <= 0 {
                     // log only once per transaction
-                    htp_warn!(
-                        self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::REQUEST_BODY_UNEXPECTED,
-                        "Unexpected request body"
-                    );
+                    unsafe {
+                        htp_warn!(
+                            self as *mut connection_parser::ConnectionParser,
+                            htp_log_code::REQUEST_BODY_UNEXPECTED,
+                            "Unexpected request body"
+                        );
+                    }
                 } else {
                     self.in_body_data_left = 1;
                 }
@@ -818,37 +678,31 @@ impl connection_parser::ConnectionParser {
                 let rc = self
                     .in_tx_mut()
                     .ok_or(Status::ERROR)?
-                    .req_process_body_data_ex(data as *const core::ffi::c_void, len);
-                self.req_clear_buffer();
+                    .req_process_body_data_ex(Some(&data));
+                self.in_buf.clear();
                 return rc;
             } // else continue
             self.in_body_data_left = -1;
         }
-        //unread last end of line so that REQ_LINE works
-        if self.in_current_read_offset < len as i64 {
-            self.in_current_read_offset = 0
+
+        self.in_buf = std::mem::take(&mut data);
+        if (self.in_curr_data.position() as i64) < self.in_buf.len() as i64 {
+            self.in_curr_data.set_position(0);
         } else {
-            self.in_current_read_offset =
-                (self.in_current_read_offset as u64).wrapping_sub(len as u64) as i64
+            self.in_curr_data
+                .seek(SeekFrom::Current((self.in_buf.len() as i64) * -1))?;
         }
-        if self.in_current_read_offset < self.in_current_consume_offset {
-            self.in_current_consume_offset = self.in_current_read_offset
-        }
-        self.state_request_complete().into()
+        return self.state_request_complete().into();
     }
 
-    pub unsafe fn REQ_IGNORE_DATA_AFTER_HTTP_0_9(&mut self) -> Result<()> {
+    pub fn REQ_IGNORE_DATA_AFTER_HTTP_0_9(&mut self) -> Result<()> {
         // Consume whatever is left in the buffer.
-        let bytes_left: usize = (self.in_current_len - self.in_current_read_offset) as usize;
+        let bytes_left = self.in_curr_len() - self.in_curr_data.position() as i64;
+
         if bytes_left > 0 {
             self.conn.flags |= util::ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA
         }
-        self.in_current_read_offset =
-            (self.in_current_read_offset as u64).wrapping_add(bytes_left as u64) as i64;
-        self.in_current_consume_offset =
-            (self.in_current_consume_offset as u64).wrapping_add(bytes_left as u64) as i64;
-        self.in_stream_offset =
-            (self.in_stream_offset as u64).wrapping_add(bytes_left as u64) as i64;
+        self.in_curr_data.seek(SeekFrom::End(0))?;
         Err(Status::DATA)
     }
 
@@ -856,13 +710,13 @@ impl connection_parser::ConnectionParser {
     /// If there is more data available, a new request will be started.
     ///
     /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
-    pub unsafe fn REQ_IDLE(&mut self) -> Result<()> {
+    pub fn REQ_IDLE(&mut self) -> Result<()> {
         // We want to start parsing the next request (and change
         // the state from IDLE) only if there's at least one
         // byte of data available. Otherwise we could be creating
         // new structures even if there's no more data on the
         // connection.
-        if self.in_current_read_offset >= self.in_current_len {
+        if self.in_curr_data.position() as i64 >= self.in_curr_len() {
             return Err(Status::DATA);
         }
 
@@ -874,10 +728,18 @@ impl connection_parser::ConnectionParser {
 
         // Change state to TRANSACTION_START
         // Ignore the result.
-        let _ = self.state_request_start();
+        unsafe {
+            let _ = self.state_request_start();
+        }
         Ok(())
     }
 
+    pub fn handle_absent_lf(&mut self, data: &[u8]) -> Result<()> {
+        self.in_curr_data.seek(SeekFrom::End(0))?;
+        self.check_buffer_limit(data.len())?;
+        self.in_buf.add(data);
+        return Err(Status::DATA_BUFFER);
+    }
     /// Run the REQUEST_BODY_DATA hook.
     pub unsafe fn req_run_hook_body_data(&mut self, d: *mut transaction::Data) -> Result<()> {
         // Do not invoke callbacks with an empty data chunk
@@ -952,10 +814,8 @@ impl connection_parser::ConnectionParser {
         }
 
         // Store the current chunk information
-        self.in_current_data = data as *mut u8;
-        self.in_current_len = len as i64;
-        self.in_current_read_offset = 0;
-        self.in_current_consume_offset = 0;
+        let chunk = std::slice::from_raw_parts(data as *mut u8, len);
+        self.in_curr_data = Cursor::new(chunk.to_vec());
         self.in_current_receiver_offset = 0;
         self.in_chunk_count = self.in_chunk_count.wrapping_add(1);
         self.conn.track_inbound_data(len);
@@ -981,7 +841,7 @@ impl connection_parser::ConnectionParser {
             if data.is_null() && len > 0 {
                 match self.in_state {
                     State::BODY_IDENTITY | State::IGNORE_DATA_AFTER_HTTP_0_9 => {
-                        rc = self.handle_in_state()
+                        rc = self.handle_in_state(chunk)
                     }
                     State::FINALIZE => rc = self.state_request_complete().into(),
                     _ => {
@@ -995,7 +855,7 @@ impl connection_parser::ConnectionParser {
                     }
                 }
             } else {
-                rc = self.handle_in_state();
+                rc = self.handle_in_state(chunk);
             }
 
             if rc.is_ok() {
@@ -1011,17 +871,13 @@ impl connection_parser::ConnectionParser {
                 Err(Status::DATA) | Err(Status::DATA_BUFFER) => {
                     // Ignore result.
                     let _ = self.req_receiver_send_data(false);
-                    if rc == Err(Status::DATA_BUFFER) && self.req_buffer().is_err() {
-                        self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-                        return connection_parser::htp_stream_state_t::HTP_STREAM_ERROR;
-                    }
                     self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
                     return connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
                 }
                 // Check for suspended parsing.
                 Err(Status::DATA_OTHER) => {
                     // We might have actually consumed the entire data chunk?
-                    if self.in_current_read_offset >= self.in_current_len {
+                    if (self.in_curr_data.position() as i64) >= self.in_curr_len() {
                         // Do not send STREAM_DATE_DATA_OTHER if we've consumed the entire chunk.
                         self.in_status = connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
                         return connection_parser::htp_stream_state_t::HTP_STREAM_DATA;
@@ -1044,5 +900,9 @@ impl connection_parser::ConnectionParser {
                 }
             }
         }
+    }
+
+    pub fn in_curr_len(&self) -> i64 {
+        self.in_curr_data.get_ref().len() as i64
     }
 }

@@ -12,6 +12,7 @@ use nom::{
         is_not, tag, tag_no_case, take, take_till, take_until, take_while, take_while1,
         take_while_m_n,
     },
+    bytes::streaming::take_till as streaming_take_till,
     character::complete::{char, digit1},
     character::is_space as nom_is_space,
     combinator::{map, not, opt, peek},
@@ -440,8 +441,8 @@ pub fn take_until_no_case<'a>(tag: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a
 }
 
 /// Converts request method string into a method type.
-pub fn convert_bstr_to_method(method: &bstr::Bstr) -> htp_method_t {
-    match method.as_slice() {
+pub fn convert_to_method(method: &[u8]) -> htp_method_t {
+    match method {
         b"GET" => htp_method_t::HTP_M_GET,
         b"PUT" => htp_method_t::HTP_M_PUT,
         b"POST" => htp_method_t::HTP_M_POST,
@@ -1827,6 +1828,28 @@ pub fn take_not_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
 // Returns true if each character is a token
 pub fn is_word_token(data: &[u8]) -> bool {
     !data.iter().any(|c| !is_token(*c))
+}
+
+/// Returns all data up to and including the first new line or null
+/// Returns Err if not found
+pub fn take_till_lf_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    let res = streaming_take_till(|c: u8| c == '\n' as u8 || c == 0)(data);
+    if let Ok((_, line)) = res {
+        Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
+    } else {
+        res
+    }
+}
+
+/// Returns all data up to and including the first new line
+/// Returns Err if not found
+pub fn take_till_lf(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    let res = streaming_take_till(|c: u8| c == '\n' as u8)(data);
+    if let Ok((_, line)) = res {
+        Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
+    } else {
+        res
+    }
 }
 
 // Tests

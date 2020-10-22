@@ -269,7 +269,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             } else {
                 std::ptr::null()
             };
-            transaction::Data::new((*d).tx(), data, len, (*d).is_last())
+            transaction::Data::new(
+                (*d).tx(),
+                Some(std::slice::from_raw_parts(data, len)),
+                (*d).is_last(),
+            )
         };
         if !(*drec).super_0.next.is_null()
             && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
@@ -308,8 +312,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             if (*drec).stream.avail_out == 0 {
                 (*drec).crc = crc32((*drec).crc, (*drec).buffer, 8192);
                 // Prepare data for callback.
-                let mut d2_0 =
-                    transaction::Data::new((*d).tx(), (*drec).buffer, 8192, (*d).is_last());
+                let mut d2_0 = transaction::Data::new(
+                    (*d).tx(),
+                    Some(std::slice::from_raw_parts((*drec).buffer, 8192)),
+                    (*d).is_last(),
+                );
                 if !(*drec).super_0.next.is_null()
                     && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
                 {
@@ -437,8 +444,11 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 let len: usize = 8192_u32.wrapping_sub((*drec).stream.avail_out) as usize;
                 // Update CRC
                 // Prepare data for the callback.
-                let mut d2_1 =
-                    transaction::Data::new((*d).tx(), (*drec).buffer, len, (*d).is_last());
+                let mut d2_1 = transaction::Data::new(
+                    (*d).tx(),
+                    Some(std::slice::from_raw_parts((*drec).buffer, len)),
+                    (*d).is_last(),
+                );
                 if !(*drec).super_0.next.is_null()
                     && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
                 {

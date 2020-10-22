@@ -238,7 +238,7 @@ impl connection_parser::ConnectionParser {
 
             if let Some(request_method) = &self.in_tx_mut_ok()?.request_method {
                 self.in_tx_mut_ok()?.request_method_number =
-                    util::convert_bstr_to_method(&request_method);
+                    util::convert_to_method(request_method.as_slice());
             }
 
             // Too much performance overhead for fuzzing

@@ -17,6 +17,8 @@ use htp::urlencoded::*;
 use htp::util::*;
 use nom::error::ErrorKind::TakeUntil;
 use nom::Err::Error;
+use nom::Err::Incomplete;
+use nom::Needed;
 use std::net::{IpAddr, Ipv4Addr};
 
 // import common testing utilities
@@ -74,8 +76,8 @@ fn Space() {
 
 #[test]
 fn Method() {
-    let method = Bstr::from("GET");
-    assert_eq!(htp_method_t::HTP_M_GET, convert_bstr_to_method(&method));
+    let method = b"GET";
+    assert_eq!(htp_method_t::HTP_M_GET, convert_to_method(method));
 }
 
 #[test]
@@ -2344,4 +2346,13 @@ fn IsWordToken() {
     assert_eq!(true, is_word_token(b"234543"));
     assert_eq!(false, is_word_token(b"abcdeg\t"));
     assert_eq!(true, is_word_token(b"content-length"));
+}
+
+#[test]
+fn TakeTillLF() {
+    assert_eq!(
+        Ok(("hijk".as_bytes(), "abcdefg\n".as_bytes())),
+        take_till_lf(b"abcdefg\nhijk")
+    );
+    assert_eq!(Err(Incomplete(Needed::Size(1))), take_till_lf(b"abcdefg"));
 }

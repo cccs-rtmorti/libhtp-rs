@@ -2661,6 +2661,22 @@ fn RequestCookies5() {
 }
 
 #[test]
+fn Tunnelled1() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("106-tunnelled-1.t").is_ok());
+        assert_eq!(2, (*t.connp).conn.tx_size());
+        let tx1 = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx1.is_null());
+        assert!((*tx1).request_method.as_ref().unwrap().eq("CONNECT"));
+        let tx2 = (*t.connp).conn.tx_mut_ptr(1);
+        assert!(!tx2.is_null());
+        assert!((*tx2).request_method.as_ref().unwrap().eq("GET"));
+        assert_eq!(Protocol::V1_1, (*tx2).request_protocol_number);
+    }
+}
+
+#[test]
 fn Expect100() {
     let mut t = Test::new();
     unsafe {

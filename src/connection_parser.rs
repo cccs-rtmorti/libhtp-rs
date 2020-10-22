@@ -1,6 +1,7 @@
 use crate::config::htp_server_personality_t;
 use crate::error::Result;
 use crate::{bstr, config, connection, hook::DataHook, transaction, util, Status};
+use std::io::Cursor;
 use std::net::IpAddr;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -64,27 +65,15 @@ pub struct ConnectionParser {
     /// the upstream code is not providing the timestamps when calling us.
     pub in_timestamp: htp_time_t,
     /// Pointer to the current request data chunk.
-    pub in_current_data: *mut u8,
-    /// The length of the current request data chunk.
-    pub in_current_len: i64,
-    /// The offset of the next byte in the request data chunk to read.
-    pub in_current_read_offset: i64,
-    /// The starting point of the data waiting to be consumed. This field is used
-    /// in the states where reading data is not the same as consumption.
-    pub in_current_consume_offset: i64,
+    pub in_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the inbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
     /// REQUEST_HEADER_DATA).
-    pub in_current_receiver_offset: i64,
+    pub in_current_receiver_offset: u64,
     /// How many data chunks does the inbound connection stream consist of?
     pub in_chunk_count: usize,
     /// The index of the first chunk used in the current request.
     pub in_chunk_request_index: usize,
-    /// The offset, in the entire connection stream, of the next request byte.
-    pub in_stream_offset: i64,
-    /// The value of the request byte currently being processed. This field is
-    /// populated when the IN_NEXT_* or IN_PEEK_* macros are invoked.
-    pub in_next_byte: i32,
     /// Used to buffer a line of inbound data when buffering cannot be avoided.
     pub in_buf: bstr::Bstr,
     /// Stores the current value of a folded request header. Such headers span
@@ -171,15 +160,10 @@ impl ConnectionParser {
                 tv_sec: 0,
                 tv_usec: 0,
             },
-            in_current_data: std::ptr::null_mut(),
-            in_current_len: 0,
-            in_current_read_offset: 0,
-            in_current_consume_offset: 0,
+            in_curr_data: Cursor::new(Vec::new()),
             in_current_receiver_offset: 0,
             in_chunk_count: 0,
             in_chunk_request_index: 0,
-            in_stream_offset: 0,
-            in_next_byte: 0,
             in_buf: bstr::Bstr::new(),
             in_header: None,
             in_tx: None,
@@ -336,29 +320,26 @@ impl ConnectionParser {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_in_state(&mut self) -> Result<()> {
-        unsafe {
-            match self.in_state {
-                State::NONE => Err(Status::ERROR),
-                State::IDLE => self.REQ_IDLE(),
-                State::IGNORE_DATA_AFTER_HTTP_0_9 => self.REQ_IGNORE_DATA_AFTER_HTTP_0_9(),
-                State::LINE => self.REQ_LINE(),
-                State::PROTOCOL => self.REQ_PROTOCOL(),
-                State::HEADERS => self.REQ_HEADERS(),
-                State::CONNECT_WAIT_RESPONSE => self.REQ_CONNECT_WAIT_RESPONSE(),
-                State::CONNECT_CHECK => self.REQ_CONNECT_CHECK(),
-                State::CONNECT_PROBE_DATA => self.REQ_CONNECT_PROBE_DATA(),
-                State::BODY_DETERMINE => self.REQ_BODY_DETERMINE(),
-                State::BODY_CHUNKED_DATA => self.REQ_BODY_CHUNKED_DATA(),
-                State::BODY_CHUNKED_LENGTH => self.REQ_BODY_CHUNKED_LENGTH(),
-                State::BODY_CHUNKED_DATA_END => self.REQ_BODY_CHUNKED_DATA_END(),
-                State::BODY_IDENTITY => self.REQ_BODY_IDENTITY(),
-                State::FINALIZE => self.REQ_FINALIZE(),
-                // These are only used by out_state
-                State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => {
-                    Err(Status::ERROR)
-                }
-            }
+    pub fn handle_in_state(&mut self, data: &[u8]) -> Result<()> {
+        let data = &data[self.in_curr_data.position() as usize..];
+        match self.in_state {
+            State::NONE => Err(Status::ERROR),
+            State::IDLE => self.REQ_IDLE(),
+            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.REQ_IGNORE_DATA_AFTER_HTTP_0_9(),
+            State::LINE => self.REQ_LINE(&data),
+            State::PROTOCOL => self.REQ_PROTOCOL(&data),
+            State::HEADERS => self.REQ_HEADERS(&data),
+            State::CONNECT_WAIT_RESPONSE => self.REQ_CONNECT_WAIT_RESPONSE(),
+            State::CONNECT_CHECK => self.REQ_CONNECT_CHECK(),
+            State::CONNECT_PROBE_DATA => self.REQ_CONNECT_PROBE_DATA(&data),
+            State::BODY_DETERMINE => self.REQ_BODY_DETERMINE(),
+            State::BODY_CHUNKED_DATA => self.REQ_BODY_CHUNKED_DATA(&data),
+            State::BODY_CHUNKED_LENGTH => self.REQ_BODY_CHUNKED_LENGTH(&data),
+            State::BODY_CHUNKED_DATA_END => self.REQ_BODY_CHUNKED_DATA_END(&data),
+            State::BODY_IDENTITY => self.REQ_BODY_IDENTITY(&data),
+            State::FINALIZE => self.REQ_FINALIZE(&data),
+            // These are only used by out_state
+            State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => Err(Status::ERROR),
         }
     }
 
@@ -453,7 +434,7 @@ impl ConnectionParser {
 
     /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
     pub fn req_data_consumed(&self) -> i64 {
-        self.in_current_read_offset
+        self.in_curr_data.position() as i64
     }
 
     /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
@@ -505,13 +486,9 @@ impl ConnectionParser {
         (*self).user_data = user_data;
     }
 
-    pub unsafe fn req_process_body_data_ex(
-        &mut self,
-        data: *const core::ffi::c_void,
-        len: usize,
-    ) -> Result<()> {
+    pub fn req_process_body_data_ex(&mut self, data: &[u8]) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
-            tx.req_process_body_data_ex(data, len)
+            tx.req_process_body_data_ex(Some(data))
         } else {
             Err(Status::ERROR)
         }
@@ -568,7 +545,7 @@ impl ConnectionParser {
     ///
     /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_complete(&mut self) -> Result<()> {
+    pub fn state_request_complete(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_complete()
         } else {
