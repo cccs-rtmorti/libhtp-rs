@@ -43,7 +43,7 @@ pub enum HtpStreamState {
     DATA,
 }
 
-pub type htp_time_t = libc::timeval;
+pub type Time = libc::timeval;
 
 pub struct ConnectionParser {
     // General fields
@@ -64,7 +64,7 @@ pub struct ConnectionParser {
     pub out_data_other_at_tx_end: bool,
     /// The time when the last request data chunk was received. Can be NULL if
     /// the upstream code is not providing the timestamps when calling us.
-    pub in_timestamp: htp_time_t,
+    pub in_timestamp: Time,
     /// Pointer to the current request data chunk.
     pub in_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the inbound data chunk. Raw
@@ -105,7 +105,7 @@ pub struct ConnectionParser {
     /// response there will already be a transaction (request) waiting.
     pub out_next_tx_index: usize,
     /// The time when the last response data chunk was received. Can be NULL.
-    pub out_timestamp: htp_time_t,
+    pub out_timestamp: Time,
     /// Pointer to the current response data chunk.
     pub out_current_data: *mut u8,
     /// The length of the current response data chunk.
@@ -157,7 +157,7 @@ impl ConnectionParser {
             in_status: HtpStreamState::NEW,
             out_status: HtpStreamState::NEW,
             out_data_other_at_tx_end: false,
-            in_timestamp: htp_time_t {
+            in_timestamp: Time {
                 tv_sec: 0,
                 tv_usec: 0,
             },
@@ -175,7 +175,7 @@ impl ConnectionParser {
             in_state_previous: State::NONE,
             in_data_receiver_hook: None,
             out_next_tx_index: 0,
-            out_timestamp: htp_time_t {
+            out_timestamp: Time {
                 tv_sec: 0,
                 tv_usec: 0,
             },
@@ -399,7 +399,7 @@ impl ConnectionParser {
     /// Closes the connection associated with the supplied parser.
     ///
     /// timestamp is optional
-    pub unsafe fn req_close(&mut self, timestamp: Option<htp_time_t>) {
+    pub unsafe fn req_close(&mut self, timestamp: Option<Time>) {
         // Update internal flags
         if self.in_status != HtpStreamState::ERROR {
             self.in_status = HtpStreamState::CLOSED
@@ -412,7 +412,7 @@ impl ConnectionParser {
     /// Closes the connection associated with the supplied parser.
     ///
     /// timestamp is optional
-    pub unsafe fn close(&mut self, timestamp: Option<htp_time_t>) {
+    pub unsafe fn close(&mut self, timestamp: Option<Time>) {
         // Close the underlying connection.
         self.conn.close(timestamp.clone());
         // Update internal flags
@@ -460,7 +460,7 @@ impl ConnectionParser {
         client_port: Option<u16>,
         server_addr: Option<IpAddr>,
         server_port: Option<u16>,
-        timestamp: Option<htp_time_t>,
+        timestamp: Option<Time>,
     ) {
         // Check connection parser state first.
         if self.in_status != HtpStreamState::NEW || self.out_status != HtpStreamState::NEW {

@@ -6,7 +6,7 @@ use crate::util::Flags;
 use crate::{bstr, connection_parser, decompressors, request, transaction, util, HtpStatus};
 use std::cmp::Ordering;
 
-pub type htp_time_t = libc::timeval;
+pub type Time = libc::timeval;
 
 impl connection_parser::ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
@@ -1273,7 +1273,7 @@ impl connection_parser::ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed
     pub fn res_data(
         &mut self,
-        timestamp: Option<htp_time_t>,
+        timestamp: Option<Time>,
         data: *const core::ffi::c_void,
         len: usize,
     ) -> connection_parser::HtpStreamState {

@@ -582,7 +582,7 @@ pub struct Part {
     /// Part content type, from the Content-Type header. Can be None.
     pub content_type: Option<bstr::Bstr>,
     /// Part headers (Header instances), using header name as the key.
-    pub headers: transaction::htp_headers_t,
+    pub headers: transaction::Headers,
     /// File data, available only for FILE parts.
     pub file: Option<util::File>,
 }

@@ -145,7 +145,7 @@ pub struct Header {
     pub flags: Flags,
 }
 
-pub type htp_headers_t = table::Table<Header>;
+pub type Headers = table::Table<Header>;
 
 impl Header {
     pub fn new(name: bstr::Bstr, value: bstr::Bstr) -> Self {
@@ -303,7 +303,7 @@ pub struct Transaction {
     /// de-chunking and decompression.
     pub request_entity_len: i64,
     /// Parsed request headers.
-    pub request_headers: htp_headers_t,
+    pub request_headers: Headers,
     /// Request transfer coding. Can be one of UNKNOWN (body presence not
     /// determined yet), IDENTITY, CHUNKED, NO_BODY,
     /// and UNRECOGNIZED.
@@ -374,7 +374,7 @@ pub struct Transaction {
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: bool,
     /// Parsed response headers. Contains instances of Header.
-    pub response_headers: htp_headers_t,
+    pub response_headers: Headers,
 
     /// HTTP 1.1 RFC
     ///
@@ -446,7 +446,7 @@ pub struct Transaction {
     pub res_header_repetitions: u16,
 }
 
-pub type htp_txs_t = List<Transaction>;
+pub type Transactions = List<Transaction>;
 
 impl Transaction {
     pub fn new(connp: &mut connection_parser::ConnectionParser) -> Result<usize> {

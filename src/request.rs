@@ -50,7 +50,7 @@ pub enum HtpMethod {
     ERROR,
 }
 
-pub type htp_time_t = libc::timeval;
+pub type Time = libc::timeval;
 
 impl connection_parser::ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
@@ -745,7 +745,7 @@ impl connection_parser::ConnectionParser {
     /// Returns HtpStreamState
     pub unsafe fn req_data(
         &mut self,
-        timestamp: Option<htp_time_t>,
+        timestamp: Option<Time>,
         data: *const core::ffi::c_void,
         len: usize,
     ) -> connection_parser::HtpStreamState {

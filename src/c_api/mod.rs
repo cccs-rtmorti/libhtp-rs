@@ -1,11 +1,11 @@
 use crate::bstr;
 use crate::config;
 use crate::connection::Connection;
-use crate::connection_parser::{htp_time_t, ConnectionParser, HtpStreamState};
+use crate::connection_parser::{ConnectionParser, HtpStreamState, Time};
 use crate::hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn};
 use crate::list;
 use crate::log::{self, *};
-use crate::transaction::{htp_headers_t, Header, Transaction};
+use crate::transaction::{Header, Headers, Transaction};
 use crate::util;
 use crate::HtpStatus;
 use std::convert::TryFrom;
@@ -427,10 +427,7 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
 ///
 /// timestamp is optional
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_close(
-    connp: *mut ConnectionParser,
-    timestamp: *const htp_time_t,
-) {
+pub unsafe extern "C" fn htp_connp_close(connp: *mut ConnectionParser, timestamp: *const Time) {
     if let Some(connp) = connp.as_mut() {
         connp.close(timestamp.as_ref().map(|val| val.clone()))
     }
@@ -486,7 +483,7 @@ pub unsafe extern "C" fn htp_connp_open(
     client_port: libc::c_int,
     server_addr: *const libc::c_char,
     server_port: libc::c_int,
-    timestamp: *const htp_time_t,
+    timestamp: *const Time,
 ) {
     let connp = if let Some(connp) = connp.as_mut() {
         connp
@@ -529,10 +526,7 @@ pub unsafe extern "C" fn htp_connp_open(
 ///
 /// timestamp is optional
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_req_close(
-    connp: *mut ConnectionParser,
-    timestamp: *const htp_time_t,
-) {
+pub unsafe extern "C" fn htp_connp_req_close(connp: *mut ConnectionParser, timestamp: *const Time) {
     if let Some(connp) = connp.as_mut() {
         connp.req_close(timestamp.as_ref().map(|val| val.clone()))
     }
@@ -546,7 +540,7 @@ pub unsafe extern "C" fn htp_connp_req_close(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_data(
     connp: *mut ConnectionParser,
-    timestamp: *const htp_time_t,
+    timestamp: *const Time,
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> HtpStreamState {
@@ -564,7 +558,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_res_data(
     connp: *mut ConnectionParser,
-    timestamp: *const htp_time_t,
+    timestamp: *const Time,
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> HtpStreamState {
@@ -696,7 +690,7 @@ pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const Connection) -> i
 /// Returns the header or NULL when not found or on error
 #[no_mangle]
 pub unsafe extern "C" fn htp_headers_get(
-    headers: *const htp_headers_t,
+    headers: *const Headers,
     ckey: *const libc::c_char,
 ) -> *const Header {
     if let (Some(headers), Some(ckey)) = (headers.as_ref(), ckey.as_ref()) {
@@ -720,7 +714,7 @@ pub unsafe extern "C" fn htp_headers_get(
 /// Returns the header or NULL when not found or on error
 #[no_mangle]
 pub unsafe extern "C" fn htp_headers_get_index(
-    headers: *const htp_headers_t,
+    headers: *const Headers,
     index: usize,
 ) -> *const Header {
     if let Some(headers) = headers.as_ref() {
@@ -740,7 +734,7 @@ pub unsafe extern "C" fn htp_headers_get_index(
 ///
 /// Returns the size or -1 on error
 #[no_mangle]
-pub unsafe extern "C" fn htp_headers_size(headers: *const htp_headers_t) -> isize {
+pub unsafe extern "C" fn htp_headers_size(headers: *const Headers) -> isize {
     if let Some(headers) = headers.as_ref() {
         isize::try_from(headers.size()).unwrap_or(-1)
     } else {

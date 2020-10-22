@@ -224,7 +224,7 @@ pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *mut Transaction) -> *const util:
 ///
 /// Returns the request headers or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_request_headers(tx: *const Transaction) -> *const htp_headers_t {
+pub unsafe extern "C" fn htp_tx_request_headers(tx: *const Transaction) -> *const Headers {
     if let Some(tx) = tx.as_ref() {
         &tx.request_headers
     } else {
@@ -510,7 +510,7 @@ pub unsafe extern "C" fn htp_tx_response_message(tx: *const Transaction) -> *con
 ///
 /// Returns the response headers or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_response_headers(tx: *const Transaction) -> *const htp_headers_t {
+pub unsafe extern "C" fn htp_tx_response_headers(tx: *const Transaction) -> *const Headers {
     if let Some(tx) = tx.as_ref() {
         &tx.response_headers
     } else {

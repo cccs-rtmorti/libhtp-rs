@@ -2,7 +2,7 @@ use crate::error::Result;
 use crate::{list::List, log, transaction, util};
 use std::net::IpAddr;
 
-pub type htp_time_t = libc::timeval;
+pub type Time = libc::timeval;
 
 pub struct Connection {
     /// Client IP address.
@@ -17,15 +17,15 @@ pub struct Connection {
     /// Transactions carried out on this connection. The list may contain
     /// NULL elements when some of the transactions are deleted (and then
     /// removed from a connection by calling htp_conn_remove_tx().
-    transactions: transaction::htp_txs_t,
+    transactions: transaction::Transactions,
     /// Log messages associated with this connection.
     messages: log::htp_logs_t,
     /// Parsing flags: HTP_CONN_PIPELINED.
     pub flags: util::ConnectionFlags,
     /// When was this connection opened? Can be NULL.
-    pub open_timestamp: htp_time_t,
+    pub open_timestamp: Time,
     /// When was this connection closed? Can be NULL.
-    pub close_timestamp: htp_time_t,
+    pub close_timestamp: Time,
     /// Inbound data counter.
     pub in_data_counter: i64,
     /// Outbound data counter.
@@ -42,11 +42,11 @@ impl Connection {
             transactions: List::with_capacity(16),
             messages: List::with_capacity(8),
             flags: util::ConnectionFlags::HTP_CONN_UNKNOWN,
-            open_timestamp: htp_time_t {
+            open_timestamp: Time {
                 tv_sec: 0,
                 tv_usec: 0,
             },
-            close_timestamp: htp_time_t {
+            close_timestamp: Time {
                 tv_sec: 0,
                 tv_usec: 0,
             },
@@ -66,12 +66,12 @@ impl Connection {
     }
 
     /// Get the transactions for this connection.
-    pub fn txs(&self) -> &transaction::htp_txs_t {
+    pub fn txs(&self) -> &transaction::Transactions {
         &self.transactions
     }
 
     /// Get the transactions for this connection as a mutable reference.
-    pub fn txs_mut(&mut self) -> &mut transaction::htp_txs_t {
+    pub fn txs_mut(&mut self) -> &mut transaction::Transactions {
         &mut self.transactions
     }
 
@@ -134,7 +134,7 @@ impl Connection {
         client_port: Option<u16>,
         server_addr: Option<IpAddr>,
         server_port: Option<u16>,
-        timestamp: Option<htp_time_t>,
+        timestamp: Option<Time>,
     ) {
         self.client_addr = client_addr;
         self.client_port = client_port;
@@ -148,7 +148,7 @@ impl Connection {
     }
 
     /// Closes the connection.
-    pub fn close(&mut self, timestamp: Option<htp_time_t>) {
+    pub fn close(&mut self, timestamp: Option<Time>) {
         // Update timestamp.
         if let Some(timestamp) = timestamp {
             self.close_timestamp = timestamp;

@@ -47,13 +47,16 @@ style = "both"
 "File" = "htp_file_t"
 "FileData" = "htp_file_data_t"
 "Header" = "htp_header_t"
+"Headers" = "htp_headers_t"
 "Param" = "htp_param_t"
 "Data" = "htp_tx_data_t"
 "Transaction" = "htp_tx_t"
+"Transactions" = "htp_txs_t"
 "Uri" = "htp_uri_t"
 "Bstr" = "bstr"
 "Table" = "htp_table_t"
 "Log" = "htp_log_t"
+"Time" = "htp_time_t"
 
 [export]
 include = ["HtpStatus", 
