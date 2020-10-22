@@ -6,7 +6,7 @@ use crate::{bstr, multipart, transaction, urlencoded, HtpStatus};
 /// and, later, feeds the parsed parameters to the correct structures.
 ///
 /// Returns OK on success, ERROR on failure.
-pub fn htp_ch_urlencoded_callback_request_body_data(d: *mut transaction::Data) -> Result<()> {
+pub fn callback_urlencoded_request_body_data(d: *mut transaction::Data) -> Result<()> {
     unsafe {
         let tx = (*d).tx().as_mut().ok_or(HtpStatus::ERROR)?;
         if !(*d).data().is_null() {
@@ -47,7 +47,7 @@ pub fn htp_ch_urlencoded_callback_request_body_data(d: *mut transaction::Data) -
 ///
 /// Returns OK if a new parser has been setup, DECLINED if the MIME type
 ///         is not appropriate for this parser, and ERROR on failure.
-pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::Transaction) -> Result<()> {
+pub fn callback_urlencoded_request_headers(tx: *mut transaction::Transaction) -> Result<()> {
     unsafe {
         // Check the request content type to see if it matches our MIME type.
         if !(*tx)
@@ -63,7 +63,7 @@ pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::Transact
         // Register a request body data callback.
         (*tx)
             .hook_request_body_data
-            .register(htp_ch_urlencoded_callback_request_body_data);
+            .register(callback_urlencoded_request_body_data);
     }
     Ok(())
 }
@@ -72,7 +72,7 @@ pub fn htp_ch_urlencoded_callback_request_headers(tx: *mut transaction::Transact
 ///
 /// Returns OK if query string was parsed, DECLINED if there was no query
 ///         string, and ERROR on failure.
-pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::Transaction) -> Result<()> {
+pub fn callback_urlencoded_request_line(tx: *mut transaction::Transaction) -> Result<()> {
     unsafe {
         let tx = tx.as_mut().ok_or(HtpStatus::ERROR)?;
         // Proceed only if there's something for us to parse.
@@ -112,7 +112,7 @@ pub fn htp_ch_urlencoded_callback_request_line(tx: *mut transaction::Transaction
 /// Finalize Multipart processing.
 ///
 /// Returns OK on success, ERROR on failure.
-pub fn htp_ch_multipart_callback_request_body_data(d: *mut transaction::Data) -> Result<()> {
+pub fn callback_multipart_request_body_data(d: *mut transaction::Data) -> Result<()> {
     unsafe {
         let tx = (*d).tx().as_mut().ok_or(HtpStatus::ERROR)?;
         if let Some(parser) = &mut (*tx).request_mpartp {
@@ -148,7 +148,7 @@ pub fn htp_ch_multipart_callback_request_body_data(d: *mut transaction::Data) ->
 ///
 /// Returns OK if a new parser has been setup, DECLINED if the MIME type
 ///         is not appropriate for this parser, and ERROR on failure.
-pub fn htp_ch_multipart_callback_request_headers(tx: *mut transaction::Transaction) -> Result<()> {
+pub fn callback_multipart_request_headers(tx: *mut transaction::Transaction) -> Result<()> {
     unsafe {
         // The field request_content_type does not contain the entire C-T
         // value and so we cannot use it to look for a boundary, but we can
@@ -173,7 +173,7 @@ pub fn htp_ch_multipart_callback_request_headers(tx: *mut transaction::Transacti
             // Register a request body data callback.
             (*tx)
                 .hook_request_body_data
-                .register(htp_ch_multipart_callback_request_body_data);
+                .register(callback_multipart_request_body_data);
             Ok(())
         } else {
             // No boundary
