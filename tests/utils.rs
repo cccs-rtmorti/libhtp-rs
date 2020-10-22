@@ -77,7 +77,7 @@ fn Space() {
 #[test]
 fn Method() {
     let method = b"GET";
-    assert_eq!(htp_method_t::HTP_M_GET, convert_to_method(method));
+    assert_eq!(HtpMethod::GET, convert_to_method(method));
 }
 
 #[test]
@@ -984,9 +984,8 @@ fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
     let e = Bstr::from("/%xxest");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -998,9 +997,8 @@ fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
     let e = Bstr::from("/xxest");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1012,9 +1010,8 @@ fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
     let e = Bstr::from("/iest");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1061,9 +1058,8 @@ fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(false);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1076,9 +1072,8 @@ fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1091,9 +1086,8 @@ fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1106,9 +1100,8 @@ fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1121,9 +1114,8 @@ fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1136,9 +1128,8 @@ fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1151,9 +1142,8 @@ fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1166,9 +1156,8 @@ fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         tx_urldecode_params_inplace(&mut *test.tx, &mut i).unwrap();
     }
     assert_eq!(i, e);
@@ -1242,9 +1231,8 @@ fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
     let e = Bstr::from("/%a");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1263,9 +1251,8 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1284,9 +1271,8 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1304,9 +1290,8 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1325,9 +1310,8 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1346,9 +1330,8 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1367,9 +1350,8 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1388,9 +1370,8 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1409,9 +1390,8 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
     unsafe {
         let test = DecodingTest::new();
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1501,9 +1481,8 @@ fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
     let e = Bstr::from("/%HH");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1521,9 +1500,8 @@ fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
     let e = Bstr::from("/HH");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1541,9 +1519,8 @@ fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
     let e = Bstr::from("/i");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1561,9 +1538,8 @@ fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
     let e = Bstr::from("/H");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1581,9 +1557,8 @@ fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
     let e = Bstr::from("/%H");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -1601,9 +1576,8 @@ fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
     let e = Bstr::from("/%H");
     unsafe {
         let test = DecodingTest::new();
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         decode_uri_path_inplace(
             &(*test.cfg).decoder_cfg,
             &mut (*test.tx).flags,
@@ -2185,45 +2159,40 @@ fn UrlencodedParser_UrlDecode1() {
         let mut s = Bstr::from("/one/tw%u006f/three/%u123");
         let mut e = Bstr::from("/one/two/three/%u123");
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%uXXXX");
         e = Bstr::from("/one/two/three/%uXXXX");
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PRESERVE_PERCENT);
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%u123");
         e = Bstr::from("/one/two/three/u123");
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%3");
         e = Bstr::from("/one/two/three/3");
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_REMOVE_PERCENT,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::REMOVE_PERCENT);
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%3");
         e = Bstr::from("/one/two/three/%3");
         (*test.cfg).set_u_encoding_decode(true);
-        (*test.cfg).set_url_encoding_invalid_handling(
-            config::htp_url_encoding_handling_t::HTP_URL_DECODE_PROCESS_INVALID,
-        );
+        (*test.cfg)
+            .set_url_encoding_invalid_handling(config::HtpUrlEncodingHandling::PROCESS_INVALID);
         urldecode_inplace(&(*test.cfg).decoder_cfg, &mut s, &mut flags).unwrap();
         assert_eq!(e, s);
     }

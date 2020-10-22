@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::transaction::Protocol;
+use crate::transaction::HtpProtocol;
 use crate::util::Flags;
 use crate::util::*;
 use crate::{bstr, config, connection_parser, parsers, request, transaction, util};
@@ -12,7 +12,7 @@ impl connection_parser::ConnectionParser {
     /// Extract one request header. A header can span multiple lines, in
     /// which case they will be folded into one before parsing is attempted.
     ///
-    /// Returns HTP_OK or HTP_ERROR
+    /// Returns OK or ERROR
     pub unsafe fn process_request_header_generic(&mut self, data: &[u8]) -> Result<()> {
         // Try to parse the header.
         let header = self.parse_request_header_generic(data)?;
@@ -49,7 +49,7 @@ impl connection_parser::ConnectionParser {
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
+                        HtpLogCode::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
                         "Ambiguous request C-L value"
                     );
                 }
@@ -70,7 +70,7 @@ impl connection_parser::ConnectionParser {
         if repeated {
             htp_warn!(
                 self as *mut connection_parser::ConnectionParser,
-                htp_log_code::REQUEST_HEADER_REPETITION,
+                HtpLogCode::REQUEST_HEADER_REPETITION,
                 "Repetition for header"
             );
         }
@@ -99,7 +99,7 @@ impl connection_parser::ConnectionParser {
                         flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
-                            htp_log_code::REQUEST_INVALID_EMPTY_NAME,
+                            HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
                             "Request field invalid: empty name"
                         );
                     }
@@ -117,7 +117,7 @@ impl connection_parser::ConnectionParser {
                             flags |= Flags::HTP_FIELD_INVALID;
                             htp_warn!(
                                 self as *mut connection_parser::ConnectionParser,
-                                htp_log_code::REQUEST_INVALID_LWS_AFTER_NAME,
+                                HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
                                 "Request field invalid: LWS after name"
                             );
                         }
@@ -146,7 +146,7 @@ impl connection_parser::ConnectionParser {
                         self.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
-                            htp_log_code::REQUEST_HEADER_INVALID,
+                            HtpLogCode::REQUEST_HEADER_INVALID,
                             "Request header name is not a token"
                         );
                     }
@@ -165,7 +165,7 @@ impl connection_parser::ConnectionParser {
                     self.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::REQUEST_FIELD_MISSING_COLON,
+                        HtpLogCode::REQUEST_FIELD_MISSING_COLON,
                         "Request field invalid: colon missing"
                     );
                 }
@@ -214,12 +214,12 @@ impl connection_parser::ConnectionParser {
             if !ls.is_empty() {
                 htp_warn!(
                     self as *mut connection_parser::ConnectionParser,
-                    htp_log_code::REQUEST_LINE_LEADING_WHITESPACE,
+                    HtpLogCode::REQUEST_LINE_LEADING_WHITESPACE,
                     "Request line: leading whitespace"
                 );
 
                 if (*self.cfg).requestline_leading_whitespace_unwanted
-                    != config::htp_unwanted_t::HTP_UNWANTED_IGNORE
+                    != config::HtpUnwanted::IGNORE
                 {
                     // reset mstart so that we copy the whitespace into the method
                     mstart = true;
@@ -245,7 +245,7 @@ impl connection_parser::ConnectionParser {
             if ws.iter().any(|&c| c != 0x20) {
                 htp_warn!(
                     self as *mut connection_parser::ConnectionParser,
-                    htp_log_code::METHOD_DELIM_NON_COMPLIANT,
+                    HtpLogCode::METHOD_DELIM_NON_COMPLIANT,
                     "Request line: non-compliant delimiter between Method and URI"
                 );
             }
@@ -253,13 +253,11 @@ impl connection_parser::ConnectionParser {
             if remaining.is_empty() {
                 // No, this looks like a HTTP/0.9 request.
                 self.in_tx_mut_ok()?.is_protocol_0_9 = true;
-                self.in_tx_mut_ok()?.request_protocol_number = Protocol::V0_9;
-                if self.in_tx_mut_ok()?.request_method_number
-                    == request::htp_method_t::HTP_M_UNKNOWN
-                {
+                self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
+                if self.in_tx_mut_ok()?.request_method_number == request::HtpMethod::UNKNOWN {
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::REQUEST_LINE_UNKNOWN_METHOD,
+                        HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD,
                         "Request line: unknown method only"
                     );
                 }
@@ -278,7 +276,7 @@ impl connection_parser::ConnectionParser {
                     // warn regardless if we've seen non-compliant chars
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::URI_DELIM_NON_COMPLIANT,
+                        HtpLogCode::URI_DELIM_NON_COMPLIANT,
                         "Request line: URI contains non-compliant delimiter"
                     );
                     // if we've seen some 'bad' delimiters, we retry with those
@@ -294,13 +292,11 @@ impl connection_parser::ConnectionParser {
                 if protocol.is_empty() {
                     // No, this looks like a HTTP/0.9 request.
                     self.in_tx_mut_ok()?.is_protocol_0_9 = true;
-                    self.in_tx_mut_ok()?.request_protocol_number = Protocol::V0_9;
-                    if self.in_tx_mut_ok()?.request_method_number
-                        == request::htp_method_t::HTP_M_UNKNOWN
-                    {
+                    self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
+                    if self.in_tx_mut_ok()?.request_method_number == request::HtpMethod::UNKNOWN {
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
-                            htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
+                            HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
                             "Request line: unknown method and no protocol"
                         );
                     }
@@ -310,13 +306,12 @@ impl connection_parser::ConnectionParser {
                 self.in_tx_mut_ok()?.request_protocol = Some(bstr::Bstr::from(protocol));
                 self.in_tx_mut_ok()?.request_protocol_number =
                     parsers::parse_protocol(protocol, &mut *self);
-                if self.in_tx_mut_ok()?.request_method_number
-                    == request::htp_method_t::HTP_M_UNKNOWN
-                    && self.in_tx_mut_ok()?.request_protocol_number == Protocol::INVALID
+                if self.in_tx_mut_ok()?.request_method_number == request::HtpMethod::UNKNOWN
+                    && self.in_tx_mut_ok()?.request_protocol_number == HtpProtocol::INVALID
                 {
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
+                        HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
                         "Request line: unknown method and invalid protocol"
                     );
                 }

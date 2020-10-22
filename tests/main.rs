@@ -1,14 +1,14 @@
 #![allow(non_snake_case)]
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::config;
-use htp::config::htp_server_personality_t::*;
+use htp::config::HtpServerPersonality::*;
 use htp::connection_parser::*;
 use htp::error::Result;
 use htp::log::*;
-use htp::transaction::htp_auth_type_t::*;
-use htp::transaction::htp_data_source_t::*;
-use htp::transaction::htp_tx_req_progress_t::*;
-use htp::transaction::htp_tx_res_progress_t::*;
+use htp::transaction::HtpAuthType::*;
+use htp::transaction::HtpDataSource::*;
+use htp::transaction::HtpRequestProgress;
+use htp::transaction::HtpResponseProgress;
 use htp::transaction::*;
 use htp::util::*;
 use std::convert::TryInto;
@@ -118,7 +118,7 @@ impl Test {
         unsafe {
             let cfg: *mut config::Config = config::create();
             assert!(!cfg.is_null());
-            (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
+            (*cfg).set_server_personality(APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
@@ -160,11 +160,11 @@ impl Test {
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
-                        if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                        if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
 
-                        if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
+                        if rc == HtpStreamState::DATA_OTHER {
                             let consumed = (*self.connp)
                                 .req_data_consumed()
                                 .try_into()
@@ -183,7 +183,7 @@ impl Test {
                                 out_remaining.len(),
                             );
                             out_buf = None;
-                            if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                            if rc == HtpStreamState::ERROR {
                                 return Err(TestError::StreamError);
                             }
                         }
@@ -194,11 +194,11 @@ impl Test {
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
-                        if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                        if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
 
-                        if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
+                        if rc == HtpStreamState::DATA_OTHER {
                             let consumed = (*self.connp)
                                 .res_data_consumed()
                                 .try_into()
@@ -216,7 +216,7 @@ impl Test {
                                 in_remaining.len(),
                             );
                             in_buf = None;
-                            if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                            if rc == HtpStreamState::ERROR {
                                 return Err(TestError::StreamError);
                             }
                         }
@@ -231,7 +231,7 @@ impl Test {
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
                 );
-                if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                if rc == HtpStreamState::ERROR {
                     return Err(TestError::StreamError);
                 }
             }
@@ -385,8 +385,8 @@ fn PostUrlencoded() {
 
         assert_contains_param!(&(*tx).request_params, "p", "0123456789");
 
-        assert_eq!((*tx).request_progress, HTP_REQUEST_COMPLETE);
-        assert_eq!((*tx).response_progress, HTP_RESPONSE_COMPLETE);
+        assert_eq!((*tx).request_progress, HtpRequestProgress::COMPLETE);
+        assert_eq!((*tx).response_progress, HtpResponseProgress::COMPLETE);
 
         assert_response_header_eq!(tx, "Server", "Apache");
 
@@ -396,8 +396,8 @@ fn PostUrlencoded() {
             .tx(1)
             .expect("expected at least two transactions");
 
-        assert_eq!((*tx2).request_progress, HTP_REQUEST_COMPLETE);
-        assert_eq!((*tx2).response_progress, HTP_RESPONSE_COMPLETE);
+        assert_eq!((*tx2).request_progress, HtpRequestProgress::COMPLETE);
+        assert_eq!((*tx2).response_progress, HtpResponseProgress::COMPLETE);
 
         assert_response_header_eq!(tx2, "Server", "Apache");
     }
@@ -710,9 +710,9 @@ fn UrlEncoded() {
 
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
-        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_BODY, "p", "3");
-        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_BODY, "q", "4");
-        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_BODY, "z", "5");
+        assert_contains_param_source!(&(*tx).request_params, BODY, "p", "3");
+        assert_contains_param_source!(&(*tx).request_params, BODY, "q", "4");
+        assert_contains_param_source!(&(*tx).request_params, BODY, "z", "5");
     }
 }
 
@@ -1229,7 +1229,7 @@ fn InvalidRequest1() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_HEADERS, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::HEADERS, (*tx).request_progress);
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID_C_L));
@@ -1248,7 +1248,7 @@ fn InvalidRequest2() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
@@ -1265,7 +1265,7 @@ fn InvalidRequest3() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_HEADERS, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::HEADERS, (*tx).request_progress);
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID));
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_INVALID_T_E));
@@ -1294,9 +1294,9 @@ fn AuthBasic() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_BASIC, (*tx).request_auth_type);
+        assert_eq!(BASIC, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.as_ref().unwrap().eq("ivanr"));
         assert!((*tx).request_auth_password.as_ref().unwrap().eq("secret"));
@@ -1312,9 +1312,9 @@ fn AuthDigest() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
+        assert_eq!(DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.as_ref().unwrap().eq("ivanr"));
 
@@ -1331,7 +1331,7 @@ fn Unknown_MethodOnly() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
         assert!((*tx).request_method.as_ref().unwrap().eq("HELLO"));
 
@@ -1342,7 +1342,7 @@ fn Unknown_MethodOnly() {
 }
 
 #[test]
-fn InvalidProtocol() {
+fn InvalidHtpProtocol() {
     let mut t = Test::new();
     unsafe {
         assert!(t.run("43-invalid-protocol.t").is_ok());
@@ -1350,9 +1350,9 @@ fn InvalidProtocol() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
+        assert_eq!(HtpProtocol::INVALID, (*tx).request_protocol_number);
     }
 }
 
@@ -1365,9 +1365,9 @@ fn AuthBasicInvalid() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_BASIC, (*tx).request_auth_type);
+        assert_eq!(BASIC, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1386,9 +1386,9 @@ fn AuthDigestUnquotedUsername() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
+        assert_eq!(DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1407,9 +1407,9 @@ fn AuthDigestInvalidUsername1() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
+        assert_eq!(DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1428,9 +1428,9 @@ fn AuthUnrecognized() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_UNRECOGNIZED, (*tx).request_auth_type);
+        assert_eq!(UNRECOGNIZED, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1447,7 +1447,7 @@ fn InvalidResponseHeaders1() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         assert_eq!(8, (*tx).response_headers.size());
 
@@ -1472,7 +1472,7 @@ fn InvalidResponseHeaders2() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         assert_eq!(6, (*tx).response_headers.size());
 
@@ -1493,8 +1493,8 @@ fn Util() {
 
         // A message that should not be logged.
         let log_message_count = (*(*tx).connp).conn.message_size();
-        (*(*(*tx).connp).cfg).log_level = htp_log_level_t::HTP_LOG_NONE;
-        htp_error!((*tx).connp, htp_log_code::UNKNOWN, "Log message");
+        (*(*(*tx).connp).cfg).log_level = HtpLogLevel::NONE;
+        htp_error!((*tx).connp, HtpLogCode::UNKNOWN, "Log message");
         assert_eq!(log_message_count, (*(*tx).connp).conn.message_size());
     }
 }
@@ -1859,14 +1859,14 @@ fn PostNoBody() {
         let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx1).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx1).response_progress);
 
         let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx2).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx2).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx2).response_progress);
     }
 }
 
@@ -1932,7 +1932,7 @@ fn LongRequestLine2() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_LINE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::LINE, (*tx).request_progress);
     }
 }
 
@@ -1957,7 +1957,7 @@ fn InvalidRequestHeader() {
 fn TestGenericPersonality() {
     let mut t = Test::new();
     unsafe {
-        (*t.cfg).set_server_personality(HTP_SERVER_IDS).unwrap();
+        (*t.cfg).set_server_personality(IDS).unwrap();
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -1977,8 +1977,8 @@ fn LongResponseHeader() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        //error first assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_HEADERS, (*tx).response_progress);
+        //error first assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::HEADERS, (*tx).response_progress);
     }
 }
 
@@ -1999,8 +1999,8 @@ fn ResponseSplitChunk() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2015,8 +2015,8 @@ fn ResponseBody() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2031,8 +2031,8 @@ fn ResponseContainsTeAndCl() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
     }
@@ -2049,8 +2049,8 @@ fn ResponseMultipleCl() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
@@ -2070,8 +2070,8 @@ fn ResponseMultipleClMismatch() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         assert!((*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
 
@@ -2081,10 +2081,10 @@ fn ResponseMultipleClMismatch() {
         assert_eq!(2, (*(*tx).connp).conn.message_size());
         let log = (*(*tx).connp).conn.message(0).unwrap();
         assert_eq!(log.msg, "Ambiguous response C-L value");
-        assert_eq!(htp_log_level_t::HTP_LOG_WARNING, log.level);
+        assert_eq!(HtpLogLevel::WARNING, log.level);
         let log = (*(*tx).connp).conn.message(1).unwrap();
         assert_eq!(log.msg, "Repetition for header");
-        assert_eq!(htp_log_level_t::HTP_LOG_WARNING, log.level);
+        assert_eq!(HtpLogLevel::WARNING, log.level);
     }
 }
 
@@ -2099,8 +2099,8 @@ fn ResponseInvalidCl() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         assert!(!(*tx).flags.contains(Flags::HTP_REQUEST_SMUGGLING));
     }
@@ -2117,16 +2117,16 @@ fn ResponseNoBody() {
         let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx1).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx1).response_progress);
 
         assert_response_header_eq!(tx1, "Server", "Apache");
 
         let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx2).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx2).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx2).response_progress);
 
         assert!(tx1 != tx2);
     }
@@ -2143,16 +2143,16 @@ fn ResponseFoldedHeaders() {
         let tx1: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx1.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx1).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx1).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx1).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx1).response_progress);
 
         assert_response_header_eq!(tx1, "Server", "Apache Server");
 
         let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx2).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx2).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx2).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx2).response_progress);
     }
 }
 
@@ -2167,8 +2167,8 @@ fn ResponseNoStatusHeaders() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2215,7 +2215,7 @@ fn Put() {
 
         let file = (*t.connp).put_file.as_ref().unwrap();
         assert_eq!(file.len, 12);
-        assert_eq!(file.source as u8, htp_file_source_t::HTP_FILE_PUT as u8);
+        assert_eq!(file.source as u8, HtpFileSource::PUT as u8);
         assert!(file.filename.is_none());
         assert!(file.tmpfile.is_none());
 
@@ -2236,9 +2236,9 @@ fn AuthDigestInvalidUsername2() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
+        assert_eq!(DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -2259,8 +2259,8 @@ fn ResponseNoStatusHeaders2() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2276,8 +2276,8 @@ fn ResponseNoStatusHeaders2() {
 //    let tx = (*t.connp).conn.get_tx_mut_ptr(0);
 //    assert!(!tx.is_null());
 //
-//    assert_eq!(HTP_REQUEST_NOT_STARTED, (*tx).request_progress);
-//    assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+//    assert_eq!(HtpRequestProgress::NOT_STARTED, (*tx).request_progress);
+//    assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 //}}
 
 #[test]
@@ -2291,8 +2291,8 @@ fn PartialRequestTimeout() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2376,8 +2376,8 @@ fn RequestUriTooLarge() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2392,14 +2392,14 @@ fn RequestInvalid() {
         let mut tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
-        assert_eq!(HTP_RESPONSE_NOT_STARTED, (*tx).response_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::NOT_STARTED, (*tx).response_progress);
     }
 }
 
@@ -2412,7 +2412,7 @@ fn Http_0_9_MethodOnly() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
 
@@ -2508,12 +2508,12 @@ fn RequestsCut() {
         let mut tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
     }
 }
 
@@ -2527,16 +2527,16 @@ fn ResponsesCut() {
         let mut tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
 
@@ -2549,9 +2549,9 @@ fn AuthDigest_EscapedQuote() {
         let tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
 
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(HTP_AUTH_DIGEST, (*tx).request_auth_type);
+        assert_eq!(DIGEST, (*tx).request_auth_type);
 
         assert!((*tx)
             .request_auth_username
@@ -2672,7 +2672,7 @@ fn Tunnelled1() {
         let tx2 = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
         assert!((*tx2).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(Protocol::V1_1, (*tx2).request_protocol_number);
+        assert_eq!(HtpProtocol::V1_1, (*tx2).request_protocol_number);
     }
 }
 
@@ -2685,15 +2685,15 @@ fn Expect100() {
         let tx = (*t.connp).conn.tx_mut_ptr(0);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("PUT"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
         assert_eq!(401, (*tx).response_status_number);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         let tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
-        assert_eq!(HTP_REQUEST_COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
         assert_eq!(200, (*tx).response_status_number);
-        assert_eq!(HTP_RESPONSE_COMPLETE, (*tx).response_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }

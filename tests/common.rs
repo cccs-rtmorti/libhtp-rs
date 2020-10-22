@@ -18,7 +18,7 @@ macro_rules! cstr {
     }};
 }
 
-/// Expects a Result<T, Status> to fail and checks the error value.
+/// Expects a Result<T, HtpStatus> to fail and checks the error value.
 #[macro_export]
 macro_rules! assert_err {
     ($result:expr, $expected:expr) => {{

@@ -7,7 +7,7 @@ use crate::hook::DataExternalCallbackFn;
 use crate::request;
 use crate::transaction::*;
 use crate::util;
-use crate::Status;
+use crate::HtpStatus;
 use std::convert::{TryFrom, TryInto};
 
 /// Creates a new transaction.
@@ -26,11 +26,11 @@ pub unsafe extern "C" fn htp_tx_create(connp: *mut ConnectionParser) -> *mut Tra
 
 /// Destroys the supplied transaction.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy(tx: *mut Transaction) -> Status {
+pub unsafe extern "C" fn htp_tx_destroy(tx: *mut Transaction) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
         tx.destroy().into()
     } else {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }
 
@@ -138,15 +138,15 @@ pub unsafe extern "C" fn htp_tx_request_method(tx: *const Transaction) -> *const
 ///
 /// tx: Transaction pointer.
 ///
-/// Returns the request method number or HTP_M_ERROR on error.
+/// Returns the request method number or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_method_number(
     tx: *const Transaction,
-) -> request::htp_method_t {
+) -> request::HtpMethod {
     if let Some(tx) = tx.as_ref() {
         tx.request_method_number
     } else {
-        request::htp_method_t::HTP_M_ERROR
+        request::HtpMethod::ERROR
     }
 }
 
@@ -182,11 +182,11 @@ pub unsafe extern "C" fn htp_tx_request_protocol(tx: *const Transaction) -> *con
 ///
 /// Returns the protocol number or ERROR on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_request_protocol_number(tx: *const Transaction) -> Protocol {
+pub unsafe extern "C" fn htp_tx_request_protocol_number(tx: *const Transaction) -> HtpProtocol {
     if let Some(tx) = tx.as_ref() {
         tx.request_protocol_number
     } else {
-        Protocol::ERROR
+        HtpProtocol::ERROR
     }
 }
 
@@ -290,15 +290,15 @@ pub unsafe extern "C" fn htp_tx_request_header_index(
 ///
 /// tx: Transaction pointer.
 ///
-/// Returns the transfer coding or HTP_CODING_ERROR on error.
+/// Returns the transfer coding or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_transfer_coding(
     tx: *const Transaction,
-) -> htp_transfer_coding_t {
+) -> HtpTransferCoding {
     if let Some(tx) = tx.as_ref() {
         tx.request_transfer_coding
     } else {
-        htp_transfer_coding_t::HTP_CODING_ERROR
+        HtpTransferCoding::ERROR
     }
 }
 
@@ -306,15 +306,15 @@ pub unsafe extern "C" fn htp_tx_request_transfer_coding(
 ///
 /// tx: Transaction pointer.
 ///
-/// Returns the content encoding or HTP_COMPRESSION_ERROR on error.
+/// Returns the content encoding or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_content_encoding(
     tx: *const Transaction,
-) -> decompressors::htp_content_encoding_t {
+) -> decompressors::HtpContentEncoding {
     if let Some(tx) = tx.as_ref() {
         tx.request_content_encoding
     } else {
-        decompressors::htp_content_encoding_t::HTP_COMPRESSION_ERROR
+        decompressors::HtpContentEncoding::ERROR
     }
 }
 
@@ -351,11 +351,11 @@ pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -
 ///
 /// Returns the auth type or HTP_AUTH_ERROR on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_request_auth_type(tx: *const Transaction) -> htp_auth_type_t {
+pub unsafe extern "C" fn htp_tx_request_auth_type(tx: *const Transaction) -> HtpAuthType {
     if let Some(tx) = tx.as_ref() {
         tx.request_auth_type
     } else {
-        htp_auth_type_t::HTP_AUTH_ERROR
+        HtpAuthType::ERROR
     }
 }
 
@@ -445,11 +445,11 @@ pub unsafe extern "C" fn htp_tx_response_protocol(tx: *const Transaction) -> *co
 ///
 /// Returns the protocol number or ERROR on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_response_protocol_number(tx: *const Transaction) -> Protocol {
+pub unsafe extern "C" fn htp_tx_response_protocol_number(tx: *const Transaction) -> HtpProtocol {
     if let Some(tx) = tx.as_ref() {
         tx.response_protocol_number
     } else {
-        Protocol::ERROR
+        HtpProtocol::ERROR
     }
 }
 
@@ -648,11 +648,11 @@ pub unsafe extern "C" fn htp_tx_flags(tx: *const Transaction) -> u64 {
 ///
 /// Returns the progress or HTP_REQUEST_ERROR on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_request_progress(tx: *const Transaction) -> htp_tx_req_progress_t {
+pub unsafe extern "C" fn htp_tx_request_progress(tx: *const Transaction) -> HtpRequestProgress {
     if let Some(tx) = tx.as_ref() {
         tx.request_progress
     } else {
-        htp_tx_req_progress_t::HTP_REQUEST_ERROR
+        HtpRequestProgress::ERROR
     }
 }
 
@@ -660,17 +660,17 @@ pub unsafe extern "C" fn htp_tx_request_progress(tx: *const Transaction) -> htp_
 ///
 /// tx: Transaction pointer.
 ///
-/// Returns HTP_OK on success or HTP_ERROR on error.
+/// Returns OK on success or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_set_request_progress(
     tx: *mut Transaction,
-    progress: htp_tx_req_progress_t,
-) -> Status {
+    progress: HtpRequestProgress,
+) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
         tx.request_progress = progress;
-        Status::OK
+        HtpStatus::OK
     } else {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }
 
@@ -680,11 +680,11 @@ pub unsafe extern "C" fn htp_tx_set_request_progress(
 ///
 /// Returns the progress or ERROR on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_response_progress(tx: *const Transaction) -> htp_tx_res_progress_t {
+pub unsafe extern "C" fn htp_tx_response_progress(tx: *const Transaction) -> HtpResponseProgress {
     if let Some(tx) = tx.as_ref() {
         tx.response_progress
     } else {
-        htp_tx_res_progress_t::HTP_RESPONSE_ERROR
+        HtpResponseProgress::ERROR
     }
 }
 
@@ -706,17 +706,17 @@ pub unsafe extern "C" fn htp_tx_index(tx: *const Transaction) -> isize {
 ///
 /// tx: Transaction pointer.
 ///
-/// Returns HTP_OK on success or HTP_ERROR on error.
+/// Returns OK on success or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_set_response_progress(
     tx: *mut Transaction,
-    progress: htp_tx_res_progress_t,
-) -> Status {
+    progress: HtpResponseProgress,
+) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
         tx.response_progress = progress;
-        Status::OK
+        HtpStatus::OK
     } else {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }
 
@@ -724,14 +724,14 @@ pub unsafe extern "C" fn htp_tx_set_response_progress(
 ///
 /// tx: Transaction pointer. Must not be NULL.
 ///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+/// Returns OK on success; ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete(tx: *mut Transaction) -> Status {
+pub unsafe extern "C" fn htp_tx_state_request_complete(tx: *mut Transaction) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
         tx.state_request_complete().into()
     } else {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }
 
@@ -739,14 +739,14 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(tx: *mut Transaction) -> 
 ///
 /// tx: Transaction pointer. Must not be NULL.
 ///
-/// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+/// Returns OK on success; ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_complete(tx: *mut Transaction) -> Status {
+pub unsafe extern "C" fn htp_tx_state_response_complete(tx: *mut Transaction) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
         tx.state_response_complete().into()
     } else {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{connection_parser, lzma, transaction, Status};
+use crate::{connection_parser, lzma, transaction, HtpStatus};
 extern "C" {
     pub type internal_state;
     #[no_mangle]
@@ -28,32 +28,33 @@ extern "C" {
     ) -> libc::c_int;
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_content_encoding_t {
+pub enum HtpContentEncoding {
     /// This is the default value, which is used until the presence
     /// of content encoding is determined (e.g., before request headers
     /// are seen.
-    HTP_COMPRESSION_UNKNOWN,
+    UNKNOWN,
     /// No compression.
-    HTP_COMPRESSION_NONE,
+    NONE,
     /// Gzip compression.
-    HTP_COMPRESSION_GZIP,
+    GZIP,
     /// Deflate compression.
-    HTP_COMPRESSION_DEFLATE,
+    DEFLATE,
     /// LZMA compression.
-    HTP_COMPRESSION_LZMA,
+    LZMA,
     /// Error retrieving the content encoding.
-    HTP_COMPRESSION_ERROR,
+    ERROR,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_decompressor_t {
     pub decompress: Option<
-        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut transaction::Data) -> Status,
+        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut transaction::Data) -> HtpStatus,
     >,
-    pub callback: Option<unsafe extern "C" fn(_: *mut transaction::Data) -> Status>,
+    pub callback: Option<unsafe extern "C" fn(_: *mut transaction::Data) -> HtpStatus>,
     pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
     pub time_before: libc::timeval,
@@ -92,7 +93,7 @@ pub type z_streamp = *mut z_stream;
 #[derive(Copy, Clone)]
 pub struct htp_decompressor_gzip_t {
     pub super_0: htp_decompressor_t,
-    pub zlib_initialized: htp_content_encoding_t,
+    pub zlib_initialized: HtpContentEncoding,
     pub restart: u8,
     pub passthrough: u8,
     pub stream: z_stream,
@@ -168,7 +169,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
         // extensions
         if (*drec).restart == 0 {
             consumed = htp_gzip_decompressor_probe(data, data_len);
-            if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_GZIP {
+            if (*drec).zlib_initialized == HtpContentEncoding::GZIP {
                 // if that still fails, try the other method we support
                 rc = inflateInit2_(
                     &mut (*drec).stream,
@@ -188,7 +189,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
                 return 0;
             }
             current_block = 5272667214186690925;
-        } else if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_DEFLATE {
+        } else if (*drec).zlib_initialized == HtpContentEncoding::DEFLATE {
             rc = inflateInit2_(
                 &mut (*drec).stream,
                 15 + 32,
@@ -198,10 +199,10 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
             if rc != 0 {
                 return 0;
             }
-            (*drec).zlib_initialized = htp_content_encoding_t::HTP_COMPRESSION_GZIP;
+            (*drec).zlib_initialized = HtpContentEncoding::GZIP;
             consumed = htp_gzip_decompressor_probe(data, data_len);
             current_block = 5272667214186690925;
-        } else if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_GZIP {
+        } else if (*drec).zlib_initialized == HtpContentEncoding::GZIP {
             rc = inflateInit2_(
                 &mut (*drec).stream,
                 -15,
@@ -211,7 +212,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
             if rc != 0 {
                 return 0;
             }
-            (*drec).zlib_initialized = htp_content_encoding_t::HTP_COMPRESSION_DEFLATE;
+            (*drec).zlib_initialized = HtpContentEncoding::DEFLATE;
             consumed = htp_gzip_decompressor_probe(data, data_len);
             current_block = 5272667214186690925;
         } else {
@@ -231,34 +232,34 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
 
 /// Ends decompressor.
 unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
-    if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA {
+    if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
         lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
-        (*drec).zlib_initialized = htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
-    } else if (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN {
+        (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN
+    } else if (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN {
         inflateEnd(&mut (*drec).stream);
-        (*drec).zlib_initialized = htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
+        (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN
     };
 }
 
 /// Decompress a chunk of gzip-compressed data.
 /// If we have more than one decompressor, call this function recursively.
 ///
-/// Returns HTP_OK on success, HTP_ERROR or some other negative integer on failure.
+/// Returns OK on success, ERROR or some other negative integer on failure.
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
     d: *mut transaction::Data,
-) -> Status {
+) -> HtpStatus {
     let mut consumed: usize = 0;
     let mut rc: i32 = 0;
-    let mut callback_rc: Status = Status::DECLINED;
+    let mut callback_rc: HtpStatus = HtpStatus::DECLINED;
     // Pass-through the NULL chunk, which indicates the end of the stream.
     if (*drec).passthrough != 0 {
         let mut d2 = (*d).clone();
         callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut d2);
-        if callback_rc != Status::OK {
-            return Status::ERROR;
+        if callback_rc != HtpStatus::OK {
+            return HtpStatus::ERROR;
         }
-        return Status::OK;
+        return HtpStatus::OK;
     }
     if (*d).data().is_null() {
         // Prepare data for callback.
@@ -276,7 +277,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             )
         };
         if !(*drec).super_0.next.is_null()
-            && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
+            && (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN
         {
             return htp_gzip_decompressor_decompress(
                 (*drec).super_0.next as *mut htp_decompressor_gzip_t,
@@ -285,12 +286,12 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
         } else {
             // Send decompressed data to the callback.
             callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut dout);
-            if callback_rc != Status::OK {
+            if callback_rc != HtpStatus::OK {
                 htp_gzip_decompressor_end(drec);
                 return callback_rc;
             }
         }
-        return Status::OK;
+        return HtpStatus::OK;
     }
     'c_5645: loop
     // we'll be restarting the compressor
@@ -299,10 +300,10 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
         if consumed > (*d).len() {
             htp_error!(
                 connp,
-                htp_log_code::GZIP_DECOMPRESSION_FAILED,
+                HtpLogCode::GZIP_DECOMPRESSION_FAILED,
                 "GZip decompressor: consumed > d->len"
             );
-            return Status::ERROR;
+            return HtpStatus::ERROR;
         }
         (*drec).stream.next_in = (*d).data().offset(consumed as isize) as *mut u8;
         (*drec).stream.avail_in = (*d).len().wrapping_sub(consumed) as u32;
@@ -318,7 +319,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     (*d).is_last(),
                 );
                 if !(*drec).super_0.next.is_null()
-                    && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
+                    && (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN
                 {
                     callback_rc = htp_gzip_decompressor_decompress(
                         (*drec).super_0.next as *mut htp_decompressor_gzip_t,
@@ -329,14 +330,14 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     callback_rc =
                         (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_0)
                 }
-                if callback_rc != Status::OK {
+                if callback_rc != HtpStatus::OK {
                     htp_gzip_decompressor_end(drec);
                     return callback_rc;
                 }
                 (*drec).stream.next_out = (*drec).buffer;
                 (*drec).stream.avail_out = 8192
             }
-            if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA {
+            if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
                 if ((*drec).header_len) < 5 + 8 {
                     consumed = (5 + 8 - (*drec).header_len) as usize;
                     if consumed > (*drec).stream.avail_in as usize {
@@ -364,8 +365,8 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     );
                     if rc != 0 {
                         match rc {
-                            0 => return Status::OK,
-                            _ => return Status::ERROR,
+                            0 => return HtpStatus::OK,
+                            _ => return HtpStatus::ERROR,
                         }
                     }
                     lzma::LzmaDec::LzmaDec_Init(&mut (*drec).state);
@@ -405,7 +406,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         2 => {
                             htp_warn!(
                                 connp,
-                                htp_log_code::LZMA_MEMLIMIT_REACHED,
+                                HtpLogCode::LZMA_MEMLIMIT_REACHED,
                                 "LZMA decompressor: memory limit reached"
                             );
                             current_block_82 = 1497605668091507245;
@@ -423,18 +424,18 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                         _ => {}
                     }
                 }
-            } else if (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN {
+            } else if (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN {
                 rc = inflate(&mut (*drec).stream, 0)
             } else {
                 // no initialization means previous error on stream
-                return Status::ERROR;
+                return HtpStatus::ERROR;
             }
             if 8192 > (*drec).stream.avail_out && rc == -3 {
                 // There is data even if there is an error
                 // So use this data and log a warning
                 htp_warn!(
                     connp,
-                    htp_log_code::GZIP_DECOMPRESSION_FAILED,
+                    HtpLogCode::GZIP_DECOMPRESSION_FAILED,
                     format!("GZip decompressor: inflate failed with {}", rc)
                 );
                 rc = 1;
@@ -450,7 +451,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     (*d).is_last(),
                 );
                 if !(*drec).super_0.next.is_null()
-                    && (*drec).zlib_initialized != htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN
+                    && (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN
                 {
                     callback_rc = htp_gzip_decompressor_decompress(
                         (*drec).super_0.next as *mut htp_decompressor_gzip_t,
@@ -461,27 +462,27 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     callback_rc =
                         (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_1)
                 }
-                if callback_rc != Status::OK {
+                if callback_rc != HtpStatus::OK {
                     htp_gzip_decompressor_end(drec);
                     return callback_rc;
                 }
                 (*drec).stream.avail_out = 8192;
                 (*drec).stream.next_out = (*drec).buffer;
                 // TODO Handle trailer.
-                return Status::OK;
+                return HtpStatus::OK;
             } else {
                 if !(rc != 0) {
                     continue;
                 }
                 htp_warn!(
                     connp,
-                    htp_log_code::GZIP_DECOMPRESSION_FAILED,
+                    HtpLogCode::GZIP_DECOMPRESSION_FAILED,
                     format!("GZip decompressor: inflate failed with {}", rc)
                 );
-                if (*drec).zlib_initialized == htp_content_encoding_t::HTP_COMPRESSION_LZMA {
+                if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
                     lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
                     // so as to clean zlib ressources after restart
-                    (*drec).zlib_initialized = htp_content_encoding_t::HTP_COMPRESSION_NONE
+                    (*drec).zlib_initialized = HtpContentEncoding::NONE
                 } else {
                     inflateEnd(&mut (*drec).stream);
                 }
@@ -490,24 +491,24 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 {
                     continue 'c_5645;
                 }
-                (*drec).zlib_initialized = htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN;
+                (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN;
                 // all our inflate attempts have failed, simply
                 // pass the raw data on to the callback in case
                 // it's not compressed at all
                 let mut d2_2 = (*d).clone();
                 callback_rc =
                     (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_2);
-                if callback_rc != Status::OK {
-                    return Status::ERROR;
+                if callback_rc != HtpStatus::OK {
+                    return HtpStatus::ERROR;
                 }
                 (*drec).stream.avail_out = 8192;
                 (*drec).stream.next_out = (*drec).buffer;
                 // successfully passed through, lets continue doing that
                 (*drec).passthrough = 1;
-                return Status::OK;
+                return HtpStatus::OK;
             }
         }
-        return Status::OK;
+        return HtpStatus::OK;
     }
 }
 
@@ -528,7 +529,7 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(drec: *mut htp_decompressor_g
 /// Returns New htp_decompressor_t instance on success, or NULL on failure.
 pub unsafe fn htp_gzip_decompressor_create(
     connp: *mut connection_parser::ConnectionParser,
-    format: htp_content_encoding_t,
+    format: HtpContentEncoding,
 ) -> *mut htp_decompressor_t {
     let mut drec: *mut htp_decompressor_gzip_t =
         calloc(1, ::std::mem::size_of::<htp_decompressor_gzip_t>()) as *mut htp_decompressor_gzip_t;
@@ -540,17 +541,20 @@ pub unsafe fn htp_gzip_decompressor_create(
             unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
                 _: *mut transaction::Data,
-            ) -> Status,
+            ) -> HtpStatus,
         >,
         Option<
-            unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut transaction::Data) -> Status,
+            unsafe extern "C" fn(
+                _: *mut htp_decompressor_t,
+                _: *mut transaction::Data,
+            ) -> HtpStatus,
         >,
     >(Some(
         htp_gzip_decompressor_decompress
             as unsafe extern "C" fn(
                 _: *mut htp_decompressor_gzip_t,
                 _: *mut transaction::Data,
-            ) -> Status,
+            ) -> HtpStatus,
     ));
     (*drec).super_0.destroy = ::std::mem::transmute::<
         Option<unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t) -> ()>,
@@ -568,21 +572,21 @@ pub unsafe fn htp_gzip_decompressor_create(
     // Initialize zlib.
     let mut rc: i32 = 0;
     match format {
-        htp_content_encoding_t::HTP_COMPRESSION_LZMA => {
+        HtpContentEncoding::LZMA => {
             if (*(*connp).cfg).lzma_memlimit > 0 && (*(*connp).cfg).response_lzma_layer_limit > 0 {
                 (*drec).state.dic = 0 as *mut u8;
                 (*drec).state.probs = 0 as *mut lzma::LzmaDec::CLzmaProb
             } else {
                 htp_warn!(
                     connp,
-                    htp_log_code::LZMA_DECOMPRESSION_DISABLED,
+                    HtpLogCode::LZMA_DECOMPRESSION_DISABLED,
                     "LZMA decompression disabled"
                 );
                 (*drec).passthrough = 1
             }
             rc = 0
         }
-        htp_content_encoding_t::HTP_COMPRESSION_DEFLATE => {
+        HtpContentEncoding::DEFLATE => {
             // Negative values activate raw processing,
             // which is what we need for deflate.
             rc = inflateInit2_(
@@ -592,7 +596,7 @@ pub unsafe fn htp_gzip_decompressor_create(
                 ::std::mem::size_of::<z_stream>() as i32,
             )
         }
-        htp_content_encoding_t::HTP_COMPRESSION_GZIP => {
+        HtpContentEncoding::GZIP => {
             // Increased windows size activates gzip header processing.
             rc = inflateInit2_(
                 &mut (*drec).stream,
@@ -610,12 +614,10 @@ pub unsafe fn htp_gzip_decompressor_create(
     if rc != 0 {
         htp_error!(
             connp,
-            htp_log_code::GZIP_DECOMPRESSION_FAILED,
+            HtpLogCode::GZIP_DECOMPRESSION_FAILED,
             format!("GZip decompressor: inflateInit2 failed with code {}", rc)
         );
-        if format == htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-            || format == htp_content_encoding_t::HTP_COMPRESSION_GZIP
-        {
+        if format == HtpContentEncoding::DEFLATE || format == HtpContentEncoding::GZIP {
             inflateEnd(&mut (*drec).stream);
         }
         free((*drec).buffer as *mut core::ffi::c_void);

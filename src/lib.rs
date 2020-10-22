@@ -10,7 +10,7 @@
 #[derive(PartialEq, Debug)]
 /// Status codes used by LibHTP internally.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
-pub enum Status {
+pub enum HtpStatus {
     /// The lowest value LibHTP will use internally.
     ERROR_RESERVED = -1000,
     /// General-purpose error code.
@@ -37,7 +37,7 @@ pub enum Status {
     /// returning HTP_STOP from a connection callback indicates that LibHTP should
     /// stop following that particular connection.
     STOP = 4,
-    /// Same as HTP_DATA, but indicates that any non-consumed part of the
+    /// Same as DATA, but indicates that any non-consumed part of the
     /// data chunk should be preserved (buffered) for later.
     DATA_BUFFER = 5,
     /// The highest value LibHTP will use internally.

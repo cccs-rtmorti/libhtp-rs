@@ -1,6 +1,6 @@
-use crate::config::htp_server_personality_t;
+use crate::config::HtpServerPersonality;
 use crate::error::Result;
-use crate::{bstr, config, connection, hook::DataHook, transaction, util, Status};
+use crate::{bstr, config, connection, hook::DataHook, transaction, util, HtpStatus};
 use std::io::Cursor;
 use std::net::IpAddr;
 
@@ -29,17 +29,18 @@ pub enum State {
 
 /// Enumerates all stream states. Each connection has two streams, one
 /// inbound and one outbound. Their states are tracked separately.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_stream_state_t {
-    HTP_STREAM_NEW,
-    HTP_STREAM_OPEN,
-    HTP_STREAM_CLOSED,
-    HTP_STREAM_ERROR,
-    HTP_STREAM_TUNNEL,
-    HTP_STREAM_DATA_OTHER,
-    HTP_STREAM_STOP,
-    HTP_STREAM_DATA,
+pub enum HtpStreamState {
+    NEW,
+    OPEN,
+    CLOSED,
+    ERROR,
+    TUNNEL,
+    DATA_OTHER,
+    STOP,
+    DATA,
 }
 
 pub type htp_time_t = libc::timeval;
@@ -53,10 +54,10 @@ pub struct ConnectionParser {
     /// Opaque user data associated with this parser.
     pub user_data: *mut core::ffi::c_void,
     // Request parser fields
-    /// Parser inbound status. Starts as HTP_OK, but may turn into HTP_ERROR.
-    pub in_status: htp_stream_state_t,
-    /// Parser output status. Starts as HTP_OK, but may turn into HTP_ERROR.
-    pub out_status: htp_stream_state_t,
+    /// Parser inbound status. Starts as OK, but may turn into ERROR.
+    pub in_status: HtpStreamState,
+    /// Parser output status. Starts as OK, but may turn into ERROR.
+    pub out_status: HtpStreamState,
     /// When true, this field indicates that there is unprocessed inbound data, and
     /// that the response parsing code should stop at the end of the current request
     /// in order to allow more requests to be produced.
@@ -153,8 +154,8 @@ impl ConnectionParser {
             cfg,
             conn: connection::Connection::new(),
             user_data: std::ptr::null_mut(),
-            in_status: htp_stream_state_t::HTP_STREAM_NEW,
-            out_status: htp_stream_state_t::HTP_STREAM_NEW,
+            in_status: HtpStreamState::NEW,
+            out_status: HtpStreamState::NEW,
             out_data_other_at_tx_end: false,
             in_timestamp: htp_time_t {
                 tv_sec: 0,
@@ -237,11 +238,11 @@ impl ConnectionParser {
         self.in_tx.and_then(move |in_tx| self.conn.tx_mut(in_tx))
     }
 
-    /// Get the in_tx as a mutable reference or Status::ERROR if not set.
+    /// Get the in_tx as a mutable reference or HtpStatus::ERROR if not set.
     pub fn in_tx_mut_ok(&mut self) -> Result<&mut transaction::Transaction> {
         self.in_tx
             .and_then(move |in_tx| self.conn.tx_mut(in_tx))
-            .ok_or(Status::ERROR)
+            .ok_or(HtpStatus::ERROR)
     }
 
     /// Get the in_tx as a pointer or NULL if not set.
@@ -283,11 +284,11 @@ impl ConnectionParser {
         self.out_tx.and_then(move |out_tx| self.conn.tx_mut(out_tx))
     }
 
-    /// Get the out_tx as a mutable reference or Status::ERROR if not set.
+    /// Get the out_tx as a mutable reference or HtpStatus::ERROR if not set.
     pub fn out_tx_mut_ok(&mut self) -> Result<&mut transaction::Transaction> {
         self.out_tx
             .and_then(move |out_tx| self.conn.tx_mut(out_tx))
-            .ok_or(Status::ERROR)
+            .ok_or(HtpStatus::ERROR)
     }
 
     /// Get the out_tx as a pointer or NULL if not set.
@@ -323,7 +324,7 @@ impl ConnectionParser {
     pub fn handle_in_state(&mut self, data: &[u8]) -> Result<()> {
         let data = &data[self.in_curr_data.position() as usize..];
         match self.in_state {
-            State::NONE => Err(Status::ERROR),
+            State::NONE => Err(HtpStatus::ERROR),
             State::IDLE => self.REQ_IDLE(),
             State::IGNORE_DATA_AFTER_HTTP_0_9 => self.REQ_IGNORE_DATA_AFTER_HTTP_0_9(),
             State::LINE => self.REQ_LINE(&data),
@@ -339,14 +340,16 @@ impl ConnectionParser {
             State::BODY_IDENTITY => self.REQ_BODY_IDENTITY(&data),
             State::FINALIZE => self.REQ_FINALIZE(&data),
             // These are only used by out_state
-            State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => Err(Status::ERROR),
+            State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => {
+                Err(HtpStatus::ERROR)
+            }
         }
     }
 
     /// Handle the current state to be processed.
     pub fn handle_out_state(&mut self) -> Result<()> {
         match self.out_state {
-            State::NONE => Err(Status::ERROR),
+            State::NONE => Err(HtpStatus::ERROR),
             State::IDLE => self.RES_IDLE(),
             State::LINE => self.RES_LINE(),
             State::HEADERS => self.RES_HEADERS(),
@@ -363,7 +366,7 @@ impl ConnectionParser {
             | State::CONNECT_PROBE_DATA
             | State::CONNECT_WAIT_RESPONSE
             | State::BODY_IDENTITY
-            | State::IGNORE_DATA_AFTER_HTTP_0_9 => Err(Status::ERROR),
+            | State::IGNORE_DATA_AFTER_HTTP_0_9 => Err(HtpStatus::ERROR),
         }
     }
 
@@ -371,7 +374,7 @@ impl ConnectionParser {
     pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
         self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(request_line));
         unsafe {
-            if (*self.cfg).server_personality == htp_server_personality_t::HTP_SERVER_APACHE_2 {
+            if (*self.cfg).server_personality == HtpServerPersonality::APACHE_2 {
                 self.parse_request_line_generic_ex(request_line, true)
             } else {
                 self.parse_request_line_generic_ex(request_line, false)
@@ -385,8 +388,8 @@ impl ConnectionParser {
         unsafe { self.parse_response_line_generic(response_line) }
     }
 
-    pub unsafe fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
-        self.process_request_header_generic(data)
+    pub fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
+        unsafe { self.process_request_header_generic(data) }
     }
 
     pub fn process_response_header(&mut self, data: &[u8]) -> Result<()> {
@@ -398,8 +401,8 @@ impl ConnectionParser {
     /// timestamp is optional
     pub unsafe fn req_close(&mut self, timestamp: Option<htp_time_t>) {
         // Update internal flags
-        if self.in_status != htp_stream_state_t::HTP_STREAM_ERROR {
-            self.in_status = htp_stream_state_t::HTP_STREAM_CLOSED
+        if self.in_status != HtpStreamState::ERROR {
+            self.in_status = HtpStreamState::CLOSED
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
@@ -413,11 +416,11 @@ impl ConnectionParser {
         // Close the underlying connection.
         self.conn.close(timestamp.clone());
         // Update internal flags
-        if self.in_status != htp_stream_state_t::HTP_STREAM_ERROR {
-            self.in_status = htp_stream_state_t::HTP_STREAM_CLOSED
+        if self.in_status != HtpStreamState::ERROR {
+            self.in_status = HtpStreamState::CLOSED
         }
-        if self.out_status != htp_stream_state_t::HTP_STREAM_ERROR {
-            self.out_status = htp_stream_state_t::HTP_STREAM_CLOSED
+        if self.out_status != HtpStreamState::ERROR {
+            self.out_status = HtpStreamState::CLOSED
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
@@ -439,7 +442,7 @@ impl ConnectionParser {
 
     /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
     /// of htp_connp_res_data() will consume all data from the supplied buffer, but there are circumstances
-    /// where only partial consumption is possible. In such cases HTP_STREAM_DATA_OTHER will be returned.
+    /// where only partial consumption is possible. In such cases DATA_OTHER will be returned.
     /// Consumed bytes are no longer necessary, but the remainder of the buffer will be need to be saved
     /// for later.
     /// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
@@ -460,12 +463,10 @@ impl ConnectionParser {
         timestamp: Option<htp_time_t>,
     ) {
         // Check connection parser state first.
-        if self.in_status != htp_stream_state_t::HTP_STREAM_NEW
-            || self.out_status != htp_stream_state_t::HTP_STREAM_NEW
-        {
+        if self.in_status != HtpStreamState::NEW || self.out_status != HtpStreamState::NEW {
             htp_error!(
                 self as *mut ConnectionParser,
-                htp_log_code::CONNECTION_ALREADY_OPEN,
+                HtpLogCode::CONNECTION_ALREADY_OPEN,
                 "Connection is already open"
             );
             return;
@@ -477,8 +478,8 @@ impl ConnectionParser {
             server_port,
             timestamp,
         );
-        self.in_status = htp_stream_state_t::HTP_STREAM_OPEN;
-        self.out_status = htp_stream_state_t::HTP_STREAM_OPEN;
+        self.in_status = HtpStreamState::OPEN;
+        self.out_status = HtpStreamState::OPEN;
     }
 
     /// Associate user data with the supplied parser.
@@ -490,7 +491,7 @@ impl ConnectionParser {
         if let Some(tx) = self.in_tx_mut() {
             tx.req_process_body_data_ex(Some(data))
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -499,13 +500,13 @@ impl ConnectionParser {
     ///
     /// tx: Transaction pointer. Must not be NULL.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_start(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_start()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -514,13 +515,13 @@ impl ConnectionParser {
     ///
     /// tx: Transaction pointer. Must not be NULL.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_headers(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_headers()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -529,13 +530,13 @@ impl ConnectionParser {
     ///
     /// tx: Transaction pointer. Must not be NULL.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_line(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_line()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -543,13 +544,13 @@ impl ConnectionParser {
     ///
     /// tx: Transaction pointer. Must not be NULL.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_complete(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_complete()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -561,7 +562,7 @@ impl ConnectionParser {
         if let Some(tx) = self.out_tx_mut() {
             tx.res_process_body_data_ex(data, len)
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -569,7 +570,7 @@ impl ConnectionParser {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_start()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -577,13 +578,13 @@ impl ConnectionParser {
     ///
     /// tx: Transaction pointer. Must not be NULL.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_headers(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_headers()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -591,13 +592,13 @@ impl ConnectionParser {
     ///
     /// tx: Transaction pointer. Must not be NULL.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_line(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_line()
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 
@@ -605,7 +606,7 @@ impl ConnectionParser {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_complete_ex(hybrid_mode)
         } else {
-            Err(Status::ERROR)
+            Err(HtpStatus::ERROR)
         }
     }
 }

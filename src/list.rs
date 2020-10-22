@@ -7,7 +7,7 @@
 //! replace operations will never cause another element to move indices.  This is done to
 //! ensure that Indexes are always valid even after other operations are executed on the list.
 
-use crate::Status;
+use crate::HtpStatus;
 use core::ops::Index;
 use core::slice::SliceIndex;
 
@@ -149,28 +149,28 @@ impl<T> List<T> {
     /// Replace the element at the given index with the provided element.
     ///
     /// When the index is within range it will do the replacement, even on previously
-    /// removed elements.  If the index is out of bounds it will return `Status::DECLINED`.
-    pub fn replace(&mut self, idx: usize, value: T) -> Result<(), Status> {
+    /// removed elements.  If the index is out of bounds it will return `HtpStatus::DECLINED`.
+    pub fn replace(&mut self, idx: usize, value: T) -> Result<(), HtpStatus> {
         if idx < self.elements.len() {
             self.elements[idx] = Some(value);
             Ok(())
         } else {
-            Err(Status::DECLINED)
+            Err(HtpStatus::DECLINED)
         }
     }
 
     /// Remove the element at the given index.
     ///
-    /// Returns Status::DECLINED if no element at the given index exists.
+    /// Returns HtpStatus::DECLINED if no element at the given index exists.
     /// This does not resize the list nor affect ordering, so
     /// [`len`](crate::list::List::len) and [`get`](crate::list::List::get) (on any other
     /// index) will behave identically before and after a removal.
-    pub fn remove(&mut self, idx: usize) -> Result<(), Status> {
+    pub fn remove(&mut self, idx: usize) -> Result<(), HtpStatus> {
         if idx < self.elements.len() {
             self.elements[idx] = None;
             Ok(())
         } else {
-            Err(Status::DECLINED)
+            Err(HtpStatus::DECLINED)
         }
     }
 
@@ -185,7 +185,7 @@ impl<T> List<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{list::List, Status};
+    use crate::{list::List, HtpStatus};
 
     #[test]
     fn create() {
@@ -255,7 +255,7 @@ mod tests {
         list.push('a');
         assert_eq!(list.len(), 1);
         let status = list.remove(2);
-        assert_eq!(status, Err(Status::DECLINED));
+        assert_eq!(status, Err(HtpStatus::DECLINED));
         assert_eq!(list.len(), 1);
         assert_eq!(list.get(0), Some(&'a'));
     }
@@ -276,7 +276,7 @@ mod tests {
     fn replace() {
         let mut list = List::with_capacity(4);
         let status = list.replace(0, 'a');
-        assert_eq!(status, Err(Status::DECLINED));
+        assert_eq!(status, Err(HtpStatus::DECLINED));
         list.push('a');
         list.push('b');
         let status = list.replace(0, 'b').unwrap(); //Replace element
@@ -287,7 +287,7 @@ mod tests {
         let _ = list.replace(0, 'a'); //Replace deleted element
         assert_eq!(list.get(0), Some(&'a'));
         let status = list.replace(2, 'a'); //Replace out of bounds
-        assert_eq!(status, Err(Status::DECLINED));
+        assert_eq!(status, Err(HtpStatus::DECLINED));
     }
 
     #[test]

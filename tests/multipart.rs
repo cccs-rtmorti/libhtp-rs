@@ -2,11 +2,11 @@
 use htp::bstr::*;
 use htp::c_api::htp_connp_create;
 use htp::config;
-use htp::config::htp_server_personality_t::*;
+use htp::config::HtpServerPersonality::*;
 use htp::connection_parser::*;
 use htp::multipart::*;
 use htp::transaction::*;
-use htp::Status;
+use htp::HtpStatus;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -26,7 +26,7 @@ impl Test {
         unsafe {
             let cfg: *mut config::Config = config::create();
             assert!(!cfg.is_null());
-            (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
+            (*cfg).set_server_personality(APACHE_2).unwrap();
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
@@ -110,10 +110,7 @@ impl Test {
             let field1 = (*self.body).parts.get(0);
             assert!(field1.is_some());
             let field1 = field1.unwrap();
-            assert_eq!(
-                htp_multipart_type_t::MULTIPART_PART_TEXT,
-                (*(*field1)).type_0
-            );
+            assert_eq!(HtpMultipartType::TEXT, (*(*field1)).type_0);
             assert!((*(*(*field1)).name).eq("field1"));
             assert!((*(*(*field1)).value).eq("ABCDEF"));
 
@@ -121,10 +118,7 @@ impl Test {
             let file1 = (*self.body).parts.get(1);
             assert!(file1.is_some());
             let file1 = file1.unwrap();
-            assert_eq!(
-                htp_multipart_type_t::MULTIPART_PART_FILE,
-                (*(*file1)).type_0
-            );
+            assert_eq!(HtpMultipartType::FILE, (*(*file1)).type_0);
             assert!((*(*(*file1)).name).eq("file1"));
 
             assert!((*(*file1)).file.is_some());
@@ -137,10 +131,7 @@ impl Test {
             let field2 = (*self.body).parts.get(2);
             assert!(field2.is_some());
             let field2 = field2.unwrap();
-            assert_eq!(
-                htp_multipart_type_t::MULTIPART_PART_TEXT,
-                (*(*field2)).type_0
-            );
+            assert_eq!(HtpMultipartType::TEXT, (*(*field2)).type_0);
             assert!((*(*(*field2)).name).eq("field2"));
             assert!((*(*(*field2)).value).eq("GHIJKL"));
         }
@@ -171,14 +162,14 @@ impl Test {
             let part = (*self.body).parts.get(0);
             assert!(part.is_some());
             let part = part.unwrap();
-            assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
+            assert_eq!(HtpMultipartType::TEXT, (*(*part)).type_0);
             assert!((*(*(*part)).name).eq("field1"));
             assert!((*(*(*part)).value).eq("ABCDEF"));
 
             let part = (*self.body).parts.get(1);
             assert!(part.is_some());
             let part = part.unwrap();
-            assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
+            assert_eq!(HtpMultipartType::TEXT, (*(*part)).type_0);
             assert!((*(*(*part)).name).eq("field2"));
             assert!((*(*(*part)).value).eq("GHIJKL"));
         }
@@ -250,34 +241,34 @@ fn Test1() {
         assert!(part.is_some());
         let part = part.unwrap();
         assert!((*(*(*part)).name).eq("field1"));
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
+        assert_eq!(HtpMultipartType::TEXT, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("0123456789"));
 
         let part = (*t.body).parts.get(1);
         assert!(part.is_some());
         let part = part.unwrap();
         assert!((*(*(*part)).name).eq("field2"));
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
+        assert_eq!(HtpMultipartType::TEXT, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("0123456789\r\n----------------------------X"));
 
         let part = (*t.body).parts.get(2);
         assert!(part.is_some());
         let part = part.unwrap();
         assert!((*(*(*part)).name).eq("field3"));
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_TEXT, (*(*part)).type_0);
+        assert_eq!(HtpMultipartType::TEXT, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("9876543210"));
 
         let part = (*t.body).parts.get(3);
         assert!(part.is_some());
         let part = part.unwrap();
         assert!((*(*(*part)).name).eq("file1"));
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
+        assert_eq!(HtpMultipartType::FILE, (*(*part)).type_0);
 
         let part = (*t.body).parts.get(4);
         assert!(part.is_some());
         let part = part.unwrap();
         assert!((*(*(*part)).name).eq("file2"));
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
+        assert_eq!(HtpMultipartType::FILE, (*(*part)).type_0);
 
         assert!(!(*t.body)
             .flags
@@ -316,37 +307,25 @@ fn Test2() {
         let part = (*t.body).parts.get(0);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_PREAMBLE,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::PREAMBLE, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("x0000x"));
 
         let part = (*t.body).parts.get(1);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::UNKNOWN, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("x1111x\n--\nx2222x"));
 
         let part = (*t.body).parts.get(2);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::UNKNOWN, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("x3333x\n--BB\n\nx4444x\n--BB"));
 
         let part = (*t.body).parts.get(3);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::UNKNOWN, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("x5555x\r\n--x6666x\r--"));
 
         assert!((*t.body).flags.contains(Flags::HTP_MULTIPART_INCOMPLETE));
@@ -741,10 +720,7 @@ fn WithPreamble() {
         let part = (*t.body).parts.get(0);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_PREAMBLE,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::PREAMBLE, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("Preamble"));
     }
 }
@@ -776,10 +752,7 @@ fn WithEpilogue1() {
         let part = (*t.body).parts.get(2);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::EPILOGUE, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("Epilogue"));
         assert!(!(*t.body).flags.contains(Flags::HTP_MULTIPART_INCOMPLETE));
         assert!(!(*t.body)
@@ -813,10 +786,7 @@ fn WithEpilogue2() {
         assert!((*t.body).flags.contains(Flags::HTP_MULTIPART_HAS_EPILOGUE));
 
         let part = (*t.body).parts.get(2).unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::EPILOGUE, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("Epi\nlogue"));
         assert!(!(*t.body).flags.contains(Flags::HTP_MULTIPART_INCOMPLETE));
         assert!(!(*t.body)
@@ -851,10 +821,7 @@ fn WithEpilogue3() {
         assert!((*t.body).flags.contains(Flags::HTP_MULTIPART_HAS_EPILOGUE));
 
         let part = (*t.body).parts.get(2).unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::EPILOGUE, (*(*part)).type_0);
         assert!((*(*(*part)).value).eq("Epi\r\n--logue"));
         assert!(!(*t.body).flags.contains(Flags::HTP_MULTIPART_INCOMPLETE));
         assert!(!(*t.body)
@@ -892,19 +859,13 @@ fn WithEpilogue4() {
         let ep1 = (*t.body).parts.get(2);
         assert!(ep1.is_some());
         let ep1 = ep1.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
-            (*(*ep1)).type_0
-        );
+        assert_eq!(HtpMultipartType::EPILOGUE, (*(*ep1)).type_0);
         assert!((*(*(*ep1)).value).eq("Epilogue1"));
 
         let ep2 = (*t.body).parts.get(3);
         assert!(ep2.is_some());
         let ep2 = ep2.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_EPILOGUE,
-            (*(*ep2)).type_0
-        );
+        assert_eq!(HtpMultipartType::EPILOGUE, (*(*ep2)).type_0);
         assert!((*(*(*ep2)).value).eq("Epilogue2"));
 
         assert!(!(*t.body).flags.contains(Flags::HTP_MULTIPART_INCOMPLETE));
@@ -1008,10 +969,7 @@ fn UnknownPart() {
         let part = (*t.body).parts.get(0);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
-            (*(*part)).type_0
-        );
+        assert_eq!(HtpMultipartType::UNKNOWN, (*(*part)).type_0);
     }
 }
 
@@ -1040,7 +998,7 @@ fn WithFile() {
         let part = (*t.body).parts.get(1);
         assert!(part.is_some());
         let part = part.unwrap();
-        assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
+        assert_eq!(HtpMultipartType::FILE, (*(*part)).type_0);
         assert_eq!(
             Some(Bstr::from("application/octet-stream")),
             (*(*part)).content_type
@@ -1083,7 +1041,7 @@ fn WithFileExternallyStored() {
             let part = (*t.body).parts.get(1);
             assert!(part.is_some());
             let part = part.unwrap();
-            assert_eq!(htp_multipart_type_t::MULTIPART_PART_FILE, (*(*part)).type_0);
+            assert_eq!(HtpMultipartType::FILE, (*(*part)).type_0);
 
             assert_eq!(
                 (*(*part)).content_type,
@@ -1702,7 +1660,7 @@ fn InvalidPartNoData() {
         assert_eq!(3, (*t.body).parts.len());
 
         assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
+            HtpMultipartType::UNKNOWN,
             (*(*(*t.body).parts.get(0).unwrap())).type_0
         );
 
@@ -1994,7 +1952,7 @@ fn InvalidContentDispositionSyntax() {
             let mut part: Part = Part::new(t.mpartp.as_mut().unwrap());
             let header = Header::new(b"Content-Disposition".to_vec().into(), input.into());
             part.headers.add(header.name.clone(), header);
-            assert_err!(part.parse_c_d(), Status::DECLINED);
+            assert_err!(part.parse_c_d(), HtpStatus::DECLINED);
 
             t.body = t.mpartp.as_mut().unwrap().get_multipart();
             assert!((*t.body)
@@ -2039,10 +1997,7 @@ fn ParamValueEscaping() {
         let field1 = (*t.body).parts.get(0);
         assert!(field1.is_some());
         let field1 = field1.unwrap();
-        assert_eq!(
-            htp_multipart_type_t::MULTIPART_PART_TEXT,
-            (*(*field1)).type_0
-        );
+        assert_eq!(HtpMultipartType::TEXT, (*(*field1)).type_0);
         assert!((*(*(*field1)).name).eq("---\"---\\---"));
         assert!((*(*(*field1)).value).eq("ABCDEF"));
     }

@@ -1,10 +1,10 @@
 use crate::{connection_parser, list::List};
 use std::net::IpAddr;
 
-/// cbindgen:prefix-with-name=true
-#[repr(u8)]
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_log_code {
+pub enum HtpLogCode {
     UNKNOWN = 0,
     GZIP_DECOMPRESSION_FAILED,
     REQUEST_FIELD_MISSING_COLON,
@@ -83,16 +83,17 @@ pub enum htp_log_code {
 }
 
 /// Enumerates all log levels.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub enum htp_log_level_t {
-    HTP_LOG_NONE,
-    HTP_LOG_ERROR,
-    HTP_LOG_WARNING,
-    HTP_LOG_NOTICE,
-    HTP_LOG_INFO,
-    HTP_LOG_DEBUG,
-    HTP_LOG_DEBUG2,
+pub enum HtpLogLevel {
+    NONE,
+    ERROR,
+    WARNING,
+    NOTICE,
+    INFO,
+    DEBUG,
+    DEBUG2,
 }
 
 /// Represents a single log entry.
@@ -110,9 +111,9 @@ pub struct Log {
     /// Log message.
     pub msg: String,
     /// Message level.
-    pub level: htp_log_level_t,
+    pub level: HtpLogLevel,
     /// Message code.
-    pub code: htp_log_code,
+    pub code: HtpLogCode,
     /// File in which the code that emitted the message resides.
     pub file: String,
     /// Line number on which the code that emitted the message resides.
@@ -126,8 +127,8 @@ impl Log {
         connp: &mut connection_parser::ConnectionParser,
         file: &str,
         line: u32,
-        level: htp_log_level_t,
-        code: htp_log_code,
+        level: HtpLogLevel,
+        code: HtpLogCode,
         msg: String,
     ) -> Log {
         Self {
@@ -148,8 +149,8 @@ pub fn log(
     connp: &mut connection_parser::ConnectionParser,
     file: &str,
     line: u32,
-    level: htp_log_level_t,
-    code: htp_log_code,
+    level: HtpLogLevel,
+    code: HtpLogCode,
     msg: String,
 ) {
     if let Some(cfg) = unsafe { connp.cfg.as_ref() } {
@@ -167,7 +168,7 @@ pub fn log(
 macro_rules! htp_log {
     ($connp:expr, $level:expr, $code:expr, $msg:expr) => {
         if let Some(connp) = $connp.as_mut() {
-            use $crate::log::{htp_log_code, htp_log_level_t, log};
+            use $crate::log::{log, HtpLogCode, HtpLogLevel};
             log(connp, file!(), line!(), $level, $code, $msg.to_string());
         }
     };
@@ -176,27 +177,27 @@ macro_rules! htp_log {
 #[macro_export]
 macro_rules! htp_info {
     ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, htp_log_level_t::HTP_LOG_INFO, $code, $msg);
+        htp_log!($connp, HtpLogLevel::INFO, $code, $msg);
     };
 }
 
 #[macro_export]
 macro_rules! htp_debug {
     ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, htp_log_level_t::HTP_LOG_DEBUG, $code, $msg);
+        htp_log!($connp, HtpLogLevel::DEBUG, $code, $msg);
     };
 }
 
 #[macro_export]
 macro_rules! htp_warn {
     ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, htp_log_level_t::HTP_LOG_WARNING, $code, $msg);
+        htp_log!($connp, HtpLogLevel::WARNING, $code, $msg);
     };
 }
 
 #[macro_export]
 macro_rules! htp_error {
     ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, htp_log_level_t::HTP_LOG_ERROR, $code, $msg);
+        htp_log!($connp, HtpLogLevel::ERROR, $code, $msg);
     };
 }

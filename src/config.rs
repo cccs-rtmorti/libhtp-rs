@@ -3,9 +3,9 @@ use crate::hook::{
     DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
     TxNativeCallbackFn,
 };
-use crate::log::htp_log_level_t;
+use crate::log::HtpLogLevel;
 use crate::unicode_bestfit_map::UnicodeBestfitMap;
-use crate::{content_handlers, transaction, Status};
+use crate::{content_handlers, transaction, HtpStatus};
 
 #[derive(Clone)]
 pub struct Config {
@@ -15,12 +15,12 @@ pub struct Config {
     pub field_limit: usize,
     /// Log level, which will be used when deciding whether to store or
     /// ignore the messages issued by the parser.
-    pub log_level: htp_log_level_t,
+    pub log_level: HtpLogLevel,
     /// Whether to delete each transaction after the last hook is invoked. This
     /// feature should be used when parsing traffic streams in real time.
     pub tx_auto_destroy: bool,
     /// Server personality identifier.
-    pub server_personality: htp_server_personality_t,
+    pub server_personality: HtpServerPersonality,
     /// The function to use to transform parameters after parsing.
     pub parameter_processor: Option<fn(_: &mut transaction::Param) -> Result<()>>,
     /// Decoder configuration for url path.
@@ -111,7 +111,7 @@ pub struct Config {
     // TODO this was added here to maintain a stable ABI, once we can break that
     // we may want to move this into DecoderConfig (VJ)
     /// Reaction to leading whitespace on the request line
-    pub requestline_leading_whitespace_unwanted: htp_unwanted_t,
+    pub requestline_leading_whitespace_unwanted: HtpUnwanted,
     /// How many layers of compression we will decompress (0 => no limit).
     pub response_decompression_layer_limit: i32,
     /// max memory use by a the lzma decompressor.
@@ -128,9 +128,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             field_limit: 18000,
-            log_level: htp_log_level_t::HTP_LOG_NOTICE,
+            log_level: HtpLogLevel::NOTICE,
             tx_auto_destroy: false,
-            server_personality: htp_server_personality_t::HTP_SERVER_MINIMAL,
+            server_personality: HtpServerPersonality::MINIMAL,
             parameter_processor: None,
             decoder_cfg: Default::default(),
             response_decompression_enabled: true,
@@ -159,7 +159,7 @@ impl Default for Config {
             hook_response_complete: TxHook::new(),
             hook_transaction_complete: TxHook::new(),
             hook_log: LogHook::new(),
-            requestline_leading_whitespace_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            requestline_leading_whitespace_unwanted: HtpUnwanted::IGNORE,
             response_decompression_layer_limit: 2,
             lzma_memlimit: 1048576,
             response_lzma_layer_limit: 1,
@@ -183,30 +183,30 @@ pub struct DecoderConfig {
     /// Should we decode '+' characters to spaces?
     pub plusspace_decode: bool,
     /// Reaction to encoded path separators.
-    pub path_separators_encoded_unwanted: htp_unwanted_t,
+    pub path_separators_encoded_unwanted: HtpUnwanted,
     // Special characters options.
     /// Controls how raw NUL bytes are handled.
     pub nul_raw_terminates: bool,
     /// Determines server response to a raw NUL byte in the path.
-    pub nul_raw_unwanted: htp_unwanted_t,
+    pub nul_raw_unwanted: HtpUnwanted,
     /// Reaction to control characters.
-    pub control_chars_unwanted: htp_unwanted_t,
+    pub control_chars_unwanted: HtpUnwanted,
     // URL encoding options.
     /// Should we decode %u-encoded characters?
     pub u_encoding_decode: bool,
     /// Reaction to %u encoding.
-    pub u_encoding_unwanted: htp_unwanted_t,
+    pub u_encoding_unwanted: HtpUnwanted,
     /// Handling of invalid URL encodings.
-    pub url_encoding_invalid_handling: htp_url_encoding_handling_t,
+    pub url_encoding_invalid_handling: HtpUrlEncodingHandling,
     /// Reaction to invalid URL encoding.
-    pub url_encoding_invalid_unwanted: htp_unwanted_t,
+    pub url_encoding_invalid_unwanted: HtpUnwanted,
     /// Controls how encoded NUL bytes are handled.
     pub nul_encoded_terminates: bool,
     /// How are we expected to react to an encoded NUL byte?
-    pub nul_encoded_unwanted: htp_unwanted_t,
+    pub nul_encoded_unwanted: HtpUnwanted,
     // UTF-8 options.
     /// Controls how invalid UTF-8 characters are handled.
-    pub utf8_invalid_unwanted: htp_unwanted_t,
+    pub utf8_invalid_unwanted: HtpUnwanted,
     /// Convert UTF-8 characters into bytes using best-fit mapping.
     pub utf8_convert_bestfit: bool,
     // Best-fit map
@@ -221,18 +221,17 @@ impl Default for DecoderConfig {
             path_separators_compress: false,
             path_separators_decode: false,
             plusspace_decode: true,
-            path_separators_encoded_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            path_separators_encoded_unwanted: HtpUnwanted::IGNORE,
             nul_raw_terminates: false,
-            nul_raw_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            control_chars_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            nul_raw_unwanted: HtpUnwanted::IGNORE,
+            control_chars_unwanted: HtpUnwanted::IGNORE,
             u_encoding_decode: false,
-            u_encoding_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            url_encoding_invalid_handling:
-                htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-            url_encoding_invalid_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            u_encoding_unwanted: HtpUnwanted::IGNORE,
+            url_encoding_invalid_handling: HtpUrlEncodingHandling::PRESERVE_PERCENT,
+            url_encoding_invalid_unwanted: HtpUnwanted::IGNORE,
             nul_encoded_terminates: false,
-            nul_encoded_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
-            utf8_invalid_unwanted: htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            nul_encoded_unwanted: HtpUnwanted::IGNORE,
+            utf8_invalid_unwanted: HtpUnwanted::IGNORE,
             utf8_convert_bestfit: false,
             bestfit_map: UnicodeBestfitMap::default(),
         }
@@ -240,54 +239,57 @@ impl Default for DecoderConfig {
 }
 
 /// Enumerates the possible server personalities.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_server_personality_t {
+pub enum HtpServerPersonality {
     /// Minimal personality that performs at little work as possible. All optional
     /// features are disabled. This personality is a good starting point for customization.
-    HTP_SERVER_MINIMAL,
+    MINIMAL,
     /// A generic personality that aims to work reasonably well for all server types.
-    HTP_SERVER_GENERIC,
+    GENERIC,
     /// The IDS personality tries to perform as much decoding as possible.
-    HTP_SERVER_IDS,
+    IDS,
     /// Mimics the behavior of IIS 4.0, as shipped with Windows NT 4.0.
-    HTP_SERVER_IIS_4_0,
+    IIS_4_0,
     /// Mimics the behavior of IIS 5.0, as shipped with Windows 2000.
-    HTP_SERVER_IIS_5_0,
+    IIS_5_0,
     /// Mimics the behavior of IIS 5.1, as shipped with Windows XP Professional.
-    HTP_SERVER_IIS_5_1,
+    IIS_5_1,
     /// Mimics the behavior of IIS 6.0, as shipped with Windows 2003.
-    HTP_SERVER_IIS_6_0,
+    IIS_6_0,
     /// Mimics the behavior of IIS 7.0, as shipped with Windows 2008.
-    HTP_SERVER_IIS_7_0,
+    IIS_7_0,
     /// Mimics the behavior of IIS 7.5, as shipped with Windows 7.
-    HTP_SERVER_IIS_7_5,
+    IIS_7_5,
     /// Mimics the behavior of Apache 2.x.
-    HTP_SERVER_APACHE_2,
+    APACHE_2,
 }
 
 /// Enumerates the ways in which servers respond to malformed data.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_unwanted_t {
+pub enum HtpUnwanted {
     /// Ignores problem.
-    HTP_UNWANTED_IGNORE,
+    IGNORE,
     /// Responds with HTTP 400 status code.
-    HTP_UNWANTED_400 = 400,
+    CODE_400 = 400,
     /// Responds with HTTP 404 status code.
-    HTP_UNWANTED_404 = 404,
+    CODE_404 = 404,
 }
 
 /// Enumerates the possible approaches to handling invalid URL-encodings.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_url_encoding_handling_t {
+pub enum HtpUrlEncodingHandling {
     /// Ignore invalid URL encodings and leave the % in the data.
-    HTP_URL_DECODE_PRESERVE_PERCENT,
+    PRESERVE_PERCENT,
     /// Ignore invalid URL encodings, but remove the % from the data.
-    HTP_URL_DECODE_REMOVE_PERCENT,
+    REMOVE_PERCENT,
     /// Decode invalid URL encodings.
-    HTP_URL_DECODE_PROCESS_INVALID,
+    PROCESS_INVALID,
 }
 
 fn config_alloc() -> *mut Config {
@@ -463,80 +465,63 @@ impl Config {
 
     /// Configure desired server personality.
     /// Returns an error if the personality is not supported.
-    pub fn set_server_personality(&mut self, personality: htp_server_personality_t) -> Result<()> {
+    pub fn set_server_personality(&mut self, personality: HtpServerPersonality) -> Result<()> {
         match personality {
-            htp_server_personality_t::HTP_SERVER_MINIMAL => {}
-            htp_server_personality_t::HTP_SERVER_GENERIC => {
+            HtpServerPersonality::MINIMAL => {}
+            HtpServerPersonality::GENERIC => {
                 self.set_backslash_convert_slashes(true);
                 self.set_path_separators_decode(true);
                 self.set_path_separators_compress(true);
             }
-            htp_server_personality_t::HTP_SERVER_IDS => {
+            HtpServerPersonality::IDS => {
                 self.set_backslash_convert_slashes(true);
                 self.set_path_separators_decode(true);
                 self.set_path_separators_compress(true);
                 self.set_convert_lowercase(true);
                 self.set_utf8_convert_bestfit(true);
                 self.set_u_encoding_decode(true);
-                self.set_requestline_leading_whitespace_unwanted(
-                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
-                );
+                self.set_requestline_leading_whitespace_unwanted(HtpUnwanted::IGNORE);
             }
-            htp_server_personality_t::HTP_SERVER_APACHE_2 => {
+            HtpServerPersonality::APACHE_2 => {
                 self.set_backslash_convert_slashes(false);
                 self.set_path_separators_decode(false);
                 self.set_path_separators_compress(true);
                 self.set_u_encoding_decode(false);
-                self.set_url_encoding_invalid_handling(
-                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-                );
-                self.set_url_encoding_invalid_unwanted(htp_unwanted_t::HTP_UNWANTED_400);
-                self.set_control_chars_unwanted(htp_unwanted_t::HTP_UNWANTED_IGNORE);
-                self.set_requestline_leading_whitespace_unwanted(htp_unwanted_t::HTP_UNWANTED_400);
+                self.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
+                self.set_url_encoding_invalid_unwanted(HtpUnwanted::CODE_400);
+                self.set_control_chars_unwanted(HtpUnwanted::IGNORE);
+                self.set_requestline_leading_whitespace_unwanted(HtpUnwanted::CODE_400);
             }
-            htp_server_personality_t::HTP_SERVER_IIS_5_1 => {
+            HtpServerPersonality::IIS_5_1 => {
                 self.set_backslash_convert_slashes(true);
                 self.set_path_separators_decode(true);
                 self.set_path_separators_compress(true);
                 self.set_u_encoding_decode(false);
-                self.set_url_encoding_invalid_handling(
-                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-                );
-                self.set_control_chars_unwanted(htp_unwanted_t::HTP_UNWANTED_IGNORE);
-                self.set_requestline_leading_whitespace_unwanted(
-                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
-                );
+                self.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
+                self.set_control_chars_unwanted(HtpUnwanted::IGNORE);
+                self.set_requestline_leading_whitespace_unwanted(HtpUnwanted::IGNORE);
             }
-            htp_server_personality_t::HTP_SERVER_IIS_6_0 => {
+            HtpServerPersonality::IIS_6_0 => {
                 self.set_backslash_convert_slashes(true);
                 self.set_path_separators_decode(true);
                 self.set_path_separators_compress(true);
                 self.set_u_encoding_decode(true);
-                self.set_url_encoding_invalid_handling(
-                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-                );
-                self.set_u_encoding_unwanted(htp_unwanted_t::HTP_UNWANTED_400);
-                self.set_control_chars_unwanted(htp_unwanted_t::HTP_UNWANTED_400);
-                self.set_requestline_leading_whitespace_unwanted(
-                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
-                );
+                self.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
+                self.set_u_encoding_unwanted(HtpUnwanted::CODE_400);
+                self.set_control_chars_unwanted(HtpUnwanted::CODE_400);
+                self.set_requestline_leading_whitespace_unwanted(HtpUnwanted::IGNORE);
             }
-            htp_server_personality_t::HTP_SERVER_IIS_7_0
-            | htp_server_personality_t::HTP_SERVER_IIS_7_5 => {
+            HtpServerPersonality::IIS_7_0 | HtpServerPersonality::IIS_7_5 => {
                 self.set_backslash_convert_slashes(true);
                 self.set_path_separators_decode(true);
                 self.set_path_separators_compress(true);
                 self.set_u_encoding_decode(true);
-                self.set_url_encoding_invalid_handling(
-                    htp_url_encoding_handling_t::HTP_URL_DECODE_PRESERVE_PERCENT,
-                );
-                self.set_url_encoding_invalid_unwanted(htp_unwanted_t::HTP_UNWANTED_400);
-                self.set_control_chars_unwanted(htp_unwanted_t::HTP_UNWANTED_400);
-                self.set_requestline_leading_whitespace_unwanted(
-                    htp_unwanted_t::HTP_UNWANTED_IGNORE,
-                );
+                self.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
+                self.set_url_encoding_invalid_unwanted(HtpUnwanted::CODE_400);
+                self.set_control_chars_unwanted(HtpUnwanted::CODE_400);
+                self.set_requestline_leading_whitespace_unwanted(HtpUnwanted::IGNORE);
             }
-            _ => return Err(Status::ERROR),
+            _ => return Err(HtpStatus::ERROR),
         }
         // Remember the personality
         self.server_personality = personality;
@@ -564,7 +549,7 @@ impl Config {
     }
 
     /// Configures how the server handles to invalid URL encoding.
-    pub fn set_url_encoding_invalid_handling(&mut self, handling: htp_url_encoding_handling_t) {
+    pub fn set_url_encoding_invalid_handling(&mut self, handling: HtpUrlEncodingHandling) {
         self.decoder_cfg.url_encoding_invalid_handling = handling;
     }
 
@@ -629,22 +614,22 @@ impl Config {
     }
 
     /// Configures reaction to %u-encoded sequences in input data.
-    pub fn set_u_encoding_unwanted(&mut self, unwanted: htp_unwanted_t) {
+    pub fn set_u_encoding_unwanted(&mut self, unwanted: HtpUnwanted) {
         self.decoder_cfg.u_encoding_unwanted = unwanted;
     }
 
     /// Controls reaction to raw control characters in the data.
-    pub fn set_control_chars_unwanted(&mut self, unwanted: htp_unwanted_t) {
+    pub fn set_control_chars_unwanted(&mut self, unwanted: HtpUnwanted) {
         self.decoder_cfg.control_chars_unwanted = unwanted;
     }
 
     /// Configures how the server reacts to invalid URL encoding.
-    pub fn set_url_encoding_invalid_unwanted(&mut self, unwanted: htp_unwanted_t) {
+    pub fn set_url_encoding_invalid_unwanted(&mut self, unwanted: HtpUnwanted) {
         self.decoder_cfg.url_encoding_invalid_unwanted = unwanted;
     }
 
     /// Configures how the server reacts to leading whitespace on the request line.
-    pub fn set_requestline_leading_whitespace_unwanted(&mut self, unwanted: htp_unwanted_t) {
+    pub fn set_requestline_leading_whitespace_unwanted(&mut self, unwanted: HtpUnwanted) {
         self.requestline_leading_whitespace_unwanted = unwanted;
     }
 

@@ -22,7 +22,25 @@ cpp_compat = true
 style = "both"
 
 [export.rename]
-"Status" = "htp_status_t"
+"HtpStatus" = "htp_status_t"
+"HtpServerPersonality" = "htp_server_personality_t"
+"HtpProtocol" = "htp_protocol_t"
+"HtpUnwanted" = "htp_unwanted_t"
+"HtpUrlEncodingHandling" = "htp_url_encoding_handling_t"
+"HtpStreamState" = "htp_stream_state_t"
+"HtpContentEncoding" = "htp_content_encoding_t"
+"HtpLogCode" = "htp_log_code_t"
+"HtpLogLevel" = "htp_log_level_t"
+"HtpMultipartMode" = "htp_multipart_mode_t"
+"HtpMultipartState" = "htp_multipart_state_t"
+"HtpMultipartType" = "htp_multipart_type_t"
+"HtpMethod" = "htp_method_t"
+"HtpDataSource" = "htp_data_source_t"
+"HtpParserId" = "htp_parser_id_t"
+"HtpFileSource" = "htp_file_source_t"
+"HtpTransferCoding" = "htp_transfer_coding_t"
+"HtpResponseProgress" = "htp_res_progress_t"
+"HtpRequestProgress" = "htp_req_progress_t"
 "Config" = "htp_cfg_t"
 "Connection" = "htp_conn_t"
 "ConnectionParser" = "htp_connp_t"
@@ -38,8 +56,25 @@ style = "both"
 "Log" = "htp_log_t"
 
 [export]
-include = ["htp_method_t", "Protocol",
-           "htp_stream_state_t"]
+include = ["HtpStatus", 
+"HtpServerPersonality",
+"HtpProtocol",
+"HtpUnwanted",
+"HtpUrlEncodingHandling",
+"HtpStreamState",
+"HtpContentEncoding",
+"HtpLogCode",
+"HtpLogLevel",
+"HtpMultipartMode",
+"HtpMultipartState",
+"HtpMultipartType",
+"HtpMethod",
+"HtpDataSource",
+"HtpParserId",
+"HtpFileSource",
+"HtpTransferCoding",
+"HtpResponseProgress",
+"HtpRequestProgress"]
 exclude = ["Flags", "inflate",
 	   "inflateEnd", "iconv", "iconv_close",
            "iconv_open", "inflateInit2_", "mkstemp",

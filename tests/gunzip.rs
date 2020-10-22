@@ -2,12 +2,12 @@
 use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::config;
-use htp::config::htp_server_personality_t::*;
+use htp::config::HtpServerPersonality::*;
 use htp::connection_parser::*;
-use htp::decompressors::htp_content_encoding_t::*;
+use htp::decompressors::HtpContentEncoding::*;
 use htp::decompressors::*;
 use htp::transaction::*;
-use htp::Status;
+use htp::HtpStatus;
 use std::env;
 use std::path::PathBuf;
 
@@ -16,12 +16,12 @@ mod common;
 use common::htp_connp_tx_create;
 
 #[no_mangle]
-extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> Status {
+extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> HtpStatus {
     unsafe {
         let output_ptr: *mut *mut Bstr = (*(*d).tx()).user_data() as *mut *mut Bstr;
         *output_ptr = bstr_dup_mem((*d).data() as *const core::ffi::c_void, (*d).len());
     }
-    Status::OK
+    HtpStatus::OK
 }
 
 #[derive(Debug)]
@@ -36,7 +36,7 @@ struct Test {
 
 enum TestError {
     Io(std::io::Error),
-    Htp(Status),
+    Htp(HtpStatus),
 }
 
 impl Test {
@@ -44,14 +44,14 @@ impl Test {
         unsafe {
             let cfg = config::create();
             assert!(!cfg.is_null());
-            (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
+            (*cfg).set_server_personality(APACHE_2).unwrap();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let tx = htp_connp_tx_create(connp);
             assert!(!tx.is_null());
             let output = std::ptr::null_mut();
 
-            let decompressor = htp_gzip_decompressor_create(connp, HTP_COMPRESSION_GZIP);
+            let decompressor = htp_gzip_decompressor_create(connp, GZIP);
             (*decompressor).callback = Some(GUnzip_decompressor_callback);
             let o_boxing_wizards = bstr_dup_str("The five boxing wizards jump quickly.");
 
@@ -86,7 +86,7 @@ impl Test {
             let data = std::slice::from_raw_parts(data.as_mut_ptr() as *const u8, data.len());
             let mut tx = Data::new(self.tx, Some(data), false);
             let rc = (*self.decompressor).decompress.unwrap()(self.decompressor, &mut tx);
-            if rc == Status::OK {
+            if rc == HtpStatus::OK {
                 Ok(())
             } else {
                 Err(TestError::Htp(rc))

@@ -1,13 +1,13 @@
 use crate::bstr;
 use crate::config;
 use crate::connection::Connection;
-use crate::connection_parser::{htp_stream_state_t, htp_time_t, ConnectionParser};
+use crate::connection_parser::{htp_time_t, ConnectionParser, HtpStreamState};
 use crate::hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn};
 use crate::list;
 use crate::log::{self, *};
 use crate::transaction::{htp_headers_t, Header, Transaction};
 use crate::util;
-use crate::Status;
+use crate::HtpStatus;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 
@@ -379,12 +379,12 @@ pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_server_personality(
     cfg: *mut config::Config,
-    personality: config::htp_server_personality_t,
-) -> Status {
+    personality: config::HtpServerPersonality,
+) -> HtpStatus {
     if !cfg.is_null() {
         (*cfg).set_server_personality(personality).into()
     } else {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }
 
@@ -404,7 +404,7 @@ pub unsafe extern "C" fn htp_config_set_u_encoding_decode(
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_url_encoding_invalid_handling(
     cfg: *mut config::Config,
-    handling: config::htp_url_encoding_handling_t,
+    handling: config::HtpUrlEncodingHandling,
 ) {
     if !cfg.is_null() {
         (*cfg).set_url_encoding_invalid_handling(handling)
@@ -541,37 +541,37 @@ pub unsafe extern "C" fn htp_connp_req_close(
 /// Process a chunk of inbound client request data
 ///
 /// timestamp is optional
-/// Returns HTP_STREAM_DATA, HTP_STREAM_ERROR or STEAM_STATE_DATA_OTHER (see QUICK_START).
-///         HTP_STREAM_CLOSED and HTP_STREAM_TUNNEL are also possible.
+/// Returns HTP_STREAM_STATE_DATA, HTP_STREAM_STATE_ERROR or HTP_STREAM_STATE_DATA_OTHER (see QUICK_START).
+///         HTP_STREAM_STATE_CLOSED and HTP_STREAM_STATE_TUNNEL are also possible.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_data(
     connp: *mut ConnectionParser,
     timestamp: *const htp_time_t,
     data: *const libc::c_void,
     len: libc::size_t,
-) -> htp_stream_state_t {
+) -> HtpStreamState {
     if let Some(connp) = connp.as_mut() {
         connp.req_data(timestamp.as_ref().map(|val| val.clone()), data, len)
     } else {
-        htp_stream_state_t::HTP_STREAM_ERROR
+        HtpStreamState::ERROR
     }
 }
 
 /// Process a chunk of outbound (server or response) data.
 ///
 /// timestamp is optional.
-/// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed
+/// Returns HTP_STREAM_STATE_OK on state change, HTP_STREAM_STATE_ERROR on error, or HTP_STREAM_STATE_DATA when more data is needed
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_res_data(
     connp: *mut ConnectionParser,
     timestamp: *const htp_time_t,
     data: *const libc::c_void,
     len: libc::size_t,
-) -> htp_stream_state_t {
+) -> HtpStreamState {
     if let Some(connp) = connp.as_mut() {
         connp.res_data(timestamp.as_ref().map(|val| val.clone()), data, len)
     } else {
-        htp_stream_state_t::HTP_STREAM_ERROR
+        HtpStreamState::ERROR
     }
 }
 
@@ -626,16 +626,16 @@ pub unsafe extern "C" fn htp_conn_message_file(
 
 /// Get a log message's code
 ///
-/// Returns a code or ERROR on error
+/// Returns a code or HTP_LOG_CODE_ERROR on error
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_message_code(
     conn: *const Connection,
     msg_id: usize,
-) -> log::htp_log_code {
+) -> log::HtpLogCode {
     conn.as_ref()
         .and_then(|conn| conn.message(msg_id))
         .map(|msg| msg.code)
-        .unwrap_or(htp_log_code::ERROR)
+        .unwrap_or(HtpLogCode::ERROR)
 }
 
 /// Get the number of messages in a connection.
@@ -835,15 +835,15 @@ pub unsafe extern "C" fn htp_header_value_len(header: *const Header) -> isize {
 /// Performs in-place decoding of the input string, according to the configuration specified
 /// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
 ///
-/// Returns HTP_OK on success, HTP_ERROR on failure.
+/// Returns HTP_STATUS_OK on success, HTP_STATUS_ERROR on failure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_urldecode_inplace(
     cfg: *mut config::Config,
     input: *mut bstr::Bstr,
     flags: *mut u64,
-) -> Status {
+) -> HtpStatus {
     if input.is_null() || flags.is_null() || cfg.is_null() {
-        return Status::ERROR;
+        return HtpStatus::ERROR;
     }
     let mut f = util::Flags::from_bits_truncate(*flags);
     let res = util::urldecode_inplace(&(*cfg).decoder_cfg, &mut *input, &mut f);
@@ -1119,7 +1119,7 @@ pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) -> () {
 pub unsafe extern "C" fn htp_log_get_code(
     messages: *mut core::ffi::c_void,
     idx: libc::size_t,
-) -> htp_log_code {
+) -> HtpLogCode {
     let messages = messages as *mut list::List<*mut core::ffi::c_void>;
     if let Some(log) = (*messages).get(idx) {
         let log = *log as *mut Log;
@@ -1127,7 +1127,7 @@ pub unsafe extern "C" fn htp_log_get_code(
             return (*log).code;
         }
     }
-    htp_log_code::UNKNOWN
+    HtpLogCode::UNKNOWN
 }
 
 // Get the log filename

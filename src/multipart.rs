@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::util::{take_ascii_whitespace, Flags as UtilFlags};
-use crate::{bstr, config, list, table, transaction, util, Status};
+use crate::{bstr, config, list, table, transaction, util, HtpStatus};
 use bitflags;
 use nom::{
     branch::alt,
@@ -111,7 +111,7 @@ pub struct Parser {
     pub file_count: u32,
     // Internal parsing fields; move into a private structure
     /// Parser state; one of MULTIPART_STATE_* constants.
-    parser_state: htp_multipart_state_t,
+    parser_state: HtpMultipartState,
 
     /// Keeps track of the current position in the boundary matching progress.
     /// When this field reaches boundary_len, we have a boundary match.
@@ -130,8 +130,8 @@ pub struct Parser {
     /// parser can reuse the lines identified by the outer parser. In this
     /// variable we keep the current parsing mode of the part, which helps
     /// us process input data more efficiently. The possible values are
-    /// MODE_LINE and MODE_DATA.
-    current_part_mode: htp_part_mode_t,
+    /// LINE and DATA.
+    current_part_mode: HtpMultipartMode,
 
     /// Used for buffering when a potential boundary is fragmented
     /// across many input data buffers. On a match, the data stored here is
@@ -189,10 +189,10 @@ impl Parser {
                 // CRLF, and our starting state expects that. If we encounter non-boundary data, the
                 // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
                 // to boundary matching. Thus, we handle all the possibilities.
-                parser_state: htp_multipart_state_t::STATE_BOUNDARY,
+                parser_state: HtpMultipartState::BOUNDARY,
                 boundary_match_pos: 0,
                 current_part_idx: None,
-                current_part_mode: htp_part_mode_t::MODE_LINE,
+                current_part_mode: HtpMultipartMode::LINE,
                 boundary_candidate: bstr::Bstr::with_capacity(boundary.len()),
                 part_header: bstr::Bstr::with_capacity(64),
                 pending_header_line: bstr::Bstr::with_capacity(64),
@@ -222,14 +222,14 @@ impl Parser {
             // We're done with this part
             self.current_part_idx = None;
             // Revert to line mode
-            self.current_part_mode = htp_part_mode_t::MODE_LINE
+            self.current_part_mode = HtpMultipartMode::LINE
         }
         Ok(())
     }
 
     /// Handles data, creating new parts as necessary.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     fn handle_data(&mut self, is_line: bool) -> Result<()> {
         if self.to_consume.len() == 0 {
             return Ok(());
@@ -240,12 +240,12 @@ impl Parser {
             let mut part = Part::new(self);
             // Set current part.
             if self.multipart.boundary_count == 0 {
-                part.type_0 = htp_multipart_type_t::MULTIPART_PART_PREAMBLE;
+                part.type_0 = HtpMultipartType::PREAMBLE;
                 self.multipart.flags |= Flags::HTP_MULTIPART_HAS_PREAMBLE;
-                self.current_part_mode = htp_part_mode_t::MODE_DATA
+                self.current_part_mode = HtpMultipartMode::DATA
             } else {
                 // Part after preamble.
-                self.current_part_mode = htp_part_mode_t::MODE_LINE
+                self.current_part_mode = HtpMultipartMode::LINE
             }
             // Add part to the list.
             self.multipart.parts.push(Box::into_raw(Box::new(part)));
@@ -271,7 +271,7 @@ impl Parser {
         // when we are in line mode, we need to split the first data chunk, processing the first
         // part as line and the second part as data.
         // Do we need to do any chunk splitting?
-        if matched || self.current_part_mode == htp_part_mode_t::MODE_LINE {
+        if matched || self.current_part_mode == HtpMultipartMode::LINE {
             // Line mode or boundary match
             if matched {
                 if self.to_consume.last() == Some(&('\n' as u8)) {
@@ -287,7 +287,7 @@ impl Parser {
                 }
             }
             // Ignore result.
-            let _ = self.handle_data(self.current_part_mode == htp_part_mode_t::MODE_LINE);
+            let _ = self.handle_data(self.current_part_mode == HtpMultipartMode::LINE);
             self.cr_aside = false;
             // We know that we went to match a boundary because
             // we saw a new line. Now we have to find that line and
@@ -327,7 +327,7 @@ impl Parser {
 
     /// Finalize parsing.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     pub unsafe fn finalize(&mut self) -> Result<()> {
         if let Some(part) = self.get_current_part() {
             // Process buffered data, if any.
@@ -335,7 +335,7 @@ impl Parser {
             // Finalize the last part.
             (*part).finalize_data()?;
             // It is OK to end abruptly in the epilogue part, but not in any other.
-            if (*part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE {
+            if (*part).type_0 != HtpMultipartType::EPILOGUE {
                 (*self).multipart.flags |= Flags::HTP_MULTIPART_INCOMPLETE
             }
         }
@@ -360,7 +360,7 @@ impl Parser {
                 consumed = &input[..consumed.len() + 2];
                 self.multipart.flags |= Flags::HTP_MULTIPART_CRLF_LINE;
                 // Prepare to switch to boundary testing.
-                self.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
+                self.parser_state = HtpMultipartState::BOUNDARY;
                 self.boundary_match_pos = 0;
                 self.to_consume.add(consumed);
                 return left;
@@ -397,7 +397,7 @@ impl Parser {
                 self.to_consume.add(consumed);
                 // Prepare to switch to boundary testing.
                 self.boundary_match_pos = 0;
-                self.parser_state = htp_multipart_state_t::STATE_BOUNDARY;
+                self.parser_state = HtpMultipartState::BOUNDARY;
                 return left;
             } else if self.cr_aside {
                 (self.to_consume).add("\r");
@@ -418,7 +418,7 @@ impl Parser {
             // Process stored (buffered) data.
             self.process_aside(false);
             // Return back where data parsing left off.
-            self.parser_state = htp_multipart_state_t::STATE_DATA;
+            self.parser_state = HtpMultipartState::DATA;
             return input;
         }
         let len = std::cmp::min(
@@ -447,7 +447,7 @@ impl Parser {
                 // Run boundary match.
                 let _ = self.handle_boundary();
                 // We now need to check if this is the last boundary in the payload
-                self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1;
+                self.parser_state = HtpMultipartState::BOUNDARY_IS_LAST1;
             } else {
                 // No more data in the input buffer; store (buffer) the unprocessed
                 // part for later, for after we find out if this is a boundary.
@@ -459,7 +459,7 @@ impl Parser {
             // Process stored (buffered) data.
             self.process_aside(false);
             // Return back where data parsing left off.
-            self.parser_state = htp_multipart_state_t::STATE_DATA;
+            self.parser_state = HtpMultipartState::DATA;
             input
         }
     }
@@ -470,13 +470,13 @@ impl Parser {
         // it is not, move to eat all bytes until the end of the line.
         if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
             // Found one dash, now go to check the next position.
-            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2;
+            self.parser_state = HtpMultipartState::BOUNDARY_IS_LAST2;
             remaining
         } else {
             // This is not the last boundary. Change state but
             // do not advance the position, allowing the next
             // state to process the byte.
-            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
+            self.parser_state = HtpMultipartState::BOUNDARY_EAT_LWS;
             input
         }
     }
@@ -487,14 +487,14 @@ impl Parser {
         if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
             // This is indeed the last boundary in the payload.
             self.multipart.flags |= Flags::HTP_MULTIPART_SEEN_LAST_BOUNDARY;
-            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
+            self.parser_state = HtpMultipartState::BOUNDARY_EAT_LWS;
             remaining
         } else {
             // The second character is not a dash, and so this is not
             // the final boundary. Raise the flag for the first dash,
             // and change state to consume the rest of the boundary line.
             self.multipart.flags |= Flags::HTP_MULTIPART_BBOUNDARY_NLWS_AFTER;
-            self.parser_state = htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS;
+            self.parser_state = HtpMultipartState::BOUNDARY_EAT_LWS;
             input
         }
     }
@@ -503,13 +503,13 @@ impl Parser {
         if let Ok((remaining, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(input) {
             // CRLF line ending; we're done with boundary processing; data bytes follow.
             self.multipart.flags |= Flags::HTP_MULTIPART_CRLF_LINE;
-            self.parser_state = htp_multipart_state_t::STATE_DATA;
+            self.parser_state = HtpMultipartState::DATA;
             remaining
         } else if let Ok((remaining, byte)) = be_u8::<(&[u8], nom::error::ErrorKind)>(input) {
             if byte == '\n' as u8 {
                 // LF line ending; we're done with boundary processing; data bytes follow.
                 self.multipart.flags |= Flags::HTP_MULTIPART_LF_LINE;
-                self.parser_state = htp_multipart_state_t::STATE_DATA;
+                self.parser_state = HtpMultipartState::DATA;
             } else if is_space(byte) {
                 // Linear white space is allowed here.
                 self.multipart.flags |= Flags::HTP_MULTIPART_BBOUNDARY_LWS_AFTER;
@@ -526,28 +526,28 @@ impl Parser {
     /// Parses a chunk of multipart/form-data data. This function should be called
     /// as many times as necessary until all data has been consumed.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
-    pub fn parse<'a>(&mut self, mut input: &'a [u8]) -> Status {
+    /// Returns OK on success, ERROR on failure.
+    pub fn parse<'a>(&mut self, mut input: &'a [u8]) -> HtpStatus {
         while input.len() > 0 {
             match self.parser_state {
-                htp_multipart_state_t::STATE_DATA => {
+                HtpMultipartState::DATA => {
                     input = self.parse_state_data(input);
                 }
-                htp_multipart_state_t::STATE_BOUNDARY => {
+                HtpMultipartState::BOUNDARY => {
                     input = self.parse_state_boundary(input);
                 }
-                htp_multipart_state_t::STATE_BOUNDARY_IS_LAST1 => {
+                HtpMultipartState::BOUNDARY_IS_LAST1 => {
                     input = self.parse_state_last1(input);
                 }
-                htp_multipart_state_t::STATE_BOUNDARY_IS_LAST2 => {
+                HtpMultipartState::BOUNDARY_IS_LAST2 => {
                     input = self.parse_state_last2(input);
                 }
-                htp_multipart_state_t::STATE_BOUNDARY_EAT_LWS => {
+                HtpMultipartState::BOUNDARY_EAT_LWS => {
                     input = self.parse_state_lws(input);
                 }
             }
         }
-        Status::OK
+        HtpStatus::OK
     }
 }
 
@@ -567,8 +567,8 @@ impl Drop for Parser {
 pub struct Part {
     /// Pointer to the parser.
     pub parser: *mut Parser,
-    /// Part type; see the MULTIPART_PART_* constants.
-    pub type_0: htp_multipart_type_t,
+    /// Part type; see the * constants.
+    pub type_0: HtpMultipartType,
     /// Raw part length (i.e., headers and data).
     pub len: usize,
     /// Part name, from the Content-Disposition header. Can be empty.
@@ -583,7 +583,7 @@ pub struct Part {
     pub content_type: Option<bstr::Bstr>,
     /// Part headers (Header instances), using header name as the key.
     pub headers: transaction::htp_headers_t,
-    /// File data, available only for MULTIPART_PART_FILE parts.
+    /// File data, available only for FILE parts.
     pub file: Option<util::File>,
 }
 
@@ -594,7 +594,7 @@ impl Part {
     pub fn new(parser: &mut Parser) -> Part {
         Part {
             parser,
-            type_0: htp_multipart_type_t::MULTIPART_PART_UNKNOWN,
+            type_0: HtpMultipartType::UNKNOWN,
             len: 0,
             name: bstr::Bstr::with_capacity(64),
             value: bstr::Bstr::with_capacity(64),
@@ -606,8 +606,8 @@ impl Part {
 
     /// Parses the Content-Disposition part header.
     ///
-    /// Returns HTP_OK on success (header found and parsed), HTP_DECLINED if there is no C-D header or if
-    ///         it could not be processed, and HTP_ERROR on fatal error.
+    /// Returns OK on success (header found and parsed), DECLINED if there is no C-D header or if
+    ///         it could not be processed, and ERROR on fatal error.
     pub unsafe fn parse_c_d(&mut self) -> Result<()> {
         // Find the C-D header.
         let header = {
@@ -615,7 +615,7 @@ impl Part {
                 header
             } else {
                 (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_PART_UNKNOWN;
-                return Err(Status::DECLINED);
+                return Err(HtpStatus::DECLINED);
             }
         };
 
@@ -633,7 +633,7 @@ impl Part {
                         if self.name.len() > 0 {
                             (*self.parser).multipart.flags |=
                                 Flags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                            return Err(Status::DECLINED);
+                            return Err(HtpStatus::DECLINED);
                         }
                         self.name.clear();
                         self.name.add(param_value);
@@ -644,11 +644,11 @@ impl Part {
                             Some(_) => {
                                 (*self.parser).multipart.flags |=
                                     Flags::HTP_MULTIPART_CD_PARAM_REPEATED;
-                                return Err(Status::DECLINED);
+                                return Err(HtpStatus::DECLINED);
                             }
                             None => {
                                 self.file = Some(util::File::new(
-                                    util::htp_file_source_t::HTP_FILE_MULTIPART,
+                                    util::HtpFileSource::MULTIPART,
                                     Some(bstr::Bstr::from(param_value)),
                                 ));
                             }
@@ -657,52 +657,52 @@ impl Part {
                     _ => {
                         // Unknown parameter.
                         (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_CD_PARAM_UNKNOWN;
-                        return Err(Status::DECLINED);
+                        return Err(HtpStatus::DECLINED);
                     }
                 }
             }
         } else {
             (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_CD_SYNTAX_INVALID;
-            return Err(Status::DECLINED);
+            return Err(HtpStatus::DECLINED);
         }
         Ok(())
     }
 
     /// Parses the Content-Type part header, if present.
     ///
-    /// Returns HTP_OK on success, HTP_DECLINED if the C-T header is not present, and HTP_ERROR on failure.
+    /// Returns OK on success, DECLINED if the C-T header is not present, and ERROR on failure.
     fn parse_c_t(&mut self) -> Result<()> {
         if let Some((_, header)) = self.headers.get_nocase_nozero("content-type") {
             self.content_type = Some(util::parse_ct_header(header.value.as_slice())?);
             Ok(())
         } else {
-            Err(Status::DECLINED)
+            Err(HtpStatus::DECLINED)
         }
     }
 
     /// Processes part headers.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     pub fn process_headers(&mut self) -> Result<()> {
         unsafe {
-            if self.parse_c_d() == Err(Status::ERROR) {
-                return Err(Status::ERROR);
+            if self.parse_c_d() == Err(HtpStatus::ERROR) {
+                return Err(HtpStatus::ERROR);
             }
         }
-        if self.parse_c_t() == Err(Status::ERROR) {
-            return Err(Status::ERROR);
+        if self.parse_c_t() == Err(HtpStatus::ERROR) {
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
     }
 
     /// Parses one part header.
     ///
-    /// Returns HTP_OK on success, HTP_DECLINED on parsing error, HTP_ERROR on fatal error.
+    /// Returns OK on success, DECLINED on parsing error, ERROR on fatal error.
     pub unsafe fn parse_header(&mut self, input: &[u8]) -> Result<()> {
         // We do not allow NUL bytes here.
         if input.contains(&('\0' as u8)) {
             (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_NUL_BYTE;
-            return Err(Status::DECLINED);
+            return Err(HtpStatus::DECLINED);
         }
         // Extract the name and the value
         if let Ok((_, (name, value))) = header()(input) {
@@ -730,14 +730,14 @@ impl Part {
         } else {
             // Invalid name and/or value found
             (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_PART_HEADER_INVALID;
-            return Err(Status::DECLINED);
+            return Err(HtpStatus::DECLINED);
         }
         Ok(())
     }
 
     /// Finalizes part processing.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     pub unsafe fn finalize_data(&mut self) -> Result<()> {
         // Determine if this part is the epilogue.
         if (*self.parser)
@@ -745,10 +745,10 @@ impl Part {
             .flags
             .contains(Flags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
         {
-            if self.type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
+            if self.type_0 == HtpMultipartType::UNKNOWN {
                 // Assume that the unknown part after the last boundary is the epilogue.
                 if let Some(current_part) = (*self.parser).get_current_part() {
-                    (*current_part).type_0 = htp_multipart_type_t::MULTIPART_PART_EPILOGUE;
+                    (*current_part).type_0 = HtpMultipartType::EPILOGUE;
                 }
 
                 // But if we've already seen a part we thought was the epilogue,
@@ -768,19 +768,19 @@ impl Part {
         // Sanity checks.
         // Have we seen complete part headers? If we have not, that means that the part ended prematurely.
         if let Some(current_part) = (*self.parser).get_current_part() {
-            if (*current_part).type_0 != htp_multipart_type_t::MULTIPART_PART_EPILOGUE
-                && (*self.parser).current_part_mode != htp_part_mode_t::MODE_DATA
+            if (*current_part).type_0 != HtpMultipartType::EPILOGUE
+                && (*self.parser).current_part_mode != HtpMultipartMode::DATA
             {
                 (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_PART_INCOMPLETE
             }
         }
         // Have we been able to determine the part type? If not, this means
         // that the part did not contain the C-D header.
-        if self.type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN {
+        if self.type_0 == HtpMultipartType::UNKNOWN {
             (*self.parser).multipart.flags |= Flags::HTP_MULTIPART_PART_UNKNOWN
         }
         // Finalize part value.
-        if self.type_0 == htp_multipart_type_t::MULTIPART_PART_FILE {
+        if self.type_0 == HtpMultipartType::FILE {
             // Notify callbacks about the end of the file.
             // Ignore result.
             let _ = self.run_request_file_data_hook(b"");
@@ -811,7 +811,7 @@ impl Part {
 
     /// Handles part data.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     pub unsafe fn handle_data(&mut self, data: &[u8], is_line: bool) -> Result<()> {
         let mut data = data;
         // End of the line.
@@ -826,11 +826,11 @@ impl Part {
             .multipart
             .flags
             .contains(Flags::HTP_MULTIPART_SEEN_LAST_BOUNDARY)
-            && self.type_0 == htp_multipart_type_t::MULTIPART_PART_UNKNOWN
+            && self.type_0 == HtpMultipartType::UNKNOWN
         {
             (*self.parser).part_data_pieces.add(data);
         }
-        if (*self.parser).current_part_mode == htp_part_mode_t::MODE_LINE {
+        if (*self.parser).current_part_mode == HtpMultipartMode::LINE {
             // Line mode.
             if is_line {
                 // If this line came to us in pieces, combine them now into a single buffer.
@@ -857,22 +857,22 @@ impl Part {
                     // Process the pending header, if any.
                     if (*self.parser).pending_header_line.len() > 0 {
                         if self.parse_header(&(*(*self.parser).pending_header_line).as_slice())
-                            == Err(Status::ERROR)
+                            == Err(HtpStatus::ERROR)
                         {
-                            return Err(Status::ERROR);
+                            return Err(HtpStatus::ERROR);
                         }
                         (*self.parser).pending_header_line.clear()
                     }
-                    if self.process_headers() == Err(Status::ERROR) {
-                        return Err(Status::ERROR);
+                    if self.process_headers() == Err(HtpStatus::ERROR) {
+                        return Err(HtpStatus::ERROR);
                     }
-                    (*self.parser).current_part_mode = htp_part_mode_t::MODE_DATA;
+                    (*self.parser).current_part_mode = HtpMultipartMode::DATA;
                     (*self.parser).part_header.clear();
 
                     match &mut (*self).file {
                         Some(file) => {
                             // Changing part type because we have a filename.
-                            self.type_0 = htp_multipart_type_t::MULTIPART_PART_FILE;
+                            self.type_0 = HtpMultipartType::FILE;
                             if (*self.parser).extract_files
                                 && (*self.parser).file_count < (*self.parser).extract_limit
                             {
@@ -883,7 +883,7 @@ impl Part {
                         None => {
                             if self.name.len() > 0 {
                                 // Changing part type because we have a name.
-                                self.type_0 = htp_multipart_type_t::MULTIPART_PART_TEXT;
+                                self.type_0 = HtpMultipartType::TEXT;
                                 (*self.parser).part_data_pieces.clear();
                             }
                         }
@@ -905,9 +905,9 @@ impl Part {
                 } else {
                     // Process the pending header line.
                     if self.parse_header(&(*(*self.parser).pending_header_line).as_slice())
-                        == Err(Status::ERROR)
+                        == Err(HtpStatus::ERROR)
                     {
-                        return Err(Status::ERROR);
+                        return Err(HtpStatus::ERROR);
                     }
                     (*self.parser).pending_header_line.clear();
                     if let Some(header) = line {
@@ -923,7 +923,7 @@ impl Part {
         } else {
             // Data mode; keep the data chunk for later (but not if it is a file).
             match self.type_0 {
-                htp_multipart_type_t::MULTIPART_PART_FILE => {
+                HtpMultipartType::FILE => {
                     // Invoke file data callbacks.
                     // Ignore error.
                     let _ = self.run_request_file_data_hook(data);
@@ -949,43 +949,46 @@ impl Drop for Part {
     }
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-enum htp_part_mode_t {
+enum HtpMultipartMode {
     /// When in line mode, the parser is handling part headers.
-    MODE_LINE,
+    LINE,
     /// When in data mode, the parser is consuming part data.
-    MODE_DATA,
+    DATA,
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-enum htp_multipart_state_t {
+enum HtpMultipartState {
     /// Processing data, waiting for a new line (which might indicate a new boundary).
-    STATE_DATA,
+    DATA,
     /// Testing a potential boundary.
-    STATE_BOUNDARY,
+    BOUNDARY,
     /// Checking the first byte after a boundary.
-    STATE_BOUNDARY_IS_LAST1,
+    BOUNDARY_IS_LAST1,
     /// Checking the second byte after a boundary.
-    STATE_BOUNDARY_IS_LAST2,
+    BOUNDARY_IS_LAST2,
     /// Consuming linear whitespace after a boundary.
-    STATE_BOUNDARY_EAT_LWS,
+    BOUNDARY_EAT_LWS,
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_multipart_type_t {
+pub enum HtpMultipartType {
     /// Unknown part.
-    MULTIPART_PART_UNKNOWN,
+    UNKNOWN,
     /// Text (parameter) part.
-    MULTIPART_PART_TEXT,
+    TEXT,
     /// File part.
-    MULTIPART_PART_FILE,
+    FILE,
     /// Free-text part before the first boundary.
-    MULTIPART_PART_PREAMBLE,
+    PREAMBLE,
     /// Free-text part after the last boundary.
-    MULTIPART_PART_EPILOGUE,
+    EPILOGUE,
 }
 
 /// Holds information related to a multipart body.

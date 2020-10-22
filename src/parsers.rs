@@ -1,6 +1,6 @@
 use crate::error::Result;
-use crate::transaction::Protocol;
-use crate::{bstr, connection_parser, table, transaction, util, Status};
+use crate::transaction::HtpProtocol;
+use crate::{bstr, connection_parser, table, transaction, util, HtpStatus};
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take_until, take_while},
@@ -32,38 +32,38 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
 /// as well as allowing leading zeros in the version number. If such leading/trailing
 /// characters are discovered, however, a warning will be logged.
 ///
-/// Returns Protocol version or invalid.
+/// Returns HtpProtocol version or invalid.
 pub fn parse_protocol<'a>(
     input: &'a [u8],
     connp: &mut connection_parser::ConnectionParser,
-) -> Protocol {
+) -> HtpProtocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
         if remaining.len() > 0 {
-            return Protocol::INVALID;
+            return HtpProtocol::INVALID;
         }
         if contains_trailing {
             unsafe {
                 htp_warn!(
                     connp as *mut connection_parser::ConnectionParser,
-                    htp_log_code::PROTOCOL_CONTAINS_EXTRA_DATA,
-                    "Protocol version contains leading and/or trailing whitespace and/or leading zeros"
+                    HtpLogCode::PROTOCOL_CONTAINS_EXTRA_DATA,
+                    "HtpProtocol version contains leading and/or trailing whitespace and/or leading zeros"
                 )
             };
         }
         match version {
-            b".9" => Protocol::V0_9,
-            b"1.0" => Protocol::V1_0,
-            b"1.1" => Protocol::V1_1,
-            _ => Protocol::INVALID,
+            b".9" => HtpProtocol::V0_9,
+            b"1.0" => HtpProtocol::V1_0,
+            b"1.1" => HtpProtocol::V1_1,
+            _ => HtpProtocol::INVALID,
         }
     } else {
-        Protocol::INVALID
+        HtpProtocol::INVALID
     }
 }
 
 /// Determines the numerical value of a response status given as a string.
 ///
-/// Returns Status code as a u16 on success or None on failure
+/// Returns HtpStatus code as a u16 on success or None on failure
 pub fn parse_status(status: &[u8]) -> Option<u16> {
     if let Ok((trailing_data, (leading_data, status_code))) = util::ascii_digits()(status) {
         if trailing_data.len() > 0 || leading_data.len() > 0 {
@@ -116,28 +116,28 @@ pub fn parse_authorization_basic(
     let data = &auth_header.value;
 
     if data.len() <= 5 {
-        return Err(Status::DECLINED);
+        return Err(HtpStatus::DECLINED);
     };
 
     // Skip 'Basic<lws>'
     let value_start = if let Some(pos) = data[5..].iter().position(|&c| !c.is_ascii_whitespace()) {
         pos + 5
     } else {
-        return Err(Status::DECLINED);
+        return Err(HtpStatus::DECLINED);
     };
 
     // Decode base64-encoded data
     let decoded = if let Ok(decoded) = base64::decode(&data[value_start..]) {
         decoded
     } else {
-        return Err(Status::DECLINED);
+        return Err(HtpStatus::DECLINED);
     };
 
     // Extract username and password
     let i = if let Some(i) = decoded.iter().position(|&c| c == ':' as u8) {
         i
     } else {
-        return Err(Status::DECLINED);
+        return Err(HtpStatus::DECLINED);
     };
 
     let (username, password) = decoded.split_at(i);
@@ -153,17 +153,17 @@ pub fn parse_authorization(in_tx: &mut transaction::Transaction) -> Result<()> {
         if let Some((_, auth_header)) = in_tx.request_headers.get_nocase_nozero("authorization") {
             auth_header.clone()
         } else {
-            in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_NONE;
+            in_tx.request_auth_type = transaction::HtpAuthType::NONE;
             return Ok(());
         };
     // TODO Need a flag to raise when failing to parse authentication headers.
     if auth_header.value.starts_with_nocase("basic") {
         // Basic authentication
-        in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_BASIC;
+        in_tx.request_auth_type = transaction::HtpAuthType::BASIC;
         return parse_authorization_basic(in_tx, &auth_header);
     } else if auth_header.value.starts_with_nocase("digest") {
         // Digest authentication
-        in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_DIGEST;
+        in_tx.request_auth_type = transaction::HtpAuthType::DIGEST;
         if let Ok((_, auth_username)) = parse_authorization_digest(auth_header.value.as_slice()) {
             if let Some(username) = &mut in_tx.request_auth_username {
                 username.clear();
@@ -173,10 +173,10 @@ pub fn parse_authorization(in_tx: &mut transaction::Transaction) -> Result<()> {
                 in_tx.request_auth_username = Some(bstr::Bstr::from(auth_username));
             }
         }
-        return Err(Status::DECLINED);
+        return Err(HtpStatus::DECLINED);
     } else {
         // Unrecognized authentication method
-        in_tx.request_auth_type = transaction::htp_auth_type_t::HTP_AUTH_UNRECOGNIZED
+        in_tx.request_auth_type = transaction::HtpAuthType::UNRECOGNIZED
     }
     Ok(())
 }
@@ -195,7 +195,7 @@ pub fn parse_single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
 
 /// Parses the Cookie request header in v0 format and places the results into tx->request_cookies.
 ///
-/// Returns HTP_OK on success, HTP_ERROR on error
+/// Returns OK on success, ERROR on error
 pub fn parse_cookies_v0(in_tx: &mut transaction::Transaction) -> Result<()> {
     if let Some((_, cookie_header)) = in_tx.request_headers.get_nocase_nozero_mut("cookie") {
         let data: &[u8] = cookie_header.value.as_ref();
@@ -273,7 +273,7 @@ fn AuthDigest() {
 }
 
 #[test]
-fn Status() {
+fn HtpStatus() {
     let status = bstr::Bstr::from("   200    ");
     assert_eq!(Some(200u16), parse_status(&status));
 

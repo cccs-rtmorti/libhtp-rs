@@ -1,20 +1,20 @@
-use crate::Status;
+use crate::HtpStatus;
 use std::convert::Into;
 
-pub type Result<T> = std::result::Result<T, Status>;
+pub type Result<T> = std::result::Result<T, HtpStatus>;
 
-impl<T> Into<Status> for Result<T> {
-    fn into(self) -> Status {
+impl<T> Into<HtpStatus> for Result<T> {
+    fn into(self) -> HtpStatus {
         match self {
-            Ok(_) => Status::OK,
+            Ok(_) => HtpStatus::OK,
             Err(e) => e,
         }
     }
 }
 
-impl Into<Result<()>> for Status {
+impl Into<Result<()>> for HtpStatus {
     fn into(self) -> Result<()> {
-        if self == Status::OK {
+        if self == HtpStatus::OK {
             Ok(())
         } else {
             Err(self)
@@ -22,8 +22,8 @@ impl Into<Result<()>> for Status {
     }
 }
 
-impl From<std::io::Error> for Status {
+impl From<std::io::Error> for HtpStatus {
     fn from(_: std::io::Error) -> Self {
-        Status::ERROR
+        HtpStatus::ERROR
     }
 }

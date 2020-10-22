@@ -3,13 +3,13 @@
 use htp::bstr::*;
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::config;
-use htp::config::htp_server_personality_t::*;
+use htp::config::HtpServerPersonality::*;
 use htp::connection_parser::*;
 use htp::error::Result;
-use htp::transaction::htp_data_source_t::*;
+use htp::transaction::HtpDataSource::*;
 use htp::transaction::*;
 use htp::util::*;
-use htp::Status;
+use htp::HtpStatus;
 use std::ffi::CString;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Drop;
@@ -119,7 +119,7 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut Data) -> Result<()> {
 
         // Don't do anything if in errored state.
         if (*user_data).response_body_correctly_received == -1 {
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
 
         match (*user_data).response_body_chunks_seen {
@@ -224,7 +224,7 @@ impl HybridParsingTest {
         unsafe {
             let cfg: *mut config::Config = config::create();
             assert!(!cfg.is_null());
-            (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
+            (*cfg).set_server_personality(APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
@@ -366,7 +366,7 @@ fn GetTest() {
         // Response line data
         res_set_status_line(&mut *tx, "HTTP/1.1 200 OK").unwrap();
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
-        assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
+        assert_eq!(HtpProtocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.as_ref().unwrap().eq("200"));
         assert_eq!(200, (*tx).response_status_number);
         assert!((*tx).response_message.as_ref().unwrap().eq("OK"));
@@ -526,8 +526,8 @@ fn ParamCaseSensitivity() {
         assert_contains_param!(&(*tx).request_params, "p", "1");
         assert_contains_param!(&(*tx).request_params, "p", "1");
         assert_contains_param!(&(*tx).request_params, "q", "2");
-        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_QUERY_STRING, "q", "2");
-        assert_contains_param_source!(&(*tx).request_params, HTP_SOURCE_QUERY_STRING, "Q", "2");
+        assert_contains_param_source!(&(*tx).request_params, QUERY_STRING, "q", "2");
+        assert_contains_param_source!(&(*tx).request_params, QUERY_STRING, "Q", "2");
     }
 }
 
@@ -625,7 +625,7 @@ fn RequestLineParsing2() {
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert!((*tx).is_protocol_0_9);
-        assert_eq!(Protocol::V0_9, (*tx).request_protocol_number);
+        assert_eq!(HtpProtocol::V0_9, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.is_none());
         assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
     }
@@ -647,7 +647,7 @@ fn RequestLineParsing3() {
         // Check the results now.
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(Protocol::V1_1, (*tx).request_protocol_number);
+        assert_eq!(HtpProtocol::V1_1, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP  / 01.1"));
         assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
     }
@@ -669,7 +669,7 @@ fn RequestLineParsing4() {
         // Check the results now.
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(Protocol::INVALID, (*tx).request_protocol_number);
+        assert_eq!(HtpProtocol::INVALID, (*tx).request_protocol_number);
         assert!((*tx).request_protocol.as_ref().unwrap().eq("HTTP  / 01.10"));
         assert!((*tx).request_uri.as_ref().unwrap().eq("/"));
     }
@@ -694,7 +694,7 @@ fn ParsedUriSupplied() {
         // Check the results now.
 
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
-        assert_eq!(Protocol::V1_0, (*tx).request_protocol_number);
+        assert_eq!(HtpProtocol::V1_0, (*tx).request_protocol_number);
         assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
         assert!((*tx)
             .parsed_uri
@@ -806,7 +806,7 @@ fn DeleteTransactionBeforeComplete() {
         // Request line data
         req_set_line(&mut *tx, "GET / HTTP/1.0").unwrap();
 
-        assert_err!((*tx).destroy(), Status::ERROR);
+        assert_err!((*tx).destroy(), HtpStatus::ERROR);
 
         // Close connection
         t.close_conn_parser();
@@ -825,7 +825,7 @@ fn ResponseLineIncomplete() {
         (*tx).state_response_start().unwrap();
         res_set_status_line(&mut *tx, "HTTP/1.1").unwrap();
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
-        assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
+        assert_eq!(HtpProtocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.is_none());
         assert_eq!(-1, (*tx).response_status_number);
         assert!((*tx).response_message.is_none());
@@ -845,7 +845,7 @@ fn ResponseLineIncomplete1() {
         (*tx).state_response_start().unwrap();
         res_set_status_line(&mut *tx, "HTTP/1.1 200").unwrap();
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
-        assert_eq!(Protocol::V1_1, (*tx).response_protocol_number);
+        assert_eq!(HtpProtocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.as_ref().unwrap().eq("200"));
         assert_eq!(200, (*tx).response_status_number);
         assert!((*tx).response_message.is_none());

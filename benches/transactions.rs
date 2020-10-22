@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
 use htp::config;
-use htp::config::htp_server_personality_t::*;
+use htp::config::HtpServerPersonality::*;
 use htp::connection_parser::*;
 use std::convert::TryInto;
 use std::fmt;
@@ -51,7 +51,7 @@ impl Test {
     fn new() -> Self {
         unsafe {
             let cfg = config::create();
-            (*cfg).set_server_personality(HTP_SERVER_APACHE_2).unwrap();
+            (*cfg).set_server_personality(APACHE_2).unwrap();
             (*cfg).register_urlencoded_parser();
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
@@ -86,11 +86,11 @@ impl Test {
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
-                        if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                        if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
 
-                        if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
+                        if rc == HtpStreamState::DATA_OTHER {
                             // HTP_STREAM_DATA_OTHER = 5
                             let consumed = (*self.connp)
                                 .req_data_consumed()
@@ -110,7 +110,7 @@ impl Test {
                                 out_remaining.len(),
                             );
                             out_buf = None;
-                            if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                            if rc == HtpStreamState::ERROR {
                                 return Err(TestError::StreamError);
                             }
                         }
@@ -121,11 +121,11 @@ impl Test {
                             data.as_ptr() as *const core::ffi::c_void,
                             data.len(),
                         );
-                        if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                        if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
 
-                        if rc == htp_stream_state_t::HTP_STREAM_DATA_OTHER {
+                        if rc == HtpStreamState::DATA_OTHER {
                             let consumed = (*self.connp)
                                 .res_data_consumed()
                                 .try_into()
@@ -143,7 +143,7 @@ impl Test {
                                 in_remaining.len(),
                             );
                             in_buf = None;
-                            if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                            if rc == HtpStreamState::ERROR {
                                 return Err(TestError::StreamError);
                             }
                         }
@@ -158,7 +158,7 @@ impl Test {
                     out_remaining.as_ptr() as *const core::ffi::c_void,
                     out_remaining.len(),
                 );
-                if rc == htp_stream_state_t::HTP_STREAM_ERROR {
+                if rc == HtpStreamState::ERROR {
                     return Err(TestError::StreamError);
                 }
             }

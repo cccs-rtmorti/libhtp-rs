@@ -5,32 +5,34 @@ use crate::list::List;
 use crate::util::Flags;
 use crate::{
     bstr, config, connection_parser, decompressors, multipart, parsers, request, table, urlencoded,
-    util, Status,
+    util, HtpStatus,
 };
 use std::cmp::Ordering;
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// A collection of possible data sources.
-pub enum htp_data_source_t {
+pub enum HtpDataSource {
     /// Embedded in the URL.
-    HTP_SOURCE_URL,
+    URL,
     /// Transported in the query string.
-    HTP_SOURCE_QUERY_STRING,
+    QUERY_STRING,
     /// Cookies.
-    HTP_SOURCE_COOKIE,
+    COOKIE,
     /// Transported in the request body.
-    HTP_SOURCE_BODY,
+    BODY,
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// A collection of unique parser IDs.
-pub enum htp_parser_id_t {
+pub enum HtpParserId {
     /// application/x-www-form-urlencoded parser.
-    HTP_PARSER_URLENCODED,
+    URLENCODED,
     /// multipart/form-data parser.
-    HTP_PARSER_MULTIPART,
+    MULTIPART,
 }
 
 /// Represents a single request parameter.
@@ -40,10 +42,10 @@ pub struct Param {
     pub name: bstr::Bstr,
     /// Parameter value.
     pub value: bstr::Bstr,
-    /// Source of the parameter, for example HTP_SOURCE_QUERY_STRING.
-    pub source: htp_data_source_t,
+    /// Source of the parameter, for example QUERY_STRING.
+    pub source: HtpDataSource,
     /// Type of the data structure referenced below.
-    pub parser_id: htp_parser_id_t,
+    pub parser_id: HtpParserId,
     /// Pointer to the parser data structure that contains
     /// complete information about the parameter. Can be NULL.
     pub parser_data: *mut core::ffi::c_void,
@@ -54,8 +56,8 @@ impl Param {
     pub fn new(
         name: bstr::Bstr,
         value: bstr::Bstr,
-        source: htp_data_source_t,
-        parser_id: htp_parser_id_t,
+        source: HtpDataSource,
+        parser_id: HtpParserId,
     ) -> Self {
         Param {
             name,
@@ -113,22 +115,23 @@ impl<'a> Data<'a> {
     }
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 /// Enumerates the possible request and response body codings.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_transfer_coding_t {
+pub enum HtpTransferCoding {
     /// Body coding not determined yet.
-    HTP_CODING_UNKNOWN,
+    UNKNOWN,
     /// No body.
-    HTP_CODING_NO_BODY,
+    NO_BODY,
     /// Identity coding is used, which means that the body was sent as is.
-    HTP_CODING_IDENTITY,
+    IDENTITY,
     /// Chunked encoding.
-    HTP_CODING_CHUNKED,
+    CHUNKED,
     /// We could not recognize the encoding.
-    HTP_CODING_INVALID,
+    INVALID,
     /// Error retrieving the transfer coding.
-    HTP_CODING_ERROR,
+    ERROR,
 }
 
 /// Represents a single request or response header.
@@ -157,56 +160,59 @@ impl Header {
 /// Possible states of a progressing transaction. Internally, progress will change
 /// to the next state when the processing activities associated with that state
 /// begin. For example, when we start to process request line bytes, the request
-/// state will change from HTP_REQUEST_NOT_STARTED to HTP_REQUEST_LINE.*
+/// state will change from NOT_STARTED to LINE.*
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
-pub enum htp_tx_res_progress_t {
-    HTP_RESPONSE_NOT_STARTED,
-    HTP_RESPONSE_LINE,
-    HTP_RESPONSE_HEADERS,
-    HTP_RESPONSE_BODY,
-    HTP_RESPONSE_TRAILER,
-    HTP_RESPONSE_COMPLETE,
-    HTP_RESPONSE_ERROR,
+pub enum HtpResponseProgress {
+    NOT_STARTED,
+    LINE,
+    HEADERS,
+    BODY,
+    TRAILER,
+    COMPLETE,
+    ERROR,
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub enum htp_tx_req_progress_t {
-    HTP_REQUEST_NOT_STARTED,
-    HTP_REQUEST_LINE,
-    HTP_REQUEST_HEADERS,
-    HTP_REQUEST_BODY,
-    HTP_REQUEST_TRAILER,
-    HTP_REQUEST_COMPLETE,
-    HTP_REQUEST_ERROR,
+pub enum HtpRequestProgress {
+    NOT_STARTED,
+    LINE,
+    HEADERS,
+    BODY,
+    TRAILER,
+    COMPLETE,
+    ERROR,
 }
 
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 /// Enumerates the possible values for authentication type.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum htp_auth_type_t {
+pub enum HtpAuthType {
     /// This is the default value that is used before
     /// the presence of authentication is determined (e.g.,
     /// before request headers are seen).
-    HTP_AUTH_UNKNOWN,
+    UNKNOWN,
     /// No authentication.
-    HTP_AUTH_NONE,
+    NONE,
     /// HTTP Basic authentication used.
-    HTP_AUTH_BASIC,
+    BASIC,
     /// HTTP Digest authentication used.
-    HTP_AUTH_DIGEST,
+    DIGEST,
     /// Unrecognized authentication method.
-    HTP_AUTH_UNRECOGNIZED = 9,
+    UNRECOGNIZED = 9,
     /// Error retrieving the auth type.
-    HTP_AUTH_ERROR,
+    ERROR,
 }
 
 /// Protocol version constants
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub enum Protocol {
+pub enum HtpProtocol {
     ERROR = -3,
     INVALID = -2,
     UNKNOWN = -1,
@@ -235,7 +241,7 @@ pub struct Transaction {
     /// Request method.
     pub request_method: Option<bstr::Bstr>,
     /// Request method, as number. Available only if we were able to recognize the request method.
-    pub request_method_number: request::htp_method_t,
+    pub request_method_number: request::HtpMethod,
     /// Request URI, raw, as given to us on the request line. This field can take different forms,
     /// for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
     /// string when one is provided. Use Transaction::parsed_uri if you need to access to specific
@@ -245,8 +251,8 @@ pub struct Transaction {
     /// Request protocol, as text. Can be NULL if no protocol was specified.
     pub request_protocol: Option<bstr::Bstr>,
     /// Protocol version as a number. Multiply the high version number by 100, then add the low
-    /// version number. You should prefer to work the pre-defined Protocol constants.
-    pub request_protocol_number: Protocol,
+    /// version number. You should prefer to work the pre-defined HtpProtocol constants.
+    pub request_protocol_number: HtpProtocol,
     /// Is this request using HTTP/0.9? We need a separate field for this purpose because
     /// the protocol version alone is not sufficient to determine if HTTP/0.9 is used. For
     /// example, if you submit "GET / HTTP/0.9" to Apache, it will not treat the request
@@ -298,12 +304,12 @@ pub struct Transaction {
     pub request_entity_len: i64,
     /// Parsed request headers.
     pub request_headers: htp_headers_t,
-    /// Request transfer coding. Can be one of HTP_CODING_UNKNOWN (body presence not
-    /// determined yet), HTP_CODING_IDENTITY, HTP_CODING_CHUNKED, HTP_CODING_NO_BODY,
-    /// and HTP_CODING_UNRECOGNIZED.
-    pub request_transfer_coding: htp_transfer_coding_t,
+    /// Request transfer coding. Can be one of UNKNOWN (body presence not
+    /// determined yet), IDENTITY, CHUNKED, NO_BODY,
+    /// and UNRECOGNIZED.
+    pub request_transfer_coding: HtpTransferCoding,
     /// Request body compression.
-    pub request_content_encoding: decompressors::htp_content_encoding_t,
+    pub request_content_encoding: decompressors::HtpContentEncoding,
     /// This field contain the request content type when that information is
     /// available in request headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
@@ -330,7 +336,7 @@ pub struct Transaction {
     /// Request cookies
     pub request_cookies: table::Table<bstr::Bstr>,
     /// Authentication type used in the request.
-    pub request_auth_type: htp_auth_type_t,
+    pub request_auth_type: HtpAuthType,
     /// Authentication username.
     pub request_auth_username: Option<bstr::Bstr>,
     /// Authentication password. Available only when Transaction::request_auth_type is HTP_AUTH_BASIC.
@@ -353,7 +359,7 @@ pub struct Transaction {
     pub response_protocol: Option<bstr::Bstr>,
     /// Response protocol as number. Available only if we were able to parse the protocol version,
     /// INVALID otherwise. UNKNOWN until parsing is attempted.
-    pub response_protocol_number: Protocol,
+    pub response_protocol_number: HtpProtocol,
     /// Response status code, as text. Starts as NULL and can remain NULL on
     /// an invalid response that does not specify status code.
     pub response_status: Option<bstr::Bstr>,
@@ -362,7 +368,7 @@ pub struct Transaction {
     pub response_status_number: i32,
     /// This field is set by the protocol decoder with it thinks that the
     /// backend server will reject a request with a particular status code.
-    pub response_status_expected_number: config::htp_unwanted_t,
+    pub response_status_expected_number: config::HtpUnwanted,
     /// The message associated with the response status code. Can be NULL.
     pub response_message: Option<bstr::Bstr>,
     /// Have we seen the server respond with a 100 response?
@@ -406,17 +412,17 @@ pub struct Transaction {
     pub response_content_length: i64,
     /// Response transfer coding, which indicates if there is a response body,
     /// and how it is transported (e.g., as-is, or chunked).
-    pub response_transfer_coding: htp_transfer_coding_t,
+    pub response_transfer_coding: HtpTransferCoding,
     /// Response body compression, which indicates if compression is used
     /// for the response body. This field is an interpretation of the information
     /// available in response headers.
-    pub response_content_encoding: decompressors::htp_content_encoding_t,
+    pub response_content_encoding: decompressors::HtpContentEncoding,
     /// Response body compression processing information, which is related to how
     /// the library is going to process (or has processed) a response body. Changing
     /// this field mid-processing can influence library actions. For example, setting
-    /// this field to HTP_COMPRESSION_NONE in a RESPONSE_HEADERS callback will prevent
+    /// this field to NONE in a RESPONSE_HEADERS callback will prevent
     /// decompression.
-    pub response_content_encoding_processing: decompressors::htp_content_encoding_t,
+    pub response_content_encoding_processing: decompressors::HtpContentEncoding,
     /// This field will contain the response content type when that information
     /// is available in response headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
@@ -429,9 +435,9 @@ pub struct Transaction {
     /// HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
     pub flags: Flags,
     /// Request progress.
-    pub request_progress: htp_tx_req_progress_t,
+    pub request_progress: HtpRequestProgress,
     /// Response progress.
-    pub response_progress: htp_tx_res_progress_t,
+    pub response_progress: HtpResponseProgress,
     /// Transaction index on the connection.
     pub index: usize,
     /// Total repetitions for headers in request.
@@ -452,10 +458,10 @@ impl Transaction {
             request_ignored_lines: 0,
             request_line: None,
             request_method: None,
-            request_method_number: request::htp_method_t::HTP_M_UNKNOWN,
+            request_method_number: request::HtpMethod::UNKNOWN,
             request_uri: None,
             request_protocol: None,
-            request_protocol_number: Protocol::UNKNOWN,
+            request_protocol_number: HtpProtocol::UNKNOWN,
             is_protocol_0_9: false,
             parsed_uri: None,
             parsed_uri_raw: None,
@@ -464,9 +470,8 @@ impl Transaction {
             request_message_len: 0,
             request_entity_len: 0,
             request_headers: table::Table::with_capacity(32),
-            request_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
-            request_content_encoding:
-                decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+            request_transfer_coding: HtpTransferCoding::UNKNOWN,
+            request_content_encoding: decompressors::HtpContentEncoding::UNKNOWN,
             request_content_type: None,
             request_content_length: -1,
             hook_request_body_data: DataHook::new(),
@@ -475,7 +480,7 @@ impl Transaction {
             request_mpartp: None,
             request_params: table::Table::with_capacity(32),
             request_cookies: table::Table::with_capacity(32),
-            request_auth_type: htp_auth_type_t::HTP_AUTH_UNKNOWN,
+            request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
             request_hostname: None,
@@ -483,26 +488,24 @@ impl Transaction {
             response_ignored_lines: 0,
             response_line: None,
             response_protocol: None,
-            response_protocol_number: Protocol::UNKNOWN,
+            response_protocol_number: HtpProtocol::UNKNOWN,
             response_status: None,
             response_status_number: 0,
-            response_status_expected_number: config::htp_unwanted_t::HTP_UNWANTED_IGNORE,
+            response_status_expected_number: config::HtpUnwanted::IGNORE,
             response_message: None,
             seen_100continue: false,
             response_headers: table::Table::with_capacity(32),
             response_message_len: 0,
             response_entity_len: 0,
             response_content_length: -1,
-            response_transfer_coding: htp_transfer_coding_t::HTP_CODING_UNKNOWN,
-            response_content_encoding:
-                decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
-            response_content_encoding_processing:
-                decompressors::htp_content_encoding_t::HTP_COMPRESSION_UNKNOWN,
+            response_transfer_coding: HtpTransferCoding::UNKNOWN,
+            response_content_encoding: decompressors::HtpContentEncoding::UNKNOWN,
+            response_content_encoding_processing: decompressors::HtpContentEncoding::UNKNOWN,
             response_content_type: None,
             out_decompressor: std::ptr::null_mut(),
             flags: Flags::empty(),
-            request_progress: htp_tx_req_progress_t::HTP_REQUEST_NOT_STARTED,
-            response_progress: htp_tx_res_progress_t::HTP_RESPONSE_NOT_STARTED,
+            request_progress: HtpRequestProgress::NOT_STARTED,
+            response_progress: HtpResponseProgress::NOT_STARTED,
             index: connp.conn.tx_size(),
             req_header_repetitions: 0,
             res_header_repetitions: 0,
@@ -521,7 +524,7 @@ impl Transaction {
     /// Destroys the supplied transaction.
     pub unsafe fn destroy(&mut self) -> Result<()> {
         if !self.is_complete() {
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
         // remove the tx from the connection so it will be dropped
         let _ = (*self.connp).conn.remove_tx(self.index);
@@ -541,7 +544,7 @@ impl Transaction {
     /// Adds one parameter to the request. THis function will take over the
     /// responsibility for the provided Param structure.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     pub unsafe fn req_add_param(&mut self, mut param: Param) -> Result<()> {
         if let Some(parameter_processor_fn) = (*self.cfg).parameter_processor {
             parameter_processor_fn(&mut param)?
@@ -554,8 +557,8 @@ impl Transaction {
     ///
     /// Returns true if there is a body, false otherwise.
     pub fn req_has_body(&self) -> bool {
-        self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_IDENTITY
-            || self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_CHUNKED
+        self.request_transfer_coding == HtpTransferCoding::IDENTITY
+            || self.request_transfer_coding == HtpTransferCoding::CHUNKED
     }
 
     unsafe fn process_request_headers(&mut self) -> Result<()> {
@@ -571,7 +574,7 @@ impl Transaction {
             //      (e.g., PHP is run), but without the body. It then closes the connection.
             if te.value.cmp_nocase("chunked") != Ordering::Equal {
                 // Invalid T-E header value.
-                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
+                self.request_transfer_coding = HtpTransferCoding::INVALID;
                 self.flags |= Flags::HTP_REQUEST_INVALID_T_E;
                 self.flags |= Flags::HTP_REQUEST_INVALID
             } else {
@@ -581,12 +584,12 @@ impl Transaction {
                 // TODO IIS 7.0, for example, would ignore the T-E header when it
                 //      it is used with a protocol below HTTP 1.1. This should be a
                 //      personality trait.
-                if self.request_protocol_number < Protocol::V1_1 {
+                if self.request_protocol_number < HtpProtocol::V1_1 {
                     self.flags |= Flags::HTP_REQUEST_INVALID_T_E;
                     self.flags |= Flags::HTP_REQUEST_SMUGGLING;
                 }
                 // If the T-E header is present we are going to use it.
-                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_CHUNKED;
+                self.request_transfer_coding = HtpTransferCoding::CHUNKED;
                 // We are still going to check for the presence of C-L.
                 if cl_opt.is_some() {
                     // According to the HTTP/1.1 RFC (section 4.4):
@@ -618,28 +621,27 @@ impl Transaction {
             {
                 // We have a request body of known length.
                 self.request_content_length = content_length;
-                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY
+                self.request_transfer_coding = HtpTransferCoding::IDENTITY
             } else {
                 self.request_content_length = -1;
-                self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
+                self.request_transfer_coding = HtpTransferCoding::INVALID;
                 self.flags |= Flags::HTP_REQUEST_INVALID_C_L;
                 self.flags |= Flags::HTP_REQUEST_INVALID
             }
         } else {
             // No body.
-            self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_NO_BODY
+            self.request_transfer_coding = HtpTransferCoding::NO_BODY
         }
         // If we could not determine the correct body handling,
         // consider the request invalid.
-        if self.request_transfer_coding == htp_transfer_coding_t::HTP_CODING_UNKNOWN {
-            self.request_transfer_coding = htp_transfer_coding_t::HTP_CODING_INVALID;
+        if self.request_transfer_coding == HtpTransferCoding::UNKNOWN {
+            self.request_transfer_coding = HtpTransferCoding::INVALID;
             self.flags |= Flags::HTP_REQUEST_INVALID
         }
         // Check for PUT requests, which we need to treat as file uploads.
-        if self.request_method_number == request::htp_method_t::HTP_M_PUT && self.req_has_body() {
+        if self.request_method_number == request::HtpMethod::PUT && self.req_has_body() {
             // Prepare to treat PUT request body as a file.
-            (*self.connp).put_file =
-                Some(util::File::new(util::htp_file_source_t::HTP_FILE_PUT, None));
+            (*self.connp).put_file = Some(util::File::new(util::HtpFileSource::PUT, None));
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
@@ -693,7 +695,7 @@ impl Transaction {
         } else {
             // No host information in the headers.
             // HTTP/1.1 requires host information in the headers.
-            if self.request_protocol_number >= Protocol::V1_1 {
+            if self.request_protocol_number >= HtpProtocol::V1_1 {
                 self.flags |= Flags::HTP_HOST_MISSING
             }
         }
@@ -703,21 +705,20 @@ impl Transaction {
         }
         // Parse cookies.
         if (*(*self.connp).cfg).parse_request_cookies {
-            parsers::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(Status::ERROR)?)?;
+            parsers::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)?;
         }
         // Parse authentication information.
         if (*(*self.connp).cfg).parse_request_auth {
-            parsers::parse_authorization((*self.connp).in_tx_mut().ok_or(Status::ERROR)?).or_else(
-                |rc| {
-                    if rc == Status::DECLINED {
+            parsers::parse_authorization((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)
+                .or_else(|rc| {
+                    if rc == HtpStatus::DECLINED {
                         // Don't fail the stream if an authorization header is invalid, just set a flag.
                         self.flags |= Flags::HTP_AUTH_INVALID;
                         Ok(())
                     } else {
                         Err(rc)
                     }
-                },
-            )?;
+                })?;
         }
         // Finalize sending raw header data.
         (*self.connp).req_receiver_finalize_clear()?;
@@ -725,7 +726,7 @@ impl Transaction {
         (*(*self.connp).cfg).hook_request_headers.run_all(self)?;
         // We cannot proceed if the request is invalid.
         if self.flags.contains(Flags::HTP_REQUEST_INVALID) {
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
     }
@@ -738,7 +739,7 @@ impl Transaction {
     /// afterwards. The protocol parsing code makes no copies of the data,
     /// but some parsers might.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
         if data.as_ref().len() == 0 {
@@ -756,7 +757,6 @@ impl Transaction {
                 (self.request_entity_len as u64).wrapping_add(data.len() as u64) as i64;
         }
         // Send data to the callbacks.
-
         let mut data = Data::new(self, data, false);
         unsafe {
             (*self.connp)
@@ -764,7 +764,7 @@ impl Transaction {
                 .map_err(|e| {
                     htp_error!(
                         self.connp,
-                        htp_log_code::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                        HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
                         format!("Request body data callback returned error ({:?})", e)
                     );
                     e
@@ -774,15 +774,15 @@ impl Transaction {
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_line(&mut self) -> Result<()> {
         // Is the response line valid?
         let connp = self.connp;
-        if self.response_protocol_number == Protocol::INVALID {
+        if self.response_protocol_number == HtpProtocol::INVALID {
             htp_warn!(
                 connp,
-                htp_log_code::RESPONSE_LINE_INVALID_PROTOCOL,
+                HtpLogCode::RESPONSE_LINE_INVALID_PROTOCOL,
                 "Invalid response line: invalid protocol"
             );
             self.flags |= Flags::HTP_STATUS_LINE_INVALID
@@ -793,7 +793,7 @@ impl Transaction {
         {
             htp_warn!(
                 connp,
-                htp_log_code::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
+                HtpLogCode::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
                 format!(
                     "Invalid response line: invalid response status {}.",
                     self.response_status_number
@@ -810,7 +810,7 @@ impl Transaction {
     /// each available header, and in the order in which headers were
     /// seen in the response.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     pub unsafe fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
         self.response_headers.add(
             name.as_ref().into(),
@@ -830,7 +830,7 @@ impl Transaction {
     /// to COMPRESSION_NONE (to disable compression), or to one of the supported
     /// decompression algorithms.
     ///
-    /// Returns HTP_OK on success, HTP_ERROR on failure.
+    /// Returns OK on success, ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn res_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
         if data.as_ref().len() == 0 {
@@ -856,13 +856,13 @@ impl Transaction {
             (self.response_message_len as u64).wrapping_add(d.len() as u64) as i64;
         let connp = self.connp;
         match self.response_content_encoding_processing {
-            decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
-            | decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-            | decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA => {
+            decompressors::HtpContentEncoding::GZIP
+            | decompressors::HtpContentEncoding::DEFLATE
+            | decompressors::HtpContentEncoding::LZMA => {
                 // In severe memory stress these could be NULL
                 if self.out_decompressor.is_null() || (*self.out_decompressor).decompress.is_none()
                 {
-                    return Err(Status::ERROR);
+                    return Err(HtpStatus::ERROR);
                 }
                 let mut after: libc::timeval = libc::timeval {
                     tv_sec: 0,
@@ -890,20 +890,20 @@ impl Transaction {
                 {
                     htp_error!(
                         connp,
-                        htp_log_code::COMPRESSION_BOMB,
+                        HtpLogCode::COMPRESSION_BOMB,
                         format!(
                             "Compression bomb: spent {} us decompressing",
                             (*self.out_decompressor).time_spent
                         )
                     );
-                    return Err(Status::ERROR);
+                    return Err(HtpStatus::ERROR);
                 }
                 if data == 0 as *mut core::ffi::c_void {
                     // Shut down the decompressor, if we used one.
                     self.destroy_decompressors();
                 }
             }
-            decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE => {
+            decompressors::HtpContentEncoding::NONE => {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
                 self.response_entity_len =
@@ -914,13 +914,13 @@ impl Transaction {
                 // Internal error.
                 htp_error!(
                     connp,
-                    htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
+                    HtpLogCode::RESPONSE_BODY_INTERNAL_ERROR,
                     format!(
                     "[Internal Error] Invalid tx->response_content_encoding_processing value: {:?}",
                     self.response_content_encoding_processing
                 )
                 );
-                return Err(Status::ERROR);
+                return Err(HtpStatus::ERROR);
             }
         }
         Ok(())
@@ -941,7 +941,7 @@ impl Transaction {
         if self.req_has_body() {
             self.req_process_body_data_ex(None)?;
         }
-        self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_COMPLETE;
+        self.request_progress = HtpRequestProgress::COMPLETE;
         // Run hook REQUEST_COMPLETE.
         unsafe {
             (*(*self.connp).cfg).hook_request_complete.run_all(self)?;
@@ -951,10 +951,10 @@ impl Transaction {
 
     /// Change transaction state to REQUEST and invoke registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_complete(&mut self) -> Result<()> {
-        if self.request_progress != htp_tx_req_progress_t::HTP_REQUEST_COMPLETE {
+        if self.request_progress != HtpRequestProgress::COMPLETE {
             self.state_request_complete_partial()?;
         }
         // Make a copy of the connection parser pointer, so that
@@ -984,27 +984,27 @@ impl Transaction {
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
     /// and invoke all registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_start(&mut self) -> Result<()> {
         // Run hook REQUEST_START.
         (*(*self.connp).cfg).hook_request_start.run_all(self)?;
         // Change state into request line parsing.
         (*self.connp).in_state = State::LINE;
-        self.request_progress = htp_tx_req_progress_t::HTP_REQUEST_LINE;
+        self.request_progress = HtpRequestProgress::LINE;
         Ok(())
     }
 
     /// Change transaction state to REQUEST_HEADERS and invoke all
     /// registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_headers(&mut self) -> Result<()> {
         // If we're in HTP_REQ_HEADERS that means that this is the
         // first time we're processing headers in a request. Otherwise,
         // we're dealing with trailing headers.
-        if self.request_progress > htp_tx_req_progress_t::HTP_REQUEST_HEADERS {
+        if self.request_progress > HtpRequestProgress::HEADERS {
             // Request trailers.
             // Run hook HTP_REQUEST_TRAILER.
             (*(*self.connp).cfg).hook_request_trailer.run_all(self)?;
@@ -1012,7 +1012,7 @@ impl Transaction {
             (*self.connp).req_receiver_finalize_clear()?;
             // Completed parsing this request; finalize it now.
             (*self.connp).in_state = State::FINALIZE;
-        } else if self.request_progress >= htp_tx_req_progress_t::HTP_REQUEST_LINE {
+        } else if self.request_progress >= HtpRequestProgress::LINE {
             // Request headers.
             // Did this request arrive in multiple data chunks?
             if (*self.connp).in_chunk_count != (*self.connp).in_chunk_request_index {
@@ -1023,13 +1023,13 @@ impl Transaction {
         } else {
             htp_warn!(
                 self.connp,
-                htp_log_code::RESPONSE_BODY_INTERNAL_ERROR,
+                HtpLogCode::RESPONSE_BODY_INTERNAL_ERROR,
                 format!(
                     "[Internal Error] Invalid tx progress: {:?}",
                     self.request_progress
                 )
             );
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
     }
@@ -1037,14 +1037,14 @@ impl Transaction {
     /// Change transaction state to REQUEST_LINE and invoke all
     /// registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_line(&mut self) -> Result<()> {
         // Determine how to process the request URI.
-        if self.request_method_number == request::htp_method_t::HTP_M_CONNECT {
+        if self.request_method_number == request::HtpMethod::CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
             self.parsed_uri_raw = Some(util::parse_uri_hostport(
-                self.request_uri.as_ref().ok_or(Status::ERROR)?,
+                self.request_uri.as_ref().ok_or(HtpStatus::ERROR)?,
                 &mut self.flags,
             ));
         } else if let Some(uri) = self.request_uri.as_ref() {
@@ -1083,7 +1083,7 @@ impl Transaction {
 
     /// Change transaction state to RESPONSE and invoke registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_complete(&mut self) -> Result<()> {
         self.state_response_complete_ex(1)
@@ -1107,10 +1107,10 @@ impl Transaction {
     }
 
     pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
-        if self.response_progress != htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE {
-            self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE;
+        if self.response_progress != HtpResponseProgress::COMPLETE {
+            self.response_progress = HtpResponseProgress::COMPLETE;
             // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
-            if self.response_transfer_coding != htp_transfer_coding_t::HTP_CODING_NO_BODY {
+            if self.response_transfer_coding != HtpTransferCoding::NO_BODY {
                 let _ = self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
             }
             // Run hook RESPONSE_COMPLETE.
@@ -1130,18 +1130,17 @@ impl Transaction {
             // It is not enough to check only in_status here. Because of pipelining, it's possible
             // that many inbound transactions have been processed, and that the parser is
             // waiting on a response that we have not seen yet.
-            if (*self.connp).in_status
-                == connection_parser::htp_stream_state_t::HTP_STREAM_DATA_OTHER
+            if (*self.connp).in_status == connection_parser::HtpStreamState::DATA_OTHER
                 && (*self.connp).in_tx() == (*self.connp).out_tx()
             {
-                return Err(Status::DATA_OTHER);
+                return Err(HtpStatus::DATA_OTHER);
             }
             // Do we have a signal to yield to inbound processing at
             // the end of the next transaction?
             if (*self.connp).out_data_other_at_tx_end {
                 // We do. Let's yield then.
                 (*self.connp).out_data_other_at_tx_end = false;
-                return Err(Status::DATA_OTHER);
+                return Err(HtpStatus::DATA_OTHER);
             }
         }
         // Make a copy of the connection parser pointer, so that
@@ -1157,29 +1156,25 @@ impl Transaction {
 
     /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_headers(&mut self) -> Result<()> {
         // Check for compression.
         // Determine content encoding.
         let mut ce_multi_comp = false;
-        self.response_content_encoding =
-            decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+        self.response_content_encoding = decompressors::HtpContentEncoding::NONE;
         if let Some((_, ce)) = self.response_headers.get_nocase_nozero("content-encoding") {
             // fast paths: regular gzip and friends
             if ce.value.cmp_nocase_nozero("gzip") == Ordering::Equal
                 || ce.value.cmp_nocase_nozero("x-gzip") == Ordering::Equal
             {
-                self.response_content_encoding =
-                    decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+                self.response_content_encoding = decompressors::HtpContentEncoding::GZIP
             } else if ce.value.cmp_nocase_nozero("deflate") == Ordering::Equal
                 || ce.value.cmp_nocase_nozero("x-deflate") == Ordering::Equal
             {
-                self.response_content_encoding =
-                    decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                self.response_content_encoding = decompressors::HtpContentEncoding::DEFLATE
             } else if ce.value.cmp_nocase_nozero("lzma") == Ordering::Equal {
-                self.response_content_encoding =
-                    decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                self.response_content_encoding = decompressors::HtpContentEncoding::LZMA
             } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
                 // exceptional cases: enter slow path
                 ce_multi_comp = true
@@ -1189,8 +1184,7 @@ impl Transaction {
         if (*(*self.connp).cfg).response_decompression_enabled {
             self.response_content_encoding_processing = self.response_content_encoding
         } else {
-            self.response_content_encoding_processing =
-                decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+            self.response_content_encoding_processing = decompressors::HtpContentEncoding::NONE;
             ce_multi_comp = false
         }
         // Finalize sending raw header data.
@@ -1208,12 +1202,10 @@ impl Transaction {
         // 3. Decompression is disabled and we do not attempt to enable it, but the user
         //    forces decompression by setting response_content_encoding to one of the
         //    supported algorithms.
-        if self.response_content_encoding_processing
-            == decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+        if self.response_content_encoding_processing == decompressors::HtpContentEncoding::GZIP
             || self.response_content_encoding_processing
-                == decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
-            || self.response_content_encoding_processing
-                == decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA
+                == decompressors::HtpContentEncoding::DEFLATE
+            || self.response_content_encoding_processing == decompressors::HtpContentEncoding::LZMA
             || ce_multi_comp
         {
             if !self.out_decompressor.is_null() {
@@ -1226,11 +1218,11 @@ impl Transaction {
                     self.response_content_encoding_processing,
                 );
                 if self.out_decompressor.is_null() {
-                    return Err(Status::ERROR);
+                    return Err(HtpStatus::ERROR);
                 }
                 (*self.out_decompressor).callback = Some(
                     htp_tx_res_process_body_data_decompressor_callback
-                        as unsafe extern "C" fn(_: *mut Data) -> Status,
+                        as unsafe extern "C" fn(_: *mut Data) -> HtpStatus,
                 )
             // multiple ce value case
             } else if let Some((_, ce)) =
@@ -1245,8 +1237,8 @@ impl Transaction {
                 let connp = self.connp;
                 for tok in tokens {
                     let token = bstr::Bstr::from(tok);
-                    let mut cetype: decompressors::htp_content_encoding_t =
-                        decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
+                    let mut cetype: decompressors::HtpContentEncoding =
+                        decompressors::HtpContentEncoding::NONE;
                     // check depth limit (0 means no limit)
                     if (*(*connp).cfg).response_decompression_layer_limit != 0 && {
                         layers += 1;
@@ -1254,7 +1246,7 @@ impl Transaction {
                     } {
                         htp_warn!(
                             connp,
-                            htp_log_code::TOO_MANY_ENCODING_LAYERS,
+                            HtpLogCode::TOO_MANY_ENCODING_LAYERS,
                             "Too many response content encoding layers"
                         );
                         break;
@@ -1265,44 +1257,40 @@ impl Transaction {
                             {
                                 htp_warn!(
                                     connp,
-                                    htp_log_code::ABNORMAL_CE_HEADER,
+                                    HtpLogCode::ABNORMAL_CE_HEADER,
                                     "C-E gzip has abnormal value"
                                 );
                             }
-                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_GZIP
+                            cetype = decompressors::HtpContentEncoding::GZIP
                         } else if token.index_of_nocase("deflate").is_some() {
                             if !(token.cmp("deflate") == Ordering::Equal
                                 || token.cmp("x-deflate") == Ordering::Equal)
                             {
                                 htp_warn!(
                                     connp,
-                                    htp_log_code::ABNORMAL_CE_HEADER,
+                                    HtpLogCode::ABNORMAL_CE_HEADER,
                                     "C-E deflate has abnormal value"
                                 );
                             }
-                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_DEFLATE
+                            cetype = decompressors::HtpContentEncoding::DEFLATE
                         } else if token.index_of_nocase("lzma").is_some() {
-                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_LZMA;
+                            cetype = decompressors::HtpContentEncoding::LZMA;
                             nblzma = nblzma.wrapping_add(1);
                             if nblzma > (*(*connp).cfg).response_lzma_layer_limit {
                                 htp_error!(
                                     connp,
-                                    htp_log_code::COMPRESSION_BOMB_DOUBLE_LZMA,
+                                    HtpLogCode::COMPRESSION_BOMB_DOUBLE_LZMA,
                                     "Compression bomb: double lzma encoding"
                                 );
                                 break;
                             }
                         } else if token.index_of_nocase("inflate").is_some() {
-                            cetype = decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+                            cetype = decompressors::HtpContentEncoding::NONE
                         } else {
                             // continue
-                            htp_warn!(
-                                connp,
-                                htp_log_code::ABNORMAL_CE_HEADER,
-                                "C-E unknown setting"
-                            );
+                            htp_warn!(connp, HtpLogCode::ABNORMAL_CE_HEADER, "C-E unknown setting");
                         }
-                        if cetype != decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE {
+                        if cetype != decompressors::HtpContentEncoding::NONE {
                             if comp.is_null() {
                                 self.response_content_encoding_processing = cetype;
                                 self.out_decompressor = decompressors::htp_gzip_decompressor_create(
@@ -1310,22 +1298,22 @@ impl Transaction {
                                     self.response_content_encoding_processing,
                                 );
                                 if self.out_decompressor.is_null() {
-                                    return Err(Status::ERROR);
+                                    return Err(HtpStatus::ERROR);
                                 }
                                 (*self.out_decompressor).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
-                                        as unsafe extern "C" fn(_: *mut Data) -> Status,
+                                        as unsafe extern "C" fn(_: *mut Data) -> HtpStatus,
                                 );
                                 comp = self.out_decompressor
                             } else {
                                 (*comp).next =
                                     decompressors::htp_gzip_decompressor_create(self.connp, cetype);
                                 if (*comp).next.is_null() {
-                                    return Err(Status::ERROR);
+                                    return Err(HtpStatus::ERROR);
                                 }
                                 (*(*comp).next).callback = Some(
                                     htp_tx_res_process_body_data_decompressor_callback
-                                        as unsafe extern "C" fn(_: *mut Data) -> Status,
+                                        as unsafe extern "C" fn(_: *mut Data) -> HtpStatus,
                                 );
                                 comp = (*comp).next
                             }
@@ -1334,16 +1322,16 @@ impl Transaction {
                 }
             }
         } else if self.response_content_encoding_processing
-            != decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE
+            != decompressors::HtpContentEncoding::NONE
         {
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
     }
 
     /// Change transaction state to RESPONSE_START and invoke registered callbacks.
     ///
-    /// Returns HTP_OK on success; HTP_ERROR on error, HTP_STOP if one of the
+    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_start(&mut self) -> Result<()> {
         (*self.connp).set_out_tx(self);
@@ -1352,15 +1340,14 @@ impl Transaction {
         // Change state into response line parsing, except if we're following
         // a HTTP/0.9 request (no status line or response headers).
         if self.is_protocol_0_9 {
-            self.response_transfer_coding = htp_transfer_coding_t::HTP_CODING_IDENTITY;
-            self.response_content_encoding_processing =
-                decompressors::htp_content_encoding_t::HTP_COMPRESSION_NONE;
-            self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_BODY;
+            self.response_transfer_coding = HtpTransferCoding::IDENTITY;
+            self.response_content_encoding_processing = decompressors::HtpContentEncoding::NONE;
+            self.response_progress = HtpResponseProgress::BODY;
             (*self.connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
             (*self.connp).out_body_data_left = -1
         } else {
             (*self.connp).out_state = State::LINE;
-            self.response_progress = htp_tx_res_progress_t::HTP_RESPONSE_LINE
+            self.response_progress = HtpResponseProgress::LINE
         }
         // If at this point we have no method and no uri and our status
         // is still request::htp_connp_REQ_LINE, we likely have timed out request
@@ -1371,7 +1358,7 @@ impl Transaction {
         {
             htp_warn!(
                 self.connp,
-                htp_log_code::REQUEST_LINE_INCOMPLETE,
+                HtpLogCode::REQUEST_LINE_INCOMPLETE,
                 "Request line incomplete"
             );
         }
@@ -1382,8 +1369,8 @@ impl Transaction {
         // A transaction is considered complete only when both the request and
         // response are complete. (Sometimes a complete response can be seen
         // even while the request is ongoing.)
-        self.request_progress == htp_tx_req_progress_t::HTP_REQUEST_COMPLETE
-            && self.response_progress == htp_tx_res_progress_t::HTP_RESPONSE_COMPLETE
+        self.request_progress == HtpRequestProgress::COMPLETE
+            && self.response_progress == HtpResponseProgress::COMPLETE
     }
 
     pub fn get_parsed_uri_query(&self) -> Option<&bstr::Bstr> {
@@ -1454,10 +1441,10 @@ unsafe fn htp_timer_track(
     before: *mut libc::timeval,
 ) -> Result<()> {
     if (*after).tv_sec < (*before).tv_sec {
-        return Err(Status::ERROR);
+        return Err(HtpStatus::ERROR);
     } else if (*after).tv_sec == (*before).tv_sec {
         if (*after).tv_usec < (*before).tv_usec {
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
         *time_spent = *time_spent + ((*after).tv_usec - (*before).tv_usec) as i32
     } else {
@@ -1468,23 +1455,23 @@ unsafe fn htp_timer_track(
     Ok(())
 }
 
-unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut Data) -> Status {
+unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut Data) -> HtpStatus {
     let d = if let Some(d) = d.as_mut() {
         d
     } else {
-        return Status::ERROR;
+        return HtpStatus::ERROR;
     };
     let tx = if let Some(tx) = d.tx.as_mut() {
         tx
     } else {
-        return Status::ERROR;
+        return HtpStatus::ERROR;
     };
     // Keep track of actual response body length.
     tx.response_entity_len = (tx.response_entity_len as u64).wrapping_add(d.len() as u64) as i64;
     // Invoke all callbacks.
-    let rc: Status = (*tx.connp).res_run_hook_body_data(d).into();
-    if rc != Status::OK {
-        return Status::ERROR;
+    let rc: HtpStatus = (*tx.connp).res_run_hook_body_data(d).into();
+    if rc != HtpStatus::OK {
+        return HtpStatus::ERROR;
     }
     (*tx.out_decompressor).nb_callbacks = (*tx.out_decompressor).nb_callbacks.wrapping_add(1);
 
@@ -1507,13 +1494,13 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
             if (*tx.out_decompressor).time_spent > (*(*tx.connp).cfg).compression_time_limit {
                 htp_error!(
                     tx.connp,
-                    htp_log_code::COMPRESSION_BOMB,
+                    HtpLogCode::COMPRESSION_BOMB,
                     format!(
                         "Compression bomb: spent {} us decompressing",
                         (*tx.out_decompressor).time_spent
                     )
                 );
-                return Status::ERROR;
+                return HtpStatus::ERROR;
             }
         }
     }
@@ -1522,13 +1509,13 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
     {
         htp_error!(
             tx.connp,
-            htp_log_code::COMPRESSION_BOMB,
+            HtpLogCode::COMPRESSION_BOMB,
             format!(
                 "Compression bomb: decompressed {} bytes out of {}",
                 tx.response_entity_len, tx.response_message_len
             )
         );
-        return Status::ERROR;
+        return HtpStatus::ERROR;
     }
-    Status::OK
+    HtpStatus::OK
 }

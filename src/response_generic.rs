@@ -1,7 +1,7 @@
 use crate::error::Result;
-use crate::transaction::Protocol;
+use crate::transaction::HtpProtocol;
 use crate::util::Flags;
-use crate::{bstr, connection_parser, parsers, transaction, util, Status};
+use crate::{bstr, connection_parser, parsers, transaction, util, HtpStatus};
 use nom::{error::ErrorKind, sequence::tuple, Err::Error};
 use std::cmp::Ordering;
 
@@ -9,7 +9,7 @@ impl connection_parser::ConnectionParser {
     /// Generic response line parser.
     pub unsafe fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
         let out_tx = self.out_tx_mut_ok()?;
-        out_tx.response_protocol_number = Protocol::INVALID;
+        out_tx.response_protocol_number = HtpProtocol::INVALID;
         out_tx.response_status = None;
         out_tx.response_status_number = -1;
         out_tx.response_message = None;
@@ -52,7 +52,7 @@ impl connection_parser::ConnectionParser {
 
             out_tx.response_message = Some(bstr::Bstr::from(message));
         } else {
-            return Err(Status::ERROR);
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
     }
@@ -84,7 +84,7 @@ impl connection_parser::ConnectionParser {
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
-                            htp_log_code::RESPONSE_INVALID_EMPTY_NAME,
+                            HtpLogCode::RESPONSE_INVALID_EMPTY_NAME,
                             "Response field invalid: empty name."
                         );
                     }
@@ -104,8 +104,8 @@ impl connection_parser::ConnectionParser {
                             self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                             htp_log!(
                                 self as *mut connection_parser::ConnectionParser,
-                                htp_log_level_t::HTP_LOG_WARNING,
-                                htp_log_code::RESPONSE_INVALID_LWS_AFTER_NAME,
+                                HtpLogLevel::WARNING,
+                                HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
                                 "Response field invalid: LWS after name"
                             );
                         }
@@ -130,7 +130,7 @@ impl connection_parser::ConnectionParser {
                         self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
-                            htp_log_code::RESPONSE_HEADER_NAME_NOT_TOKEN,
+                            HtpLogCode::RESPONSE_HEADER_NAME_NOT_TOKEN,
                             "Response header name is not a token."
                         );
                     }
@@ -154,7 +154,7 @@ impl connection_parser::ConnectionParser {
                     self.out_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::RESPONSE_FIELD_MISSING_COLON,
+                        HtpLogCode::RESPONSE_FIELD_MISSING_COLON,
                         "Response field invalid: missing colon."
                     );
                 }
@@ -167,8 +167,8 @@ impl connection_parser::ConnectionParser {
         if value.contains(&0) {
             htp_log!(
                 self as *mut connection_parser::ConnectionParser,
-                htp_log_level_t::HTP_LOG_WARNING,
-                htp_log_code::REQUEST_HEADER_INVALID,
+                HtpLogLevel::WARNING,
+                HtpLogCode::REQUEST_HEADER_INVALID,
                 "Response header value contains null."
             );
         }
@@ -215,7 +215,7 @@ impl connection_parser::ConnectionParser {
                     // Ambiguous response C-L value.
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
-                        htp_log_code::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
+                        HtpLogCode::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                         "Ambiguous response C-L value"
                     );
                 }
@@ -236,7 +236,7 @@ impl connection_parser::ConnectionParser {
         if repeated {
             htp_warn!(
                 self as *mut connection_parser::ConnectionParser,
-                htp_log_code::RESPONSE_HEADER_REPETITION,
+                HtpLogCode::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );
         }
