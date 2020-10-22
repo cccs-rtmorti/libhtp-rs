@@ -630,7 +630,7 @@ impl connection_parser::ConnectionParser {
                 // We are still going to check for the presence of C-L
                 if cl_opt.is_some() {
                     // This is a violation of the RFC
-                    self.out_tx_mut_ok()?.flags |= Flags::HTP_REQUEST_SMUGGLING
+                    self.out_tx_mut_ok()?.flags |= Flags::REQUEST_SMUGGLING
                 }
                 self.out_state = State::BODY_CHUNKED_LENGTH;
                 self.out_tx_mut_ok()?.response_progress = transaction::HtpResponseProgress::BODY
@@ -640,8 +640,8 @@ impl connection_parser::ConnectionParser {
                 self.out_tx_mut_ok()?.response_transfer_coding =
                     transaction::HtpTransferCoding::IDENTITY;
                 // Check for multiple C-L headers
-                if cl.flags.contains(Flags::HTP_FIELD_REPEATED) {
-                    self.out_tx_mut_ok()?.flags |= Flags::HTP_REQUEST_SMUGGLING
+                if cl.flags.contains(Flags::FIELD_REPEATED) {
+                    self.out_tx_mut_ok()?.flags |= Flags::REQUEST_SMUGGLING
                 }
                 // Get body length
                 if let Some(content_length) =
@@ -949,12 +949,8 @@ impl connection_parser::ConnectionParser {
                     // Folding; check that there's a previous header line to add to.
                     // Invalid folding.
                     // Warn only once per transaction.
-                    if !self
-                        .out_tx_mut_ok()?
-                        .flags
-                        .contains(Flags::HTP_INVALID_FOLDING)
-                    {
-                        self.out_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
+                    if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
+                        self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
                         unsafe {
                             htp_warn!(
                                 self as *mut connection_parser::ConnectionParser,
@@ -981,12 +977,8 @@ impl connection_parser::ConnectionParser {
                         && self.out_tx_mut_ok()?.response_protocol_number == HtpProtocol::V1_1
                     {
                         // Warn only once per transaction.
-                        if !self
-                            .out_tx_mut_ok()?
-                            .flags
-                            .contains(Flags::HTP_INVALID_FOLDING)
-                        {
-                            self.out_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
+                        if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
+                            self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
                             unsafe {
                                 htp_warn!(
                                     self as *mut connection_parser::ConnectionParser,

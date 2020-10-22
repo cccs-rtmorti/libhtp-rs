@@ -205,7 +205,7 @@ impl ConnectionParser {
     pub fn create_tx(&mut self) -> Result<usize> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
-            self.conn.flags |= util::ConnectionFlags::HTP_CONN_PIPELINED
+            self.conn.flags |= util::ConnectionFlags::PIPELINED
         }
         transaction::Transaction::new(self).map(|tx_id| {
             self.in_tx = Some(tx_id);

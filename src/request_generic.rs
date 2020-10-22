@@ -27,7 +27,7 @@ impl connection_parser::ConnectionParser {
         {
             // TODO Do we want to have a list of the headers that are
             //      allowed to be combined in this way?
-            if !h_existing.flags.contains(Flags::HTP_FIELD_REPEATED) {
+            if !h_existing.flags.contains(Flags::FIELD_REPEATED) {
                 // This is the second occurence for this header.
                 repeated = true;
             } else if reps < 64 {
@@ -37,7 +37,7 @@ impl connection_parser::ConnectionParser {
             }
             // For simplicity reasons, we count the repetitions of all headers
             // Keep track of repeated same-name headers.
-            h_existing.flags |= Flags::HTP_FIELD_REPEATED;
+            h_existing.flags |= Flags::FIELD_REPEATED;
             // Having multiple C-L headers is against the RFC but
             // servers may ignore the subsequent headers if the values are the same.
             if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
@@ -89,14 +89,10 @@ impl connection_parser::ConnectionParser {
             Ok((mut name, mut value)) => {
                 // Empty header name.
                 if name.is_empty() {
-                    flags |= Flags::HTP_FIELD_INVALID;
+                    flags |= Flags::FIELD_INVALID;
                     // Log only once per transaction.
-                    if !self
-                        .in_tx_mut_ok()?
-                        .flags
-                        .contains(Flags::HTP_FIELD_INVALID)
-                    {
-                        flags |= Flags::HTP_FIELD_INVALID;
+                    if !self.in_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
+                        flags |= Flags::FIELD_INVALID;
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
                             HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
@@ -106,15 +102,11 @@ impl connection_parser::ConnectionParser {
                 }
                 // Ignore LWS after field-name.
                 if let Ok((name_remaining, tws)) = take_is_space_trailing(name) {
-                    flags |= Flags::HTP_FIELD_INVALID;
+                    flags |= Flags::FIELD_INVALID;
                     if !tws.is_empty() {
                         // Log only once per transaction.
-                        if !self
-                            .in_tx_mut_ok()?
-                            .flags
-                            .contains(Flags::HTP_FIELD_INVALID)
-                        {
-                            flags |= Flags::HTP_FIELD_INVALID;
+                        if !self.in_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
+                            flags |= Flags::FIELD_INVALID;
                             htp_warn!(
                                 self as *mut connection_parser::ConnectionParser,
                                 HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
@@ -136,14 +128,10 @@ impl connection_parser::ConnectionParser {
                 // Check that field-name is a token
                 if !util::is_word_token(name) {
                     // Incorrectly formed header name.
-                    flags |= Flags::HTP_FIELD_INVALID;
+                    flags |= Flags::FIELD_INVALID;
                     // Log only once per transaction.
-                    if !self
-                        .in_tx_mut_ok()?
-                        .flags
-                        .contains(Flags::HTP_FIELD_INVALID)
-                    {
-                        self.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_INVALID;
+                    if !self.in_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
+                        self.in_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
                         htp_warn!(
                             self as *mut connection_parser::ConnectionParser,
                             HtpLogCode::REQUEST_HEADER_INVALID,
@@ -155,14 +143,14 @@ impl connection_parser::ConnectionParser {
             }
             _ => {
                 // No colon
-                flags |= Flags::HTP_FIELD_UNPARSEABLE;
+                flags |= Flags::FIELD_UNPARSEABLE;
                 // Log only once per transaction.
                 if !self
                     .in_tx_mut_ok()?
                     .flags
-                    .contains(Flags::HTP_FIELD_UNPARSEABLE)
+                    .contains(Flags::FIELD_UNPARSEABLE)
                 {
-                    self.in_tx_mut_ok()?.flags |= Flags::HTP_FIELD_UNPARSEABLE;
+                    self.in_tx_mut_ok()?.flags |= Flags::FIELD_UNPARSEABLE;
                     htp_warn!(
                         self as *mut connection_parser::ConnectionParser,
                         HtpLogCode::REQUEST_FIELD_MISSING_COLON,

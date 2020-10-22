@@ -41,7 +41,7 @@ impl Connection {
             server_port: None,
             transactions: List::with_capacity(16),
             messages: List::with_capacity(8),
-            flags: util::ConnectionFlags::HTP_CONN_UNKNOWN,
+            flags: util::ConnectionFlags::UNKNOWN,
             open_timestamp: Time {
                 tv_sec: 0,
                 tv_usec: 0,

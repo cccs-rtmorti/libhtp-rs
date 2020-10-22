@@ -469,12 +469,8 @@ impl connection_parser::ConnectionParser {
                     // Folding; check that there's a previous header line to add to.
                     // Invalid folding.
                     // Warn only once per transaction.
-                    if !self
-                        .in_tx_mut_ok()?
-                        .flags
-                        .contains(Flags::HTP_INVALID_FOLDING)
-                    {
-                        self.in_tx_mut_ok()?.flags |= Flags::HTP_INVALID_FOLDING;
+                    if !self.in_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
+                        self.in_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
                         unsafe {
                             htp_warn!(
                                 self as *mut connection_parser::ConnectionParser,
@@ -682,7 +678,7 @@ impl connection_parser::ConnectionParser {
         let bytes_left = self.in_curr_len() - self.in_curr_data.position() as i64;
 
         if bytes_left > 0 {
-            self.conn.flags |= util::ConnectionFlags::HTP_CONN_HTTP_0_9_EXTRA
+            self.conn.flags |= util::ConnectionFlags::HTTP_0_9_EXTRA
         }
         self.in_curr_data.seek(SeekFrom::End(0))?;
         Err(HtpStatus::DATA)

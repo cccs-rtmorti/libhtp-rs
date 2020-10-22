@@ -36,54 +36,54 @@ pub const HTP_VERSION_STRING_FULL: &'static str =
 // Connection flags are 8 bits wide.
 bitflags::bitflags! {
     pub struct ConnectionFlags: u8 {
-        const HTP_CONN_UNKNOWN        = 0x00;
-        const HTP_CONN_PIPELINED      = 0x01;
-        const HTP_CONN_HTTP_0_9_EXTRA = 0x02;
+        const UNKNOWN        = 0x00;
+        const PIPELINED      = 0x01;
+        const HTTP_0_9_EXTRA = 0x02;
     }
 }
 
 // All other flags are 64 bits wide.
 bitflags::bitflags! {
     pub struct Flags: u64 {
-        const HTP_FIELD_UNPARSEABLE      = 0x000000004;
-        const HTP_FIELD_INVALID          = 0x000000008;
-        const HTP_FIELD_FOLDED           = 0x000000010;
-        const HTP_FIELD_REPEATED         = 0x000000020;
-        const HTP_FIELD_LONG             = 0x000000040;
-        const HTP_FIELD_RAW_NUL          = 0x000000080;
-        const HTP_REQUEST_SMUGGLING      = 0x000000100;
-        const HTP_INVALID_FOLDING        = 0x000000200;
-        const HTP_REQUEST_INVALID_T_E    = 0x000000400;
-        const HTP_MULTI_PACKET_HEAD      = 0x000000800;
-        const HTP_HOST_MISSING           = 0x000001000;
-        const HTP_HOST_AMBIGUOUS         = 0x000002000;
-        const HTP_PATH_ENCODED_NUL       = 0x000004000;
-        const HTP_PATH_RAW_NUL           = 0x000008000;
-        const HTP_PATH_INVALID_ENCODING  = 0x000010000;
-        const HTP_PATH_INVALID           = 0x000020000;
-        const HTP_PATH_OVERLONG_U        = 0x000040000;
-        const HTP_PATH_ENCODED_SEPARATOR = 0x000080000;
+        const FIELD_UNPARSEABLE      = 0x000000004;
+        const FIELD_INVALID          = 0x000000008;
+        const FIELD_FOLDED           = 0x000000010;
+        const FIELD_REPEATED         = 0x000000020;
+        const FIELD_LONG             = 0x000000040;
+        const FIELD_RAW_NUL          = 0x000000080;
+        const REQUEST_SMUGGLING      = 0x000000100;
+        const INVALID_FOLDING        = 0x000000200;
+        const REQUEST_INVALID_T_E    = 0x000000400;
+        const MULTI_PACKET_HEAD      = 0x000000800;
+        const HOST_MISSING           = 0x000001000;
+        const HOST_AMBIGUOUS         = 0x000002000;
+        const PATH_ENCODED_NUL       = 0x000004000;
+        const PATH_RAW_NUL           = 0x000008000;
+        const PATH_INVALID_ENCODING  = 0x000010000;
+        const PATH_INVALID           = 0x000020000;
+        const PATH_OVERLONG_U        = 0x000040000;
+        const PATH_ENCODED_SEPARATOR = 0x000080000;
         /// At least one valid UTF-8 character and no invalid ones.
-        const HTP_PATH_UTF8_VALID        = 0x000100000;
-        const HTP_PATH_UTF8_INVALID      = 0x000200000;
-        const HTP_PATH_UTF8_OVERLONG     = 0x000400000;
+        const PATH_UTF8_VALID        = 0x000100000;
+        const PATH_UTF8_INVALID      = 0x000200000;
+        const PATH_UTF8_OVERLONG     = 0x000400000;
         /// Range U+FF00 - U+FFEF detected.
-        const HTP_PATH_HALF_FULL_RANGE   = 0x000800000;
-        const HTP_STATUS_LINE_INVALID    = 0x001000000;
+        const PATH_HALF_FULL_RANGE   = 0x000800000;
+        const STATUS_LINE_INVALID    = 0x001000000;
         /// Host in the URI.
-        const HTP_HOSTU_INVALID          = 0x002000000;
+        const HOSTU_INVALID          = 0x002000000;
         /// Host in the Host header.
-        const HTP_HOSTH_INVALID          = 0x004000000;
-        const HTP_HOST_INVALID           = ( Self::HTP_HOSTU_INVALID.bits | Self::HTP_HOSTH_INVALID.bits );
-        const HTP_URLEN_ENCODED_NUL      = 0x008000000;
-        const HTP_URLEN_INVALID_ENCODING = 0x010000000;
-        const HTP_URLEN_OVERLONG_U       = 0x020000000;
+        const HOSTH_INVALID          = 0x004000000;
+        const HOST_INVALID           = ( Self::HOSTU_INVALID.bits | Self::HOSTH_INVALID.bits );
+        const URLEN_ENCODED_NUL      = 0x008000000;
+        const URLEN_INVALID_ENCODING = 0x010000000;
+        const URLEN_OVERLONG_U       = 0x020000000;
         /// Range U+FF00 - U+FFEF detected.
-        const HTP_URLEN_HALF_FULL_RANGE  = 0x040000000;
-        const HTP_URLEN_RAW_NUL          = 0x080000000;
-        const HTP_REQUEST_INVALID        = 0x100000000;
-        const HTP_REQUEST_INVALID_C_L    = 0x200000000;
-        const HTP_AUTH_INVALID           = 0x400000000;
+        const URLEN_HALF_FULL_RANGE  = 0x040000000;
+        const URLEN_RAW_NUL          = 0x080000000;
+        const REQUEST_INVALID        = 0x100000000;
+        const REQUEST_INVALID_C_L    = 0x200000000;
+        const AUTH_INVALID           = 0x400000000;
     }
 }
 
@@ -296,7 +296,7 @@ impl Uri {
                 Some(port)
             } else {
                 // Failed to parse the port number.
-                *flags |= Flags::HTP_HOSTU_INVALID;
+                *flags |= Flags::HOSTU_INVALID;
                 None
             }
         } else {
@@ -688,7 +688,7 @@ pub fn parse_uri_hostport(hostport: &bstr::Bstr, flags: &mut Flags) -> Uri {
             }
         }
         if !valid {
-            *flags |= Flags::HTP_HOSTU_INVALID
+            *flags |= Flags::HOSTU_INVALID
         }
     }
     uri
@@ -921,7 +921,7 @@ pub fn utf8_decode_and_validate_uri_path_inplace(
     }
     *flags |= decoder.flags;
 
-    if flags.contains(Flags::HTP_PATH_UTF8_INVALID) && cfg.utf8_invalid_unwanted != IGNORE {
+    if flags.contains(Flags::PATH_UTF8_INVALID) && cfg.utf8_invalid_unwanted != IGNORE {
         *status = cfg.utf8_invalid_unwanted;
     }
 }
@@ -939,11 +939,11 @@ fn decode_u_encoding_path<'a>(
     let (i, c2) = x2c(&i)?;
     let mut r = c2;
     if c1 == 0 {
-        flags |= Flags::HTP_PATH_OVERLONG_U
+        flags |= Flags::PATH_OVERLONG_U
     } else {
         // Check for fullwidth form evasion
         if c1 == 0xff {
-            flags |= Flags::HTP_PATH_HALF_FULL_RANGE
+            flags |= Flags::PATH_HALF_FULL_RANGE
         }
         expected_status_code = cfg.u_encoding_unwanted;
         // Use best-fit mapping
@@ -951,7 +951,7 @@ fn decode_u_encoding_path<'a>(
     }
     // Check for encoded path separators
     if r == '/' as u8 || cfg.backslash_convert_slashes && r == '\\' as u8 {
-        flags |= Flags::HTP_PATH_ENCODED_SEPARATOR
+        flags |= Flags::PATH_ENCODED_SEPARATOR
     }
     Ok((i, (r, flags, expected_status_code)))
 }
@@ -968,13 +968,13 @@ fn decode_u_encoding_params<'a>(
     let mut flags = Flags::empty();
     // Check for overlong usage first.
     if c1 == 0 {
-        flags |= Flags::HTP_URLEN_OVERLONG_U;
+        flags |= Flags::URLEN_OVERLONG_U;
         return Ok((i, (c2, flags)));
     }
     // Both bytes were used.
     // Detect half-width and full-width range.
     if c1 == 0xff && c2 <= 0xef {
-        flags |= Flags::HTP_URLEN_HALF_FULL_RANGE
+        flags |= Flags::URLEN_HALF_FULL_RANGE
     }
     // Use best-fit mapping.
     Ok((i, (cfg.bestfit_map.get(bestfit_key!(c1, c2)), flags)))
@@ -1004,7 +1004,7 @@ fn path_decode_valid_uencoding<'a>(
                 expected_status_code = c;
             }
             if byte == 0 {
-                flags |= Flags::HTP_PATH_ENCODED_NUL;
+                flags |= Flags::PATH_ENCODED_NUL;
                 if cfg.nul_encoded_unwanted != IGNORE {
                     expected_status_code = cfg.nul_encoded_unwanted
                 }
@@ -1037,7 +1037,7 @@ fn path_decode_invalid_uencoding<'a>(
         if cfg.u_encoding_decode {
             let (left, hex) = take(4usize)(left)?;
             // Invalid %u encoding
-            flags = Flags::HTP_PATH_INVALID_ENCODING;
+            flags = Flags::PATH_INVALID_ENCODING;
             expected_status_code = cfg.url_encoding_invalid_unwanted;
             if cfg.url_encoding_invalid_handling == HtpUrlEncodingHandling::REMOVE_PERCENT {
                 // Do not place anything in output; consume the %.
@@ -1076,7 +1076,7 @@ fn path_decode_valid_hex<'a>(
         // Convert from hex.
         let (_, mut byte) = x2c(&hex)?;
         if byte == 0 {
-            flags |= Flags::HTP_PATH_ENCODED_NUL;
+            flags |= Flags::PATH_ENCODED_NUL;
             expected_status_code = cfg.nul_encoded_unwanted;
             if cfg.nul_encoded_terminates {
                 // Terminate the path at the raw NUL byte.
@@ -1084,7 +1084,7 @@ fn path_decode_valid_hex<'a>(
             }
         }
         if byte == '/' as u8 || (cfg.backslash_convert_slashes && byte == '\\' as u8) {
-            flags |= Flags::HTP_PATH_ENCODED_SEPARATOR;
+            flags |= Flags::PATH_ENCODED_SEPARATOR;
             if cfg.path_separators_encoded_unwanted != IGNORE {
                 expected_status_code = cfg.path_separators_encoded_unwanted
             }
@@ -1112,7 +1112,7 @@ fn path_decode_invalid_hex<'a>(
         let (left, hex) = take(2usize)(remaining_input)?;
         let mut byte = '%' as u8;
         // Invalid encoding
-        let flags = Flags::HTP_PATH_INVALID_ENCODING;
+        let flags = Flags::PATH_INVALID_ENCODING;
         let expected_status_code = cfg.url_encoding_invalid_unwanted;
         if cfg.url_encoding_invalid_handling == HtpUrlEncodingHandling::REMOVE_PERCENT {
             // Do not place anything in output; consume the %.
@@ -1145,7 +1145,7 @@ fn path_decode_percent<'a>(
             move |remaining_input| {
                 let (_, _) = tag_no_case("u")(remaining_input)?;
                 // Invalid %u encoding (not enough data)
-                let flags = Flags::HTP_PATH_INVALID_ENCODING;
+                let flags = Flags::PATH_INVALID_ENCODING;
                 let expected_status_code = cfg.url_encoding_invalid_unwanted;
                 if cfg.url_encoding_invalid_handling == HtpUrlEncodingHandling::REMOVE_PERCENT {
                     // Do not place anything in output; consume the %.
@@ -1162,7 +1162,7 @@ fn path_decode_percent<'a>(
                     (
                         byte,
                         cfg.url_encoding_invalid_unwanted,
-                        Flags::HTP_PATH_INVALID_ENCODING,
+                        Flags::PATH_INVALID_ENCODING,
                         cfg.url_encoding_invalid_handling != HtpUrlEncodingHandling::REMOVE_PERCENT,
                     ),
                 ))
@@ -1282,14 +1282,14 @@ pub fn urldecode_uri_inplace(
     if let Ok((_, (consumed, f, _))) = urldecode_ex(input.as_slice(), decoder_cfg) {
         (*input).clear();
         input.add(consumed.as_slice());
-        if f.contains(Flags::HTP_URLEN_INVALID_ENCODING) {
-            *flags |= Flags::HTP_PATH_INVALID_ENCODING
+        if f.contains(Flags::URLEN_INVALID_ENCODING) {
+            *flags |= Flags::PATH_INVALID_ENCODING
         }
-        if f.contains(Flags::HTP_URLEN_ENCODED_NUL) {
-            *flags |= Flags::HTP_PATH_ENCODED_NUL
+        if f.contains(Flags::URLEN_ENCODED_NUL) {
+            *flags |= Flags::PATH_ENCODED_NUL
         }
-        if f.contains(Flags::HTP_URLEN_RAW_NUL) {
-            *flags |= Flags::HTP_PATH_RAW_NUL;
+        if f.contains(Flags::URLEN_RAW_NUL) {
+            *flags |= Flags::PATH_RAW_NUL;
         }
         Ok(())
     } else {
@@ -1367,7 +1367,7 @@ fn url_decode_invalid_uencoding<'a>(
         if cfg.u_encoding_decode {
             // Invalid %u encoding (could not find 4 xdigits).
             let (left, invalid_hex) = take(4usize)(left)?;
-            flags |= Flags::HTP_URLEN_INVALID_ENCODING;
+            flags |= Flags::URLEN_INVALID_ENCODING;
             code = if cfg.url_encoding_invalid_unwanted != IGNORE {
                 cfg.url_encoding_invalid_unwanted
             } else {
@@ -1427,7 +1427,7 @@ fn url_decode_invalid_hex<'a>(
             (
                 byte,
                 cfg.url_encoding_invalid_unwanted,
-                Flags::HTP_URLEN_INVALID_ENCODING,
+                Flags::URLEN_INVALID_ENCODING,
                 insert,
             ),
         ))
@@ -1458,7 +1458,7 @@ fn url_decode_percent<'a>(
                     (
                         '%' as u8,
                         cfg.url_encoding_invalid_unwanted,
-                        Flags::HTP_URLEN_INVALID_ENCODING,
+                        Flags::URLEN_INVALID_ENCODING,
                         !(cfg.url_encoding_invalid_handling
                             == HtpUrlEncodingHandling::REMOVE_PERCENT),
                     ),
@@ -1467,7 +1467,7 @@ fn url_decode_percent<'a>(
         ))(input)?;
         //Did we get an encoded NUL byte?
         if byte == 0 {
-            flags |= Flags::HTP_URLEN_ENCODED_NUL;
+            flags |= Flags::URLEN_ENCODED_NUL;
             if cfg.nul_encoded_unwanted != IGNORE {
                 expected_status_code = cfg.nul_encoded_unwanted
             }
@@ -1516,7 +1516,7 @@ fn url_parse_unencoded_byte<'a>(
                 (
                     byte,
                     cfg.nul_raw_unwanted,
-                    Flags::HTP_URLEN_RAW_NUL,
+                    Flags::URLEN_RAW_NUL,
                     !cfg.nul_raw_terminates,
                 ),
             ));

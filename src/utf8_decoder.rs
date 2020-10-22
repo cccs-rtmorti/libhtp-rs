@@ -93,24 +93,24 @@ impl Utf8Decoder {
                     match self.seq {
                         2 => {
                             if self.codepoint < 0x80 {
-                                self.flags |= Flags::HTP_PATH_UTF8_OVERLONG
+                                self.flags |= Flags::PATH_UTF8_OVERLONG
                             }
                         }
                         3 => {
                             if self.codepoint < 0x800 {
-                                self.flags |= Flags::HTP_PATH_UTF8_OVERLONG
+                                self.flags |= Flags::PATH_UTF8_OVERLONG
                             }
                         }
                         4 => {
                             if self.codepoint < 0x10000 {
-                                self.flags |= Flags::HTP_PATH_UTF8_OVERLONG
+                                self.flags |= Flags::PATH_UTF8_OVERLONG
                             }
                         }
                         _ => {}
                     }
                     // Special flag for half-width/full-width evasion.
                     if self.codepoint >= 0xff00 && self.codepoint <= 0xffef {
-                        self.flags |= Flags::HTP_PATH_HALF_FULL_RANGE
+                        self.flags |= Flags::PATH_HALF_FULL_RANGE
                     }
                     // Use best-fit mapping to convert to a single byte.
                     self.decoded_bytes.push(self.bestfit_codepoint());
@@ -119,7 +119,7 @@ impl Utf8Decoder {
             }
             1 => {
                 // Invalid UTF-8 character.
-                self.flags |= Flags::HTP_PATH_UTF8_INVALID;
+                self.flags |= Flags::PATH_UTF8_INVALID;
                 // Output the replacement byte, replacing one or more invalid bytes.
                 // If the invalid byte was first in a sequence, consume it. Otherwise,
                 // assume it's the starting byte of the next character.
@@ -157,8 +157,8 @@ impl Utf8Decoder {
             self.decode_byte(*byte);
         }
         // Did the input stream seem like a valid UTF-8 string?
-        if self.seen_valid && !self.flags.contains(Flags::HTP_PATH_UTF8_INVALID) {
-            self.flags |= Flags::HTP_PATH_UTF8_VALID
+        if self.seen_valid && !self.flags.contains(Flags::PATH_UTF8_INVALID) {
+            self.flags |= Flags::PATH_UTF8_VALID
         }
     }
 

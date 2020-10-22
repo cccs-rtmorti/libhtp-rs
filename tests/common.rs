@@ -112,7 +112,7 @@ macro_rules! assert_response_header_eq {
 /// Asserts that a transaction's response contains a flag.
 ///
 /// Example usage:
-/// assert_response_header_flag_contains!(tx, "Content-Length", Flags::HTP_FIELD_REPEATED);
+/// assert_response_header_flag_contains!(tx, "Content-Length", Flags::FIELD_REPEATED);
 #[macro_export]
 macro_rules! assert_response_header_flag_contains {
     ($tx:expr, $key:expr, $val:expr) => {{

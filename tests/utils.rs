@@ -1239,7 +1239,7 @@ fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1259,7 +1259,7 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1298,7 +1298,7 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1318,7 +1318,7 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1338,7 +1338,7 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1358,7 +1358,7 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
+        assert!((*test.tx).flags.contains(Flags::PATH_ENCODED_NUL));
     }
     assert_eq!(i, e);
 }
@@ -1378,7 +1378,7 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1398,7 +1398,7 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1415,7 +1415,7 @@ fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
+        assert!((*test.tx).flags.contains(Flags::PATH_ENCODED_NUL));
     }
     assert_eq!(i, e);
 }
@@ -1433,7 +1433,7 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_NUL));
+        assert!((*test.tx).flags.contains(Flags::PATH_ENCODED_NUL));
     }
     assert_eq!(i, e);
 }
@@ -1451,7 +1451,7 @@ fn DecodingTest_DecodePathInplace12_EncodedSlash() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
+        assert!((*test.tx).flags.contains(Flags::PATH_ENCODED_SEPARATOR));
     }
     assert_eq!(i, e);
 }
@@ -1470,7 +1470,7 @@ fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_ENCODED_SEPARATOR));
+        assert!((*test.tx).flags.contains(Flags::PATH_ENCODED_SEPARATOR));
     }
     assert_eq!(i, e);
 }
@@ -1489,7 +1489,7 @@ fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1508,7 +1508,7 @@ fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1527,7 +1527,7 @@ fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1546,7 +1546,7 @@ fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1565,7 +1565,7 @@ fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
@@ -1584,7 +1584,7 @@ fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
             &mut (*test.tx).response_status_expected_number,
             &mut i,
         );
-        assert!((*test.tx).flags.contains(Flags::HTP_PATH_INVALID_ENCODING));
+        assert!((*test.tx).flags.contains(Flags::PATH_INVALID_ENCODING));
     }
     assert_eq!(i, e);
 }
