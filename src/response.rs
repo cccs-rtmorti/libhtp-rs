@@ -716,11 +716,9 @@ impl connection_parser::ConnectionParser {
                 // Finalize sending raw trailer data.
                 self.res_receiver_finalize_clear()?;
                 // Run hook response_TRAILER.
-                unsafe {
-                    (*self.cfg)
-                        .hook_response_trailer
-                        .run_all(self.out_tx_mut_ptr())?;
-                }
+                // TODO: Figure out how to do this without clone()
+                let cfg = self.cfg.clone();
+                cfg.hook_response_trailer.run_all(self.out_tx_mut_ptr())?;
                 self.out_state = State::FINALIZE;
                 return Ok(());
             }
@@ -886,7 +884,7 @@ impl connection_parser::ConnectionParser {
                 // Should we terminate headers?
                 if !data.is_null()
                     && util::is_line_terminator(
-                        unsafe { (*self.cfg).server_personality },
+                        self.cfg.server_personality,
                         unsafe { std::slice::from_raw_parts(data, len) },
                         next_no_lf,
                     )
@@ -908,11 +906,9 @@ impl connection_parser::ConnectionParser {
                         // Finalize sending raw trailer data.
                         self.res_receiver_finalize_clear()?;
                         // Run hook response_TRAILER.
-                        unsafe {
-                            (*self.cfg)
-                                .hook_response_trailer
-                                .run_all(self.out_tx_mut_ptr())?;
-                        }
+                        // TODO: Figure out how to do this without clone()
+                        let cfg = self.cfg.clone();
+                        cfg.hook_response_trailer.run_all(self.out_tx_mut_ptr())?;
                         // The next step is to finalize this response.
                         self.out_state = State::FINALIZE
                     }
@@ -1053,7 +1049,7 @@ impl connection_parser::ConnectionParser {
                 self.res_consolidate_data(&mut data, &mut len)?;
                 // Is this a line that should be ignored?
                 if !data.is_null()
-                    && util::is_line_ignorable(unsafe { (*self.cfg).server_personality }, unsafe {
+                    && util::is_line_ignorable(self.cfg.server_personality, unsafe {
                         std::slice::from_raw_parts(data, len)
                     })
                 {
@@ -1255,7 +1251,7 @@ impl connection_parser::ConnectionParser {
         // Run transaction hooks first
         out_tx.hook_response_body_data.run_all(d)?;
         // Run configuration hooks second
-        (*self.cfg).hook_response_body_data.run_all(d)
+        self.cfg.hook_response_body_data.run_all(d)
     }
 
     /// Process a chunk of outbound (server or response) data.

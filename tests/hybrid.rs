@@ -214,7 +214,6 @@ unsafe fn res_set_status_line<S: AsRef<[u8]>>(tx: &mut Transaction, line: S) -> 
 
 struct HybridParsingTest {
     connp: *mut ConnectionParser,
-    cfg: *mut config::Config,
     connp_open: bool,
     user_data: HybridParsing_Get_User_Data,
 }
@@ -222,12 +221,11 @@ struct HybridParsingTest {
 impl HybridParsingTest {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut config::Config = config::create();
-            assert!(!cfg.is_null());
-            (*cfg).set_server_personality(APACHE_2).unwrap();
-            (*cfg).register_urlencoded_parser();
-            (*cfg).register_multipart_parser();
-            let connp = htp_connp_create(cfg);
+            let mut cfg = config::Config::default();
+            cfg.set_server_personality(APACHE_2).unwrap();
+            cfg.register_urlencoded_parser();
+            cfg.register_multipart_parser();
+            let connp = htp_connp_create(&mut cfg);
             assert!(!connp.is_null());
             (*connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -240,7 +238,6 @@ impl HybridParsingTest {
             let user_data = HybridParsing_Get_User_Data::new();
             HybridParsingTest {
                 connp,
-                cfg,
                 connp_open: true,
                 user_data,
             }
@@ -259,20 +256,39 @@ impl HybridParsingTest {
     fn register_user_callbacks(&mut self) {
         unsafe {
             // Request callbacks
-            (*self.cfg).register_request_start(HybridParsing_Get_Callback_REQUEST_START);
-            (*self.cfg).register_request_line(HybridParsing_Get_Callback_REQUEST_LINE);
-            (*self.cfg).register_request_headers(HybridParsing_Get_Callback_REQUEST_HEADERS);
-            (*self.cfg).register_request_complete(HybridParsing_Get_Callback_REQUEST_COMPLETE);
+            (*self.connp)
+                .cfg
+                .register_request_start(HybridParsing_Get_Callback_REQUEST_START);
+            (*self.connp)
+                .cfg
+                .register_request_line(HybridParsing_Get_Callback_REQUEST_LINE);
+            (*self.connp)
+                .cfg
+                .register_request_headers(HybridParsing_Get_Callback_REQUEST_HEADERS);
+            (*self.connp)
+                .cfg
+                .register_request_complete(HybridParsing_Get_Callback_REQUEST_COMPLETE);
 
             // Response callbacks
-            (*self.cfg).register_response_start(HybridParsing_Get_Callback_RESPONSE_START);
-            (*self.cfg).register_response_line(HybridParsing_Get_Callback_RESPONSE_LINE);
-            (*self.cfg).register_response_headers(HybridParsing_Get_Callback_RESPONSE_HEADERS);
-            (*self.cfg).register_response_body_data(HybridParsing_Get_Callback_RESPONSE_BODY_DATA);
-            (*self.cfg).register_response_complete(HybridParsing_Get_Callback_RESPONSE_COMPLETE);
+            (*self.connp)
+                .cfg
+                .register_response_start(HybridParsing_Get_Callback_RESPONSE_START);
+            (*self.connp)
+                .cfg
+                .register_response_line(HybridParsing_Get_Callback_RESPONSE_LINE);
+            (*self.connp)
+                .cfg
+                .register_response_headers(HybridParsing_Get_Callback_RESPONSE_HEADERS);
+            (*self.connp)
+                .cfg
+                .register_response_body_data(HybridParsing_Get_Callback_RESPONSE_BODY_DATA);
+            (*self.connp)
+                .cfg
+                .register_response_complete(HybridParsing_Get_Callback_RESPONSE_COMPLETE);
 
             // Transaction calllbacks
-            (*self.cfg)
+            (*self.connp)
+                .cfg
                 .register_transaction_complete(HybridParsing_Get_Callback_TRANSACTION_COMPLETE);
         }
     }
@@ -283,7 +299,6 @@ impl Drop for HybridParsingTest {
         unsafe {
             self.close_conn_parser();
             htp_connp_destroy_all(self.connp);
-            (*self.cfg).destroy();
         }
     }
 }

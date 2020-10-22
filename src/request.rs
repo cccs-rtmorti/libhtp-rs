@@ -436,7 +436,7 @@ impl connection_parser::ConnectionParser {
 
                 rest = remaining;
                 unsafe {
-                    if util::is_line_terminator((*self.cfg).server_personality, &data, false) {
+                    if util::is_line_terminator(self.cfg.server_personality, &data, false) {
                         // Parse previous header, if any.
                         if let Some(in_header) = self.in_header.take() {
                             self.process_request_header(in_header.as_slice())?;
@@ -552,8 +552,7 @@ impl connection_parser::ConnectionParser {
             return Err(HtpStatus::DATA);
         }
         // Is this a line that should be ignored?
-        let ignore = util::is_line_ignorable(unsafe { (*self.cfg).server_personality }, &data);
-        if ignore {
+        if util::is_line_ignorable(self.cfg.server_personality, &data) {
             // We have an empty/whitespace line, which we'll note, ignore and move on.
             self.in_tx_mut_ok()?.request_ignored_lines =
                 self.in_tx_mut_ok()?.request_ignored_lines.wrapping_add(1);
@@ -730,10 +729,10 @@ impl connection_parser::ConnectionParser {
             in_tx.hook_request_body_data.run_all(d)?;
         }
         // Run configuration hooks second
-        (*self.cfg).hook_request_body_data.run_all(d)?;
+        self.cfg.hook_request_body_data.run_all(d)?;
         // On PUT requests, treat request body as file
         if let Some(file) = &mut self.put_file {
-            file.handle_file_data(self.cfg, (*d).data(), (*d).len())?;
+            file.handle_file_data(&mut self.cfg, (*d).data(), (*d).len())?;
         }
         Ok(())
     }

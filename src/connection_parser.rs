@@ -48,7 +48,7 @@ pub type Time = libc::timeval;
 pub struct ConnectionParser {
     // General fields
     /// Current parser configuration structure.
-    pub cfg: *mut config::Config,
+    pub cfg: config::Config,
     /// The connection structure associated with this parser.
     pub conn: connection::Connection,
     /// Opaque user data associated with this parser.
@@ -149,7 +149,7 @@ pub struct ConnectionParser {
 }
 
 impl ConnectionParser {
-    pub fn new(cfg: *mut config::Config) -> Self {
+    pub fn new(cfg: config::Config) -> Self {
         Self {
             cfg,
             conn: connection::Connection::new(),
@@ -374,7 +374,7 @@ impl ConnectionParser {
     pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
         self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(request_line));
         unsafe {
-            if (*self.cfg).server_personality == HtpServerPersonality::APACHE_2 {
+            if self.cfg.server_personality == HtpServerPersonality::APACHE_2 {
                 self.parse_request_line_generic_ex(request_line, true)
             } else {
                 self.parse_request_line_generic_ex(request_line, false)

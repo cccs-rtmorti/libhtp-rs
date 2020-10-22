@@ -15,7 +15,6 @@ mod common;
 
 struct Test {
     connp: *mut ConnectionParser,
-    cfg: *mut config::Config,
     body: *mut Multipart,
     mpartp: Option<Parser>,
     tx: *mut Transaction,
@@ -24,18 +23,16 @@ struct Test {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg: *mut config::Config = config::create();
-            assert!(!cfg.is_null());
-            (*cfg).set_server_personality(APACHE_2).unwrap();
-            (*cfg).register_multipart_parser();
-            let connp = htp_connp_create(cfg);
+            let mut cfg = config::Config::default();
+            cfg.set_server_personality(APACHE_2).unwrap();
+            cfg.register_multipart_parser();
+            let connp = htp_connp_create(&mut cfg);
             assert!(!connp.is_null());
             let body = std::ptr::null_mut();
             let mpartp = None;
             let tx = std::ptr::null_mut();
             Test {
                 connp,
-                cfg,
                 body,
                 mpartp,
                 tx,
@@ -138,7 +135,7 @@ impl Test {
     }
     fn parseParts(&mut self, parts: &Vec<&str>) {
         unsafe {
-            self.mpartp = Parser::new(self.cfg, b"0123456789", Flags::empty());
+            self.mpartp = Parser::new(&mut (*self.connp).cfg, b"0123456789", Flags::empty());
             assert!(!self.mpartp.is_none());
             for part in parts {
                 self.mpartp.as_mut().unwrap().parse(part.as_bytes());
@@ -176,20 +173,12 @@ impl Test {
     }
 }
 
-impl Drop for Test {
-    fn drop(&mut self) {
-        unsafe {
-            (*self.cfg).destroy();
-        }
-    }
-}
-
 #[test]
 fn Test1() {
     let mut t = Test::new();
     unsafe {
         t.mpartp = Parser::new(
-            t.cfg,
+            &mut (*t.connp).cfg,
             b"---------------------------41184676334",
             Flags::empty(),
         );
@@ -278,7 +267,7 @@ fn Test1() {
 fn Test2() {
     let mut t = Test::new();
     unsafe {
-        t.mpartp = Parser::new(t.cfg, b"BBB", Flags::empty());
+        t.mpartp = Parser::new(&mut (*t.connp).cfg, b"BBB", Flags::empty());
 
         let parts = vec![
             "x0000x\n--BBB\n\nx1111x\n--\nx2222x\n--",
@@ -1006,8 +995,8 @@ fn WithFileExternallyStored() {
         ];
 
         unsafe {
-            (*t.cfg).extract_request_files = true;
-            (*t.cfg).tmpdir = "/tmp".to_string();
+            (*t.connp).cfg.extract_request_files = true;
+            (*t.connp).cfg.tmpdir = "/tmp".to_string();
 
             t.parseParts(&parts);
 
@@ -1318,7 +1307,11 @@ fn InvalidHeader6() {
 #[test]
 fn NullByte() {
     let mut t = Test::new();
-    t.mpartp = Parser::new(t.cfg, b"0123456789", Flags::empty());
+    t.mpartp = Parser::new(
+        unsafe { &mut (*t.connp).cfg },
+        b"0123456789",
+        Flags::empty(),
+    );
 
     // NUL byte in the part header.
     let i1 = "--0123456789\r\n\
@@ -1873,7 +1866,7 @@ fn InvalidContentDispositionSyntax() {
 
     unsafe {
         for input in inputs {
-            t.mpartp = Parser::new(t.cfg, b"123", Flags::empty());
+            t.mpartp = Parser::new(&mut (*t.connp).cfg, b"123", Flags::empty());
 
             let mut part: Part = Part::new(t.mpartp.as_mut().unwrap());
             let header = Header::new(b"Content-Disposition".to_vec().into(), input.into());

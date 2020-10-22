@@ -452,7 +452,7 @@ impl Transaction {
     pub fn new(connp: &mut connection_parser::ConnectionParser) -> Result<usize> {
         let tx = Self {
             connp,
-            cfg: connp.cfg,
+            cfg: &mut connp.cfg,
             is_config_shared: true,
             user_data: std::ptr::null_mut(),
             request_ignored_lines: 0,
@@ -704,11 +704,11 @@ impl Transaction {
             self.request_content_type = Some(util::parse_ct_header(ct.value.as_slice())?);
         }
         // Parse cookies.
-        if (*(*self.connp).cfg).parse_request_cookies {
+        if (*self.connp).cfg.parse_request_cookies {
             parsers::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)?;
         }
         // Parse authentication information.
-        if (*(*self.connp).cfg).parse_request_auth {
+        if (*self.connp).cfg.parse_request_auth {
             parsers::parse_authorization((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)
                 .or_else(|rc| {
                     if rc == HtpStatus::DECLINED {
@@ -723,7 +723,7 @@ impl Transaction {
         // Finalize sending raw header data.
         (*self.connp).req_receiver_finalize_clear()?;
         // Run hook REQUEST_HEADERS.
-        (*(*self.connp).cfg).hook_request_headers.run_all(self)?;
+        (*self.connp).cfg.hook_request_headers.run_all(self)?;
         // We cannot proceed if the request is invalid.
         if self.flags.contains(Flags::REQUEST_INVALID) {
             return Err(HtpStatus::ERROR);
@@ -803,7 +803,7 @@ impl Transaction {
             self.flags |= Flags::STATUS_LINE_INVALID
         }
         // Run hook HTP_RESPONSE_LINE
-        (*(*self.connp).cfg).hook_response_line.run_all(self)
+        (*self.connp).cfg.hook_response_line.run_all(self)
     }
 
     /// Set one response header. This function should be invoked once for
@@ -886,7 +886,7 @@ impl Transaction {
                     &mut (*self.out_decompressor).time_before,
                 )
                 .is_ok()
-                    && (*self.out_decompressor).time_spent > (*(*connp).cfg).compression_time_limit
+                    && (*self.out_decompressor).time_spent > (*connp).cfg.compression_time_limit
                 {
                     htp_error!(
                         connp,
@@ -944,7 +944,7 @@ impl Transaction {
         self.request_progress = HtpRequestProgress::COMPLETE;
         // Run hook REQUEST_COMPLETE.
         unsafe {
-            (*(*self.connp).cfg).hook_request_complete.run_all(self)?;
+            (*self.connp).cfg.hook_request_complete.run_all(self)?;
         }
         Ok(())
     }
@@ -988,7 +988,7 @@ impl Transaction {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_start(&mut self) -> Result<()> {
         // Run hook REQUEST_START.
-        (*(*self.connp).cfg).hook_request_start.run_all(self)?;
+        (*self.connp).cfg.hook_request_start.run_all(self)?;
         // Change state into request line parsing.
         (*self.connp).in_state = State::LINE;
         self.request_progress = HtpRequestProgress::LINE;
@@ -1007,7 +1007,7 @@ impl Transaction {
         if self.request_progress > HtpRequestProgress::HEADERS {
             // Request trailers.
             // Run hook HTP_REQUEST_TRAILER.
-            (*(*self.connp).cfg).hook_request_trailer.run_all(self)?;
+            (*self.connp).cfg.hook_request_trailer.run_all(self)?;
             // Finalize sending raw header data.
             (*self.connp).req_receiver_finalize_clear()?;
             // Completed parsing this request; finalize it now.
@@ -1065,11 +1065,9 @@ impl Transaction {
             }
         }
         // Run hook REQUEST_URI_NORMALIZE.
-        (*(*self.connp).cfg)
-            .hook_request_uri_normalize
-            .run_all(self)?;
+        (*self.connp).cfg.hook_request_uri_normalize.run_all(self)?;
         // Run hook REQUEST_LINE.
-        (*(*self.connp).cfg).hook_request_line.run_all(self)?;
+        (*self.connp).cfg.hook_request_line.run_all(self)?;
         if let Some(parsed_uri) = &self.parsed_uri {
             let (partial_normalized_uri, complete_normalized_uri) =
                 util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, parsed_uri);
@@ -1095,11 +1093,9 @@ impl Transaction {
         }
         unsafe {
             // Run hook TRANSACTION_COMPLETE.
-            (*(*self.connp).cfg)
-                .hook_transaction_complete
-                .run_all(self)?;
+            (*self.connp).cfg.hook_transaction_complete.run_all(self)?;
             // In streaming processing, we destroy the transaction because it will not be needed any more.
-            if (*(*self.connp).cfg).tx_auto_destroy {
+            if (*self.connp).cfg.tx_auto_destroy {
                 self.destroy()?;
             }
         }
@@ -1114,7 +1110,7 @@ impl Transaction {
                 let _ = self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
             }
             // Run hook RESPONSE_COMPLETE.
-            (*(*self.connp).cfg).hook_response_complete.run_all(self)?;
+            (*self.connp).cfg.hook_response_complete.run_all(self)?;
         }
         if hybrid_mode == 0 {
             // Check if the inbound parser is waiting on us. If it is, that means that
@@ -1181,7 +1177,7 @@ impl Transaction {
             }
         }
         // Configure decompression, if enabled in the configuration.
-        if (*(*self.connp).cfg).response_decompression_enabled {
+        if (*self.connp).cfg.response_decompression_enabled {
             self.response_content_encoding_processing = self.response_content_encoding
         } else {
             self.response_content_encoding_processing = decompressors::HtpContentEncoding::NONE;
@@ -1190,7 +1186,7 @@ impl Transaction {
         // Finalize sending raw header data.
         (&mut *self.connp).res_receiver_finalize_clear()?;
         // Run hook RESPONSE_HEADERS.
-        (*(*self.connp).cfg).hook_response_headers.run_all(self)?;
+        (*self.connp).cfg.hook_response_headers.run_all(self)?;
         // Initialize the decompression engine as necessary. We can deal with three
         // scenarios:
         //
@@ -1240,9 +1236,9 @@ impl Transaction {
                     let mut cetype: decompressors::HtpContentEncoding =
                         decompressors::HtpContentEncoding::NONE;
                     // check depth limit (0 means no limit)
-                    if (*(*connp).cfg).response_decompression_layer_limit != 0 && {
+                    if (*connp).cfg.response_decompression_layer_limit != 0 && {
                         layers += 1;
-                        (layers) > (*(*connp).cfg).response_decompression_layer_limit
+                        (layers) > (*connp).cfg.response_decompression_layer_limit
                     } {
                         htp_warn!(
                             connp,
@@ -1276,7 +1272,7 @@ impl Transaction {
                         } else if token.index_of_nocase("lzma").is_some() {
                             cetype = decompressors::HtpContentEncoding::LZMA;
                             nblzma = nblzma.wrapping_add(1);
-                            if nblzma > (*(*connp).cfg).response_lzma_layer_limit {
+                            if nblzma > (*connp).cfg.response_lzma_layer_limit {
                                 htp_error!(
                                     connp,
                                     HtpLogCode::COMPRESSION_BOMB_DOUBLE_LZMA,
@@ -1336,7 +1332,7 @@ impl Transaction {
     pub unsafe fn state_response_start(&mut self) -> Result<()> {
         (*self.connp).set_out_tx(self);
         // Run hook RESPONSE_START.
-        (*(*self.connp).cfg).hook_response_start.run_all(self)?;
+        (*self.connp).cfg.hook_response_start.run_all(self)?;
         // Change state into response line parsing, except if we're following
         // a HTTP/0.9 request (no status line or response headers).
         if self.is_protocol_0_9 {
@@ -1491,7 +1487,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
         {
             // updates last tracked time
             (*tx.out_decompressor).time_before = after;
-            if (*tx.out_decompressor).time_spent > (*(*tx.connp).cfg).compression_time_limit {
+            if (*tx.out_decompressor).time_spent > (*tx.connp).cfg.compression_time_limit {
                 htp_error!(
                     tx.connp,
                     HtpLogCode::COMPRESSION_BOMB,
@@ -1504,7 +1500,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
             }
         }
     }
-    if tx.response_entity_len > (*(*tx.connp).cfg).compression_bomb_limit as i64
+    if tx.response_entity_len > (*tx.connp).cfg.compression_bomb_limit as i64
         && tx.response_entity_len > 2048 * tx.response_message_len
     {
         htp_error!(

@@ -153,14 +153,12 @@ pub fn log(
     code: HtpLogCode,
     msg: String,
 ) {
-    if let Some(cfg) = unsafe { connp.cfg.as_ref() } {
-        // Ignore messages below our log level.
-        if level <= cfg.log_level {
-            let mut log = Log::new(connp, file, line, level, code, msg);
-            // Ignore if the hooks fail to run
-            let _ = cfg.hook_log.run_all(&mut log);
-            connp.conn.push_message(log);
-        }
+    // Ignore messages below our log level.
+    if level <= connp.cfg.log_level {
+        let mut log = Log::new(connp, file, line, level, code, msg);
+        // Ignore if the hooks fail to run
+        let _ = connp.cfg.hook_log.run_all(&mut log);
+        connp.conn.push_message(log);
     }
 }
 

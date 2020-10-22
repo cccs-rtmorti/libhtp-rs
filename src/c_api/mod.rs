@@ -433,16 +433,18 @@ pub unsafe extern "C" fn htp_connp_close(connp: *mut ConnectionParser, timestamp
     }
 }
 
-/// Creates a new connection parser using the provided configuration. Because
-/// the configuration structure is used directly, in a multithreaded environment
-/// you are not allowed to change the structure, ever. If you have a need to
-/// change configuration on per-connection basis, make a copy of the configuration
-/// structure to go along with every connection parser.
+/// Creates a new connection parser using the provided configuration or a default configuration if NULL provided.
+/// Note the provided config will be copied into the created connection parser. Therefore, subsequent modification
+/// to the original config will have no effect.
 ///
 /// Returns a new connection parser instance, or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_create(cfg: *mut config::Config) -> *mut ConnectionParser {
-    Box::into_raw(Box::new(ConnectionParser::new(cfg)))
+    if let Some(cfg) = cfg.as_ref() {
+        Box::into_raw(Box::new(ConnectionParser::new(cfg.clone())))
+    } else {
+        Box::into_raw(Box::new(ConnectionParser::new(config::Config::default())))
+    }
 }
 
 /// Destroys the connection parser, its data structures, as well

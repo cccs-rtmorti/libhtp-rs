@@ -573,7 +573,7 @@ pub unsafe fn htp_gzip_decompressor_create(
     let mut rc: i32 = 0;
     match format {
         HtpContentEncoding::LZMA => {
-            if (*(*connp).cfg).lzma_memlimit > 0 && (*(*connp).cfg).response_lzma_layer_limit > 0 {
+            if (*connp).cfg.lzma_memlimit > 0 && (*connp).cfg.response_lzma_layer_limit > 0 {
                 (*drec).state.dic = 0 as *mut u8;
                 (*drec).state.probs = 0 as *mut lzma::LzmaDec::CLzmaProb
             } else {
