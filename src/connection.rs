@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::{list::List, log, transaction, util};
-use std::net::IpAddr;
+use std::{cell::RefCell, net::IpAddr};
 
 pub type Time = libc::timeval;
 
@@ -19,7 +19,7 @@ pub struct Connection {
     /// removed from a connection by calling htp_conn_remove_tx().
     transactions: transaction::Transactions,
     /// Log messages associated with this connection.
-    messages: log::htp_logs_t,
+    pub messages: RefCell<log::htp_logs_t>,
     /// Parsing flags: HTP_CONN_PIPELINED.
     pub flags: util::ConnectionFlags,
     /// When was this connection opened? Can be NULL.
@@ -40,7 +40,7 @@ impl Connection {
             server_addr: None,
             server_port: None,
             transactions: List::with_capacity(16),
-            messages: List::with_capacity(8),
+            messages: RefCell::new(List::with_capacity(8)),
             flags: util::ConnectionFlags::UNKNOWN,
             open_timestamp: Time {
                 tv_sec: 0,
@@ -104,26 +104,6 @@ impl Connection {
             .get_mut(tx_id)
             .map(|tx| tx as *mut transaction::Transaction)
             .unwrap_or(std::ptr::null_mut())
-    }
-
-    /// Push a log message to this connection's log list.
-    pub fn push_message(&mut self, log: log::Log) {
-        self.messages.push(log);
-    }
-
-    /// Get the log messages for this connection.
-    pub fn messages(&self) -> &log::htp_logs_t {
-        &self.messages
-    }
-
-    /// Get the number of log messages in this connection.
-    pub fn message_size(&self) -> usize {
-        self.messages.len()
-    }
-
-    /// Get a log message by id from this connection.
-    pub fn message(&self, msg_id: usize) -> Option<&log::Log> {
-        self.messages.get(msg_id)
     }
 
     /// Opens a connection. This function will essentially only store the provided data

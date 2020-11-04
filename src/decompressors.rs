@@ -296,7 +296,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
     'c_5645: loop
     // we'll be restarting the compressor
     {
-        let connp = (*(*d).tx()).connp;
+        let connp = &*(*(*d).tx()).connp;
         if consumed > (*d).len() {
             htp_error!(
                 connp,
@@ -528,7 +528,7 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(drec: *mut htp_decompressor_g
 ///
 /// Returns New htp_decompressor_t instance on success, or NULL on failure.
 pub unsafe fn htp_gzip_decompressor_create(
-    connp: *mut connection_parser::ConnectionParser,
+    connp: &connection_parser::ConnectionParser,
     format: HtpContentEncoding,
 ) -> *mut htp_decompressor_t {
     let mut drec: *mut htp_decompressor_gzip_t =
@@ -573,7 +573,7 @@ pub unsafe fn htp_gzip_decompressor_create(
     let mut rc: i32 = 0;
     match format {
         HtpContentEncoding::LZMA => {
-            if (*connp).cfg.lzma_memlimit > 0 && (*connp).cfg.response_lzma_layer_limit > 0 {
+            if connp.cfg.lzma_memlimit > 0 && connp.cfg.response_lzma_layer_limit > 0 {
                 (*drec).state.dic = 0 as *mut u8;
                 (*drec).state.probs = 0 as *mut lzma::LzmaDec::CLzmaProb
             } else {

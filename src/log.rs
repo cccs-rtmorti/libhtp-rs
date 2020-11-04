@@ -124,7 +124,7 @@ pub type htp_logs_t = List<Log>;
 
 impl Log {
     pub fn new(
-        connp: &mut connection_parser::ConnectionParser,
+        connp: &connection_parser::ConnectionParser,
         file: &str,
         line: u32,
         level: HtpLogLevel,
@@ -146,7 +146,7 @@ impl Log {
 }
 
 pub fn log(
-    connp: &mut connection_parser::ConnectionParser,
+    connp: &connection_parser::ConnectionParser,
     file: &str,
     line: u32,
     level: HtpLogLevel,
@@ -158,18 +158,16 @@ pub fn log(
         let mut log = Log::new(connp, file, line, level, code, msg);
         // Ignore if the hooks fail to run
         let _ = connp.cfg.hook_log.run_all(&mut log);
-        connp.conn.push_message(log);
+        connp.conn.messages.borrow_mut().push(log);
     }
 }
 
 #[macro_export]
 macro_rules! htp_log {
-    ($connp:expr, $level:expr, $code:expr, $msg:expr) => {
-        if let Some(connp) = $connp.as_mut() {
-            use $crate::log::{log, HtpLogCode, HtpLogLevel};
-            log(connp, file!(), line!(), $level, $code, $msg.to_string());
-        }
-    };
+    ($connp:expr, $level:expr, $code:expr, $msg:expr) => {{
+        use $crate::log::{log, HtpLogCode, HtpLogLevel};
+        log($connp, file!(), line!(), $level, $code, $msg.to_string());
+    }};
 }
 
 #[macro_export]

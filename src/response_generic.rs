@@ -79,7 +79,7 @@ impl connection_parser::ConnectionParser {
                         // Only once per transaction.
                         self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
                         htp_warn!(
-                            self as *mut connection_parser::ConnectionParser,
+                            self,
                             HtpLogCode::RESPONSE_INVALID_EMPTY_NAME,
                             "Response field invalid: empty name."
                         );
@@ -95,7 +95,7 @@ impl connection_parser::ConnectionParser {
                             // Only once per transaction.
                             self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
                             htp_log!(
-                                self as *mut connection_parser::ConnectionParser,
+                                self,
                                 HtpLogLevel::WARNING,
                                 HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
                                 "Response field invalid: LWS after name"
@@ -117,7 +117,7 @@ impl connection_parser::ConnectionParser {
                     if !self.out_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
                         self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
                         htp_warn!(
-                            self as *mut connection_parser::ConnectionParser,
+                            self,
                             HtpLogCode::RESPONSE_HEADER_NAME_NOT_TOKEN,
                             "Response header name is not a token."
                         );
@@ -141,7 +141,7 @@ impl connection_parser::ConnectionParser {
                     self.out_tx_mut_ok()?.flags |= Flags::FIELD_UNPARSEABLE;
                     self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
                     htp_warn!(
-                        self as *mut connection_parser::ConnectionParser,
+                        self,
                         HtpLogCode::RESPONSE_FIELD_MISSING_COLON,
                         "Response field invalid: missing colon."
                     );
@@ -154,7 +154,7 @@ impl connection_parser::ConnectionParser {
         // No null char in val
         if value.contains(&0) {
             htp_log!(
-                self as *mut connection_parser::ConnectionParser,
+                self,
                 HtpLogLevel::WARNING,
                 HtpLogCode::REQUEST_HEADER_INVALID,
                 "Response header value contains null."
@@ -170,8 +170,8 @@ impl connection_parser::ConnectionParser {
 
     /// Generic response header line(s) processor, which assembles folded lines
     /// into a single buffer before invoking the parsing function.
-    pub unsafe fn process_response_header_generic(&mut self, data: &[u8]) -> Result<()> {
-        let header = self.parse_response_header_generic(data)?;
+    pub fn process_response_header_generic(&mut self, data: &[u8]) -> Result<()> {
+        let header = unsafe { self.parse_response_header_generic(data)? };
         let mut repeated = false;
         let reps = self.out_tx_mut_ok()?.res_header_repetitions;
         let mut update_reps = false;
@@ -202,7 +202,7 @@ impl connection_parser::ConnectionParser {
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     // Ambiguous response C-L value.
                     htp_warn!(
-                        self as *mut connection_parser::ConnectionParser,
+                        self,
                         HtpLogCode::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                         "Ambiguous response C-L value"
                     );
@@ -223,7 +223,7 @@ impl connection_parser::ConnectionParser {
         }
         if repeated {
             htp_warn!(
-                self as *mut connection_parser::ConnectionParser,
+                self,
                 HtpLogCode::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );

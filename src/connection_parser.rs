@@ -393,7 +393,7 @@ impl ConnectionParser {
     }
 
     pub fn process_response_header(&mut self, data: &[u8]) -> Result<()> {
-        unsafe { self.process_response_header_generic(data) }
+        self.process_response_header_generic(data)
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -465,7 +465,7 @@ impl ConnectionParser {
         // Check connection parser state first.
         if self.in_status != HtpStreamState::NEW || self.out_status != HtpStreamState::NEW {
             htp_error!(
-                self as *mut ConnectionParser,
+                self,
                 HtpLogCode::CONNECTION_ALREADY_OPEN,
                 "Connection is already open"
             );

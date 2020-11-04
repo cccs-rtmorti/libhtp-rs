@@ -51,7 +51,7 @@ impl Test {
             assert!(!tx.is_null());
             let output = std::ptr::null_mut();
 
-            let decompressor = htp_gzip_decompressor_create(connp, GZIP);
+            let decompressor = htp_gzip_decompressor_create(&*connp, GZIP);
             (*decompressor).callback = Some(GUnzip_decompressor_callback);
             let o_boxing_wizards = bstr_dup_str("The five boxing wizards jump quickly.");
 

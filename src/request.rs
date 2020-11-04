@@ -148,19 +148,18 @@ impl connection_parser::ConnectionParser {
         if let Some(header) = &self.in_header {
             newlen = newlen.wrapping_add(header.len())
         }
-        unsafe {
-            if newlen > (*self.in_tx_mut_ok()?.cfg).field_limit {
-                htp_error!(
-                    self as *mut connection_parser::ConnectionParser,
-                    HtpLogCode::REQUEST_FIELD_TOO_LONG,
-                    format!(
-                        "Request buffer over the limit: size {} limit {}.",
-                        newlen,
-                        (*self.in_tx_mut_ok()?.cfg).field_limit
-                    )
-                );
-                return Err(HtpStatus::ERROR);
-            }
+        let field_limit = unsafe { (*self.in_tx_mut_ok()?.cfg).field_limit };
+
+        if newlen > field_limit {
+            htp_error!(
+                self,
+                HtpLogCode::REQUEST_FIELD_TOO_LONG,
+                format!(
+                    "Request buffer over the limit: size {} limit {}.",
+                    newlen, field_limit
+                )
+            );
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
     }
@@ -331,14 +330,12 @@ impl connection_parser::ConnectionParser {
                 self.in_tx_mut_ok()?.request_progress = transaction::HtpRequestProgress::TRAILER
             } else {
                 // Invalid chunk length.
-                unsafe {
-                    htp_error!(
-                        self as *mut connection_parser::ConnectionParser,
-                        HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
-                        "Request chunk encoding: Invalid chunk length"
-                    );
-                    return Err(HtpStatus::ERROR);
-                }
+                htp_error!(
+                    self,
+                    HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
+                    "Request chunk encoding: Invalid chunk length"
+                );
+                return Err(HtpStatus::ERROR);
             }
             Ok(())
         } else {
@@ -471,13 +468,11 @@ impl connection_parser::ConnectionParser {
                     // Warn only once per transaction.
                     if !self.in_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
                         self.in_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                        unsafe {
-                            htp_warn!(
-                                self as *mut connection_parser::ConnectionParser,
-                                HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
-                                "Invalid request field folding"
-                            );
-                        }
+                        htp_warn!(
+                            self,
+                            HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
+                            "Invalid request field folding"
+                        );
                     }
                     // Keep the header data for parsing later.
                     self.in_header = Some(bstr::Bstr::from(chomped));
@@ -516,13 +511,11 @@ impl connection_parser::ConnectionParser {
                             }
                         }
                     }
-                    unsafe {
-                        htp_warn!(
-                            self as *mut connection_parser::ConnectionParser,
-                            HtpLogCode::REQUEST_LINE_NO_PROTOCOL,
-                            "Request line: missing protocol"
-                        );
-                    }
+                    htp_warn!(
+                        self,
+                        HtpLogCode::REQUEST_LINE_NO_PROTOCOL,
+                        "Request line: missing protocol"
+                    );
                     self.in_tx_mut_ok()?.is_protocol_0_9 = false;
                     // Switch to request header parsing.
                     self.in_state = State::HEADERS;
@@ -641,13 +634,11 @@ impl connection_parser::ConnectionParser {
             if method_type == HtpMethod::UNKNOWN {
                 if self.in_body_data_left <= 0 {
                     // log only once per transaction
-                    unsafe {
-                        htp_warn!(
-                            self as *mut connection_parser::ConnectionParser,
-                            HtpLogCode::REQUEST_BODY_UNEXPECTED,
-                            "Unexpected request body"
-                        );
-                    }
+                    htp_warn!(
+                        self,
+                        HtpLogCode::REQUEST_BODY_UNEXPECTED,
+                        "Unexpected request body"
+                    );
                 } else {
                     self.in_body_data_left = 1;
                 }
@@ -747,7 +738,7 @@ impl connection_parser::ConnectionParser {
         // Return if the connection is in stop state.
         if self.in_status == connection_parser::HtpStreamState::STOP {
             htp_info!(
-                self as *mut connection_parser::ConnectionParser,
+                self,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Inbound parser is in STOP state"
             );
@@ -756,7 +747,7 @@ impl connection_parser::ConnectionParser {
         // Return if the connection had a fatal error earlier
         if self.in_status == connection_parser::HtpStreamState::ERROR {
             htp_error!(
-                self as *mut connection_parser::ConnectionParser,
+                self,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Inbound parser is in ERROR state"
             );
@@ -766,7 +757,7 @@ impl connection_parser::ConnectionParser {
         if self.in_tx().is_none() && self.in_state != State::IDLE {
             self.in_status = connection_parser::HtpStreamState::ERROR;
             htp_error!(
-                self as *mut connection_parser::ConnectionParser,
+                self,
                 HtpLogCode::MISSING_INBOUND_TRANSACTION_DATA,
                 "Missing inbound transaction data"
             );
@@ -778,7 +769,7 @@ impl connection_parser::ConnectionParser {
         // to finalize parsing.
         if len == 0 && self.in_status != connection_parser::HtpStreamState::CLOSED {
             htp_error!(
-                self as *mut connection_parser::ConnectionParser,
+                self,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
                 "Zero-length data chunks are not allowed"
             );
@@ -823,7 +814,7 @@ impl connection_parser::ConnectionParser {
                     _ => {
                         // go to htp_connp_REQ_CONNECT_PROBE_DATA ?
                         htp_error!(
-                            self as *mut connection_parser::ConnectionParser,
+                            self,
                             HtpLogCode::INVALID_GAP,
                             "Gaps are not allowed during this state"
                         );

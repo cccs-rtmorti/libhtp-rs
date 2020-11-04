@@ -617,7 +617,7 @@ impl Transaction {
             }
             // Get the body length.
             if let Some(content_length) =
-                util::parse_content_length((*(*cl).value).as_slice(), Some(&mut *self.connp))
+                util::parse_content_length((*(*cl).value).as_slice(), Some(&*self.connp))
             {
                 // We have a request body of known length.
                 self.request_content_length = content_length;
@@ -763,7 +763,7 @@ impl Transaction {
                 .req_run_hook_body_data(&mut data)
                 .map_err(|e| {
                     htp_error!(
-                        self.connp,
+                        &*self.connp,
                         HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
                         format!("Request body data callback returned error ({:?})", e)
                     );
@@ -778,10 +778,9 @@ impl Transaction {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_response_line(&mut self) -> Result<()> {
         // Is the response line valid?
-        let connp = self.connp;
         if self.response_protocol_number == HtpProtocol::INVALID {
             htp_warn!(
-                connp,
+                &*self.connp,
                 HtpLogCode::RESPONSE_LINE_INVALID_PROTOCOL,
                 "Invalid response line: invalid protocol"
             );
@@ -792,7 +791,7 @@ impl Transaction {
             || self.response_status_number > 999
         {
             htp_warn!(
-                connp,
+                &*self.connp,
                 HtpLogCode::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
                 format!(
                     "Invalid response line: invalid response status {}.",
@@ -854,7 +853,7 @@ impl Transaction {
         // Keep track of body size before decompression.
         self.response_message_len =
             (self.response_message_len as u64).wrapping_add(d.len() as u64) as i64;
-        let connp = self.connp;
+        let connp = &mut *self.connp;
         match self.response_content_encoding_processing {
             decompressors::HtpContentEncoding::GZIP
             | decompressors::HtpContentEncoding::DEFLATE
@@ -908,7 +907,7 @@ impl Transaction {
                 // is identical to response_message_len.
                 self.response_entity_len =
                     (self.response_entity_len as u64).wrapping_add(d.len() as u64) as i64;
-                (*self.connp).res_run_hook_body_data(&mut d)?;
+                connp.res_run_hook_body_data(&mut d)?;
             }
             _ => {
                 // Internal error.
@@ -1022,7 +1021,7 @@ impl Transaction {
             (*self.connp).in_state = State::CONNECT_CHECK;
         } else {
             htp_warn!(
-                self.connp,
+                &*self.connp,
                 HtpLogCode::RESPONSE_BODY_INTERNAL_ERROR,
                 format!(
                     "[Internal Error] Invalid tx progress: {:?}",
@@ -1210,7 +1209,7 @@ impl Transaction {
             // normal case
             if !ce_multi_comp {
                 self.out_decompressor = decompressors::htp_gzip_decompressor_create(
-                    self.connp,
+                    &*self.connp,
                     self.response_content_encoding_processing,
                 );
                 if self.out_decompressor.is_null() {
@@ -1230,18 +1229,17 @@ impl Transaction {
                 let mut nblzma: i32 = 0;
 
                 let tokens = ce.value.split_str_collect(", ");
-                let connp = self.connp;
                 for tok in tokens {
                     let token = bstr::Bstr::from(tok);
                     let mut cetype: decompressors::HtpContentEncoding =
                         decompressors::HtpContentEncoding::NONE;
                     // check depth limit (0 means no limit)
-                    if (*connp).cfg.response_decompression_layer_limit != 0 && {
+                    if (*self.connp).cfg.response_decompression_layer_limit != 0 && {
                         layers += 1;
-                        (layers) > (*connp).cfg.response_decompression_layer_limit
+                        (layers) > (*self.connp).cfg.response_decompression_layer_limit
                     } {
                         htp_warn!(
-                            connp,
+                            &*self.connp,
                             HtpLogCode::TOO_MANY_ENCODING_LAYERS,
                             "Too many response content encoding layers"
                         );
@@ -1252,7 +1250,7 @@ impl Transaction {
                                 || token.cmp("x-gzip") == Ordering::Equal)
                             {
                                 htp_warn!(
-                                    connp,
+                                    &*self.connp,
                                     HtpLogCode::ABNORMAL_CE_HEADER,
                                     "C-E gzip has abnormal value"
                                 );
@@ -1263,7 +1261,7 @@ impl Transaction {
                                 || token.cmp("x-deflate") == Ordering::Equal)
                             {
                                 htp_warn!(
-                                    connp,
+                                    &*self.connp,
                                     HtpLogCode::ABNORMAL_CE_HEADER,
                                     "C-E deflate has abnormal value"
                                 );
@@ -1272,9 +1270,9 @@ impl Transaction {
                         } else if token.index_of_nocase("lzma").is_some() {
                             cetype = decompressors::HtpContentEncoding::LZMA;
                             nblzma = nblzma.wrapping_add(1);
-                            if nblzma > (*connp).cfg.response_lzma_layer_limit {
+                            if nblzma > (*self.connp).cfg.response_lzma_layer_limit {
                                 htp_error!(
-                                    connp,
+                                    &*self.connp,
                                     HtpLogCode::COMPRESSION_BOMB_DOUBLE_LZMA,
                                     "Compression bomb: double lzma encoding"
                                 );
@@ -1284,13 +1282,17 @@ impl Transaction {
                             cetype = decompressors::HtpContentEncoding::NONE
                         } else {
                             // continue
-                            htp_warn!(connp, HtpLogCode::ABNORMAL_CE_HEADER, "C-E unknown setting");
+                            htp_warn!(
+                                &*self.connp,
+                                HtpLogCode::ABNORMAL_CE_HEADER,
+                                "C-E unknown setting"
+                            );
                         }
                         if cetype != decompressors::HtpContentEncoding::NONE {
                             if comp.is_null() {
                                 self.response_content_encoding_processing = cetype;
                                 self.out_decompressor = decompressors::htp_gzip_decompressor_create(
-                                    self.connp,
+                                    &*self.connp,
                                     self.response_content_encoding_processing,
                                 );
                                 if self.out_decompressor.is_null() {
@@ -1302,8 +1304,10 @@ impl Transaction {
                                 );
                                 comp = self.out_decompressor
                             } else {
-                                (*comp).next =
-                                    decompressors::htp_gzip_decompressor_create(self.connp, cetype);
+                                (*comp).next = decompressors::htp_gzip_decompressor_create(
+                                    &*self.connp,
+                                    cetype,
+                                );
                                 if (*comp).next.is_null() {
                                     return Err(HtpStatus::ERROR);
                                 }
@@ -1353,7 +1357,7 @@ impl Transaction {
             && (*self.connp).in_state == State::LINE
         {
             htp_warn!(
-                self.connp,
+                &*self.connp,
                 HtpLogCode::REQUEST_LINE_INCOMPLETE,
                 "Request line incomplete"
             );
@@ -1489,7 +1493,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
             (*tx.out_decompressor).time_before = after;
             if (*tx.out_decompressor).time_spent > (*tx.connp).cfg.compression_time_limit {
                 htp_error!(
-                    tx.connp,
+                    &*tx.connp,
                     HtpLogCode::COMPRESSION_BOMB,
                     format!(
                         "Compression bomb: spent {} us decompressing",
@@ -1504,7 +1508,7 @@ unsafe extern "C" fn htp_tx_res_process_body_data_decompressor_callback(d: *mut 
         && tx.response_entity_len > 2048 * tx.response_message_len
     {
         htp_error!(
-            tx.connp,
+            &*tx.connp,
             HtpLogCode::COMPRESSION_BOMB,
             format!(
                 "Compression bomb: decompressed {} bytes out of {}",

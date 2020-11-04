@@ -35,20 +35,18 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
 /// Returns HtpProtocol version or invalid.
 pub fn parse_protocol<'a>(
     input: &'a [u8],
-    connp: &mut connection_parser::ConnectionParser,
+    connp: &connection_parser::ConnectionParser,
 ) -> HtpProtocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
         if remaining.len() > 0 {
             return HtpProtocol::INVALID;
         }
         if contains_trailing {
-            unsafe {
-                htp_warn!(
-                    connp as *mut connection_parser::ConnectionParser,
+            htp_warn!(
+                    connp,
                     HtpLogCode::PROTOCOL_CONTAINS_EXTRA_DATA,
                     "HtpProtocol version contains leading and/or trailing whitespace and/or leading zeros"
                 )
-            };
         }
         match version {
             b".9" => HtpProtocol::V0_9,

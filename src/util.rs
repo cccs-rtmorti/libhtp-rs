@@ -532,30 +532,26 @@ fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// Returns Content-Length as a number or None if parsing failed.
 pub fn parse_content_length(
     input: &[u8],
-    connp: Option<&mut connection_parser::ConnectionParser>,
+    connp: Option<&connection_parser::ConnectionParser>,
 ) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
         if let Some(connp) = connp {
             if leading_data.len() > 0 {
                 // Contains invalid characters! But still attempt to process
-                unsafe {
-                    htp_warn!(
-                        connp as *mut connection_parser::ConnectionParser,
-                        HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_START,
-                        "C-L value with extra data in the beginning"
-                    );
-                };
+                htp_warn!(
+                    connp,
+                    HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_START,
+                    "C-L value with extra data in the beginning"
+                );
             }
 
             if trailing_data.len() > 0 {
                 // Ok to have junk afterwards
-                unsafe {
-                    htp_warn!(
-                        connp as *mut connection_parser::ConnectionParser,
-                        HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_END,
-                        "C-L value with extra data in the end"
-                    );
-                };
+                htp_warn!(
+                    connp,
+                    HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_END,
+                    "C-L value with extra data in the end"
+                );
             }
         }
         if let Ok(content_length) = std::str::from_utf8(content_length) {

@@ -1480,10 +1480,13 @@ fn Util() {
         assert!(!tx.is_null());
 
         // A message that should not be logged.
-        let log_message_count = (*(*tx).connp).conn.message_size();
+        let log_message_count = (*(*tx).connp).conn.messages.borrow().len();
         (*(*tx).connp).cfg.log_level = HtpLogLevel::NONE;
-        htp_error!((*tx).connp, HtpLogCode::UNKNOWN, "Log message");
-        assert_eq!(log_message_count, (*(*tx).connp).conn.message_size());
+        htp_error!(&*(*tx).connp, HtpLogCode::UNKNOWN, "Log message");
+        assert_eq!(
+            log_message_count,
+            (*(*tx).connp).conn.messages.borrow().len()
+        );
     }
 }
 
@@ -2066,13 +2069,23 @@ fn ResponseMultipleClMismatch() {
         assert_response_header_eq!(tx, "Content-Length", "12");
         assert_response_header_flag_contains!(tx, "Content-Length", Flags::FIELD_REPEATED);
 
-        assert_eq!(2, (*(*tx).connp).conn.message_size());
-        let log = (*(*tx).connp).conn.message(0).unwrap();
-        assert_eq!(log.msg, "Ambiguous response C-L value");
-        assert_eq!(HtpLogLevel::WARNING, log.level);
-        let log = (*(*tx).connp).conn.message(1).unwrap();
-        assert_eq!(log.msg, "Repetition for header");
-        assert_eq!(HtpLogLevel::WARNING, log.level);
+        assert_eq!(2, (*(*tx).connp).conn.messages.borrow().len());
+        assert_eq!(
+            (*(*tx).connp).conn.messages.borrow().get(0).unwrap().msg,
+            "Ambiguous response C-L value"
+        );
+        assert_eq!(
+            HtpLogLevel::WARNING,
+            (*(*tx).connp).conn.messages.borrow().get(1).unwrap().level
+        );
+        assert_eq!(
+            (*(*tx).connp).conn.messages.borrow().get(1).unwrap().msg,
+            "Repetition for header"
+        );
+        assert_eq!(
+            HtpLogLevel::WARNING,
+            (*(*tx).connp).conn.messages.borrow().get(1).unwrap().level
+        );
     }
 }
 
