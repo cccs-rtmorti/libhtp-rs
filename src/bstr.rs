@@ -1,8 +1,10 @@
 use bstr::{BString, ByteSlice, B};
 use core::cmp::Ordering;
-use std::boxed::Box;
-use std::ffi::CStr;
-use std::ops::{Deref, DerefMut};
+use std::{
+    boxed::Box,
+    ffi::CStr,
+    ops::{Deref, DerefMut},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bstr {

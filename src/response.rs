@@ -1,20 +1,24 @@
-use crate::connection_parser::State;
-use crate::error::Result;
-use crate::hook::DataHook;
-use crate::transaction::HtpProtocol;
-use crate::util::Flags;
 use crate::{
-    bstr, connection_parser, decompressors,
+    bstr::Bstr,
+    connection_parser::{ConnectionParser, HtpStreamState, State},
+    decompressors::HtpContentEncoding,
+    error::Result,
+    hook::DataHook,
     parsers::{parse_chunked_length, parse_content_length},
-    request, transaction,
+    request::HtpMethod,
+    transaction::{Data, HtpProtocol, HtpResponseProgress, HtpTransferCoding},
     uri::Uri,
-    util, HtpStatus,
+    util::{
+        chomp, is_folding_char, is_line_folded, is_line_ignorable, is_line_terminator, is_space,
+        treat_response_line_as_body, Flags,
+    },
+    HtpStatus,
 };
 use std::cmp::Ordering;
 
 pub type Time = libc::timeval;
 
-impl connection_parser::ConnectionParser {
+impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     ///
     /// Returns OK, or a value returned from a callback.
@@ -26,7 +30,7 @@ impl connection_parser::ConnectionParser {
                 (self.out_current_read_offset - self.out_current_receiver_offset) as usize,
             );
 
-            let mut data = transaction::Data::new(self.out_tx_mut_ptr(), Some(data), is_last);
+            let mut data = Data::new(self.out_tx_mut_ptr(), Some(data), is_last);
             if let Some(hook) = &self.out_data_receiver_hook {
                 hook.run_all(&mut data)?;
             } else {
@@ -82,8 +86,8 @@ impl connection_parser::ConnectionParser {
                         .clone(),
                 );
                 match self.out_tx_mut_ok()?.response_progress {
-                    transaction::HtpResponseProgress::HEADERS => self.res_receiver_set(header_fn),
-                    transaction::HtpResponseProgress::TRAILER => self.res_receiver_set(trailer_fn),
+                    HtpResponseProgress::HEADERS => self.res_receiver_set(header_fn),
+                    HtpResponseProgress::TRAILER => self.res_receiver_set(trailer_fn),
                     _ => Ok(()),
                 }?;
             }
@@ -324,8 +328,7 @@ impl connection_parser::ConnectionParser {
                         (self.out_current_read_offset as u64).wrapping_sub(len as u64) as i64
                 }
                 self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-                self.out_tx_mut_ok()?.response_transfer_coding =
-                    transaction::HtpTransferCoding::IDENTITY;
+                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
                 htp_error!(
                     self,
                     HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
@@ -344,7 +347,7 @@ impl connection_parser::ConnectionParser {
             } else if self.out_chunked_length == 0 {
                 // End of data
                 self.out_state = State::HEADERS;
-                self.out_tx_mut_ok()?.response_progress = transaction::HtpResponseProgress::TRAILER
+                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::TRAILER
             }
             return Ok(());
         }
@@ -361,7 +364,7 @@ impl connection_parser::ConnectionParser {
         } else {
             bytes_to_consume = (self.out_current_len - self.out_current_read_offset) as usize
         }
-        if self.out_status == connection_parser::HtpStreamState::CLOSED {
+        if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             // Sends close signal to decompressors
             return unsafe { self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0) };
@@ -423,7 +426,7 @@ impl connection_parser::ConnectionParser {
                 (self.out_stream_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
         }
         // Have we seen the entire response body?
-        if self.out_status == connection_parser::HtpStreamState::CLOSED {
+        if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             return Ok(());
         }
@@ -437,7 +440,7 @@ impl connection_parser::ConnectionParser {
         // If the request uses the CONNECT method, then not only are we
         // to assume there's no body, but we need to ignore all
         // subsequent data in the stream.
-        if self.out_tx_mut_ok()?.request_method_number == request::HtpMethod::CONNECT {
+        if self.out_tx_mut_ok()?.request_method_number == HtpMethod::CONNECT {
             if self.out_tx_mut_ok()?.response_status_number >= 200
                 && self.out_tx_mut_ok()?.response_status_number <= 299
             {
@@ -451,14 +454,14 @@ impl connection_parser::ConnectionParser {
                 return unsafe { self.state_response_headers().into() };
             } else if self.out_tx_mut_ok()?.response_status_number == 407 {
                 // proxy telling us to auth
-                if self.in_status != connection_parser::HtpStreamState::ERROR {
-                    self.in_status = connection_parser::HtpStreamState::DATA
+                if self.in_status != HtpStreamState::ERROR {
+                    self.in_status = HtpStreamState::DATA
                 }
             } else {
                 // This is a failed CONNECT stream, which means that
                 // we can unblock request parsing
-                if self.in_status != connection_parser::HtpStreamState::ERROR {
-                    self.in_status = connection_parser::HtpStreamState::DATA
+                if self.in_status != HtpStreamState::ERROR {
+                    self.in_status = HtpStreamState::DATA
                 }
                 // We are going to continue processing this transaction,
                 // adding a note for ourselves to stop at the end (because
@@ -485,10 +488,10 @@ impl connection_parser::ConnectionParser {
         if self.out_tx_mut_ok()?.response_status_number == 101 {
             if te_opt.is_none() && cl_opt.is_none() {
                 self.out_state = State::FINALIZE;
-                if self.in_status != connection_parser::HtpStreamState::ERROR {
-                    self.in_status = connection_parser::HtpStreamState::TUNNEL
+                if self.in_status != HtpStreamState::ERROR {
+                    self.in_status = HtpStreamState::TUNNEL
                 }
-                self.out_status = connection_parser::HtpStreamState::TUNNEL;
+                self.out_status = HtpStreamState::TUNNEL;
                 // we may have response headers
                 return unsafe { self.state_response_headers().into() };
             } else {
@@ -516,7 +519,7 @@ impl connection_parser::ConnectionParser {
             self.out_tx_mut_ok()?.response_headers.elements.clear();
             // Expecting to see another response line next.
             self.out_state = State::LINE;
-            self.out_tx_mut_ok()?.response_progress = transaction::HtpResponseProgress::LINE;
+            self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::LINE;
             self.out_tx_mut_ok()?.seen_100continue;
             return Ok(());
         }
@@ -541,10 +544,9 @@ impl connection_parser::ConnectionParser {
         //  request) is always terminated by the first empty line after the
         //  header fields, regardless of the entity-header fields present in the
         //  message.
-        if self.out_tx_mut_ok()?.request_method_number == request::HtpMethod::HEAD {
+        if self.out_tx_mut_ok()?.request_method_number == HtpMethod::HEAD {
             // There's no response body whatsoever
-            self.out_tx_mut_ok()?.response_transfer_coding =
-                transaction::HtpTransferCoding::NO_BODY;
+            self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::NO_BODY;
             self.out_state = State::FINALIZE
         } else if self.out_tx_mut_ok()?.response_status_number >= 100
             && self.out_tx_mut_ok()?.response_status_number <= 199
@@ -554,8 +556,7 @@ impl connection_parser::ConnectionParser {
             // There should be no response body
             // but browsers interpret content sent by the server as such
             if te_opt.is_none() && cl_opt.is_none() {
-                self.out_tx_mut_ok()?.response_transfer_coding =
-                    transaction::HtpTransferCoding::NO_BODY;
+                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::NO_BODY;
                 self.out_state = State::FINALIZE
             } else {
                 htp_warn!(
@@ -574,7 +575,7 @@ impl connection_parser::ConnectionParser {
                 .get_nocase_nozero("content-type")
                 .map(|(_, val)| val.clone());
             if let Some(ct) = &ct_opt {
-                let mut response_content_type = bstr::Bstr::from(ct.value.as_slice());
+                let mut response_content_type = Bstr::from(ct.value.as_slice());
                 response_content_type.make_ascii_lowercase();
                 // Ignore parameters
                 let data: *mut u8 = response_content_type.as_mut_ptr();
@@ -583,7 +584,7 @@ impl connection_parser::ConnectionParser {
                 while newlen < len {
                     // TODO Some platforms may do things differently here.
                     unsafe {
-                        if util::is_space(*data.offset(newlen as isize))
+                        if is_space(*data.offset(newlen as isize))
                             || *data.offset(newlen as isize) as i32 == ';' as i32
                         {
                             response_content_type.set_len(newlen);
@@ -619,35 +620,32 @@ impl connection_parser::ConnectionParser {
                     );
                 }
                 // If the T-E header is present we are going to use it.
-                self.out_tx_mut_ok()?.response_transfer_coding =
-                    transaction::HtpTransferCoding::CHUNKED;
+                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::CHUNKED;
                 // We are still going to check for the presence of C-L
                 if cl_opt.is_some() {
                     // This is a violation of the RFC
                     self.out_tx_mut_ok()?.flags |= Flags::REQUEST_SMUGGLING
                 }
                 self.out_state = State::BODY_CHUNKED_LENGTH;
-                self.out_tx_mut_ok()?.response_progress = transaction::HtpResponseProgress::BODY
+                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY
             } else if let Some(cl) = cl_opt {
                 //   value in bytes represents the length of the message-body.
                 // We know the exact length
-                self.out_tx_mut_ok()?.response_transfer_coding =
-                    transaction::HtpTransferCoding::IDENTITY;
+                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
                 // Check for multiple C-L headers
                 if cl.flags.contains(Flags::FIELD_REPEATED) {
                     self.out_tx_mut_ok()?.flags |= Flags::REQUEST_SMUGGLING
                 }
                 // Get body length
                 if let Some(content_length) =
-                    parse_content_length((*cl.value).as_slice(), Some(&mut *self))
+                    parse_content_length((*cl.value).as_slice(), Some(self))
                 {
                     self.out_tx_mut_ok()?.response_content_length = content_length;
                     self.out_content_length = self.out_tx_mut_ok()?.response_content_length;
                     self.out_body_data_left = self.out_content_length;
                     if self.out_content_length != 0 {
                         self.out_state = State::BODY_IDENTITY_CL_KNOWN;
-                        self.out_tx_mut_ok()?.response_progress =
-                            transaction::HtpResponseProgress::BODY
+                        self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY
                     } else {
                         self.out_state = State::FINALIZE
                     }
@@ -682,9 +680,8 @@ impl connection_parser::ConnectionParser {
                 //   cannot be used to indicate the end of a request body, since that
                 //   would leave no possibility for the server to send back a response.)
                 self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-                self.out_tx_mut_ok()?.response_transfer_coding =
-                    transaction::HtpTransferCoding::IDENTITY;
-                self.out_tx_mut_ok()?.response_progress = transaction::HtpResponseProgress::BODY;
+                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
+                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY;
                 self.out_body_data_left = -1
             }
         }
@@ -700,7 +697,7 @@ impl connection_parser::ConnectionParser {
         let mut endwithcr = false;
         let mut lfcrending = false;
         loop {
-            if self.out_status == connection_parser::HtpStreamState::CLOSED {
+            if self.out_status == HtpStreamState::CLOSED {
                 // Finalize sending raw trailer data.
                 self.res_receiver_finalize_clear()?;
                 // Run hook response_TRAILER.
@@ -869,7 +866,7 @@ impl connection_parser::ConnectionParser {
                 }
                 // Should we terminate headers?
                 if !data.is_null()
-                    && util::is_line_terminator(
+                    && is_line_terminator(
                         self.cfg.server_personality,
                         unsafe { std::slice::from_raw_parts(data, len) },
                         next_no_lf,
@@ -881,9 +878,7 @@ impl connection_parser::ConnectionParser {
                     }
                     self.res_clear_buffer();
                     // We've seen all response headers.
-                    if self.out_tx_mut_ok()?.response_progress
-                        == transaction::HtpResponseProgress::HEADERS
-                    {
+                    if self.out_tx_mut_ok()?.response_progress == HtpResponseProgress::HEADERS {
                         // Response headers.
                         // The next step is to determine if this response has a body.
                         self.out_state = State::BODY_DETERMINE
@@ -901,10 +896,10 @@ impl connection_parser::ConnectionParser {
                     return Ok(());
                 }
                 let s = unsafe { std::slice::from_raw_parts(data as *const u8, len) };
-                let s = util::chomp(&s);
+                let s = chomp(&s);
                 len = s.len();
                 // Check for header folding.
-                if !util::is_line_folded(s) {
+                if !is_line_folded(s) {
                     // New header line.
                     // Parse previous header, if any.
                     if let Some(out_header) = self.out_header.take() {
@@ -920,12 +915,12 @@ impl connection_parser::ConnectionParser {
                                 as i32
                         }
                     }
-                    if !util::is_folding_char(self.out_next_byte as u8) {
+                    if !is_folding_char(self.out_next_byte as u8) {
                         // Because we know this header is not folded, we can process the buffer straight away.
                         self.process_response_header(s)?;
                     } else {
                         // Keep the partial header data for parsing later.
-                        self.out_header = Some(bstr::Bstr::from(s));
+                        self.out_header = Some(Bstr::from(s));
                     }
                 } else if self.out_header.is_none() {
                     // Folding; check that there's a previous header line to add to.
@@ -940,7 +935,7 @@ impl connection_parser::ConnectionParser {
                         );
                     }
                     // Keep the header data for parsing later.
-                    self.out_header = Some(bstr::Bstr::from(s));
+                    self.out_header = Some(Bstr::from(s));
                 } else {
                     let mut colon_pos: usize = 0;
                     while colon_pos < len
@@ -968,7 +963,7 @@ impl connection_parser::ConnectionParser {
                         if let Some(out_header) = self.out_header.take() {
                             self.process_response_header(out_header.as_slice())?;
                         }
-                        self.out_header = Some(bstr::Bstr::from(&s[1..]));
+                        self.out_header = Some(Bstr::from(&s[1..]));
                     } else if let Some(out_header) = &mut self.out_header {
                         // Add to the existing header.
                         out_header.add(s);
@@ -985,7 +980,7 @@ impl connection_parser::ConnectionParser {
     pub fn RES_LINE(&mut self) -> Result<()> {
         loop {
             // Don't try to get more data if the stream is closed. If we do, we'll return, asking for more data.
-            if self.out_status != connection_parser::HtpStreamState::CLOSED {
+            if self.out_status != HtpStreamState::CLOSED {
                 // Get one byte
                 if self.out_current_read_offset < self.out_current_len {
                     self.out_next_byte = unsafe {
@@ -1023,19 +1018,17 @@ impl connection_parser::ConnectionParser {
                     self.out_next_byte = '\n' as i32
                 }
             }
-            if self.out_next_byte == '\n' as i32
-                || self.out_status == connection_parser::HtpStreamState::CLOSED
-            {
+            if self.out_next_byte == '\n' as i32 || self.out_status == HtpStreamState::CLOSED {
                 let mut data: *mut u8 = 0 as *mut u8;
                 let mut len: usize = 0;
                 self.res_consolidate_data(&mut data, &mut len)?;
                 // Is this a line that should be ignored?
                 if !data.is_null()
-                    && util::is_line_ignorable(self.cfg.server_personality, unsafe {
+                    && is_line_ignorable(self.cfg.server_personality, unsafe {
                         std::slice::from_raw_parts(data, len)
                     })
                 {
-                    if self.out_status == connection_parser::HtpStreamState::CLOSED {
+                    if self.out_status == HtpStreamState::CLOSED {
                         self.out_state = State::FINALIZE
                     }
                     // We have an empty/whitespace line, which we'll note, ignore and move on
@@ -1053,15 +1046,15 @@ impl connection_parser::ConnectionParser {
                 self.out_tx_mut_ok()?.response_message = None;
                 // Process response line.
                 let s = unsafe { std::slice::from_raw_parts(data as *const u8, len) };
-                let s = util::chomp(&s);
+                let s = chomp(&s);
                 let chomp_result = len - s.len();
                 len = s.len();
                 // If the response line is invalid, determine if it _looks_ like
                 // a response line. If it does not look like a line, process the
                 // data as a response body because that is what browsers do.
-                if util::treat_response_line_as_body(s) {
+                if treat_response_line_as_body(s) {
                     self.out_tx_mut_ok()?.response_content_encoding_processing =
-                        decompressors::HtpContentEncoding::NONE;
+                        HtpContentEncoding::NONE;
                     self.out_current_consume_offset = self.out_current_read_offset;
                     unsafe {
                         self.res_process_body_data_ex(
@@ -1075,9 +1068,8 @@ impl connection_parser::ConnectionParser {
                     // Have we seen the entire response body?
                     if self.out_current_len <= self.out_current_read_offset {
                         self.out_tx_mut_ok()?.response_transfer_coding =
-                            transaction::HtpTransferCoding::IDENTITY;
-                        self.out_tx_mut_ok()?.response_progress =
-                            transaction::HtpResponseProgress::BODY;
+                            HtpTransferCoding::IDENTITY;
+                        self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY;
                         self.out_body_data_left = -1;
                         self.out_state = State::FINALIZE
                     }
@@ -1088,14 +1080,14 @@ impl connection_parser::ConnectionParser {
                 self.res_clear_buffer();
                 // Move on to the next phase.
                 self.out_state = State::HEADERS;
-                self.out_tx_mut_ok()?.response_progress = transaction::HtpResponseProgress::HEADERS;
+                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::HEADERS;
                 return Ok(());
             }
         }
     }
 
     pub fn RES_FINALIZE(&mut self) -> Result<()> {
-        if self.out_status != connection_parser::HtpStreamState::CLOSED {
+        if self.out_status != HtpStreamState::CLOSED {
             if self.out_current_read_offset >= self.out_current_len {
                 self.out_next_byte = -1
             } else {
@@ -1140,9 +1132,7 @@ impl connection_parser::ConnectionParser {
             //closing
             return unsafe { self.state_response_complete_ex(0).into() };
         }
-        if util::treat_response_line_as_body(unsafe {
-            std::slice::from_raw_parts(data, bytes_left)
-        }) {
+        if treat_response_line_as_body(unsafe { std::slice::from_raw_parts(data, bytes_left) }) {
             // Interpret remaining bytes as body data
             htp_warn!(
                 self,
@@ -1203,7 +1193,7 @@ impl connection_parser::ConnectionParser {
             let out_tx = self.out_tx_mut_ok()?;
 
             let mut uri = Uri::default();
-            uri.path = Some(bstr::Bstr::from("/libhtp::request_uri_not_seen"));
+            uri.path = Some(Bstr::from("/libhtp::request_uri_not_seen"));
             out_tx.request_uri = uri.path.clone();
             out_tx.parsed_uri = Some(uri);
             self.in_state = State::FINALIZE;
@@ -1220,7 +1210,7 @@ impl connection_parser::ConnectionParser {
     }
 
     /// Run the RESPONSE_BODY_DATA hook.
-    pub fn res_run_hook_body_data(&mut self, d: &mut transaction::Data) -> Result<()> {
+    pub fn res_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
         let out_tx = self.out_tx_mut_ok()?;
         // Do not invoke callbacks with an empty data chunk.
         if !d.data().is_null() && d.len() == 0 {
@@ -1242,48 +1232,46 @@ impl connection_parser::ConnectionParser {
         timestamp: Option<Time>,
         data: *const core::ffi::c_void,
         len: usize,
-    ) -> connection_parser::HtpStreamState {
+    ) -> HtpStreamState {
         // Return if the connection is in stop state
-        if self.out_status == connection_parser::HtpStreamState::STOP {
+        if self.out_status == HtpStreamState::STOP {
             htp_info!(
                 self,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Outbound parser is in HTP_STREAM_STATE_STOP"
             );
-            return connection_parser::HtpStreamState::STOP;
+            return HtpStreamState::STOP;
         }
         // Return if the connection has had a fatal error
-        if self.out_status == connection_parser::HtpStreamState::ERROR {
+        if self.out_status == HtpStreamState::ERROR {
             htp_error!(
                 self,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Outbound parser is in HTP_STREAM_STATE_ERROR"
             );
-            return connection_parser::HtpStreamState::ERROR;
+            return HtpStreamState::ERROR;
         }
         // Sanity check: we must have a transaction pointer if the state is not IDLE (no outbound transaction)
         if self.out_tx().is_none() && self.out_state != State::IDLE {
-            self.out_status = connection_parser::HtpStreamState::ERROR;
+            self.out_status = HtpStreamState::ERROR;
             htp_error!(
                 self,
                 HtpLogCode::MISSING_OUTBOUND_TRANSACTION_DATA,
                 "Missing outbound transaction data"
             );
-            return connection_parser::HtpStreamState::ERROR;
+            return HtpStreamState::ERROR;
         }
         // If the length of the supplied data chunk is zero, proceed
         // only if the stream has been closed. We do not allow zero-sized
         // chunks in the API, but we use it internally to force the parsers
         // to finalize parsing.
-        if (data.is_null() || len == 0)
-            && self.out_status != connection_parser::HtpStreamState::CLOSED
-        {
+        if (data.is_null() || len == 0) && self.out_status != HtpStreamState::CLOSED {
             htp_error!(
                 self,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
                 "Zero-length data chunks are not allowed"
             );
-            return connection_parser::HtpStreamState::CLOSED;
+            return HtpStreamState::CLOSED;
         }
         // Remember the timestamp of the current response data chunk
         if let Some(timestamp) = timestamp {
@@ -1298,8 +1286,8 @@ impl connection_parser::ConnectionParser {
         self.conn.track_outbound_data(len);
         // Return without processing any data if the stream is in tunneling
         // mode (which it would be after an initial CONNECT transaction.
-        if self.out_status == connection_parser::HtpStreamState::TUNNEL {
-            return connection_parser::HtpStreamState::TUNNEL;
+        if self.out_status == HtpStreamState::TUNNEL {
+            return HtpStreamState::TUNNEL;
         }
         loop
         // Invoke a processor, in a loop, until an error
@@ -1327,7 +1315,7 @@ impl connection_parser::ConnectionParser {
                             HtpLogCode::INVALID_GAP,
                             "Gaps are not allowed during this state"
                         );
-                        return connection_parser::HtpStreamState::CLOSED;
+                        return HtpStreamState::CLOSED;
                     }
                 }
             } else {
@@ -1335,8 +1323,8 @@ impl connection_parser::ConnectionParser {
             }
 
             if rc.is_ok() {
-                if self.out_status == connection_parser::HtpStreamState::TUNNEL {
-                    return connection_parser::HtpStreamState::TUNNEL;
+                if self.out_status == HtpStreamState::TUNNEL {
+                    return HtpStreamState::TUNNEL;
                 }
                 rc = self.res_handle_state_change();
             }
@@ -1348,35 +1336,35 @@ impl connection_parser::ConnectionParser {
                     // Ignore result.
                     let _ = self.res_receiver_send_data(false);
                     if rc == Err(HtpStatus::DATA_BUFFER) && self.res_buffer().is_err() {
-                        self.out_status = connection_parser::HtpStreamState::ERROR;
-                        return connection_parser::HtpStreamState::ERROR;
+                        self.out_status = HtpStreamState::ERROR;
+                        return HtpStreamState::ERROR;
                     }
-                    self.out_status = connection_parser::HtpStreamState::DATA;
-                    return connection_parser::HtpStreamState::DATA;
+                    self.out_status = HtpStreamState::DATA;
+                    return HtpStreamState::DATA;
                 }
                 // Check for stop
                 Err(HtpStatus::STOP) => {
-                    self.out_status = connection_parser::HtpStreamState::STOP;
-                    return connection_parser::HtpStreamState::STOP;
+                    self.out_status = HtpStreamState::STOP;
+                    return HtpStreamState::STOP;
                 }
                 // Check for suspended parsing
                 Err(HtpStatus::DATA_OTHER) => {
                     // We might have actually consumed the entire data chunk?
                     if self.out_current_read_offset >= self.out_current_len {
-                        self.out_status = connection_parser::HtpStreamState::DATA;
+                        self.out_status = HtpStreamState::DATA;
                         // Do not send STREAM_DATE_DATA_OTHER if we've
                         // consumed the entire chunk
-                        return connection_parser::HtpStreamState::DATA;
+                        return HtpStreamState::DATA;
                     } else {
-                        self.out_status = connection_parser::HtpStreamState::DATA_OTHER;
+                        self.out_status = HtpStreamState::DATA_OTHER;
                         // Partial chunk consumption
-                        return connection_parser::HtpStreamState::DATA_OTHER;
+                        return HtpStreamState::DATA_OTHER;
                     }
                 }
                 // Permanent stream error.
                 Err(_) => {
-                    self.out_status = connection_parser::HtpStreamState::ERROR;
-                    return connection_parser::HtpStreamState::ERROR;
+                    self.out_status = HtpStreamState::ERROR;
+                    return HtpStreamState::ERROR;
                 }
             }
         }

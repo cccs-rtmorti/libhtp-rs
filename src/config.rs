@@ -1,11 +1,18 @@
-use crate::error::Result;
-use crate::hook::{
-    DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
-    TxNativeCallbackFn,
+use crate::{
+    content_handlers::{
+        callback_multipart_request_headers, callback_urlencoded_request_headers,
+        callback_urlencoded_request_line,
+    },
+    error::Result,
+    hook::{
+        DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
+        TxNativeCallbackFn,
+    },
+    log::HtpLogLevel,
+    transaction::Param,
+    unicode_bestfit_map::UnicodeBestfitMap,
+    HtpStatus,
 };
-use crate::log::HtpLogLevel;
-use crate::unicode_bestfit_map::UnicodeBestfitMap;
-use crate::{content_handlers, transaction, HtpStatus};
 
 #[derive(Clone)]
 pub struct Config {
@@ -22,7 +29,7 @@ pub struct Config {
     /// Server personality identifier.
     pub server_personality: HtpServerPersonality,
     /// The function to use to transform parameters after parsing.
-    pub parameter_processor: Option<fn(_: &mut transaction::Param) -> Result<()>>,
+    pub parameter_processor: Option<fn(_: &mut Param) -> Result<()>>,
     /// Decoder configuration for url path.
     pub decoder_cfg: DecoderConfig,
     /// Whether to decompress compressed response bodies.
@@ -330,7 +337,7 @@ impl Config {
     /// stored in request bodies, when they are in multipart/form-data format.
     pub fn register_multipart_parser(&mut self) {
         self.hook_request_headers
-            .register(content_handlers::callback_multipart_request_headers)
+            .register(callback_multipart_request_headers)
     }
 
     /// Registers a REQUEST_COMPLETE callback.
@@ -426,9 +433,9 @@ impl Config {
     #[allow(dead_code)]
     pub fn register_urlencoded_parser(&mut self) {
         self.hook_request_line
-            .register(content_handlers::callback_urlencoded_request_line);
+            .register(callback_urlencoded_request_line);
         self.hook_request_headers
-            .register(content_handlers::callback_urlencoded_request_headers)
+            .register(callback_urlencoded_request_headers)
     }
 
     /// Configures the maximum size of the buffer LibHTP will use when all data is not available

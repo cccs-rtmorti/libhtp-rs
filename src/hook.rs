@@ -1,8 +1,10 @@
-use crate::error::Result;
-use crate::log::Log;
-use crate::transaction::{Data, Transaction};
-use crate::util::FileData;
-use crate::HtpStatus;
+use crate::{
+    error::Result,
+    log::Log,
+    transaction::{Data, Transaction},
+    util::FileData,
+    HtpStatus,
+};
 
 /// External (C) callback function prototype
 pub type TxExternalCallbackFn = unsafe extern "C" fn(tx: *mut Transaction) -> HtpStatus;

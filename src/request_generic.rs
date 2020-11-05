@@ -1,17 +1,20 @@
-use crate::error::Result;
-use crate::transaction::HtpProtocol;
-use crate::util::Flags;
-use crate::util::*;
 use crate::{
-    bstr, config, connection_parser, parsers, parsers::parse_content_length, request, transaction,
-    util,
+    bstr::Bstr,
+    config::HtpUnwanted,
+    connection_parser::ConnectionParser,
+    error::Result,
+    parsers::{parse_content_length, parse_protocol},
+    request::HtpMethod,
+    transaction::{Header, HtpProtocol},
+    util::{
+        chomp, convert_to_method, is_space, is_word_token, split_by_colon, take_ascii_whitespace,
+        take_is_space, take_is_space_trailing, take_not_is_space, take_until_null, Flags,
+    },
 };
-use nom::bytes::complete::take_while;
-use nom::error::ErrorKind;
-use nom::sequence::tuple;
+use nom::{bytes::complete::take_while, error::ErrorKind, sequence::tuple};
 use std::cmp::Ordering;
 
-impl connection_parser::ConnectionParser {
+impl ConnectionParser {
     /// Extract one request header. A header can span multiple lines, in
     /// which case they will be folded into one before parsing is attempted.
     ///
@@ -81,14 +84,11 @@ impl connection_parser::ConnectionParser {
     }
 
     /// Generic request header parser.
-    pub unsafe fn parse_request_header_generic(
-        &mut self,
-        data: &[u8],
-    ) -> Result<transaction::Header> {
+    pub unsafe fn parse_request_header_generic(&mut self, data: &[u8]) -> Result<Header> {
         let mut flags = Flags::empty();
-        let data = util::chomp(&data);
+        let data = chomp(&data);
 
-        let (name, value): (&[u8], &[u8]) = match util::split_by_colon(data) {
+        let (name, value): (&[u8], &[u8]) = match split_by_colon(data) {
             Ok((mut name, mut value)) => {
                 // Empty header name.
                 if name.is_empty() {
@@ -120,7 +120,7 @@ impl connection_parser::ConnectionParser {
                     name = name_remaining;
                 }
                 // Remove value characters after null
-                if let Ok((_, val_before_null)) = util::take_until_null(value) {
+                if let Ok((_, val_before_null)) = take_until_null(value) {
                     value = val_before_null;
                 }
                 // Remove value trailing whitespace
@@ -129,7 +129,7 @@ impl connection_parser::ConnectionParser {
                 }
 
                 // Check that field-name is a token
-                if !util::is_word_token(name) {
+                if !is_word_token(name) {
                     // Incorrectly formed header name.
                     flags |= Flags::FIELD_INVALID;
                     // Log only once per transaction.
@@ -168,11 +168,7 @@ impl connection_parser::ConnectionParser {
             }
         };
 
-        Ok(transaction::Header::new_with_flags(
-            name.into(),
-            value.into(),
-            flags,
-        ))
+        Ok(Header::new_with_flags(name.into(), value.into(), flags))
     }
 
     pub unsafe fn parse_request_line_generic_ex(
@@ -183,7 +179,7 @@ impl connection_parser::ConnectionParser {
         let mut mstart: bool = false;
         let mut data: &[u8] = request_line;
         if nul_terminates {
-            if let Ok((_, before_null)) = util::take_until_null(data) {
+            if let Ok((_, before_null)) = take_until_null(data) {
                 data = before_null
             }
         }
@@ -198,7 +194,7 @@ impl connection_parser::ConnectionParser {
                                  // for only one SP, but then suggests any number of SP and HT
                                  // should be permitted. Apache uses isspace(), which is even
                                  // more permitting, so that's what we use here.
-                               util::take_ascii_whitespace()
+                               take_ascii_whitespace()
                                ));
 
         if let Ok((remaining, (ls, method, ws))) = method_parser(data) {
@@ -209,7 +205,7 @@ impl connection_parser::ConnectionParser {
                     "Request line: leading whitespace"
                 );
 
-                if self.cfg.requestline_leading_whitespace_unwanted != config::HtpUnwanted::IGNORE {
+                if self.cfg.requestline_leading_whitespace_unwanted != HtpUnwanted::IGNORE {
                     // reset mstart so that we copy the whitespace into the method
                     mstart = true;
                     // set expected response code to this anomaly
@@ -220,14 +216,14 @@ impl connection_parser::ConnectionParser {
 
             if mstart {
                 self.in_tx_mut_ok()?.request_method =
-                    Some(bstr::Bstr::from([&ls[..], &method[..]].concat()));
+                    Some(Bstr::from([&ls[..], &method[..]].concat()));
             } else {
-                self.in_tx_mut_ok()?.request_method = Some(bstr::Bstr::from(method));
+                self.in_tx_mut_ok()?.request_method = Some(Bstr::from(method));
             }
 
             if let Some(request_method) = &self.in_tx_mut_ok()?.request_method {
                 self.in_tx_mut_ok()?.request_method_number =
-                    util::convert_to_method(request_method.as_slice());
+                    convert_to_method(request_method.as_slice());
             }
 
             // Too much performance overhead for fuzzing
@@ -243,7 +239,7 @@ impl connection_parser::ConnectionParser {
                 // No, this looks like a HTTP/0.9 request.
                 self.in_tx_mut_ok()?.is_protocol_0_9 = true;
                 self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
-                if self.in_tx_mut_ok()?.request_method_number == request::HtpMethod::UNKNOWN {
+                if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN {
                     htp_warn!(
                         self,
                         HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD,
@@ -276,13 +272,13 @@ impl connection_parser::ConnectionParser {
                         protocol = protocol2;
                     }
                 }
-                self.in_tx_mut_ok()?.request_uri = Some(bstr::Bstr::from(uri));
+                self.in_tx_mut_ok()?.request_uri = Some(Bstr::from(uri));
                 // Is there protocol information available?
                 if protocol.is_empty() {
                     // No, this looks like a HTTP/0.9 request.
                     self.in_tx_mut_ok()?.is_protocol_0_9 = true;
                     self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
-                    if self.in_tx_mut_ok()?.request_method_number == request::HtpMethod::UNKNOWN {
+                    if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN {
                         htp_warn!(
                             self,
                             HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
@@ -292,10 +288,9 @@ impl connection_parser::ConnectionParser {
                     return Ok(());
                 }
                 // The protocol information continues until the end of the line.
-                self.in_tx_mut_ok()?.request_protocol = Some(bstr::Bstr::from(protocol));
-                self.in_tx_mut_ok()?.request_protocol_number =
-                    parsers::parse_protocol(protocol, self);
-                if self.in_tx_mut_ok()?.request_method_number == request::HtpMethod::UNKNOWN
+                self.in_tx_mut_ok()?.request_protocol = Some(Bstr::from(protocol));
+                self.in_tx_mut_ok()?.request_protocol_number = parse_protocol(protocol, self);
+                if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN
                     && self.in_tx_mut_ok()?.request_protocol_number == HtpProtocol::INVALID
                 {
                     htp_warn!(

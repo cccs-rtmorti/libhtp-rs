@@ -57,6 +57,7 @@ style = "both"
 "Table" = "htp_table_t"
 "Log" = "htp_log_t"
 "Time" = "htp_time_t"
+"Logs" = "htp_logs_t"
 
 [export]
 include = ["HtpStatus", 

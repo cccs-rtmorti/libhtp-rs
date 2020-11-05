@@ -1,14 +1,17 @@
 #![allow(non_snake_case)]
-use htp::bstr::*;
-use htp::c_api::htp_connp_create;
-use htp::config;
-use htp::config::HtpServerPersonality::*;
-use htp::connection_parser::*;
-use htp::multipart::*;
-use htp::transaction::*;
-use htp::HtpStatus;
-use std::fs;
-use std::net::{IpAddr, Ipv4Addr};
+use htp::{
+    bstr::Bstr,
+    c_api::htp_connp_create,
+    config::{Config, HtpServerPersonality},
+    connection_parser::ConnectionParser,
+    multipart::*,
+    transaction::{Header, Transaction},
+    HtpStatus,
+};
+use std::{
+    fs,
+    net::{IpAddr, Ipv4Addr},
+};
 
 // import common testing utilities
 mod common;
@@ -23,8 +26,9 @@ struct Test {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let mut cfg = config::Config::default();
-            cfg.set_server_personality(APACHE_2).unwrap();
+            let mut cfg = Config::default();
+            cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+                .unwrap();
             cfg.register_multipart_parser();
             let connp = htp_connp_create(&mut cfg);
             assert!(!connp.is_null());

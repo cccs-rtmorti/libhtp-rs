@@ -8,8 +8,7 @@
 //! ensure that Indexes are always valid even after other operations are executed on the list.
 
 use crate::HtpStatus;
-use core::ops::Index;
-use core::slice::SliceIndex;
+use core::{ops::Index, slice::SliceIndex};
 
 /// The List structure
 #[derive(Clone, Debug)]

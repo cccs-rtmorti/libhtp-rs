@@ -1,12 +1,22 @@
-use crate::connection_parser::State;
-use crate::error::Result;
-use crate::hook::{DataHook, DataNativeCallbackFn};
-use crate::list::List;
-use crate::parsers::{parse_content_type, parse_hostport};
-use crate::util::Flags;
 use crate::{
-    bstr, config, connection_parser, decompressors, multipart, parsers,
-    parsers::parse_content_length, request, table, uri::Uri, urlencoded, util, HtpStatus,
+    bstr::Bstr,
+    config::{Config, HtpUnwanted},
+    connection_parser::{ConnectionParser, HtpStreamState, State},
+    decompressors::{htp_decompressor_t, htp_gzip_decompressor_create, HtpContentEncoding},
+    error::Result,
+    hook::{DataHook, DataNativeCallbackFn},
+    list::List,
+    multipart::Parser as MultipartParser,
+    parsers::{
+        parse_authorization, parse_content_length, parse_content_type, parse_cookies_v0,
+        parse_hostport,
+    },
+    request::HtpMethod,
+    table::Table,
+    uri::Uri,
+    urlencoded::Parser as UrlEncodedParser,
+    util::{validate_hostname, File, Flags, HtpFileSource},
+    HtpStatus,
 };
 use std::cmp::Ordering;
 
@@ -40,9 +50,9 @@ pub enum HtpParserId {
 #[derive(Clone, Debug)]
 pub struct Param {
     /// Parameter name.
-    pub name: bstr::Bstr,
+    pub name: Bstr,
     /// Parameter value.
-    pub value: bstr::Bstr,
+    pub value: Bstr,
     /// Source of the parameter, for example QUERY_STRING.
     pub source: HtpDataSource,
     /// Type of the data structure referenced below.
@@ -54,12 +64,7 @@ pub struct Param {
 
 impl Param {
     /// Make a new owned Param
-    pub fn new(
-        name: bstr::Bstr,
-        value: bstr::Bstr,
-        source: HtpDataSource,
-        parser_id: HtpParserId,
-    ) -> Self {
+    pub fn new(name: Bstr, value: Bstr, source: HtpDataSource, parser_id: HtpParserId) -> Self {
         Param {
             name,
             value,
@@ -139,21 +144,21 @@ pub enum HtpTransferCoding {
 #[derive(Clone)]
 pub struct Header {
     /// Header name.
-    pub name: bstr::Bstr,
+    pub name: Bstr,
     /// Header value.
-    pub value: bstr::Bstr,
+    pub value: Bstr,
     /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
     pub flags: Flags,
 }
 
-pub type Headers = table::Table<Header>;
+pub type Headers = Table<Header>;
 
 impl Header {
-    pub fn new(name: bstr::Bstr, value: bstr::Bstr) -> Self {
+    pub fn new(name: Bstr, value: Bstr) -> Self {
         Self::new_with_flags(name, value, Flags::empty())
     }
 
-    pub fn new_with_flags(name: bstr::Bstr, value: bstr::Bstr, flags: Flags) -> Self {
+    pub fn new_with_flags(name: Bstr, value: Bstr, flags: Flags) -> Self {
         Self { name, value, flags }
     }
 }
@@ -225,9 +230,9 @@ pub enum HtpProtocol {
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct Transaction {
     /// The connection parser associated with this transaction.
-    pub connp: *mut connection_parser::ConnectionParser,
+    pub connp: *mut ConnectionParser,
     /// The configuration structure associated with this transaction.
-    pub cfg: *mut config::Config,
+    pub cfg: *mut Config,
     /// Is the configuration structure shared with other transactions or connections? If
     /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
     pub is_config_shared: bool,
@@ -238,19 +243,19 @@ pub struct Transaction {
     /// Contains a count of how many empty lines were skipped before the request line.
     pub request_ignored_lines: u32,
     /// The first line of this request.
-    pub request_line: Option<bstr::Bstr>,
+    pub request_line: Option<Bstr>,
     /// Request method.
-    pub request_method: Option<bstr::Bstr>,
+    pub request_method: Option<Bstr>,
     /// Request method, as number. Available only if we were able to recognize the request method.
-    pub request_method_number: request::HtpMethod,
+    pub request_method_number: HtpMethod,
     /// Request URI, raw, as given to us on the request line. This field can take different forms,
     /// for example authority for CONNECT methods, absolute URIs for proxy requests, and the query
     /// string when one is provided. Use Transaction::parsed_uri if you need to access to specific
     /// URI elements. Can be NULL if the request line contains only a request method (which is
     /// an extreme case of HTTP/0.9, but passes in practice.
-    pub request_uri: Option<bstr::Bstr>,
+    pub request_uri: Option<Bstr>,
     /// Request protocol, as text. Can be NULL if no protocol was specified.
-    pub request_protocol: Option<bstr::Bstr>,
+    pub request_protocol: Option<Bstr>,
     /// Protocol version as a number. Multiply the high version number by 100, then add the low
     /// version number. You should prefer to work the pre-defined HtpProtocol constants.
     pub request_protocol_number: HtpProtocol,
@@ -271,9 +276,9 @@ pub struct Transaction {
     /// The port_number field is always -1.
     pub parsed_uri_raw: Option<Uri>,
     ///  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
-    pub complete_normalized_uri: Option<bstr::Bstr>,
+    pub complete_normalized_uri: Option<Bstr>,
     ///  This structure holds the normalized uri, including path, query, and fragment
-    pub partial_normalized_uri: Option<bstr::Bstr>,
+    pub partial_normalized_uri: Option<Bstr>,
     /// HTTP 1.1 RFC
     ///
     /// 4.3 Message Body
@@ -310,11 +315,11 @@ pub struct Transaction {
     /// and UNRECOGNIZED.
     pub request_transfer_coding: HtpTransferCoding,
     /// Request body compression.
-    pub request_content_encoding: decompressors::HtpContentEncoding,
+    pub request_content_encoding: HtpContentEncoding,
     /// This field contain the request content type when that information is
     /// available in request headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
-    pub request_content_type: Option<bstr::Bstr>,
+    pub request_content_type: Option<Bstr>,
     /// Contains the value specified in the Content-Length header. The value of this
     /// field will be -1 from the beginning of the transaction and until request
     /// headers are processed. It will stay -1 if the C-L header was not provided,
@@ -328,25 +333,25 @@ pub struct Transaction {
     pub hook_response_body_data: DataHook,
     /// Request body URLENCODED parser. Available only when the request body is in the
     /// application/x-www-form-urlencoded format and the parser was configured to run.
-    pub request_urlenp_body: Option<urlencoded::Parser>,
+    pub request_urlenp_body: Option<UrlEncodedParser>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
-    pub request_mpartp: Option<multipart::Parser>,
+    pub request_mpartp: Option<MultipartParser>,
     /// Request parameters.
-    pub request_params: table::Table<Param>,
+    pub request_params: Table<Param>,
     /// Request cookies
-    pub request_cookies: table::Table<bstr::Bstr>,
+    pub request_cookies: Table<Bstr>,
     /// Authentication type used in the request.
     pub request_auth_type: HtpAuthType,
     /// Authentication username.
-    pub request_auth_username: Option<bstr::Bstr>,
+    pub request_auth_username: Option<Bstr>,
     /// Authentication password. Available only when Transaction::request_auth_type is HTP_AUTH_BASIC.
-    pub request_auth_password: Option<bstr::Bstr>,
+    pub request_auth_password: Option<Bstr>,
     /// Request hostname. Per the RFC, the hostname will be taken from the Host header
     /// when available. If the host information is also available in the URI, it is used
     /// instead of whatever might be in the Host header. Can be NULL. This field does
     /// not contain port information.
-    pub request_hostname: Option<bstr::Bstr>,
+    pub request_hostname: Option<Bstr>,
     /// Request port number, if presented. The rules for Transaction::request_host apply. Set to
     /// None by default.
     pub request_port_number: Option<u16>,
@@ -355,23 +360,23 @@ pub struct Transaction {
     /// How many empty lines did we ignore before reaching the status line?
     pub response_ignored_lines: u32,
     /// Response line.
-    pub response_line: Option<bstr::Bstr>,
+    pub response_line: Option<Bstr>,
     /// Response protocol, as text. Can be NULL.
-    pub response_protocol: Option<bstr::Bstr>,
+    pub response_protocol: Option<Bstr>,
     /// Response protocol as number. Available only if we were able to parse the protocol version,
     /// INVALID otherwise. UNKNOWN until parsing is attempted.
     pub response_protocol_number: HtpProtocol,
     /// Response status code, as text. Starts as NULL and can remain NULL on
     /// an invalid response that does not specify status code.
-    pub response_status: Option<bstr::Bstr>,
+    pub response_status: Option<Bstr>,
     /// Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
     /// otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
     pub response_status_number: i32,
     /// This field is set by the protocol decoder with it thinks that the
     /// backend server will reject a request with a particular status code.
-    pub response_status_expected_number: config::HtpUnwanted,
+    pub response_status_expected_number: HtpUnwanted,
     /// The message associated with the response status code. Can be NULL.
-    pub response_message: Option<bstr::Bstr>,
+    pub response_message: Option<Bstr>,
     /// Have we seen the server respond with a 100 response?
     pub seen_100continue: bool,
     /// Parsed response headers. Contains instances of Header.
@@ -417,19 +422,19 @@ pub struct Transaction {
     /// Response body compression, which indicates if compression is used
     /// for the response body. This field is an interpretation of the information
     /// available in response headers.
-    pub response_content_encoding: decompressors::HtpContentEncoding,
+    pub response_content_encoding: HtpContentEncoding,
     /// Response body compression processing information, which is related to how
     /// the library is going to process (or has processed) a response body. Changing
     /// this field mid-processing can influence library actions. For example, setting
     /// this field to NONE in a RESPONSE_HEADERS callback will prevent
     /// decompression.
-    pub response_content_encoding_processing: decompressors::HtpContentEncoding,
+    pub response_content_encoding_processing: HtpContentEncoding,
     /// This field will contain the response content type when that information
     /// is available in response headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
-    pub response_content_type: Option<bstr::Bstr>,
+    pub response_content_type: Option<Bstr>,
     /// Response decompressor used to decompress response body data.
-    pub out_decompressor: *mut decompressors::htp_decompressor_t,
+    pub out_decompressor: *mut htp_decompressor_t,
 
     // Common fields
     /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
@@ -450,7 +455,7 @@ pub struct Transaction {
 pub type Transactions = List<Transaction>;
 
 impl Transaction {
-    pub fn new(connp: &mut connection_parser::ConnectionParser) -> Result<usize> {
+    pub fn new(connp: &mut ConnectionParser) -> Result<usize> {
         let tx = Self {
             connp,
             cfg: &mut connp.cfg,
@@ -459,7 +464,7 @@ impl Transaction {
             request_ignored_lines: 0,
             request_line: None,
             request_method: None,
-            request_method_number: request::HtpMethod::UNKNOWN,
+            request_method_number: HtpMethod::UNKNOWN,
             request_uri: None,
             request_protocol: None,
             request_protocol_number: HtpProtocol::UNKNOWN,
@@ -470,17 +475,17 @@ impl Transaction {
             partial_normalized_uri: None,
             request_message_len: 0,
             request_entity_len: 0,
-            request_headers: table::Table::with_capacity(32),
+            request_headers: Table::with_capacity(32),
             request_transfer_coding: HtpTransferCoding::UNKNOWN,
-            request_content_encoding: decompressors::HtpContentEncoding::UNKNOWN,
+            request_content_encoding: HtpContentEncoding::UNKNOWN,
             request_content_type: None,
             request_content_length: -1,
             hook_request_body_data: DataHook::new(),
             hook_response_body_data: DataHook::new(),
             request_urlenp_body: None,
             request_mpartp: None,
-            request_params: table::Table::with_capacity(32),
-            request_cookies: table::Table::with_capacity(32),
+            request_params: Table::with_capacity(32),
+            request_cookies: Table::with_capacity(32),
             request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -492,16 +497,16 @@ impl Transaction {
             response_protocol_number: HtpProtocol::UNKNOWN,
             response_status: None,
             response_status_number: 0,
-            response_status_expected_number: config::HtpUnwanted::IGNORE,
+            response_status_expected_number: HtpUnwanted::IGNORE,
             response_message: None,
             seen_100continue: false,
-            response_headers: table::Table::with_capacity(32),
+            response_headers: Table::with_capacity(32),
             response_message_len: 0,
             response_entity_len: 0,
             response_content_length: -1,
             response_transfer_coding: HtpTransferCoding::UNKNOWN,
-            response_content_encoding: decompressors::HtpContentEncoding::UNKNOWN,
-            response_content_encoding_processing: decompressors::HtpContentEncoding::UNKNOWN,
+            response_content_encoding: HtpContentEncoding::UNKNOWN,
+            response_content_encoding_processing: HtpContentEncoding::UNKNOWN,
             response_content_type: None,
             out_decompressor: std::ptr::null_mut(),
             flags: Flags::empty(),
@@ -640,14 +645,14 @@ impl Transaction {
             self.flags |= Flags::REQUEST_INVALID
         }
         // Check for PUT requests, which we need to treat as file uploads.
-        if self.request_method_number == request::HtpMethod::PUT && self.req_has_body() {
+        if self.request_method_number == HtpMethod::PUT && self.req_has_body() {
             // Prepare to treat PUT request body as a file.
-            (*self.connp).put_file = Some(util::File::new(util::HtpFileSource::PUT, None));
+            (*self.connp).put_file = Some(File::new(HtpFileSource::PUT, None));
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
         if let Some(hostname) = self.get_parsed_uri_hostname() {
-            self.request_hostname = Some(bstr::Bstr::from(hostname.as_slice()));
+            self.request_hostname = Some(Bstr::from(hostname.as_slice()));
         }
 
         if let Some(port_number) = self.get_parsed_uri_port_number() {
@@ -665,7 +670,7 @@ impl Transaction {
                 if self.request_hostname.is_none() {
                     // There is no host information in the URI. Place the
                     // hostname from the headers into the parsed_uri structure.
-                    let mut hostname = bstr::Bstr::from(hostname);
+                    let mut hostname = Bstr::from(hostname);
                     hostname.make_ascii_lowercase();
                     self.request_hostname = Some(hostname);
                     if let Some((_, port)) = port_nmb {
@@ -706,12 +711,12 @@ impl Transaction {
         }
         // Parse cookies.
         if (*self.connp).cfg.parse_request_cookies {
-            parsers::parse_cookies_v0((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)?;
+            parse_cookies_v0((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)?;
         }
         // Parse authentication information.
         if (*self.connp).cfg.parse_request_auth {
-            parsers::parse_authorization((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?)
-                .or_else(|rc| {
+            parse_authorization((*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)?).or_else(
+                |rc| {
                     if rc == HtpStatus::DECLINED {
                         // Don't fail the stream if an authorization header is invalid, just set a flag.
                         self.flags |= Flags::AUTH_INVALID;
@@ -719,7 +724,8 @@ impl Transaction {
                     } else {
                         Err(rc)
                     }
-                })?;
+                },
+            )?;
         }
         // Finalize sending raw header data.
         (*self.connp).req_receiver_finalize_clear()?;
@@ -856,9 +862,7 @@ impl Transaction {
             (self.response_message_len as u64).wrapping_add(d.len() as u64) as i64;
         let connp = &mut *self.connp;
         match self.response_content_encoding_processing {
-            decompressors::HtpContentEncoding::GZIP
-            | decompressors::HtpContentEncoding::DEFLATE
-            | decompressors::HtpContentEncoding::LZMA => {
+            HtpContentEncoding::GZIP | HtpContentEncoding::DEFLATE | HtpContentEncoding::LZMA => {
                 // In severe memory stress these could be NULL
                 if self.out_decompressor.is_null() || (*self.out_decompressor).decompress.is_none()
                 {
@@ -903,7 +907,7 @@ impl Transaction {
                     self.destroy_decompressors();
                 }
             }
-            decompressors::HtpContentEncoding::NONE => {
+            HtpContentEncoding::NONE => {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
                 self.response_entity_len =
@@ -927,13 +931,13 @@ impl Transaction {
     }
 
     pub unsafe fn destroy_decompressors(&mut self) {
-        let mut comp: *mut decompressors::htp_decompressor_t = self.out_decompressor;
+        let mut comp: *mut htp_decompressor_t = self.out_decompressor;
         while !comp.is_null() {
-            let next: *mut decompressors::htp_decompressor_t = (*comp).next;
+            let next: *mut htp_decompressor_t = (*comp).next;
             (*comp).destroy.expect("non-null function pointer")(comp);
             comp = next
         }
-        self.out_decompressor = 0 as *mut decompressors::htp_decompressor_t;
+        self.out_decompressor = 0 as *mut htp_decompressor_t;
     }
 
     pub fn state_request_complete_partial(&mut self) -> Result<()> {
@@ -960,7 +964,7 @@ impl Transaction {
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be
         // destroyed later.
-        let connp: *mut connection_parser::ConnectionParser = self.connp;
+        let connp: *mut ConnectionParser = self.connp;
         // Determine what happens next, and remove this transaction from the parser.
         if self.is_protocol_0_9 {
             unsafe {
@@ -1042,7 +1046,7 @@ impl Transaction {
     pub unsafe fn state_request_line(&mut self) -> Result<()> {
         // Determine how to process the request URI.
         let mut parsed_uri = Uri::default();
-        if self.request_method_number == request::HtpMethod::CONNECT {
+        if self.request_method_number == HtpMethod::CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
             parsed_uri.parse_uri_hostport(
                 self.request_uri.as_ref().ok_or(HtpStatus::ERROR)?,
@@ -1060,7 +1064,7 @@ impl Transaction {
         }
         // Check parsed_uri hostname.
         if let Some(hostname) = self.get_parsed_uri_hostname() {
-            if !util::validate_hostname(hostname.as_slice()) {
+            if !validate_hostname(hostname.as_slice()) {
                 self.flags |= Flags::HOSTU_INVALID
             }
         }
@@ -1126,7 +1130,7 @@ impl Transaction {
             // It is not enough to check only in_status here. Because of pipelining, it's possible
             // that many inbound transactions have been processed, and that the parser is
             // waiting on a response that we have not seen yet.
-            if (*self.connp).in_status == connection_parser::HtpStreamState::DATA_OTHER
+            if (*self.connp).in_status == HtpStreamState::DATA_OTHER
                 && (*self.connp).in_tx() == (*self.connp).out_tx()
             {
                 return Err(HtpStatus::DATA_OTHER);
@@ -1141,7 +1145,7 @@ impl Transaction {
         }
         // Make a copy of the connection parser pointer, so that
         // we don't have to reference it via tx, which may be destroyed later.
-        let connp: *mut connection_parser::ConnectionParser = self.connp;
+        let connp: *mut ConnectionParser = self.connp;
         // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
         self.finalize()?;
         // Disconnect transaction from the parser.
@@ -1158,19 +1162,19 @@ impl Transaction {
         // Check for compression.
         // Determine content encoding.
         let mut ce_multi_comp = false;
-        self.response_content_encoding = decompressors::HtpContentEncoding::NONE;
+        self.response_content_encoding = HtpContentEncoding::NONE;
         if let Some((_, ce)) = self.response_headers.get_nocase_nozero("content-encoding") {
             // fast paths: regular gzip and friends
             if ce.value.cmp_nocase_nozero("gzip") == Ordering::Equal
                 || ce.value.cmp_nocase_nozero("x-gzip") == Ordering::Equal
             {
-                self.response_content_encoding = decompressors::HtpContentEncoding::GZIP
+                self.response_content_encoding = HtpContentEncoding::GZIP
             } else if ce.value.cmp_nocase_nozero("deflate") == Ordering::Equal
                 || ce.value.cmp_nocase_nozero("x-deflate") == Ordering::Equal
             {
-                self.response_content_encoding = decompressors::HtpContentEncoding::DEFLATE
+                self.response_content_encoding = HtpContentEncoding::DEFLATE
             } else if ce.value.cmp_nocase_nozero("lzma") == Ordering::Equal {
-                self.response_content_encoding = decompressors::HtpContentEncoding::LZMA
+                self.response_content_encoding = HtpContentEncoding::LZMA
             } else if !(ce.value.cmp_nocase_nozero("inflate") == Ordering::Equal) {
                 // exceptional cases: enter slow path
                 ce_multi_comp = true
@@ -1180,7 +1184,7 @@ impl Transaction {
         if (*self.connp).cfg.response_decompression_enabled {
             self.response_content_encoding_processing = self.response_content_encoding
         } else {
-            self.response_content_encoding_processing = decompressors::HtpContentEncoding::NONE;
+            self.response_content_encoding_processing = HtpContentEncoding::NONE;
             ce_multi_comp = false
         }
         // Finalize sending raw header data.
@@ -1198,10 +1202,9 @@ impl Transaction {
         // 3. Decompression is disabled and we do not attempt to enable it, but the user
         //    forces decompression by setting response_content_encoding to one of the
         //    supported algorithms.
-        if self.response_content_encoding_processing == decompressors::HtpContentEncoding::GZIP
-            || self.response_content_encoding_processing
-                == decompressors::HtpContentEncoding::DEFLATE
-            || self.response_content_encoding_processing == decompressors::HtpContentEncoding::LZMA
+        if self.response_content_encoding_processing == HtpContentEncoding::GZIP
+            || self.response_content_encoding_processing == HtpContentEncoding::DEFLATE
+            || self.response_content_encoding_processing == HtpContentEncoding::LZMA
             || ce_multi_comp
         {
             if !self.out_decompressor.is_null() {
@@ -1209,7 +1212,7 @@ impl Transaction {
             }
             // normal case
             if !ce_multi_comp {
-                self.out_decompressor = decompressors::htp_gzip_decompressor_create(
+                self.out_decompressor = htp_gzip_decompressor_create(
                     &*self.connp,
                     self.response_content_encoding_processing,
                 );
@@ -1225,15 +1228,13 @@ impl Transaction {
                 self.response_headers.get_nocase_nozero("content-encoding")
             {
                 let mut layers: i32 = 0;
-                let mut comp: *mut decompressors::htp_decompressor_t =
-                    0 as *mut decompressors::htp_decompressor_t;
+                let mut comp: *mut htp_decompressor_t = 0 as *mut htp_decompressor_t;
                 let mut nblzma: i32 = 0;
 
                 let tokens = ce.value.split_str_collect(", ");
                 for tok in tokens {
-                    let token = bstr::Bstr::from(tok);
-                    let mut cetype: decompressors::HtpContentEncoding =
-                        decompressors::HtpContentEncoding::NONE;
+                    let token = Bstr::from(tok);
+                    let mut cetype: HtpContentEncoding = HtpContentEncoding::NONE;
                     // check depth limit (0 means no limit)
                     if (*self.connp).cfg.response_decompression_layer_limit != 0 && {
                         layers += 1;
@@ -1256,7 +1257,7 @@ impl Transaction {
                                     "C-E gzip has abnormal value"
                                 );
                             }
-                            cetype = decompressors::HtpContentEncoding::GZIP
+                            cetype = HtpContentEncoding::GZIP
                         } else if token.index_of_nocase("deflate").is_some() {
                             if !(token.cmp("deflate") == Ordering::Equal
                                 || token.cmp("x-deflate") == Ordering::Equal)
@@ -1267,9 +1268,9 @@ impl Transaction {
                                     "C-E deflate has abnormal value"
                                 );
                             }
-                            cetype = decompressors::HtpContentEncoding::DEFLATE
+                            cetype = HtpContentEncoding::DEFLATE
                         } else if token.index_of_nocase("lzma").is_some() {
-                            cetype = decompressors::HtpContentEncoding::LZMA;
+                            cetype = HtpContentEncoding::LZMA;
                             nblzma = nblzma.wrapping_add(1);
                             if nblzma > (*self.connp).cfg.response_lzma_layer_limit {
                                 htp_error!(
@@ -1280,7 +1281,7 @@ impl Transaction {
                                 break;
                             }
                         } else if token.index_of_nocase("inflate").is_some() {
-                            cetype = decompressors::HtpContentEncoding::NONE
+                            cetype = HtpContentEncoding::NONE
                         } else {
                             // continue
                             htp_warn!(
@@ -1289,10 +1290,10 @@ impl Transaction {
                                 "C-E unknown setting"
                             );
                         }
-                        if cetype != decompressors::HtpContentEncoding::NONE {
+                        if cetype != HtpContentEncoding::NONE {
                             if comp.is_null() {
                                 self.response_content_encoding_processing = cetype;
-                                self.out_decompressor = decompressors::htp_gzip_decompressor_create(
+                                self.out_decompressor = htp_gzip_decompressor_create(
                                     &*self.connp,
                                     self.response_content_encoding_processing,
                                 );
@@ -1305,10 +1306,7 @@ impl Transaction {
                                 );
                                 comp = self.out_decompressor
                             } else {
-                                (*comp).next = decompressors::htp_gzip_decompressor_create(
-                                    &*self.connp,
-                                    cetype,
-                                );
+                                (*comp).next = htp_gzip_decompressor_create(&*self.connp, cetype);
                                 if (*comp).next.is_null() {
                                     return Err(HtpStatus::ERROR);
                                 }
@@ -1322,9 +1320,7 @@ impl Transaction {
                     }
                 }
             }
-        } else if self.response_content_encoding_processing
-            != decompressors::HtpContentEncoding::NONE
-        {
+        } else if self.response_content_encoding_processing != HtpContentEncoding::NONE {
             return Err(HtpStatus::ERROR);
         }
         Ok(())
@@ -1342,7 +1338,7 @@ impl Transaction {
         // a HTTP/0.9 request (no status line or response headers).
         if self.is_protocol_0_9 {
             self.response_transfer_coding = HtpTransferCoding::IDENTITY;
-            self.response_content_encoding_processing = decompressors::HtpContentEncoding::NONE;
+            self.response_content_encoding_processing = HtpContentEncoding::NONE;
             self.response_progress = HtpResponseProgress::BODY;
             (*self.connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
             (*self.connp).out_body_data_left = -1
@@ -1351,7 +1347,7 @@ impl Transaction {
             self.response_progress = HtpResponseProgress::LINE
         }
         // If at this point we have no method and no uri and our status
-        // is still request::htp_connp_REQ_LINE, we likely have timed out request
+        // is still REQ_LINE, we likely have timed out request
         // or a overly long request
         if self.request_method.is_none()
             && self.request_uri.is_none()
@@ -1374,13 +1370,13 @@ impl Transaction {
             && self.response_progress == HtpResponseProgress::COMPLETE
     }
 
-    pub fn get_parsed_uri_query(&self) -> Option<&bstr::Bstr> {
+    pub fn get_parsed_uri_query(&self) -> Option<&Bstr> {
         self.parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.query.as_ref())
     }
 
-    pub fn get_parsed_uri_hostname(&self) -> Option<&bstr::Bstr> {
+    pub fn get_parsed_uri_hostname(&self) -> Option<&Bstr> {
         self.parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.hostname.as_ref())

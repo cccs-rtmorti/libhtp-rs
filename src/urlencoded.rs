@@ -1,4 +1,6 @@
-use crate::{bstr, table, transaction, util};
+use crate::{
+    bstr::Bstr, table::Table, transaction::Transaction, util::tx_urldecode_params_inplace,
+};
 use nom::{
     bytes::complete::{take, take_till},
     character::complete::char,
@@ -12,30 +14,30 @@ use nom::{
 #[derive(Clone)]
 pub struct Parser {
     /// The transaction this parser belongs to.
-    pub tx: *mut transaction::Transaction,
+    pub tx: *mut Transaction,
     /// The character used to separate parameters. Defaults to & and should
     /// not be changed without good reason.
     pub argument_separator: u8,
     /// Whether to perform URL-decoding on parameters. Defaults to true.
     pub decode_url_encoding: bool,
     /// This table contains the list of parameters, indexed by name.
-    pub params: table::Table<bstr::Bstr>,
+    pub params: Table<Bstr>,
     // Private fields; these are used during the parsing process only
     complete: bool,
     saw_data: bool,
-    field: bstr::Bstr,
+    field: Bstr,
 }
 
 impl Parser {
-    pub fn new(tx: *mut transaction::Transaction) -> Self {
+    pub fn new(tx: *mut Transaction) -> Self {
         Self {
             tx,
             argument_separator: '&' as u8,
             decode_url_encoding: true,
-            params: table::Table::with_capacity(32),
+            params: Table::with_capacity(32),
             complete: false,
             saw_data: false,
-            field: bstr::Bstr::with_capacity(64),
+            field: Bstr::with_capacity(64),
         }
     }
 }
@@ -79,7 +81,7 @@ pub fn urlenp_parse_partial(urlenp: &mut Parser, data: &[u8]) {
     let mut input = input.as_slice();
     if input.is_empty() {
         if urlenp.complete && urlenp.params.size() == 0 && urlenp.saw_data {
-            urlenp.params.add(bstr::Bstr::new(), bstr::Bstr::new());
+            urlenp.params.add(Bstr::new(), Bstr::new());
         }
         return;
     }
@@ -97,13 +99,13 @@ pub fn urlenp_parse_partial(urlenp: &mut Parser, data: &[u8]) {
     }
     input.split(|c| *c == sep).for_each(|segment| {
         if let Ok((value, name)) = urlen_name_value(segment) {
-            let mut name = bstr::Bstr::from(name);
-            let mut value = bstr::Bstr::from(value);
+            let mut name = Bstr::from(name);
+            let mut value = Bstr::from(value);
             if (*urlenp).decode_url_encoding {
                 unsafe {
                     //Don't currently care about this result
-                    let _result = util::tx_urldecode_params_inplace(&mut *urlenp.tx, &mut name);
-                    let _result = util::tx_urldecode_params_inplace(&mut *urlenp.tx, &mut value);
+                    let _result = tx_urldecode_params_inplace(&mut *urlenp.tx, &mut name);
+                    let _result = tx_urldecode_params_inplace(&mut *urlenp.tx, &mut value);
                 }
             }
             urlenp.params.add(name, value);

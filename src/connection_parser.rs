@@ -1,8 +1,14 @@
-use crate::config::HtpServerPersonality;
-use crate::error::Result;
-use crate::{bstr, config, connection, hook::DataHook, transaction, util, HtpStatus};
-use std::io::Cursor;
-use std::net::IpAddr;
+use crate::{
+    bstr::Bstr,
+    config::{Config, HtpServerPersonality},
+    connection::Connection,
+    error::Result,
+    hook::DataHook,
+    transaction::Transaction,
+    util::{ConnectionFlags, File},
+    HtpStatus,
+};
+use std::{io::Cursor, net::IpAddr};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
@@ -48,9 +54,9 @@ pub type Time = libc::timeval;
 pub struct ConnectionParser {
     // General fields
     /// Current parser configuration structure.
-    pub cfg: config::Config,
+    pub cfg: Config,
     /// The connection structure associated with this parser.
-    pub conn: connection::Connection,
+    pub conn: Connection,
     /// Opaque user data associated with this parser.
     pub user_data: *mut core::ffi::c_void,
     // Request parser fields
@@ -76,10 +82,10 @@ pub struct ConnectionParser {
     /// The index of the first chunk used in the current request.
     pub in_chunk_request_index: usize,
     /// Used to buffer a line of inbound data when buffering cannot be avoided.
-    pub in_buf: bstr::Bstr,
+    pub in_buf: Bstr,
     /// Stores the current value of a folded request header. Such headers span
     /// multiple lines, and are processed only when all data is available.
-    pub in_header: Option<bstr::Bstr>,
+    pub in_header: Option<Bstr>,
     /// Ongoing inbound transaction.
     in_tx: Option<usize>,
     /// The request body length declared in a valid request header. The key here
@@ -124,10 +130,10 @@ pub struct ConnectionParser {
     /// The value of the response byte currently being processed.
     pub out_next_byte: i32,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
-    pub out_buf: bstr::Bstr,
+    pub out_buf: Bstr,
     /// Stores the current value of a folded response header. Such headers span
     /// multiple lines, and are processed only when all data is available.
-    pub out_header: Option<bstr::Bstr>,
+    pub out_header: Option<Bstr>,
     /// Ongoing outbound transaction
     out_tx: Option<usize>,
     /// The length of the current response body as presented in the
@@ -145,14 +151,14 @@ pub struct ConnectionParser {
     /// The hook that should be receiving raw connection data.
     pub out_data_receiver_hook: Option<DataHook>,
     /// On a PUT request, this field contains additional file data.
-    pub put_file: Option<util::File>,
+    pub put_file: Option<File>,
 }
 
 impl ConnectionParser {
-    pub fn new(cfg: config::Config) -> Self {
+    pub fn new(cfg: Config) -> Self {
         Self {
             cfg,
-            conn: connection::Connection::new(),
+            conn: Connection::new(),
             user_data: std::ptr::null_mut(),
             in_status: HtpStreamState::NEW,
             out_status: HtpStreamState::NEW,
@@ -165,7 +171,7 @@ impl ConnectionParser {
             in_current_receiver_offset: 0,
             in_chunk_count: 0,
             in_chunk_request_index: 0,
-            in_buf: bstr::Bstr::new(),
+            in_buf: Bstr::new(),
             in_header: None,
             in_tx: None,
             in_content_length: 0,
@@ -186,7 +192,7 @@ impl ConnectionParser {
             out_current_receiver_offset: 0,
             out_stream_offset: 0,
             out_next_byte: 0,
-            out_buf: bstr::Bstr::new(),
+            out_buf: Bstr::new(),
             out_header: None,
             out_tx: None,
             out_content_length: 0,
@@ -205,9 +211,9 @@ impl ConnectionParser {
     pub fn create_tx(&mut self) -> Result<usize> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
-            self.conn.flags |= util::ConnectionFlags::PIPELINED
+            self.conn.flags |= ConnectionFlags::PIPELINED
         }
-        transaction::Transaction::new(self).map(|tx_id| {
+        Transaction::new(self).map(|tx_id| {
             self.in_tx = Some(tx_id);
             self.in_reset();
             tx_id
@@ -229,38 +235,38 @@ impl ConnectionParser {
     }
 
     /// Get the in_tx or None if not set.
-    pub fn in_tx(&self) -> Option<&transaction::Transaction> {
+    pub fn in_tx(&self) -> Option<&Transaction> {
         self.in_tx.and_then(|in_tx| self.conn.tx(in_tx))
     }
 
     /// Get the in_tx as a mutable reference or None if not set.
-    pub fn in_tx_mut(&mut self) -> Option<&mut transaction::Transaction> {
+    pub fn in_tx_mut(&mut self) -> Option<&mut Transaction> {
         self.in_tx.and_then(move |in_tx| self.conn.tx_mut(in_tx))
     }
 
     /// Get the in_tx as a mutable reference or HtpStatus::ERROR if not set.
-    pub fn in_tx_mut_ok(&mut self) -> Result<&mut transaction::Transaction> {
+    pub fn in_tx_mut_ok(&mut self) -> Result<&mut Transaction> {
         self.in_tx
             .and_then(move |in_tx| self.conn.tx_mut(in_tx))
             .ok_or(HtpStatus::ERROR)
     }
 
     /// Get the in_tx as a pointer or NULL if not set.
-    pub fn in_tx_ptr(&self) -> *const transaction::Transaction {
+    pub fn in_tx_ptr(&self) -> *const Transaction {
         self.in_tx()
-            .map(|in_tx| in_tx as *const transaction::Transaction)
+            .map(|in_tx| in_tx as *const Transaction)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get the in_tx as a mutable pointer or NULL if not set.
-    pub fn in_tx_mut_ptr(&mut self) -> *mut transaction::Transaction {
+    pub fn in_tx_mut_ptr(&mut self) -> *mut Transaction {
         self.in_tx_mut()
-            .map(|in_tx| in_tx as *mut transaction::Transaction)
+            .map(|in_tx| in_tx as *mut Transaction)
             .unwrap_or(std::ptr::null_mut())
     }
 
     /// Set the in_tx to the provided transaction.
-    pub fn set_in_tx(&mut self, tx: &transaction::Transaction) {
+    pub fn set_in_tx(&mut self, tx: &Transaction) {
         self.in_tx = Some(tx.index);
     }
 
@@ -275,38 +281,38 @@ impl ConnectionParser {
     }
 
     /// Get the out_tx or None if not set.
-    pub fn out_tx(&self) -> Option<&transaction::Transaction> {
+    pub fn out_tx(&self) -> Option<&Transaction> {
         self.out_tx.and_then(|out_tx| self.conn.tx(out_tx))
     }
 
     /// Get the out_tx as a mutable reference or None if not set.
-    pub fn out_tx_mut(&mut self) -> Option<&mut transaction::Transaction> {
+    pub fn out_tx_mut(&mut self) -> Option<&mut Transaction> {
         self.out_tx.and_then(move |out_tx| self.conn.tx_mut(out_tx))
     }
 
     /// Get the out_tx as a mutable reference or HtpStatus::ERROR if not set.
-    pub fn out_tx_mut_ok(&mut self) -> Result<&mut transaction::Transaction> {
+    pub fn out_tx_mut_ok(&mut self) -> Result<&mut Transaction> {
         self.out_tx
             .and_then(move |out_tx| self.conn.tx_mut(out_tx))
             .ok_or(HtpStatus::ERROR)
     }
 
     /// Get the out_tx as a pointer or NULL if not set.
-    pub fn out_tx_ptr(&self) -> *const transaction::Transaction {
+    pub fn out_tx_ptr(&self) -> *const Transaction {
         self.out_tx()
-            .map(|out_tx| out_tx as *const transaction::Transaction)
+            .map(|out_tx| out_tx as *const Transaction)
             .unwrap_or(std::ptr::null())
     }
 
     /// Get the out_tx as a mutable pointer or NULL if not set.
-    pub fn out_tx_mut_ptr(&mut self) -> *mut transaction::Transaction {
+    pub fn out_tx_mut_ptr(&mut self) -> *mut Transaction {
         self.out_tx_mut()
-            .map(|out_tx| out_tx as *mut transaction::Transaction)
+            .map(|out_tx| out_tx as *mut Transaction)
             .unwrap_or(std::ptr::null_mut())
     }
 
     /// Set the out_tx to the provided transaction.
-    pub fn set_out_tx(&mut self, tx: &transaction::Transaction) {
+    pub fn set_out_tx(&mut self, tx: &Transaction) {
         self.out_tx = Some(tx.index);
     }
 
@@ -372,7 +378,7 @@ impl ConnectionParser {
 
     /// The function used for request line parsing. Depends on the personality.
     pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
-        self.in_tx_mut_ok()?.request_line = Some(bstr::Bstr::from(request_line));
+        self.in_tx_mut_ok()?.request_line = Some(Bstr::from(request_line));
         unsafe {
             if self.cfg.server_personality == HtpServerPersonality::APACHE_2 {
                 self.parse_request_line_generic_ex(request_line, true)
@@ -384,7 +390,7 @@ impl ConnectionParser {
 
     /// The function used for response line parsing.
     pub fn parse_response_line(&mut self, response_line: &[u8]) -> Result<()> {
-        self.out_tx_mut_ok()?.response_line = Some(bstr::Bstr::from(response_line));
+        self.out_tx_mut_ok()?.response_line = Some(Bstr::from(response_line));
         unsafe { self.parse_response_line_generic(response_line) }
     }
 

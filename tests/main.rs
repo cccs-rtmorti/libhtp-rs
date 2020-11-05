@@ -1,23 +1,25 @@
 #![allow(non_snake_case)]
-use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
-use htp::config;
-use htp::config::HtpServerPersonality::*;
-use htp::connection_parser::*;
-use htp::error::Result;
-use htp::log::*;
-use htp::transaction::HtpAuthType::*;
-use htp::transaction::HtpDataSource::*;
-use htp::transaction::HtpRequestProgress;
-use htp::transaction::HtpResponseProgress;
-use htp::transaction::*;
-use htp::util::*;
-use std::convert::TryInto;
-use std::env;
-use std::iter::IntoIterator;
-use std::net::{IpAddr, Ipv4Addr};
-use std::ops::Drop;
-use std::path::PathBuf;
-use std::slice;
+use htp::{
+    c_api::{htp_connp_create, htp_connp_destroy_all},
+    config::{Config, HtpServerPersonality},
+    connection_parser::{ConnectionParser, HtpStreamState},
+    error::Result,
+    log::HtpLogLevel,
+    transaction::{
+        Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseProgress,
+        Transaction,
+    },
+    util::{ConnectionFlags, Flags, HtpFileSource},
+};
+use std::{
+    convert::TryInto,
+    env,
+    iter::IntoIterator,
+    net::{IpAddr, Ipv4Addr},
+    ops::Drop,
+    path::PathBuf,
+    slice,
+};
 
 // import common testing utilities
 mod common;
@@ -115,8 +117,9 @@ impl Test {
         };
 
         unsafe {
-            let mut cfg = config::Config::default();
-            cfg.set_server_personality(APACHE_2).unwrap();
+            let mut cfg = Config::default();
+            cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+                .unwrap();
             cfg.register_urlencoded_parser();
             cfg.register_multipart_parser();
             let connp = htp_connp_create(&mut cfg);
@@ -697,9 +700,9 @@ fn UrlEncoded() {
 
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert!((*tx).request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
-        assert_contains_param_source!(&(*tx).request_params, BODY, "p", "3");
-        assert_contains_param_source!(&(*tx).request_params, BODY, "q", "4");
-        assert_contains_param_source!(&(*tx).request_params, BODY, "z", "5");
+        assert_contains_param_source!(&(*tx).request_params, HtpDataSource::BODY, "p", "3");
+        assert_contains_param_source!(&(*tx).request_params, HtpDataSource::BODY, "q", "4");
+        assert_contains_param_source!(&(*tx).request_params, HtpDataSource::BODY, "z", "5");
     }
 }
 
@@ -1284,7 +1287,7 @@ fn AuthBasic() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(BASIC, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::BASIC, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.as_ref().unwrap().eq("ivanr"));
         assert!((*tx).request_auth_password.as_ref().unwrap().eq("secret"));
@@ -1302,7 +1305,7 @@ fn AuthDigest() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(DIGEST, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.as_ref().unwrap().eq("ivanr"));
 
@@ -1355,7 +1358,7 @@ fn AuthBasicInvalid() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(BASIC, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::BASIC, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1376,7 +1379,7 @@ fn AuthDigestUnquotedUsername() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(DIGEST, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1397,7 +1400,7 @@ fn AuthDigestInvalidUsername1() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(DIGEST, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1418,7 +1421,7 @@ fn AuthUnrecognized() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(UNRECOGNIZED, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::UNRECOGNIZED, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -1948,7 +1951,10 @@ fn InvalidRequestHeader() {
 fn TestGenericPersonality() {
     let mut t = Test::new();
     unsafe {
-        (*t.connp).cfg.set_server_personality(IDS).unwrap();
+        (*t.connp)
+            .cfg
+            .set_server_personality(HtpServerPersonality::IDS)
+            .unwrap();
         assert!(t.run("02-header-test-apache2.t").is_ok());
 
         assert_eq!(1, (*t.connp).conn.tx_size());
@@ -2239,7 +2245,7 @@ fn AuthDigestInvalidUsername2() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(DIGEST, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::DIGEST, (*tx).request_auth_type);
 
         assert!((*tx).request_auth_username.is_none());
 
@@ -2552,7 +2558,7 @@ fn AuthDigest_EscapedQuote() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
 
-        assert_eq!(DIGEST, (*tx).request_auth_type);
+        assert_eq!(HtpAuthType::DIGEST, (*tx).request_auth_type);
 
         assert!((*tx)
             .request_auth_username

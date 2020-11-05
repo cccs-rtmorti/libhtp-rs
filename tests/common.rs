@@ -1,5 +1,4 @@
-use htp::connection_parser::ConnectionParser;
-use htp::transaction::Transaction;
+use htp::{connection_parser::ConnectionParser, transaction::Transaction};
 
 // TODO: this function is only used for testing, remove when we are ready to do so.
 #[allow(dead_code)]

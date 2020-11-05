@@ -1,4 +1,4 @@
-use crate::{connection_parser, lzma, transaction, HtpStatus};
+use crate::{connection_parser::ConnectionParser, lzma::LzmaDec, transaction::Data, HtpStatus};
 extern "C" {
     pub type internal_state;
     #[no_mangle]
@@ -51,10 +51,9 @@ pub enum HtpContentEncoding {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct htp_decompressor_t {
-    pub decompress: Option<
-        unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut transaction::Data) -> HtpStatus,
-    >,
-    pub callback: Option<unsafe extern "C" fn(_: *mut transaction::Data) -> HtpStatus>,
+    pub decompress:
+        Option<unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut Data) -> HtpStatus>,
+    pub callback: Option<unsafe extern "C" fn(_: *mut Data) -> HtpStatus>,
     pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
     pub next: *mut htp_decompressor_t,
     pub time_before: libc::timeval,
@@ -99,25 +98,23 @@ pub struct htp_decompressor_gzip_t {
     pub stream: z_stream,
     pub header: [u8; 13],
     pub header_len: u8,
-    pub state: lzma::LzmaDec::CLzmaDec,
+    pub state: LzmaDec::CLzmaDec,
     pub buffer: *mut u8,
     pub crc: u64,
 }
-unsafe fn SzAlloc(mut _p: lzma::LzmaDec::ISzAllocPtr, size: usize) -> *mut core::ffi::c_void {
+unsafe fn SzAlloc(mut _p: LzmaDec::ISzAllocPtr, size: usize) -> *mut core::ffi::c_void {
     malloc(size)
 }
-unsafe fn SzFree(mut _p: lzma::LzmaDec::ISzAllocPtr, address: *mut core::ffi::c_void) {
+unsafe fn SzFree(mut _p: LzmaDec::ISzAllocPtr, address: *mut core::ffi::c_void) {
     free(address);
 }
 #[no_mangle]
-pub static mut lzma_Alloc: lzma::LzmaDec::ISzAlloc = {
-    lzma::LzmaDec::ISzAlloc {
+pub static mut lzma_Alloc: LzmaDec::ISzAlloc = {
+    LzmaDec::ISzAlloc {
         Alloc: Some(
-            SzAlloc as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: usize) -> *mut core::ffi::c_void,
+            SzAlloc as unsafe fn(_: LzmaDec::ISzAllocPtr, _: usize) -> *mut core::ffi::c_void,
         ),
-        Free: Some(
-            SzFree as unsafe fn(_: lzma::LzmaDec::ISzAllocPtr, _: *mut core::ffi::c_void) -> (),
-        ),
+        Free: Some(SzFree as unsafe fn(_: LzmaDec::ISzAllocPtr, _: *mut core::ffi::c_void) -> ()),
     }
 };
 
@@ -233,7 +230,7 @@ unsafe extern "C" fn htp_gzip_decompressor_restart(
 /// Ends decompressor.
 unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
     if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
-        lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
+        LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
         (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN
     } else if (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN {
         inflateEnd(&mut (*drec).stream);
@@ -247,7 +244,7 @@ unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
 /// Returns OK on success, ERROR or some other negative integer on failure.
 unsafe extern "C" fn htp_gzip_decompressor_decompress(
     mut drec: *mut htp_decompressor_gzip_t,
-    d: *mut transaction::Data,
+    d: *mut Data,
 ) -> HtpStatus {
     let mut consumed: usize = 0;
     let mut rc: i32 = 0;
@@ -270,7 +267,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             } else {
                 std::ptr::null()
             };
-            transaction::Data::new(
+            Data::new(
                 (*d).tx(),
                 Some(std::slice::from_raw_parts(data, len)),
                 (*d).is_last(),
@@ -313,7 +310,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
             if (*drec).stream.avail_out == 0 {
                 (*drec).crc = crc32((*drec).crc, (*drec).buffer, 8192);
                 // Prepare data for callback.
-                let mut d2_0 = transaction::Data::new(
+                let mut d2_0 = Data::new(
                     (*d).tx(),
                     Some(std::slice::from_raw_parts((*drec).buffer, 8192)),
                     (*d).is_last(),
@@ -357,7 +354,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     (*drec).header_len = ((*drec).header_len as usize).wrapping_add(consumed) as u8
                 }
                 if (*drec).header_len == 5 + 8 {
-                    rc = lzma::LzmaDec::LzmaDec_Allocate(
+                    rc = LzmaDec::LzmaDec_Allocate(
                         &mut (*drec).state,
                         (*drec).header.as_mut_ptr(),
                         5,
@@ -369,21 +366,21 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                             _ => return HtpStatus::ERROR,
                         }
                     }
-                    lzma::LzmaDec::LzmaDec_Init(&mut (*drec).state);
+                    LzmaDec::LzmaDec_Init(&mut (*drec).state);
                     // hacky to get to next step end retry allocate in case of failure
                     (*drec).header_len = (*drec).header_len.wrapping_add(1)
                 }
                 if (*drec).header_len > 5 + 8 {
                     let mut inprocessed: usize = (*drec).stream.avail_in as usize;
                     let mut outprocessed: usize = (*drec).stream.avail_out as usize;
-                    let mut status = lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
-                    rc = lzma::LzmaDec::LzmaDec_DecodeToBuf(
+                    let mut status = LzmaDec::ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
+                    rc = LzmaDec::LzmaDec_DecodeToBuf(
                         &mut (*drec).state,
                         (*drec).stream.next_out,
                         &mut outprocessed as *mut usize,
                         (*drec).stream.next_in,
                         &mut inprocessed as *mut usize,
-                        lzma::LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
+                        LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
                         &mut status,
                         (*(*(*d).tx()).cfg).lzma_memlimit,
                     );
@@ -397,8 +394,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     match rc {
                         0 => {
                             rc = 0;
-                            if status == lzma::LzmaDec::ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK
-                            {
+                            if status == LzmaDec::ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK {
                                 rc = 1
                             }
                             current_block_82 = 17019156190352891614;
@@ -445,7 +441,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                 let len: usize = 8192_u32.wrapping_sub((*drec).stream.avail_out) as usize;
                 // Update CRC
                 // Prepare data for the callback.
-                let mut d2_1 = transaction::Data::new(
+                let mut d2_1 = Data::new(
                     (*d).tx(),
                     Some(std::slice::from_raw_parts((*drec).buffer, len)),
                     (*d).is_last(),
@@ -480,7 +476,7 @@ unsafe extern "C" fn htp_gzip_decompressor_decompress(
                     format!("GZip decompressor: inflate failed with {}", rc)
                 );
                 if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
-                    lzma::LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
+                    LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
                     // so as to clean zlib ressources after restart
                     (*drec).zlib_initialized = HtpContentEncoding::NONE
                 } else {
@@ -528,7 +524,7 @@ unsafe extern "C" fn htp_gzip_decompressor_destroy(drec: *mut htp_decompressor_g
 ///
 /// Returns New htp_decompressor_t instance on success, or NULL on failure.
 pub unsafe fn htp_gzip_decompressor_create(
-    connp: &connection_parser::ConnectionParser,
+    connp: &ConnectionParser,
     format: HtpContentEncoding,
 ) -> *mut htp_decompressor_t {
     let mut drec: *mut htp_decompressor_gzip_t =
@@ -537,24 +533,11 @@ pub unsafe fn htp_gzip_decompressor_create(
         return 0 as *mut htp_decompressor_t;
     }
     (*drec).super_0.decompress = ::std::mem::transmute::<
-        Option<
-            unsafe extern "C" fn(
-                _: *mut htp_decompressor_gzip_t,
-                _: *mut transaction::Data,
-            ) -> HtpStatus,
-        >,
-        Option<
-            unsafe extern "C" fn(
-                _: *mut htp_decompressor_t,
-                _: *mut transaction::Data,
-            ) -> HtpStatus,
-        >,
+        Option<unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t, _: *mut Data) -> HtpStatus>,
+        Option<unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut Data) -> HtpStatus>,
     >(Some(
         htp_gzip_decompressor_decompress
-            as unsafe extern "C" fn(
-                _: *mut htp_decompressor_gzip_t,
-                _: *mut transaction::Data,
-            ) -> HtpStatus,
+            as unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t, _: *mut Data) -> HtpStatus,
     ));
     (*drec).super_0.destroy = ::std::mem::transmute::<
         Option<unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t) -> ()>,
@@ -575,7 +558,7 @@ pub unsafe fn htp_gzip_decompressor_create(
         HtpContentEncoding::LZMA => {
             if connp.cfg.lzma_memlimit > 0 && connp.cfg.response_lzma_layer_limit > 0 {
                 (*drec).state.dic = 0 as *mut u8;
-                (*drec).state.probs = 0 as *mut lzma::LzmaDec::CLzmaProb
+                (*drec).state.probs = 0 as *mut LzmaDec::CLzmaProb
             } else {
                 htp_warn!(
                     connp,

@@ -1,13 +1,19 @@
-use crate::error::Result;
-use crate::transaction::HtpProtocol;
-use crate::util::Flags;
 use crate::{
-    bstr, connection_parser, parsers, parsers::parse_content_length, transaction, util, HtpStatus,
+    bstr::Bstr,
+    connection_parser::ConnectionParser,
+    error::Result,
+    parsers::{parse_content_length, parse_protocol, parse_status},
+    transaction::{Header, HtpProtocol},
+    util::{
+        chomp, is_word_token, split_by_colon, take_ascii_whitespace, take_is_space,
+        take_not_is_space, Flags,
+    },
+    HtpStatus,
 };
 use nom::{error::ErrorKind, sequence::tuple, Err::Error};
 use std::cmp::Ordering;
 
-impl connection_parser::ConnectionParser {
+impl ConnectionParser {
     /// Generic response line parser.
     pub unsafe fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
         let out_tx = self.out_tx_mut_ok()?;
@@ -17,11 +23,11 @@ impl connection_parser::ConnectionParser {
         out_tx.response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
-            util::take_is_space,
-            util::take_not_is_space,
-            util::take_is_space,
-            util::take_not_is_space,
-            util::take_ascii_whitespace(),
+            take_is_space,
+            take_not_is_space,
+            take_is_space,
+            take_not_is_space,
+            take_ascii_whitespace(),
         ));
 
         if let Ok((message, (_ls, response_protocol, ws1, status_code, ws2))) =
@@ -31,18 +37,18 @@ impl connection_parser::ConnectionParser {
                 return Ok(());
             }
 
-            out_tx.response_protocol = Some(bstr::Bstr::from(response_protocol));
+            out_tx.response_protocol = Some(Bstr::from(response_protocol));
             self.out_tx_mut_ok()?.response_protocol_number =
-                parsers::parse_protocol(response_protocol, self);
+                parse_protocol(response_protocol, self);
 
             if ws1.is_empty() || status_code.is_empty() {
                 return Ok(());
             }
 
             let out_tx = self.out_tx_mut_ok()?;
-            out_tx.response_status = Some(bstr::Bstr::from(status_code));
+            out_tx.response_status = Some(Bstr::from(status_code));
 
-            if let Some(status_number) = parsers::parse_status(status_code) {
+            if let Some(status_number) = parse_status(status_code) {
                 out_tx.response_status_number = status_number as i32;
             } else {
                 out_tx.response_status_number = -1;
@@ -52,7 +58,7 @@ impl connection_parser::ConnectionParser {
                 return Ok(());
             }
 
-            out_tx.response_message = Some(bstr::Bstr::from(message));
+            out_tx.response_message = Some(Bstr::from(message));
         } else {
             return Err(HtpStatus::ERROR);
         }
@@ -60,17 +66,14 @@ impl connection_parser::ConnectionParser {
     }
 
     /// Generic response header parser.
-    pub unsafe fn parse_response_header_generic(
-        &mut self,
-        data: &[u8],
-    ) -> Result<transaction::Header> {
-        let data = util::chomp(&data);
+    pub unsafe fn parse_response_header_generic(&mut self, data: &[u8]) -> Result<Header> {
+        let data = chomp(&data);
         let mut flags = Flags::empty();
 
         let mut header: &[u8] = b"";
         let mut value: &[u8] = b"";
 
-        match util::split_by_colon(data) {
+        match split_by_colon(data) {
             Ok((mut name, val)) => {
                 // Colon present
                 // Log empty header name
@@ -114,7 +117,7 @@ impl connection_parser::ConnectionParser {
                 }
 
                 // Check header is a token
-                if !util::is_word_token(name) {
+                if !is_word_token(name) {
                     flags |= Flags::FIELD_INVALID;
                     if !self.out_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
                         self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
@@ -163,11 +166,7 @@ impl connection_parser::ConnectionParser {
             );
         }
 
-        Ok(transaction::Header::new_with_flags(
-            header.into(),
-            value.into(),
-            flags,
-        ))
+        Ok(Header::new_with_flags(header.into(), value.into(), flags))
     }
 
     /// Generic response header line(s) processor, which assembles folded lines

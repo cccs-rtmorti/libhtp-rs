@@ -1,18 +1,20 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
-use htp::bstr::*;
-use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
-use htp::config;
-use htp::config::HtpServerPersonality::*;
-use htp::connection_parser::*;
-use htp::error::Result;
-use htp::transaction::HtpDataSource::*;
-use htp::transaction::*;
-use htp::uri::Uri;
-use htp::HtpStatus;
-use std::ffi::CString;
-use std::net::{IpAddr, Ipv4Addr};
-use std::ops::Drop;
+use htp::{
+    bstr::Bstr,
+    c_api::{htp_connp_create, htp_connp_destroy_all},
+    config::{Config, HtpServerPersonality},
+    connection_parser::ConnectionParser,
+    error::Result,
+    transaction::{Data, Header, HtpDataSource, HtpProtocol, Transaction},
+    uri::Uri,
+    HtpStatus,
+};
+use std::{
+    ffi::CString,
+    net::{IpAddr, Ipv4Addr},
+    ops::Drop,
+};
 
 // import common testing utilities
 mod common;
@@ -221,8 +223,9 @@ struct HybridParsingTest {
 impl HybridParsingTest {
     fn new() -> Self {
         unsafe {
-            let mut cfg = config::Config::default();
-            cfg.set_server_personality(APACHE_2).unwrap();
+            let mut cfg = Config::default();
+            cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+                .unwrap();
             cfg.register_urlencoded_parser();
             cfg.register_multipart_parser();
             let connp = htp_connp_create(&mut cfg);
@@ -541,8 +544,8 @@ fn ParamCaseSensitivity() {
         assert_contains_param!(&(*tx).request_params, "p", "1");
         assert_contains_param!(&(*tx).request_params, "p", "1");
         assert_contains_param!(&(*tx).request_params, "q", "2");
-        assert_contains_param_source!(&(*tx).request_params, QUERY_STRING, "q", "2");
-        assert_contains_param_source!(&(*tx).request_params, QUERY_STRING, "Q", "2");
+        assert_contains_param_source!(&(*tx).request_params, HtpDataSource::QUERY_STRING, "q", "2");
+        assert_contains_param_source!(&(*tx).request_params, HtpDataSource::QUERY_STRING, "Q", "2");
     }
 }
 

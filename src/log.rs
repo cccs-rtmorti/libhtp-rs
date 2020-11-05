@@ -1,4 +1,4 @@
-use crate::{connection_parser, list::List};
+use crate::{connection_parser::ConnectionParser, list::List};
 use std::net::IpAddr;
 
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
@@ -120,11 +120,11 @@ pub struct Log {
     pub line: u32,
 }
 
-pub type htp_logs_t = List<Log>;
+pub type Logs = List<Log>;
 
 impl Log {
     pub fn new(
-        connp: &connection_parser::ConnectionParser,
+        connp: &ConnectionParser,
         file: &str,
         line: u32,
         level: HtpLogLevel,
@@ -146,7 +146,7 @@ impl Log {
 }
 
 pub fn log(
-    connp: &connection_parser::ConnectionParser,
+    connp: &ConnectionParser,
     file: &str,
     line: u32,
     level: HtpLogLevel,

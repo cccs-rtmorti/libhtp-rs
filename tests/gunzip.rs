@@ -1,15 +1,14 @@
 #![allow(non_snake_case)]
-use htp::bstr::*;
-use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
-use htp::config;
-use htp::config::HtpServerPersonality::*;
-use htp::connection_parser::*;
-use htp::decompressors::HtpContentEncoding::*;
-use htp::decompressors::*;
-use htp::transaction::*;
-use htp::HtpStatus;
-use std::env;
-use std::path::PathBuf;
+use htp::{
+    bstr::*,
+    c_api::{htp_connp_create, htp_connp_destroy_all},
+    config::{create, Config, HtpServerPersonality},
+    connection_parser::ConnectionParser,
+    decompressors::{htp_decompressor_t, htp_gzip_decompressor_create, HtpContentEncoding},
+    transaction::{Data, Transaction},
+    HtpStatus,
+};
+use std::{env, path::PathBuf};
 
 // import common testing utilities
 mod common;
@@ -26,7 +25,7 @@ extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> HtpStatus {
 
 #[derive(Debug)]
 struct Test {
-    cfg: *mut config::Config,
+    cfg: *mut Config,
     connp: *mut ConnectionParser,
     output: *mut Bstr,
     o_boxing_wizards: *mut Bstr,
@@ -42,16 +41,18 @@ enum TestError {
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg = config::create();
+            let cfg = create();
             assert!(!cfg.is_null());
-            (*cfg).set_server_personality(APACHE_2).unwrap();
+            (*cfg)
+                .set_server_personality(HtpServerPersonality::APACHE_2)
+                .unwrap();
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let tx = htp_connp_tx_create(connp);
             assert!(!tx.is_null());
             let output = std::ptr::null_mut();
 
-            let decompressor = htp_gzip_decompressor_create(&*connp, GZIP);
+            let decompressor = htp_gzip_decompressor_create(&*connp, HtpContentEncoding::GZIP);
             (*decompressor).callback = Some(GUnzip_decompressor_callback);
             let o_boxing_wizards = bstr_dup_str("The five boxing wizards jump quickly.");
 

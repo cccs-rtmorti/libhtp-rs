@@ -1,12 +1,23 @@
-use crate::error::Result;
-use crate::util::{take_ascii_whitespace, Flags as UtilFlags};
-use crate::{bstr, config, list, parsers::parse_content_type, table, transaction, util, HtpStatus};
+use crate::{
+    bstr::Bstr,
+    config::Config,
+    error::Result,
+    list::List,
+    parsers::parse_content_type,
+    table::Table,
+    transaction::{Header, Headers},
+    util::{
+        is_space, is_token, take_ascii_whitespace, take_until_no_case, File, Flags as UtilFlags,
+        HtpFileSource,
+    },
+    HtpStatus,
+};
 use bitflags;
 use nom::{
     branch::alt,
     bytes::complete::{tag, tag_no_case, take, take_till, take_until, take_while, take_while1},
     character::complete::char,
-    character::is_space,
+    character::is_space as nom_is_space,
     combinator::{map, not, opt, peek},
     multi::fold_many1,
     number::complete::be_u8,
@@ -104,7 +115,7 @@ bitflags::bitflags! {
 #[derive(Clone)]
 pub struct Parser {
     pub multipart: Multipart,
-    pub cfg: *mut config::Config,
+    pub cfg: *mut Config,
     pub extract_files: bool,
     pub extract_limit: u32,
     pub extract_dir: String,
@@ -137,15 +148,15 @@ pub struct Parser {
     /// across many input data buffers. On a match, the data stored here is
     /// discarded. When there is no match, the buffer is processed as data
     /// (belonging to the currently active part).
-    pub boundary_candidate: bstr::Bstr,
-    pub part_header: bstr::Bstr,
-    pub pending_header_line: bstr::Bstr,
-    pub to_consume: bstr::Bstr,
+    pub boundary_candidate: Bstr,
+    pub part_header: Bstr,
+    pub pending_header_line: Bstr,
+    pub to_consume: Bstr,
 
     /// Stores text part pieces until the entire part is seen, at which
     /// point the pieces are assembled into a single buffer, and the
     /// builder cleared.
-    pub part_data_pieces: bstr::Bstr,
+    pub part_data_pieces: Bstr,
 
     /// The offset of the current boundary candidate, relative to the most
     /// recent data chunk (first unprocessed chunk of data).
@@ -166,7 +177,7 @@ pub struct Parser {
 ///
 /// Returns New parser instance, or None on failure.
 impl Parser {
-    pub fn new(cfg: *mut config::Config, boundary: &[u8], flags: Flags) -> Option<Self> {
+    pub fn new(cfg: *mut Config, boundary: &[u8], flags: Flags) -> Option<Self> {
         if cfg.is_null() || boundary.is_empty() {
             return None;
         }
@@ -175,9 +186,9 @@ impl Parser {
             Some(Self {
                 multipart: Multipart {
                     boundary_len: boundary.len() + 2,
-                    boundary: bstr::Bstr::from([b"--", boundary].concat()),
+                    boundary: Bstr::from([b"--", boundary].concat()),
                     boundary_count: 0,
-                    parts: list::List::with_capacity(64),
+                    parts: List::with_capacity(64),
                     flags,
                 },
                 cfg,
@@ -193,11 +204,11 @@ impl Parser {
                 boundary_match_pos: 0,
                 current_part_idx: None,
                 current_part_mode: HtpMultipartMode::LINE,
-                boundary_candidate: bstr::Bstr::with_capacity(boundary.len()),
-                part_header: bstr::Bstr::with_capacity(64),
-                pending_header_line: bstr::Bstr::with_capacity(64),
-                to_consume: bstr::Bstr::new(),
-                part_data_pieces: bstr::Bstr::with_capacity(64),
+                boundary_candidate: Bstr::with_capacity(boundary.len()),
+                part_header: Bstr::with_capacity(64),
+                pending_header_line: Bstr::with_capacity(64),
+                to_consume: Bstr::new(),
+                part_data_pieces: Bstr::with_capacity(64),
                 boundary_candidate_pos: 0,
                 cr_aside: false,
             })
@@ -506,7 +517,7 @@ impl Parser {
                 // LF line ending; we're done with boundary processing; data bytes follow.
                 self.multipart.flags |= Flags::LF_LINE;
                 self.parser_state = HtpMultipartState::DATA;
-            } else if is_space(byte) {
+            } else if nom_is_space(byte) {
                 // Linear white space is allowed here.
                 self.multipart.flags |= Flags::BBOUNDARY_LWS_AFTER;
             } else {
@@ -568,19 +579,19 @@ pub struct Part {
     /// Raw part length (i.e., headers and data).
     pub len: usize,
     /// Part name, from the Content-Disposition header. Can be empty.
-    pub name: bstr::Bstr,
+    pub name: Bstr,
 
     /// Part value; the contents depends on the type of the part:
     /// 1) empty for files; 2) contains complete part contents for
     /// preamble and epilogue parts (they have no headers), and
     /// 3) data only (headers excluded) for text and unknown parts.
-    pub value: bstr::Bstr,
+    pub value: Bstr,
     /// Part content type, from the Content-Type header. Can be None.
-    pub content_type: Option<bstr::Bstr>,
+    pub content_type: Option<Bstr>,
     /// Part headers (Header instances), using header name as the key.
-    pub headers: transaction::Headers,
+    pub headers: Headers,
     /// File data, available only for FILE parts.
-    pub file: Option<util::File>,
+    pub file: Option<File>,
 }
 
 impl Part {
@@ -592,10 +603,10 @@ impl Part {
             parser,
             type_0: HtpMultipartType::UNKNOWN,
             len: 0,
-            name: bstr::Bstr::with_capacity(64),
-            value: bstr::Bstr::with_capacity(64),
+            name: Bstr::with_capacity(64),
+            value: Bstr::with_capacity(64),
             content_type: None,
-            headers: table::Table::with_capacity(4),
+            headers: Table::with_capacity(4),
             file: None,
         }
     }
@@ -641,9 +652,9 @@ impl Part {
                                 return Err(HtpStatus::DECLINED);
                             }
                             None => {
-                                self.file = Some(util::File::new(
-                                    util::HtpFileSource::MULTIPART,
-                                    Some(bstr::Bstr::from(param_value)),
+                                self.file = Some(File::new(
+                                    HtpFileSource::MULTIPART,
+                                    Some(Bstr::from(param_value)),
                                 ));
                             }
                         };
@@ -701,7 +712,7 @@ impl Part {
         // Extract the name and the value
         if let Ok((_, (name, value))) = header()(input) {
             // Now extract the name and the value.
-            let header = transaction::Header::new(name.into(), value.into());
+            let header = Header::new(name.into(), value.into());
 
             if header.name.cmp_nocase("content-disposition") != Ordering::Equal
                 && header.name.cmp_nocase("content-type") != Ordering::Equal
@@ -804,7 +815,7 @@ impl Part {
     pub unsafe fn handle_data(&mut self, data: &[u8], is_line: bool) -> Result<()> {
         let mut data = data;
         // End of the line.
-        let mut line: Option<bstr::Bstr> = None;
+        let mut line: Option<Bstr> = None;
         // Keep track of raw part length.
         self.len = (self.len).wrapping_add(data.len());
         // If we're processing a part that came after the last boundary, then we're not sure if it
@@ -826,7 +837,7 @@ impl Part {
                 if (*self.parser).part_header.len() > 0 {
                     // Allocate string
                     let mut header =
-                        bstr::Bstr::with_capacity((*self.parser).part_header.len() + data.len());
+                        Bstr::with_capacity((*self.parser).part_header.len() + data.len());
                     header.add((*self.parser).part_header.as_slice());
                     header.add(data);
                     line = Some(header);
@@ -984,13 +995,13 @@ pub enum HtpMultipartType {
 #[derive(Clone)]
 pub struct Multipart {
     /// Multipart boundary.
-    pub boundary: bstr::Bstr,
+    pub boundary: Bstr,
     /// Boundary length.
     pub boundary_len: usize,
     /// How many boundaries were there?
     pub boundary_count: i32,
     /// List of parts, in the order in which they appeared in the body.
-    pub parts: list::List<*mut Part>,
+    pub parts: List<*mut Part>,
     /// Parsing flags.
     pub flags: Flags,
 }
@@ -1127,7 +1138,7 @@ fn validate_boundary(boundary: &[u8], flags: &mut Flags) {
 fn validate_content_type(content_type: &[u8], flags: &mut Flags) {
     if let Ok((_, (f, _))) = fold_many1(
         tuple((
-            util::take_until_no_case(b"boundary"),
+            take_until_no_case(b"boundary"),
             tag_no_case("boundary"),
             take_until("="),
             tag("="),
@@ -1164,11 +1175,11 @@ fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> 
     move |input| {
         let (value, (name, _, _, _)) = tuple((
             // The name must not be empty and must consist only of token characters (i.e., no spaces, seperators, control characters, etc)
-            take_while1(|c: u8| util::is_token(c)),
+            take_while1(|c: u8| is_token(c)),
             // First non token character must be a colon, to seperate name and value
             tag(":"),
             // Allow whitespace between the colon and the value
-            take_while(|c| is_space(c)),
+            take_while(|c| nom_is_space(c)),
             // Peek ahead to ensure a non empty header value
             peek(take(1usize)),
         ))(input)?;
@@ -1196,12 +1207,12 @@ fn boundary<'a>() -> impl Fn(
     move |input| {
         map(
             tuple((
-                util::take_until_no_case(b"boundary"),
+                take_until_no_case(b"boundary"),
                 tag_no_case("boundary"),
-                take_while(|c: u8| util::is_space(c)),
+                take_while(|c: u8| is_space(c)),
                 take_until("="),
                 tag("="),
-                take_while(|c: u8| util::is_space(c)),
+                take_while(|c: u8| is_space(c)),
                 peek(opt(char('\"'))),
                 alt((
                     map(tuple((tag("\""), take_until("\""))), |(_, boundary)| {
@@ -1209,17 +1220,15 @@ fn boundary<'a>() -> impl Fn(
                     }),
                     map(
                         tuple((
-                            take_while(|c: u8| {
-                                c != ',' as u8 && c != ';' as u8 && !util::is_space(c)
-                            }),
+                            take_while(|c: u8| c != ',' as u8 && c != ';' as u8 && !is_space(c)),
                             opt(alt((char(','), char(';')))), //Skip the matched character if we matched one without hitting the end
                         )),
                         |(boundary, _)| boundary,
                     ),
                 )),
                 peek(opt(char('\"'))),
-                take_while(|c: u8| util::is_space(c)),
-                take_while(|c: u8| !util::is_space(c)),
+                take_while(|c: u8| is_space(c)),
+                take_while(|c: u8| !is_space(c)),
             )),
             |(
                 _,

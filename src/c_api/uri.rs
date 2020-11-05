@@ -1,5 +1,4 @@
-use crate::bstr::Bstr;
-use crate::uri::Uri;
+use crate::{bstr::Bstr, uri::Uri};
 
 /// Get the scheme of a uri.
 ///
