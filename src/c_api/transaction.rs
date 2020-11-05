@@ -6,7 +6,7 @@ use crate::decompressors;
 use crate::hook::DataExternalCallbackFn;
 use crate::request;
 use crate::transaction::*;
-use crate::util;
+use crate::uri::Uri;
 use crate::HtpStatus;
 use std::convert::{TryFrom, TryInto};
 
@@ -211,10 +211,10 @@ pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const Transaction) -> i32 {
 ///
 /// Returns the parsed uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *mut Transaction) -> *const util::Uri {
+pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *mut Transaction) -> *const Uri {
     tx.as_ref()
         .and_then(|tx| tx.parsed_uri.as_ref())
-        .map(|uri| uri as *const util::Uri)
+        .map(|uri| uri as *const Uri)
         .unwrap_or(std::ptr::null())
 }
 

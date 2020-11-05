@@ -2,10 +2,11 @@ use crate::connection_parser::State;
 use crate::error::Result;
 use crate::hook::{DataHook, DataNativeCallbackFn};
 use crate::list::List;
+use crate::parsers::{parse_content_type, parse_hostport};
 use crate::util::Flags;
 use crate::{
-    bstr, config, connection_parser, decompressors, multipart, parsers, request, table, urlencoded,
-    util, HtpStatus,
+    bstr, config, connection_parser, decompressors, multipart, parsers,
+    parsers::parse_content_length, request, table, uri::Uri, urlencoded, util, HtpStatus,
 };
 use std::cmp::Ordering;
 
@@ -263,12 +264,12 @@ pub struct Transaction {
     /// is added. In extreme cases when no URI is provided on the request line, all fields
     /// will be NULL. (Well, except for port_number, which will be -1.) To inspect raw data, use
     /// Transaction::request_uri or Transaction::parsed_uri_raw.
-    pub parsed_uri: Option<util::Uri>,
+    pub parsed_uri: Option<Uri>,
     /// This structure holds the individual components parsed out of the request URI, but
     /// without any modification. The purpose of this field is to allow you to look at the data as it
     /// was supplied on the request line. Fields can be NULL, depending on what data was supplied.
     /// The port_number field is always -1.
-    pub parsed_uri_raw: Option<util::Uri>,
+    pub parsed_uri_raw: Option<Uri>,
     ///  This structure holds the whole normalized uri, including path, query, fragment, scheme, username, password, hostname, and port
     pub complete_normalized_uri: Option<bstr::Bstr>,
     ///  This structure holds the normalized uri, including path, query, and fragment
@@ -617,7 +618,7 @@ impl Transaction {
             }
             // Get the body length.
             if let Some(content_length) =
-                util::parse_content_length((*(*cl).value).as_slice(), Some(&*self.connp))
+                parse_content_length((*(*cl).value).as_slice(), Some(&*self.connp))
             {
                 // We have a request body of known length.
                 self.request_content_length = content_length;
@@ -655,7 +656,7 @@ impl Transaction {
         // Examine the Host header.
         if let Some((_, header)) = self.request_headers.get_nocase_nozero_mut("host") {
             // Host information available in the headers.
-            if let Ok((_, (hostname, port_nmb, valid))) = util::parse_hostport(&mut header.value) {
+            if let Ok((_, (hostname, port_nmb, valid))) = parse_hostport(&mut header.value) {
                 if !valid {
                     self.flags |= Flags::HOSTH_INVALID
                 }
@@ -701,7 +702,7 @@ impl Transaction {
         }
         // Determine Content-Type.
         if let Some((_, ct)) = self.request_headers.get_nocase_nozero("content-type") {
-            self.request_content_type = Some(util::parse_ct_header(ct.value.as_slice())?);
+            self.request_content_type = Some(parse_content_type(ct.value.as_slice())?);
         }
         // Parse cookies.
         if (*self.connp).cfg.parse_request_cookies {
@@ -1040,17 +1041,17 @@ impl Transaction {
     ///         callbacks does not want to follow the transaction any more.
     pub unsafe fn state_request_line(&mut self) -> Result<()> {
         // Determine how to process the request URI.
+        let mut parsed_uri = Uri::default();
         if self.request_method_number == request::HtpMethod::CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
-            self.parsed_uri_raw = Some(util::parse_uri_hostport(
+            parsed_uri.parse_uri_hostport(
                 self.request_uri.as_ref().ok_or(HtpStatus::ERROR)?,
                 &mut self.flags,
-            ));
+            );
         } else if let Some(uri) = self.request_uri.as_ref() {
-            self.parsed_uri_raw = Some(util::parse_uri(uri.as_slice()));
-        } else {
-            self.parsed_uri_raw = Some(util::Uri::new());
+            parsed_uri.parse_uri(uri.as_slice());
         }
+        self.parsed_uri_raw = Some(parsed_uri);
         // Parse the request URI into Transaction::parsed_uri_raw.
         // Build Transaction::parsed_uri, but only if it was not explicitly set already.
         if self.parsed_uri.is_none() {
@@ -1067,9 +1068,9 @@ impl Transaction {
         (*self.connp).cfg.hook_request_uri_normalize.run_all(self)?;
         // Run hook REQUEST_LINE.
         (*self.connp).cfg.hook_request_line.run_all(self)?;
-        if let Some(parsed_uri) = &self.parsed_uri {
+        if let Some(parsed_uri) = self.parsed_uri.as_mut() {
             let (partial_normalized_uri, complete_normalized_uri) =
-                util::generate_normalized_uri(&(*(self.cfg)).decoder_cfg, parsed_uri);
+                parsed_uri.generate_normalized_uri(&(*(self.cfg)).decoder_cfg);
             self.partial_normalized_uri = partial_normalized_uri;
             self.complete_normalized_uri = complete_normalized_uri;
         }
@@ -1393,7 +1394,7 @@ impl Transaction {
 
     /// Normalize a previously-parsed request URI.
     pub unsafe fn normalize_parsed_uri(&mut self) {
-        let mut uri = util::Uri::new();
+        let mut uri = Uri::default();
         if let Some(incomplete) = &self.parsed_uri_raw {
             uri.scheme = incomplete.normalized_scheme();
             uri.username =

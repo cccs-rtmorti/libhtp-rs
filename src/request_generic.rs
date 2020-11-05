@@ -2,7 +2,10 @@ use crate::error::Result;
 use crate::transaction::HtpProtocol;
 use crate::util::Flags;
 use crate::util::*;
-use crate::{bstr, config, connection_parser, parsers, request, transaction, util};
+use crate::{
+    bstr, config, connection_parser, parsers, parsers::parse_content_length, request, transaction,
+    util,
+};
 use nom::bytes::complete::take_while;
 use nom::error::ErrorKind;
 use nom::sequence::tuple;
@@ -43,8 +46,8 @@ impl connection_parser::ConnectionParser {
             if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
                 // Don't use string comparison here because we want to
                 // ignore small formatting differences.
-                let existing_cl = util::parse_content_length(&h_existing.value, None);
-                let new_cl = util::parse_content_length(&header.value, None);
+                let existing_cl = parse_content_length(&h_existing.value, None);
+                let new_cl = parse_content_length(&header.value, None);
                 // Ambiguous response C-L value.
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     htp_warn!(

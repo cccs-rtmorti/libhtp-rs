@@ -4,7 +4,7 @@ use crate::hook::DataHook;
 use crate::util::{
     nom_take_is_space, take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, Flags,
 };
-use crate::{bstr, connection_parser, transaction, util, HtpStatus};
+use crate::{bstr, connection_parser, parsers::parse_chunked_length, transaction, util, HtpStatus};
 use nom::{
     branch::alt, bytes::complete::take_until, character::complete::char,
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
@@ -314,7 +314,7 @@ impl connection_parser::ConnectionParser {
             self.in_tx_mut_ok()?.request_message_len =
                 (self.in_tx_mut_ok()?.request_message_len as u64).wrapping_add(data.len() as u64)
                     as i64;
-            if let Ok(Some(chunked_len)) = util::parse_chunked_length(&data) {
+            if let Ok(Some(chunked_len)) = parse_chunked_length(&data) {
                 self.in_chunked_length = chunked_len as i64;
             } else {
                 self.in_chunked_length = -1;

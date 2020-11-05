@@ -8,7 +8,7 @@ use htp::connection_parser::*;
 use htp::error::Result;
 use htp::transaction::HtpDataSource::*;
 use htp::transaction::*;
-use htp::util::*;
+use htp::uri::Uri;
 use htp::HtpStatus;
 use std::ffi::CString;
 use std::net::{IpAddr, Ipv4Addr};
@@ -701,7 +701,7 @@ fn ParsedUriSupplied() {
         (*tx).state_request_start().unwrap();
         req_set_line(&mut *tx, "GET /?p=1&q=2 HTTP/1.0").unwrap();
 
-        let mut u = Uri::new();
+        let mut u = Uri::default();
         u.path = Some(Bstr::from("/123"));
         (*tx).parsed_uri = Some(u);
         (*tx).state_request_line().unwrap();

@@ -3,7 +3,13 @@ use crate::error::Result;
 use crate::hook::DataHook;
 use crate::transaction::HtpProtocol;
 use crate::util::Flags;
-use crate::{bstr, connection_parser, decompressors, request, transaction, util, HtpStatus};
+use crate::{
+    bstr, connection_parser, decompressors,
+    parsers::{parse_chunked_length, parse_content_length},
+    request, transaction,
+    uri::Uri,
+    util, HtpStatus,
+};
 use std::cmp::Ordering;
 
 pub type Time = libc::timeval;
@@ -298,7 +304,7 @@ impl connection_parser::ConnectionParser {
                 (self.out_tx_mut_ok()?.response_message_len as u64).wrapping_add(len as u64) as i64;
 
             let buf: &mut [u8] = unsafe { std::slice::from_raw_parts_mut(data, len) };
-            if let Ok(chunked_length) = util::parse_chunked_length(buf) {
+            if let Ok(chunked_length) = parse_chunked_length(buf) {
                 if let Some(chunked_length) = chunked_length {
                     self.out_chunked_length = chunked_length as i64;
                 } else {
@@ -633,7 +639,7 @@ impl connection_parser::ConnectionParser {
                 }
                 // Get body length
                 if let Some(content_length) =
-                    util::parse_content_length((*cl.value).as_slice(), Some(self))
+                    parse_content_length((*cl.value).as_slice(), Some(&mut *self))
                 {
                     self.out_tx_mut_ok()?.response_content_length = content_length;
                     self.out_content_length = self.out_tx_mut_ok()?.response_content_length;
@@ -1196,10 +1202,10 @@ impl connection_parser::ConnectionParser {
             self.set_out_tx_id(Some(tx_id));
             let out_tx = self.out_tx_mut_ok()?;
 
-            let mut uri = util::Uri::new();
-            uri.set_path(b"/libhtp::request_uri_not_seen");
+            let mut uri = Uri::default();
+            uri.path = Some(bstr::Bstr::from("/libhtp::request_uri_not_seen"));
+            out_tx.request_uri = uri.path.clone();
             out_tx.parsed_uri = Some(uri);
-            out_tx.request_uri = Some(bstr::Bstr::from("/libhtp::request_uri_not_seen"));
             self.in_state = State::FINALIZE;
             // We've used one transaction
             self.out_next_tx_index = self.out_next_tx_index.wrapping_add(1)

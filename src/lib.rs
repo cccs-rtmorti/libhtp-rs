@@ -99,3 +99,4 @@ pub mod lzma {
     pub mod LzmaDec;
 } // mod lzma
 pub mod error;
+pub mod uri;

@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::util::{take_ascii_whitespace, Flags as UtilFlags};
-use crate::{bstr, config, list, table, transaction, util, HtpStatus};
+use crate::{bstr, config, list, parsers::parse_content_type, table, transaction, util, HtpStatus};
 use bitflags;
 use nom::{
     branch::alt,
@@ -667,7 +667,7 @@ impl Part {
     /// Returns OK on success, DECLINED if the C-T header is not present, and ERROR on failure.
     fn parse_c_t(&mut self) -> Result<()> {
         if let Some((_, header)) = self.headers.get_nocase_nozero("content-type") {
-            self.content_type = Some(util::parse_ct_header(header.value.as_slice())?);
+            self.content_type = Some(parse_content_type(header.value.as_slice())?);
             Ok(())
         } else {
             Err(HtpStatus::DECLINED)
