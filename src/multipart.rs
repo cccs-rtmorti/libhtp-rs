@@ -346,7 +346,7 @@ impl Parser {
     /// Returns the multipart structure created by the parser.
     ///
     /// Returns The main multipart structure.
-    pub fn get_multipart(&mut self) -> *mut Multipart {
+    pub fn get_multipart(&mut self) -> &mut Multipart {
         &mut self.multipart
     }
 
@@ -781,17 +781,17 @@ impl Part {
         Ok(())
     }
 
-    pub unsafe fn run_request_file_data_hook(&mut self, data: &[u8]) -> Result<()> {
-        if (*self.parser).cfg.is_null() {
+    pub fn run_request_file_data_hook(&mut self, data: &[u8]) -> Result<()> {
+        if unsafe { (*self.parser).cfg.is_null() } {
             return Ok(());
         }
 
-        match &mut (*self).file {
+        match &mut self.file {
             // Combine value pieces into a single buffer.
             // Keep track of the file length.
             Some(file) => {
                 // Send data to callbacks
-                file.handle_file_data((*(*self).parser).cfg, data.as_ptr(), data.len())
+                file.handle_file_data(unsafe { (*self.parser).cfg }, data.as_ptr(), data.len())
                     .into()
             }
             None => Ok(()),

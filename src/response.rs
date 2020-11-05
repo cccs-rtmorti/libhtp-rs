@@ -700,7 +700,7 @@ impl connection_parser::ConnectionParser {
                 // Run hook response_TRAILER.
                 // TODO: Figure out how to do this without clone()
                 let cfg = self.cfg.clone();
-                cfg.hook_response_trailer.run_all(self.out_tx_mut_ptr())?;
+                cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
                 self.out_state = State::FINALIZE;
                 return Ok(());
             }
@@ -888,7 +888,7 @@ impl connection_parser::ConnectionParser {
                         // Run hook response_TRAILER.
                         // TODO: Figure out how to do this without clone()
                         let cfg = self.cfg.clone();
-                        cfg.hook_response_trailer.run_all(self.out_tx_mut_ptr())?;
+                        cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
                         // The next step is to finalize this response.
                         self.out_state = State::FINALIZE
                     }
@@ -1214,10 +1214,10 @@ impl connection_parser::ConnectionParser {
     }
 
     /// Run the RESPONSE_BODY_DATA hook.
-    pub unsafe fn res_run_hook_body_data(&mut self, d: *mut transaction::Data) -> Result<()> {
+    pub fn res_run_hook_body_data(&mut self, d: &mut transaction::Data) -> Result<()> {
         let out_tx = self.out_tx_mut_ok()?;
         // Do not invoke callbacks with an empty data chunk.
-        if !(*d).data().is_null() && (*d).len() == 0 {
+        if !d.data().is_null() && d.len() == 0 {
             return Ok(());
         }
         // Run transaction hooks first

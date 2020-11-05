@@ -826,11 +826,11 @@ fn SmallChunks() {
     assert!(t.run("25-small-chunks.t").is_ok());
 }
 
-fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: *mut Data) -> Result<()> {
+fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: &mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len();
-        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
+        let len = d.len();
+        let data: &[u8] = slice::from_raw_parts(d.data(), len);
         match COUNTER {
             0 => {
                 if !((len == 11) && data == b"User-Agent:") {
@@ -893,11 +893,11 @@ fn RequestHeaderData() {
     }
 }
 
-fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: *mut Data) -> Result<()> {
+fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: &mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len();
-        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
+        let len = d.len();
+        let data: &[u8] = slice::from_raw_parts(d.data(), len);
         match COUNTER {
             0 => {
                 if !((len == 7) && (data == b"Cookie:")) {
@@ -948,11 +948,11 @@ fn RequestTrailerData() {
     }
 }
 
-fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: *mut Data) -> Result<()> {
+fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: &mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len();
-        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
+        let len = d.len();
+        let data: &[u8] = slice::from_raw_parts(d.data(), len);
         match COUNTER {
         0 => {
             if !((len == 5) && (data == b"Date:")) {
@@ -1015,11 +1015,11 @@ fn ResponseHeaderData() {
     }
 }
 
-fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: *mut Data) -> Result<()> {
+fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: &mut Data) -> Result<()> {
     unsafe {
         static mut COUNTER: i32 = 0;
-        let len = (*d).len();
-        let data: &[u8] = slice::from_raw_parts((*d).data(), len);
+        let len = d.len();
+        let data: &[u8] = slice::from_raw_parts(d.data(), len);
         match COUNTER {
             0 => {
                 if !((len == 11) && (data == b"Set-Cookie:")) {

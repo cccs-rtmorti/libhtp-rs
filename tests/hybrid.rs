@@ -57,63 +57,63 @@ impl HybridParsing_Get_User_Data {
     }
 }
 
-fn HybridParsing_Get_Callback_REQUEST_START(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_START(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_START_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_LINE(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_LINE(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_LINE_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_HEADERS_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_START(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_START(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_START_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_LINE_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut Data) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: &mut Data) -> Result<()> {
     unsafe {
         let user_data = (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data;
 
@@ -175,17 +175,17 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: *mut Data) -> Result<()> {
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
     }
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: *mut Transaction) -> Result<()> {
+fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: &mut Transaction) -> Result<()> {
     unsafe {
-        let user_data = (*tx).user_data() as *mut HybridParsing_Get_User_Data;
+        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
         (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
     }
     Ok(())

@@ -709,9 +709,9 @@ impl connection_parser::ConnectionParser {
         return Err(HtpStatus::DATA_BUFFER);
     }
     /// Run the REQUEST_BODY_DATA hook.
-    pub unsafe fn req_run_hook_body_data(&mut self, d: *mut transaction::Data) -> Result<()> {
+    pub fn req_run_hook_body_data(&mut self, d: &mut transaction::Data) -> Result<()> {
         // Do not invoke callbacks with an empty data chunk
-        if !(*d).data().is_null() && (*d).len() == 0 {
+        if !d.data().is_null() && d.len() == 0 {
             return Ok(());
         }
         // Do not invoke callbacks without a transaction.
@@ -723,7 +723,7 @@ impl connection_parser::ConnectionParser {
         self.cfg.hook_request_body_data.run_all(d)?;
         // On PUT requests, treat request body as file
         if let Some(file) = &mut self.put_file {
-            file.handle_file_data(&mut self.cfg, (*d).data(), (*d).len())?;
+            file.handle_file_data(&mut self.cfg, d.data(), d.len())?;
         }
         Ok(())
     }

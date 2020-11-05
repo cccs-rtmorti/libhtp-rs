@@ -8,7 +8,7 @@ use crate::HtpStatus;
 pub type TxExternalCallbackFn = unsafe extern "C" fn(tx: *mut Transaction) -> HtpStatus;
 
 /// Native (rust) callback function prototype
-pub type TxNativeCallbackFn = fn(tx: *mut Transaction) -> Result<()>;
+pub type TxNativeCallbackFn = fn(tx: &mut Transaction) -> Result<()>;
 
 /// Hook for Transaction
 pub type TxHook = Hook<TxExternalCallbackFn, TxNativeCallbackFn>;
@@ -17,7 +17,7 @@ pub type TxHook = Hook<TxExternalCallbackFn, TxNativeCallbackFn>;
 pub type DataExternalCallbackFn = unsafe extern "C" fn(data: *mut Data) -> HtpStatus;
 
 /// Native (rust) callback function prototype
-pub type DataNativeCallbackFn = fn(data: *mut Data) -> Result<()>;
+pub type DataNativeCallbackFn = fn(data: &mut Data) -> Result<()>;
 
 /// Hook for Data
 pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
@@ -26,7 +26,7 @@ pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
 pub type FileDataExternalCallbackFn = unsafe extern "C" fn(data: *mut FileData) -> HtpStatus;
 
 /// Native (rust) callback function prototype
-pub type FileDataNativeCallbackFn = fn(data: *mut FileData) -> Result<()>;
+pub type FileDataNativeCallbackFn = fn(data: &mut FileData) -> Result<()>;
 
 /// Hook for htp_tx_filedata_t
 pub type FileDataHook = Hook<FileDataExternalCallbackFn, FileDataNativeCallbackFn>;
@@ -35,7 +35,7 @@ pub type FileDataHook = Hook<FileDataExternalCallbackFn, FileDataNativeCallbackF
 pub type LogExternalCallbackFn = unsafe extern "C" fn(log: *mut Log) -> HtpStatus;
 
 /// Native (rust) callback function prototype
-pub type LogNativeCallbackFn = fn(log: *mut Log) -> Result<()>;
+pub type LogNativeCallbackFn = fn(log: &mut Log) -> Result<()>;
 
 /// Hook for Log
 pub type LogHook = Hook<LogExternalCallbackFn, LogNativeCallbackFn>;
@@ -70,7 +70,7 @@ impl TxHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, tx: *mut Transaction) -> Result<()> {
+    pub fn run_all(&self, tx: &mut Transaction) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -97,7 +97,7 @@ impl DataHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, data: *mut Data) -> Result<()> {
+    pub fn run_all(&self, data: &mut Data) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -124,7 +124,7 @@ impl FileDataHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, data: *mut FileData) -> Result<()> {
+    pub fn run_all(&self, data: &mut FileData) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
@@ -151,7 +151,7 @@ impl LogHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, log: *mut Log) -> Result<()> {
+    pub fn run_all(&self, log: &mut Log) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
