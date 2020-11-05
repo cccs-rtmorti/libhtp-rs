@@ -17,6 +17,7 @@ use nom::{
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
 };
 use std::io::{Cursor, Seek, SeekFrom};
+use transaction::{HtpRequestProgress, HtpTransferCoding};
 
 /// HTTP methods.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
@@ -384,12 +385,12 @@ impl ConnectionParser {
     pub fn REQ_BODY_DETERMINE(&mut self) -> Result<()> {
         // Determine the next state based on the presence of the request
         // body, and the coding used.
-        match self.in_tx_mut_ok()?.request_transfer_coding as u32 {
-            3 => {
+        match self.in_tx_mut_ok()?.request_transfer_coding {
+            HtpTransferCoding::CHUNKED => {
                 self.in_state = State::BODY_CHUNKED_LENGTH;
                 self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::BODY
             }
-            2 => {
+            HtpTransferCoding::IDENTITY => {
                 self.in_content_length = self.in_tx_mut_ok()?.request_content_length;
                 self.in_body_data_left = self.in_content_length;
                 if self.in_content_length != 0 {
@@ -399,7 +400,7 @@ impl ConnectionParser {
                     unsafe { (*self.in_tx_mut_ok()?.connp).in_state = State::FINALIZE }
                 }
             }
-            1 => {
+            HtpTransferCoding::NO_BODY => {
                 // This request does not have a body, which
                 // means that we're done with it
                 self.in_state = State::FINALIZE
