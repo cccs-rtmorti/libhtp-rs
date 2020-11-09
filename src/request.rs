@@ -4,7 +4,7 @@ use crate::{
     error::Result,
     hook::DataHook,
     parsers::parse_chunked_length,
-    transaction::{Data, HtpRequestProgress, HtpResponseProgress},
+    transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
         chomp, convert_to_method, is_folding_char, is_line_folded, is_line_ignorable,
         is_line_terminator, is_space, nom_take_is_space, take_is_space, take_not_is_space,
@@ -17,7 +17,6 @@ use nom::{
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
 };
 use std::io::{Cursor, Seek, SeekFrom};
-use transaction::{HtpRequestProgress, HtpTransferCoding};
 
 /// HTTP methods.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
