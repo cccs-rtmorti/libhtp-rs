@@ -441,8 +441,10 @@ impl ConnectionParser {
         // to assume there's no body, but we need to ignore all
         // subsequent data in the stream.
         if self.out_tx_mut_ok()?.request_method_number == HtpMethod::CONNECT {
-            if self.out_tx_mut_ok()?.response_status_number >= 200
-                && self.out_tx_mut_ok()?.response_status_number <= 299
+            if self
+                .out_tx_mut_ok()?
+                .response_status_number
+                .in_range(200, 299)
             {
                 // This is a successful CONNECT stream, which means
                 // we need to switch into tunneling mode: on the
@@ -452,7 +454,7 @@ impl ConnectionParser {
                 self.out_state = State::FINALIZE;
                 // we may have response headers
                 return unsafe { self.state_response_headers().into() };
-            } else if self.out_tx_mut_ok()?.response_status_number == 407 {
+            } else if self.out_tx_mut_ok()?.response_status_number.eq(407) {
                 // proxy telling us to auth
                 if self.in_status != HtpStreamState::ERROR {
                     self.in_status = HtpStreamState::DATA
@@ -485,7 +487,7 @@ impl ConnectionParser {
         // Unlike CONNECT, however, upgrades from HTTP to HTTP seem
         // rather unlikely, so don't try to probe tunnel for nested HTTP,
         // and switch to tunnel mode right away.
-        if self.out_tx_mut_ok()?.response_status_number == 101 {
+        if self.out_tx_mut_ok()?.response_status_number.eq(101) {
             if te_opt.is_none() && cl_opt.is_none() {
                 self.out_state = State::FINALIZE;
                 if self.in_status != HtpStreamState::ERROR {
@@ -503,7 +505,7 @@ impl ConnectionParser {
             }
         }
         // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
-        if self.out_tx_mut_ok()?.response_status_number == 100
+        if self.out_tx_mut_ok()?.response_status_number.eq(100)
             && te_opt.is_none()
             && cl_opt.is_none()
         {
@@ -527,8 +529,10 @@ impl ConnectionParser {
         // A request can indicate it waits for headers validation
         // before sending its body cf
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expect
-        if self.out_tx_mut_ok()?.response_status_number >= 400
-            && self.out_tx_mut_ok()?.response_status_number <= 499
+        if self
+            .out_tx_mut_ok()?
+            .response_status_number
+            .in_range(400, 499)
             && self.in_content_length > 0
             && self.in_body_data_left == self.in_content_length
         {
@@ -548,10 +552,12 @@ impl ConnectionParser {
             // There's no response body whatsoever
             self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::NO_BODY;
             self.out_state = State::FINALIZE
-        } else if self.out_tx_mut_ok()?.response_status_number >= 100
-            && self.out_tx_mut_ok()?.response_status_number <= 199
-            || self.out_tx_mut_ok()?.response_status_number == 204
-            || self.out_tx_mut_ok()?.response_status_number == 304
+        } else if self
+            .out_tx_mut_ok()?
+            .response_status_number
+            .in_range(100, 199)
+            || self.out_tx_mut_ok()?.response_status_number.eq(204)
+            || self.out_tx_mut_ok()?.response_status_number.eq(304)
         {
             // There should be no response body
             // but browsers interpret content sent by the server as such

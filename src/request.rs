@@ -242,8 +242,10 @@ impl ConnectionParser {
         }
         // A 2xx response means a tunnel was established. Anything
         // else means we continue to follow the HTTP stream.
-        if self.in_tx_mut_ok()?.response_status_number >= 200
-            && self.in_tx_mut_ok()?.response_status_number <= 299
+        if self
+            .in_tx_mut_ok()?
+            .response_status_number
+            .in_range(200, 299)
         {
             // TODO Check that the server did not accept a connection to itself.
             // The requested tunnel was established: we are going

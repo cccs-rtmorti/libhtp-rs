@@ -6,7 +6,7 @@ use htp::{
     config::{Config, HtpServerPersonality},
     connection_parser::ConnectionParser,
     error::Result,
-    transaction::{Data, Header, HtpDataSource, HtpProtocol, Transaction},
+    transaction::{Data, Header, HtpDataSource, HtpProtocol, HtpResponseNumber, Transaction},
     uri::Uri,
     HtpStatus,
 };
@@ -386,7 +386,7 @@ fn GetTest() {
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(HtpProtocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.as_ref().unwrap().eq("200"));
-        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(200));
         assert!((*tx).response_message.as_ref().unwrap().eq("OK"));
 
         // Response line complete
@@ -845,7 +845,7 @@ fn ResponseLineIncomplete() {
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(HtpProtocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.is_none());
-        assert_eq!(-1, (*tx).response_status_number);
+        assert_eq!(HtpResponseNumber::INVALID, (*tx).response_status_number);
         assert!((*tx).response_message.is_none());
         (*tx).state_response_complete().unwrap();
     }
@@ -865,7 +865,7 @@ fn ResponseLineIncomplete1() {
         assert!((*tx).response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
         assert_eq!(HtpProtocol::V1_1, (*tx).response_protocol_number);
         assert!((*tx).response_status.as_ref().unwrap().eq("200"));
-        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(200));
         assert!((*tx).response_message.is_none());
         (*tx).state_response_complete().unwrap();
     }

@@ -463,11 +463,13 @@ pub unsafe extern "C" fn htp_tx_response_status(tx: *const Transaction) -> *cons
 /// Returns the response status number or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_status_number(tx: *const Transaction) -> i32 {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_status_number
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .map(|tx| match tx.response_status_number {
+            HtpResponseNumber::UNKNOWN => 0,
+            HtpResponseNumber::INVALID => -1,
+            HtpResponseNumber::VALID(status) => status as i32,
+        })
+        .unwrap_or(-1)
 }
 /// Get the transaction's response status expected number.
 ///

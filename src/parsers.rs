@@ -3,7 +3,7 @@ use crate::{
     connection_parser::ConnectionParser,
     error::Result,
     table::Table,
-    transaction::{Header, HtpAuthType, HtpProtocol, Transaction},
+    transaction::{Header, HtpAuthType, HtpProtocol, HtpResponseNumber, Transaction},
     util::{ascii_digits, convert_port, hex_digits, take_ascii_whitespace, validate_hostname},
     HtpStatus,
 };
@@ -290,23 +290,21 @@ pub fn parse_protocol<'a>(input: &'a [u8], connp: &ConnectionParser) -> HtpProto
 }
 
 /// Determines the numerical value of a response status given as a string.
-///
-/// Returns HtpStatus code as a u16 on success or None on failure
-pub fn parse_status(status: &[u8]) -> Option<u16> {
+pub fn parse_status(status: &[u8]) -> HtpResponseNumber {
     if let Ok((trailing_data, (leading_data, status_code))) = ascii_digits()(status) {
         if trailing_data.len() > 0 || leading_data.len() > 0 {
             //There are invalid characters in the status code
-            return None;
+            return HtpResponseNumber::INVALID;
         }
         if let Ok(status_code) = std::str::from_utf8(status_code) {
             if let Ok(status_code) = u16::from_str_radix(status_code, 10) {
                 if status_code >= 100 && status_code <= 999 {
-                    return Some(status_code);
+                    return HtpResponseNumber::VALID(status_code);
                 }
             }
         }
     }
-    None
+    return HtpResponseNumber::INVALID;
 }
 
 /// Parses Digest Authorization request header.
@@ -498,13 +496,22 @@ fn AuthDigest() {
 }
 #[test]
 fn ParseStatus() {
-    assert_eq!(Some(200u16), parse_status(&Bstr::from("   200    ")));
-    assert_eq!(Some(404u16), parse_status(&Bstr::from("  \t 404    ")));
-    assert_eq!(Some(123u16), parse_status(&Bstr::from("123")));
-    assert!(parse_status(&Bstr::from("99")).is_none());
-    assert!(parse_status(&Bstr::from("1000")).is_none());
-    assert!(parse_status(&Bstr::from("200 OK")).is_none());
-    assert!(parse_status(&Bstr::from("NOT 200")).is_none());
+    assert!(parse_status(&Bstr::from("   200    ")).eq(200u16));
+    assert!(parse_status(&Bstr::from("  \t 404    ")).eq(404u16));
+    assert!(parse_status(&Bstr::from("123")).eq(123u16));
+    assert_eq!(parse_status(&Bstr::from("99")), HtpResponseNumber::INVALID);
+    assert_eq!(
+        parse_status(&Bstr::from("1000")),
+        HtpResponseNumber::INVALID
+    );
+    assert_eq!(
+        parse_status(&Bstr::from("200 OK")),
+        HtpResponseNumber::INVALID
+    );
+    assert_eq!(
+        parse_status(&Bstr::from("NOT 200")),
+        HtpResponseNumber::INVALID
+    );
 }
 
 #[test]

@@ -140,6 +140,32 @@ pub enum HtpTransferCoding {
     ERROR,
 }
 
+/// Enumerates the possible server personalities.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum HtpResponseNumber {
+    UNKNOWN,
+    INVALID,
+    VALID(u16),
+}
+
+impl HtpResponseNumber {
+    pub fn in_range(&self, min: u16, max: u16) -> bool {
+        use HtpResponseNumber::*;
+        match *self {
+            UNKNOWN | INVALID => false,
+            VALID(ref status) => status >= &min && status <= &max,
+        }
+    }
+
+    pub fn eq(&self, num: u16) -> bool {
+        use HtpResponseNumber::*;
+        match *self {
+            UNKNOWN | INVALID => false,
+            VALID(ref status) => status == &num,
+        }
+    }
+}
+
 /// Represents a single request or response header.
 #[derive(Clone)]
 pub struct Header {
@@ -371,7 +397,7 @@ pub struct Transaction {
     pub response_status: Option<Bstr>,
     /// Response status code, available only if we were able to parse it, HTP_STATUS_INVALID
     /// otherwise. HTP_STATUS_UNKNOWN until parsing is attempted.
-    pub response_status_number: i32,
+    pub response_status_number: HtpResponseNumber,
     /// This field is set by the protocol decoder with it thinks that the
     /// backend server will reject a request with a particular status code.
     pub response_status_expected_number: HtpUnwanted,
@@ -496,7 +522,7 @@ impl Transaction {
             response_protocol: None,
             response_protocol_number: HtpProtocol::UNKNOWN,
             response_status: None,
-            response_status_number: 0,
+            response_status_number: HtpResponseNumber::UNKNOWN,
             response_status_expected_number: HtpUnwanted::IGNORE,
             response_message: None,
             seen_100continue: false,
@@ -793,19 +819,13 @@ impl Transaction {
             );
             self.flags |= Flags::STATUS_LINE_INVALID
         }
-        if self.response_status_number == -1
-            || self.response_status_number < 100
-            || self.response_status_number > 999
-        {
+        if !self.response_status_number.in_range(100, 999) {
             htp_warn!(
                 &*self.connp,
                 HtpLogCode::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
-                format!(
-                    "Invalid response line: invalid response status {}.",
-                    self.response_status_number
-                )
+                format!("Invalid response line: invalid response status.",)
             );
-            self.response_status_number = -1;
+            self.response_status_number = HtpResponseNumber::INVALID;
             self.flags |= Flags::STATUS_LINE_INVALID
         }
         // Run hook HTP_RESPONSE_LINE

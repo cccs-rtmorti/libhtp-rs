@@ -6,8 +6,8 @@ use htp::{
     error::Result,
     log::HtpLogLevel,
     transaction::{
-        Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseProgress,
-        Transaction,
+        Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
+        HtpResponseProgress, Transaction,
     },
     util::{ConnectionFlags, Flags, HtpFileSource},
 };
@@ -563,7 +563,7 @@ fn FailedConnectRequest() {
 
         assert!((*tx).request_method.as_ref().unwrap().eq("CONNECT"));
 
-        assert_eq!(405, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(405));
     }
 }
 
@@ -624,7 +624,7 @@ fn SuccessfulConnectRequest() {
 
         assert!((*tx).request_method.as_ref().unwrap().eq("CONNECT"));
 
-        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(200));
     }
 }
 
@@ -2535,14 +2535,14 @@ fn ResponsesCut() {
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
-        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(200));
         assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("GET"));
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
-        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(200));
         assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
     }
 }
@@ -2693,14 +2693,26 @@ fn Expect100() {
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("PUT"));
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
-        assert_eq!(401, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(401));
         assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
 
         let tx = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx.is_null());
         assert!((*tx).request_method.as_ref().unwrap().eq("POST"));
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
-        assert_eq!(200, (*tx).response_status_number);
+        assert!((*tx).response_status_number.eq(200));
         assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
+    }
+}
+
+#[test]
+fn UnknownStatusNumber() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("107-response_unknown_status.t").is_ok());
+        assert_eq!(1, (*t.connp).conn.tx_size());
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+        assert_eq!((*tx).response_status_number, HtpResponseNumber::UNKNOWN);
     }
 }

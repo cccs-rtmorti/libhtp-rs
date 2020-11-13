@@ -3,7 +3,7 @@ use crate::{
     connection_parser::ConnectionParser,
     error::Result,
     parsers::{parse_content_length, parse_protocol, parse_status},
-    transaction::{Header, HtpProtocol},
+    transaction::{Header, HtpProtocol, HtpResponseNumber},
     util::{
         chomp, is_word_token, split_by_colon, take_ascii_whitespace, take_is_space,
         take_not_is_space, Flags,
@@ -19,7 +19,7 @@ impl ConnectionParser {
         let out_tx = self.out_tx_mut_ok()?;
         out_tx.response_protocol_number = HtpProtocol::INVALID;
         out_tx.response_status = None;
-        out_tx.response_status_number = -1;
+        out_tx.response_status_number = HtpResponseNumber::INVALID;
         out_tx.response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
@@ -47,12 +47,7 @@ impl ConnectionParser {
 
             let out_tx = self.out_tx_mut_ok()?;
             out_tx.response_status = Some(Bstr::from(status_code));
-
-            if let Some(status_number) = parse_status(status_code) {
-                out_tx.response_status_number = status_number as i32;
-            } else {
-                out_tx.response_status_number = -1;
-            }
+            out_tx.response_status_number = parse_status(status_code);
 
             if ws2.is_empty() {
                 return Ok(());
