@@ -78,6 +78,7 @@ pub enum HtpLogCode {
     PROTOCOL_CONTAINS_EXTRA_DATA,
     INVALID_GAP,
     COMPRESSION_BOMB_DOUBLE_LZMA,
+    INVALID_CONTENT_ENCODING,
     /// Error retrieving a log message's code
     ERROR,
 }

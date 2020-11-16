@@ -565,8 +565,14 @@ impl ConnectionParser {
         data: *const core::ffi::c_void,
         len: usize,
     ) -> Result<()> {
+        let data = if data.is_null() {
+            None
+        } else {
+            Some(std::slice::from_raw_parts(data as *const u8, len))
+        };
+
         if let Some(tx) = self.out_tx_mut() {
-            tx.res_process_body_data_ex(data, len)
+            tx.res_process_body_data_ex(data)
         } else {
             Err(HtpStatus::ERROR)
         }

@@ -1,3 +1,4 @@
+use crate::decompressors::Options;
 use crate::{
     content_handlers::{
         callback_multipart_request_headers, callback_urlencoded_request_headers,
@@ -121,14 +122,8 @@ pub struct Config {
     pub requestline_leading_whitespace_unwanted: HtpUnwanted,
     /// How many layers of compression we will decompress (0 => no limit).
     pub response_decompression_layer_limit: i32,
-    /// max memory use by a the lzma decompressor.
-    pub lzma_memlimit: usize,
-    /// How many layers of compression we will decompress (0 => no lzma).
-    pub response_lzma_layer_limit: i32,
-    /// max output size for a compression bomb.
-    pub compression_bomb_limit: i32,
-    /// max time for a decompression bomb.
-    pub compression_time_limit: i32,
+    /// decompression options
+    pub compression_options: Options,
 }
 
 impl Default for Config {
@@ -168,10 +163,7 @@ impl Default for Config {
             hook_log: LogHook::new(),
             requestline_leading_whitespace_unwanted: HtpUnwanted::IGNORE,
             response_decompression_layer_limit: 2,
-            lzma_memlimit: 1048576,
-            response_lzma_layer_limit: 1,
-            compression_bomb_limit: 1048576,
-            compression_time_limit: 100000,
+            compression_options: Options::default(),
         }
     }
 }
@@ -308,7 +300,7 @@ fn config_alloc() -> *mut Config {
 fn config_free(cfg: *mut Config) {
     if !cfg.is_null() {
         unsafe {
-            Box::from_raw(cfg);
+            let _ = Box::from_raw(cfg);
         }
     }
 }
@@ -444,25 +436,6 @@ impl Config {
     /// soft_limit is NOT IMPLEMENTED.
     pub fn set_field_limit(&mut self, field_limit: usize) {
         self.field_limit = field_limit;
-    }
-
-    /// Configures the maximum memlimit LibHTP will pass to liblzma.
-    pub fn set_lzma_memlimit(&mut self, memlimit: usize) {
-        self.lzma_memlimit = memlimit;
-    }
-
-    /// Configures the maximum layers LibHTP will pass to liblzma.
-    pub fn set_lzma_layers(&mut self, limit: i32) {
-        self.response_lzma_layer_limit = limit;
-    }
-
-    /// Configures the maximum compression bomb size LibHTP will decompress.
-    pub fn set_compression_bomb_limit(&mut self, bomblimit: usize) {
-        if bomblimit > std::i32::MAX as usize {
-            self.compression_bomb_limit = std::i32::MAX
-        } else {
-            self.compression_bomb_limit = bomblimit as i32
-        };
     }
 
     /// Enable or disable request cookie parsing. Enabled by default.

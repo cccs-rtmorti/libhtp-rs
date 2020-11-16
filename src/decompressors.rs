@@ -1,41 +1,190 @@
-use crate::{connection_parser::ConnectionParser, lzma::LzmaDec, transaction::Data, HtpStatus};
-extern "C" {
-    pub type internal_state;
-    #[no_mangle]
-    fn malloc(_: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn calloc(_: libc::size_t, _: libc::size_t) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn free(__ptr: *mut core::ffi::c_void);
-    #[no_mangle]
-    fn memcpy(
-        _: *mut core::ffi::c_void,
-        _: *const core::ffi::c_void,
-        _: libc::size_t,
-    ) -> *mut core::ffi::c_void;
-    #[no_mangle]
-    fn inflate(strm: z_streamp, flush: libc::c_int) -> libc::c_int;
-    #[no_mangle]
-    fn inflateEnd(strm: z_streamp) -> libc::c_int;
-    #[no_mangle]
-    fn crc32(crc: libc::c_ulong, buf: *const libc::c_uchar, len: libc::c_uint) -> libc::c_ulong;
-    #[no_mangle]
-    fn inflateInit2_(
-        strm: z_streamp,
-        windowBits: libc::c_int,
-        version: *const libc::c_char,
-        stream_size: libc::c_int,
-    ) -> libc::c_int;
+use std::io::{Cursor, Write};
+use std::time::Instant;
+
+/// Buffer compression output to this chunk size.
+const ENCODING_CHUNK_SIZE: usize = 8192;
+
+/// Default LZMA dictionary memory limit in bytes.
+const DEFAULT_LZMA_MEMLIMIT: usize = 1048576;
+/// Default number of LZMA layers to pass to the decompressor.
+const DEFAULT_LZMA_LAYERS: u32 = 1;
+/// Default max output size for a compression bomb.
+const DEFAULT_BOMB_LIMIT: i32 = 1048576;
+/// Upper limit to max output size for a compression bomb.
+const MAX_BOMB_LIMIT: i32 = 2147483647;
+/// Default compressed-to-decrompressed ratio that should not be exceeded during decompression.
+const DEFAULT_BOMB_RATIO: i64 = 2048;
+/// Default time limit for a decompression bomb in microseconds.
+const DEFAULT_TIME_LIMIT: u32 = 100000;
+/// Default number of iterations before checking the time limit.
+const DEFAULT_TIME_FREQ_TEST: u32 = 256;
+
+#[derive(Copy, Clone)]
+/// Decompression options
+pub struct Options {
+    /// lzma options or None to disable lzma.
+    lzma: Option<lzma_rs::decompress::Options>,
+    // TODO: implement lzma layers check
+    /// number of LZMA layers to pass to the decompressor.
+    lzma_layers: u32,
+    /// max output size for a compression bomb.
+    bomb_limit: i32,
+    /// max compressed-to-decrompressed ratio that should not be exceeded during decompression.
+    bomb_ratio: i64,
+    /// max time for a decompression bomb in microseconds.
+    time_limit: u32,
+    /// number of iterations to before checking the time_limit.
+    time_test_freq: u32,
 }
 
+impl Options {
+    /// Get the lzma memlimit.
+    ///
+    /// A value of 0 indicates that lzma is disabled.
+    pub fn get_lzma_memlimit(&self) -> usize {
+        if let Some(options) = self.lzma {
+            if let Some(memlimit) = options.memlimit {
+                memlimit
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
+
+    /// Set the lzma memlimit.
+    ///
+    /// A value of 0 will disable lzma.
+    pub fn set_lzma_memlimit(&mut self, memlimit: usize) {
+        self.lzma = if memlimit == 0 {
+            None
+        } else {
+            Some(lzma_rs::decompress::Options {
+                memlimit: Some(memlimit),
+                ..Default::default()
+            })
+        }
+    }
+
+    /// Configures the maximum layers passed to lzma-rs.
+    pub fn set_lzma_layers(&mut self, layers: u32) {
+        self.lzma_layers = layers;
+    }
+
+    /// Get the compression bomb limit.
+    pub fn get_bomb_limit(&self) -> i32 {
+        self.bomb_limit
+    }
+
+    /// Set the compression bomb limit.
+    ///
+    /// The limit will be set to `MAX_BOMB_LIMIT` if the provided arg exceeds this value.
+    pub fn set_bomb_limit(&mut self, bomblimit: usize) {
+        if bomblimit > MAX_BOMB_LIMIT as usize {
+            self.bomb_limit = MAX_BOMB_LIMIT as i32;
+        } else {
+            self.bomb_limit = bomblimit as i32
+        };
+    }
+
+    /// Get the bomb ratio.
+    pub fn get_bomb_ratio(&self) -> i64 {
+        self.bomb_ratio
+    }
+
+    /// Set the bomb ratio.
+    pub fn set_bomb_ratio(&mut self, bomb_ratio: i64) {
+        self.bomb_ratio = bomb_ratio;
+    }
+
+    /// Get the compression time limit in microseconds.
+    pub fn get_time_limit(&self) -> u32 {
+        self.time_limit
+    }
+
+    /// Set the compression time limit in microseconds.
+    pub fn set_time_limit(&mut self, time_limit: u32) {
+        self.time_limit = time_limit
+    }
+
+    /// Get the time test frequency.
+    pub fn get_time_test_freq(&self) -> u32 {
+        self.time_test_freq
+    }
+
+    /// Set the time test frequency.
+    pub fn set_time_test_freq(&mut self, time_test_freq: u32) {
+        self.time_test_freq = time_test_freq;
+    }
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            lzma: Some(lzma_rs::decompress::Options {
+                memlimit: Some(DEFAULT_LZMA_MEMLIMIT),
+                ..Default::default()
+            }),
+            lzma_layers: DEFAULT_LZMA_LAYERS,
+            bomb_limit: DEFAULT_BOMB_LIMIT,
+            bomb_ratio: DEFAULT_BOMB_RATIO,
+            time_limit: DEFAULT_TIME_LIMIT,
+            time_test_freq: DEFAULT_TIME_FREQ_TEST,
+        }
+    }
+}
+
+pub trait Decompress: Write {
+    /// Restarts the decompressor to try the same one again or a different one.
+    fn restart(&mut self) -> std::io::Result<()>;
+
+    /// Tells all decompressors to passthrough their data instead of
+    /// decompressing to directly call the callback
+    fn set_passthrough(&mut self, passthrough: bool);
+
+    /// Indicates that we have reached the end of data. This would be equivalent
+    /// to sending a NULL pointer in C and may be used by the hooks.
+    fn finish(&mut self) -> std::io::Result<()>;
+}
+
+pub type CallbackFn = Box<dyn FnMut(Option<&[u8]>) -> Result<usize, std::io::Error>>;
+
+/// Simple wrapper around a closure to chain it to the other decompressors
+pub struct CallbackWriter(CallbackFn);
+
+impl CallbackWriter {
+    pub fn new(cbk: CallbackFn) -> Self {
+        CallbackWriter(cbk)
+    }
+}
+
+impl Write for CallbackWriter {
+    fn write(&mut self, data: &[u8]) -> std::result::Result<usize, std::io::Error> {
+        (self.0)(Some(data))
+    }
+
+    fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+
+impl Decompress for CallbackWriter {
+    fn restart(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn set_passthrough(&mut self, _passthrough: bool) {}
+
+    fn finish(&mut self) -> std::io::Result<()> {
+        (self.0)(None)?;
+        Ok(())
+    }
+}
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum HtpContentEncoding {
-    /// This is the default value, which is used until the presence
-    /// of content encoding is determined (e.g., before request headers
-    /// are seen.
-    UNKNOWN,
     /// No compression.
     NONE,
     /// Gzip compression.
@@ -48,567 +197,521 @@ pub enum HtpContentEncoding {
     ERROR,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct htp_decompressor_t {
-    pub decompress:
-        Option<unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut Data) -> HtpStatus>,
-    pub callback: Option<unsafe extern "C" fn(_: *mut Data) -> HtpStatus>,
-    pub destroy: Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
-    pub next: *mut htp_decompressor_t,
-    pub time_before: libc::timeval,
-    pub time_spent: i32,
-    pub nb_callbacks: u32,
+/// The outer decompressor tracks the number of callbacks and time spent
+/// decompressing.
+pub struct Decompressor {
+    /// First decompressor to call
+    inner: Box<dyn Decompress>,
+    /// Time we started decompression
+    time_before: Option<Instant>,
+    /// Time spent decompressing so far in microseconds (usec)
+    time_spent: u64,
+    /// Number of times the callback was called
+    nb_callbacks: u32,
 }
 
-pub type alloc_func = Option<
-    unsafe extern "C" fn(_: *mut core::ffi::c_void, _: u32, _: u32) -> *mut core::ffi::c_void,
->;
-pub type free_func =
-    Option<unsafe extern "C" fn(_: *mut core::ffi::c_void, _: *mut core::ffi::c_void) -> ()>;
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct z_stream_s {
-    pub next_in: *mut u8,
-    pub avail_in: u32,
-    pub total_in: u64,
-    pub next_out: *mut u8,
-    pub avail_out: u32,
-    pub total_out: u64,
-    pub msg: *mut u8,
-    pub state: *mut internal_state,
-    pub zalloc: alloc_func,
-    pub zfree: free_func,
-    pub opaque: *mut core::ffi::c_void,
-    pub data_type: i32,
-    pub adler: u64,
-    pub reserved: u64,
-}
-pub type z_stream = z_stream_s;
-pub type z_streamp = *mut z_stream;
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct htp_decompressor_gzip_t {
-    pub super_0: htp_decompressor_t,
-    pub zlib_initialized: HtpContentEncoding,
-    pub restart: u8,
-    pub passthrough: u8,
-    pub stream: z_stream,
-    pub header: [u8; 13],
-    pub header_len: u8,
-    pub state: LzmaDec::CLzmaDec,
-    pub buffer: *mut u8,
-    pub crc: u64,
-}
-unsafe fn SzAlloc(mut _p: LzmaDec::ISzAllocPtr, size: usize) -> *mut core::ffi::c_void {
-    malloc(size)
-}
-unsafe fn SzFree(mut _p: LzmaDec::ISzAllocPtr, address: *mut core::ffi::c_void) {
-    free(address);
-}
-#[no_mangle]
-pub static mut lzma_Alloc: LzmaDec::ISzAlloc = {
-    LzmaDec::ISzAlloc {
-        Alloc: Some(
-            SzAlloc as unsafe fn(_: LzmaDec::ISzAllocPtr, _: usize) -> *mut core::ffi::c_void,
-        ),
-        Free: Some(SzFree as unsafe fn(_: LzmaDec::ISzAllocPtr, _: *mut core::ffi::c_void) -> ()),
+impl Decompressor {
+    /// Creates a new decompressor from a struct implementing the Decompress trait.
+    fn new(inner: Box<dyn Decompress>) -> Self {
+        Self {
+            inner,
+            time_before: None,
+            time_spent: 0,
+            nb_callbacks: 0,
+        }
     }
-};
 
-///  See if the header has extensions
-///
-///  Returns number of bytes to skip
-unsafe extern "C" fn htp_gzip_decompressor_probe(data: *const u8, data_len: usize) -> usize {
-    if data_len < 4 {
-        return 0;
+    /// Creates a new decompressor from a callback to call when decompressed
+    /// data is ready.
+    fn callback(callback: CallbackFn) -> Self {
+        Self::new(Box::new(CallbackWriter::new(callback)))
     }
-    let mut consumed: usize = 0;
-    if *data.offset(0) == 0x1f && *data.offset(1) == 0x8b && *data.offset(3) != 0 {
-        if *data.offset(3) & (1) << 3 != 0 || *data.offset(3) & (1) << 4 != 0 {
-            // skip past
-            // - FNAME extension, which is a name ended in a NUL terminator
-            // or
-            // - FCOMMENT extension, which is a commend ended in a NULL terminator
-            let mut len: usize = 10;
-            while len < data_len && *data.offset(len as isize) != 0 {
-                len = len.wrapping_add(1)
+
+    /// Prepends a decompressor to this chain by consuming `self.inner`
+    /// and creating a new Decompressor.
+    ///
+    /// Note that decompressors should be added in the same order the data was
+    /// compressed, starting with the callback.
+    ///
+    /// ```
+    /// use htp::decompressors::{HtpContentEncoding, Decompressor};
+    ///
+    /// // Example for "Content-Encoding: gzip, deflate"
+    /// let mut decompressor = Decompressor::new_with_callback(HtpContentEncoding::GZIP,
+    ///     Box::new(|data: Option<&[u8]>| -> Result<usize, std::io::Error> {
+    ///         if let Some(data) = data {
+    ///             println!("CALLBACK: {}", data.len());
+    ///             Ok(data.len())
+    ///         } else {
+    ///             println!("CALLBACK: end of data");
+    ///             Ok(0)
+    ///         }
+    ///     }), Default::default()).unwrap();
+    ///
+    /// decompressor = decompressor.prepend(HtpContentEncoding::DEFLATE, Default::default()).unwrap();
+    ///
+    /// // Decompressors will be called in this order:
+    /// // 1. deflate
+    /// // 2. gzip
+    /// // 3. callback
+    /// decompressor.decompress(&[]).unwrap();
+    /// ```
+    pub fn prepend(self, encoding: HtpContentEncoding, options: Options) -> std::io::Result<Self> {
+        match encoding {
+            HtpContentEncoding::NONE => Ok(Decompressor::new(self.inner)),
+            HtpContentEncoding::GZIP | HtpContentEncoding::DEFLATE | HtpContentEncoding::LZMA => {
+                Ok(Decompressor::new(Box::new(InnerDecompressor::new(
+                    encoding, self.inner, options,
+                )?)))
             }
-            consumed = len.wrapping_add(1)
-        } else if *data.offset(3) & 1 << 1 != 0 {
-            consumed = 12
+            HtpContentEncoding::ERROR => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "expected a valid encoding",
+            )),
+        }
+    }
+
+    /// Creates a new decompressor with `encoding` and adds a callback to be called
+    /// when data is ready.
+    pub fn new_with_callback(
+        encoding: HtpContentEncoding,
+        callback: CallbackFn,
+        options: Options,
+    ) -> std::io::Result<Self> {
+        Self::callback(callback).prepend(encoding, options)
+    }
+
+    /// Starts the decompression timer.
+    fn timer_start(&mut self) {
+        self.time_before.replace(Instant::now());
+    }
+
+    /// Stops the decompression timer, updates and returns the time spent
+    /// decompressing in microseconds (usec).
+    pub fn timer_reset(&mut self) -> Option<u64> {
+        let now = Instant::now();
+        if let Some(time_before) = self.time_before.replace(now) {
+            // it is unlikely that more than 2^64 will be spent on a single stream
+            self.time_spent += now.duration_since(time_before).as_micros() as u64;
+            Some(self.time_spent)
         } else {
-            consumed = 10
+            None
         }
     }
-    if consumed > data_len {
-        return 0;
+
+    /// Increments the number of times the callback was called.
+    pub fn callback_inc(&mut self) -> u32 {
+        self.nb_callbacks = self.nb_callbacks.wrapping_add(1);
+        self.nb_callbacks
     }
-    consumed
+
+    /// Returns the time spent decompressing in microseconds (usec).
+    pub fn time_spent(&self) -> u64 {
+        self.time_spent
+    }
+
+    /// Decompress the input `data` by calling the chain of decompressors and
+    /// the data callback.
+    ///
+    /// This will reset the number of callbacks called and restart the
+    /// decompression timer.
+    pub fn decompress(&mut self, data: &[u8]) -> std::io::Result<()> {
+        self.nb_callbacks = 0;
+        self.timer_start();
+
+        let result = self.inner.write_all(data).and_then(|_| self.inner.flush());
+
+        self.timer_reset();
+        result
+    }
+
+    /// Notify decompressors that the end of stream as reached. This is equivalent
+    /// to sending a NULL data pointer.
+    pub fn finish(&mut self) -> std::io::Result<()> {
+        self.inner.finish()
+    }
 }
 
-///  restart the decompressor
+impl std::fmt::Debug for Decompressor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("Decompressor")
+            .field("time_spent", &self.time_spent)
+            .field("nb_callbacks", &self.nb_callbacks)
+            .finish()
+    }
+}
+
+/// Trait that represents the decompression writers (gzip, deflate, etc.) and
+/// methods needed to write to a temporary buffer.
+pub trait BufWriter: Write {
+    fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>>;
+    fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>>;
+}
+
+/// A BufWriter that doesn't consume any data.
 ///
-///  Returns 1 if it restarted, 0 otherwise
-unsafe extern "C" fn htp_gzip_decompressor_restart(
-    mut drec: *mut htp_decompressor_gzip_t,
-    data: *const u8,
-    data_len: usize,
-    consumed_back: *mut usize,
-) -> i32 {
-    let current_block: u64;
-    let mut consumed: usize = 0;
-    let mut rc: i32 = 0;
-    if ((*drec).restart) < 3 {
-        // first retry with the existing type, but now consider the
-        // extensions
-        if (*drec).restart == 0 {
-            consumed = htp_gzip_decompressor_probe(data, data_len);
-            if (*drec).zlib_initialized == HtpContentEncoding::GZIP {
-                // if that still fails, try the other method we support
-                rc = inflateInit2_(
-                    &mut (*drec).stream,
-                    15 + 32,
-                    b"1.2.11\x00" as *const u8 as *const i8,
-                    ::std::mem::size_of::<z_stream>() as i32,
-                )
-            } else {
-                rc = inflateInit2_(
-                    &mut (*drec).stream,
-                    -15,
-                    b"1.2.11\x00" as *const u8 as *const i8,
-                    ::std::mem::size_of::<z_stream>() as i32,
-                )
-            }
-            if rc != 0 {
-                return 0;
-            }
-            current_block = 5272667214186690925;
-        } else if (*drec).zlib_initialized == HtpContentEncoding::DEFLATE {
-            rc = inflateInit2_(
-                &mut (*drec).stream,
-                15 + 32,
-                b"1.2.11\x00" as *const u8 as *const i8,
-                ::std::mem::size_of::<z_stream>() as i32,
-            );
-            if rc != 0 {
-                return 0;
-            }
-            (*drec).zlib_initialized = HtpContentEncoding::GZIP;
-            consumed = htp_gzip_decompressor_probe(data, data_len);
-            current_block = 5272667214186690925;
-        } else if (*drec).zlib_initialized == HtpContentEncoding::GZIP {
-            rc = inflateInit2_(
-                &mut (*drec).stream,
-                -15,
-                b"1.2.11\x00" as *const u8 as *const i8,
-                ::std::mem::size_of::<z_stream>() as i32,
-            );
-            if rc != 0 {
-                return 0;
-            }
-            (*drec).zlib_initialized = HtpContentEncoding::DEFLATE;
-            consumed = htp_gzip_decompressor_probe(data, data_len);
-            current_block = 5272667214186690925;
-        } else {
-            current_block = 14401909646449704462;
-        }
-        match current_block {
-            14401909646449704462 => {}
-            _ => {
-                *consumed_back = consumed;
-                (*drec).restart = (*drec).restart.wrapping_add(1);
-                return 1;
-            }
-        }
+/// This should be used exclusively with passthrough mode.
+struct NullBufWriter(Cursor<Box<[u8]>>);
+
+impl Write for NullBufWriter {
+    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+        Ok(0)
     }
-    0
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
-/// Ends decompressor.
-unsafe fn htp_gzip_decompressor_end(mut drec: *mut htp_decompressor_gzip_t) {
-    if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
-        LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
-        (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN
-    } else if (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN {
-        inflateEnd(&mut (*drec).stream);
-        (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN
-    };
+impl BufWriter for NullBufWriter {
+    fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>> {
+        Some(&mut self.0)
+    }
+
+    fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>> {
+        Ok(self.0)
+    }
 }
 
-/// Decompress a chunk of gzip-compressed data.
-/// If we have more than one decompressor, call this function recursively.
-///
-/// Returns OK on success, ERROR or some other negative integer on failure.
-unsafe extern "C" fn htp_gzip_decompressor_decompress(
-    mut drec: *mut htp_decompressor_gzip_t,
-    d: *mut Data,
-) -> HtpStatus {
-    let mut consumed: usize = 0;
-    let mut rc: i32 = 0;
-    let mut callback_rc: HtpStatus = HtpStatus::DECLINED;
-    // Pass-through the NULL chunk, which indicates the end of the stream.
-    if (*drec).passthrough != 0 {
-        let mut d2 = (*d).clone();
-        callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut d2);
-        if callback_rc != HtpStatus::OK {
-            return HtpStatus::ERROR;
-        }
-        return HtpStatus::OK;
+/// Simple wrapper around a gzip implementation
+struct GzipBufWriter(flate2::write::GzDecoder<Cursor<Box<[u8]>>>);
+
+impl Write for GzipBufWriter {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0.write(data)
     }
-    if (*d).data().is_null() {
-        // Prepare data for callback.
-        let mut dout = {
-            let len = (8192_usize).wrapping_sub((*drec).stream.avail_out as usize);
-            let data = if len > 0 {
-                (*drec).buffer
-            } else {
-                std::ptr::null()
-            };
-            Data::new(
-                (*d).tx(),
-                Some(std::slice::from_raw_parts(data, len)),
-                (*d).is_last(),
-            )
-        };
-        if !(*drec).super_0.next.is_null()
-            && (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN
-        {
-            return htp_gzip_decompressor_decompress(
-                (*drec).super_0.next as *mut htp_decompressor_gzip_t,
-                &mut dout,
-            );
-        } else {
-            // Send decompressed data to the callback.
-            callback_rc = (*drec).super_0.callback.expect("non-null function pointer")(&mut dout);
-            if callback_rc != HtpStatus::OK {
-                htp_gzip_decompressor_end(drec);
-                return callback_rc;
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+impl BufWriter for GzipBufWriter {
+    fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>> {
+        Some(self.0.get_mut())
+    }
+
+    fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>> {
+        self.0.finish()
+    }
+}
+
+/// Simple wrapper around a deflate implementation
+struct DeflateBufWriter(flate2::write::DeflateDecoder<Cursor<Box<[u8]>>>);
+
+impl Write for DeflateBufWriter {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0.write(data)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+impl BufWriter for DeflateBufWriter {
+    fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>> {
+        Some(self.0.get_mut())
+    }
+
+    fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>> {
+        self.0.finish()
+    }
+}
+
+/// Simple wrapper around an lzma implementation
+struct LzmaBufWriter(lzma_rs::decompress::Stream<Cursor<Box<[u8]>>>);
+
+impl Write for LzmaBufWriter {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0.write(data)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+impl BufWriter for LzmaBufWriter {
+    fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>> {
+        self.0.get_output_mut()
+    }
+
+    fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>> {
+        self.0.finish().map_err(|e| match e {
+            lzma_rs::error::Error::IOError(e) => e,
+            lzma_rs::error::Error::HeaderTooShort(e) => {
+                std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e))
             }
-        }
-        return HtpStatus::OK;
+            lzma_rs::error::Error::LZMAError(e) | lzma_rs::error::Error::XZError(e) => {
+                std::io::Error::new(std::io::ErrorKind::Other, e)
+            }
+        })
     }
-    'c_5645: loop
-    // we'll be restarting the compressor
-    {
-        let connp = &*(*(*d).tx()).connp;
-        if consumed > (*d).len() {
-            htp_error!(
-                connp,
-                HtpLogCode::GZIP_DECOMPRESSION_FAILED,
-                "GZip decompressor: consumed > d->len"
-            );
-            return HtpStatus::ERROR;
-        }
-        (*drec).stream.next_in = (*d).data().offset(consumed as isize) as *mut u8;
-        (*drec).stream.avail_in = (*d).len().wrapping_sub(consumed) as u32;
-        while (*drec).stream.avail_in != 0 {
-            // If there's no more data left in the
-            // buffer, send that information out.
-            if (*drec).stream.avail_out == 0 {
-                (*drec).crc = crc32((*drec).crc, (*drec).buffer, 8192);
-                // Prepare data for callback.
-                let mut d2_0 = Data::new(
-                    (*d).tx(),
-                    Some(std::slice::from_raw_parts((*drec).buffer, 8192)),
-                    (*d).is_last(),
-                );
-                if !(*drec).super_0.next.is_null()
-                    && (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN
-                {
-                    callback_rc = htp_gzip_decompressor_decompress(
-                        (*drec).super_0.next as *mut htp_decompressor_gzip_t,
-                        &mut d2_0,
-                    )
+}
+
+/// Structure that represents each decompressor in the chain.
+struct InnerDecompressor {
+    /// Decoder implementation that will write to a temporary buffer.
+    writer: Option<Box<dyn BufWriter>>,
+    /// Next decompressor to call.
+    inner: Option<Box<dyn Decompress>>,
+    /// Encoding type of the decompressor.
+    encoding: HtpContentEncoding,
+    /// Indicates whether to pass through the data without calling the writer.
+    passthrough: bool,
+    /// Tracks the number of restarts
+    restarts: u8,
+    /// Options for decompression
+    options: Options,
+}
+
+impl InnerDecompressor {
+    /// Returns a new writer according to the content encoding type and whether to passthrough.
+    fn writer(
+        encoding: HtpContentEncoding,
+        options: &Options,
+    ) -> std::io::Result<(Box<dyn BufWriter>, bool)> {
+        let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+
+        match encoding {
+            HtpContentEncoding::GZIP => Ok((
+                Box::new(GzipBufWriter(flate2::write::GzDecoder::new(buf))),
+                false,
+            )),
+            HtpContentEncoding::DEFLATE => Ok((
+                Box::new(DeflateBufWriter(flate2::write::DeflateDecoder::new(buf))),
+                false,
+            )),
+            HtpContentEncoding::LZMA => {
+                if let Some(options) = options.lzma {
+                    Ok((
+                        Box::new(LzmaBufWriter(
+                            lzma_rs::decompress::Stream::new_with_options(&options, buf),
+                        )),
+                        false,
+                    ))
                 } else {
-                    // Send decompressed data to callback.
-                    callback_rc =
-                        (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_0)
+                    Ok((Box::new(NullBufWriter(buf)), true))
                 }
-                if callback_rc != HtpStatus::OK {
-                    htp_gzip_decompressor_end(drec);
-                    return callback_rc;
-                }
-                (*drec).stream.next_out = (*drec).buffer;
-                (*drec).stream.avail_out = 8192
             }
-            if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
-                if ((*drec).header_len) < 5 + 8 {
-                    consumed = (5 + 8 - (*drec).header_len) as usize;
-                    if consumed > (*drec).stream.avail_in as usize {
-                        consumed = (*drec).stream.avail_in as usize
-                    }
-                    memcpy(
-                        (*drec)
-                            .header
-                            .as_mut_ptr()
-                            .offset((*drec).header_len as isize)
-                            as *mut core::ffi::c_void,
-                        (*drec).stream.next_in as *const core::ffi::c_void,
-                        consumed,
-                    );
-                    (*drec).stream.next_in = (*d).data().offset(consumed as isize) as *mut u8;
-                    (*drec).stream.avail_in = (*d).len().wrapping_sub(consumed) as u32;
-                    (*drec).header_len = ((*drec).header_len as usize).wrapping_add(consumed) as u8
+            HtpContentEncoding::NONE | HtpContentEncoding::ERROR => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "expected a valid encoding",
+                ))
+            }
+        }
+    }
+
+    /// Create a new `InnerDecompressor` given a content encoding type and the
+    /// next (`inner`) decompressor to call.
+    fn new(
+        encoding: HtpContentEncoding,
+        inner: Box<dyn Decompress>,
+        options: Options,
+    ) -> std::io::Result<Self> {
+        let (writer, passthrough) = Self::writer(encoding, &options)?;
+        Ok(Self {
+            inner: Some(inner),
+            encoding: encoding,
+            writer: Some(writer),
+            passthrough,
+            restarts: 0,
+            options,
+        })
+    }
+
+    /// Tries to pass data to the callback instead of calling the writers.
+    ///
+    /// This will set passthrough mode on success or revert on error.
+    fn try_passthrough(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.set_passthrough(true);
+        if let Some(inner) = &mut self.inner {
+            let result = inner.write(data);
+            if result.is_err() {
+                self.set_passthrough(false);
+            }
+            result
+        } else {
+            Ok(data.len())
+        }
+    }
+
+    /// Flushes the writer and the temporary buffer it writes to.
+    ///
+    /// The writer should be taken out of its slot and passed directly instead of
+    /// `self.writer` to avoid holding multiple mutable references.
+    fn flush_writer(&mut self, writer: &mut Box<dyn BufWriter>) -> std::io::Result<()> {
+        if let Some(mut inner) = self.inner.take() {
+            while {
+                let result = writer.flush();
+
+                // Flush all of the bytes the writer has written to our temporary
+                // buffer of fixed size.
+                if let Some(cursor) = writer.get_mut() {
+                    inner.write_all(&cursor.get_ref()[0..cursor.position() as usize])?;
+                    cursor.set_position(0);
                 }
-                if (*drec).header_len == 5 + 8 {
-                    rc = LzmaDec::LzmaDec_Allocate(
-                        &mut (*drec).state,
-                        (*drec).header.as_mut_ptr(),
-                        5,
-                        &lzma_Alloc,
-                    );
-                    if rc != 0 {
-                        match rc {
-                            0 => return HtpStatus::OK,
-                            _ => return HtpStatus::ERROR,
+
+                // Continue flushing if the flush resulted in a `WriteZero`. This
+                // error indicates that the writer was unable to write all bytes
+                // to our temporary buffer, likely because it was full.
+                if let Err(e) = result {
+                    match e.kind() {
+                        std::io::ErrorKind::WriteZero => true,
+                        _ => {
+                            self.restart()?;
+                            false
                         }
                     }
-                    LzmaDec::LzmaDec_Init(&mut (*drec).state);
-                    // hacky to get to next step end retry allocate in case of failure
-                    (*drec).header_len = (*drec).header_len.wrapping_add(1)
+                } else {
+                    false
                 }
-                if (*drec).header_len > 5 + 8 {
-                    let mut inprocessed: usize = (*drec).stream.avail_in as usize;
-                    let mut outprocessed: usize = (*drec).stream.avail_out as usize;
-                    let mut status = LzmaDec::ELzmaStatus::LZMA_STATUS_NOT_SPECIFIED;
-                    rc = LzmaDec::LzmaDec_DecodeToBuf(
-                        &mut (*drec).state,
-                        (*drec).stream.next_out,
-                        &mut outprocessed as *mut usize,
-                        (*drec).stream.next_in,
-                        &mut inprocessed as *mut usize,
-                        LzmaDec::ELzmaFinishMode::LZMA_FINISH_ANY,
-                        &mut status,
-                        (*(*(*d).tx()).cfg).lzma_memlimit,
-                    );
-                    (*drec).stream.avail_in =
-                        ((*drec).stream.avail_in as usize).wrapping_sub(inprocessed) as u32;
-                    (*drec).stream.next_in = (*drec).stream.next_in.offset(inprocessed as isize);
-                    (*drec).stream.avail_out =
-                        ((*drec).stream.avail_out as usize).wrapping_sub(outprocessed) as u32;
-                    (*drec).stream.next_out = (*drec).stream.next_out.offset(outprocessed as isize);
-                    let current_block_82: u64;
-                    match rc {
-                        0 => {
-                            rc = 0;
-                            if status == LzmaDec::ELzmaStatus::LZMA_STATUS_FINISHED_WITH_MARK {
-                                rc = 1
-                            }
-                            current_block_82 = 17019156190352891614;
-                        }
-                        2 => {
-                            htp_warn!(
-                                connp,
-                                HtpLogCode::LZMA_MEMLIMIT_REACHED,
-                                "LZMA decompressor: memory limit reached"
-                            );
-                            current_block_82 = 1497605668091507245;
+            } {}
+            self.inner.replace(inner);
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "nothing to flush to",
+            ))
+        }
+    }
+}
+
+impl Write for InnerDecompressor {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        // Passthrough mode
+        if self.passthrough {
+            if let Some(inner) = &mut self.inner {
+                inner.write(data)
+            } else {
+                Ok(data.len())
+            }
+
+        // Take the writer out of its slot to avoid holding multiple mutable
+        // references. Any calls using `self.writer` should be avoided while the
+        // writer is in this state.
+        } else if let Some(mut writer) = self.writer.take() {
+            match writer.write(data) {
+                Ok(consumed) => {
+                    let result = if consumed == 0 {
+                        // This could indicate that we have reached the end
+                        // of the stream. Any data after the first end of
+                        // stream (such as in multipart gzip) is ignored and
+                        // we pretend to have consumed this data.
+                        Ok(data.len())
+                    } else {
+                        Ok(consumed)
+                    };
+                    self.writer.replace(writer);
+                    result
+                }
+                Err(e) => {
+                    match e.kind() {
+                        std::io::ErrorKind::WriteZero => {
+                            self.flush_writer(&mut writer)?;
+                            // Recursion: the buffer was flushed until `WriteZero`
+                            // stopped occuring.
+                            self.writer.replace(writer);
+                            self.write(data)
                         }
                         _ => {
-                            current_block_82 = 1497605668091507245;
+                            // try to restart, any data in the temp buffer will be
+                            // discarded
+                            if self.restart().is_err() {
+                                self.try_passthrough(data)
+                            } else {
+                                // Recursion: restart will fail after a small
+                                // number of attempts
+                                self.write(data)
+                            }
                         }
                     }
-                    match current_block_82 {
-                        1497605668091507245 =>
-                        // fall through
-                        {
-                            rc = -3
-                        }
-                        _ => {}
-                    }
                 }
-            } else if (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN {
-                rc = inflate(&mut (*drec).stream, 0)
-            } else {
-                // no initialization means previous error on stream
-                return HtpStatus::ERROR;
             }
-            if 8192 > (*drec).stream.avail_out && rc == -3 {
-                // There is data even if there is an error
-                // So use this data and log a warning
-                htp_warn!(
-                    connp,
-                    HtpLogCode::GZIP_DECOMPRESSION_FAILED,
-                    format!("GZip decompressor: inflate failed with {}", rc)
-                );
-                rc = 1;
-            }
-            if rc == 1 {
-                // How many bytes do we have?
-                let len: usize = 8192_u32.wrapping_sub((*drec).stream.avail_out) as usize;
-                // Update CRC
-                // Prepare data for the callback.
-                let mut d2_1 = Data::new(
-                    (*d).tx(),
-                    Some(std::slice::from_raw_parts((*drec).buffer, len)),
-                    (*d).is_last(),
-                );
-                if !(*drec).super_0.next.is_null()
-                    && (*drec).zlib_initialized != HtpContentEncoding::UNKNOWN
-                {
-                    callback_rc = htp_gzip_decompressor_decompress(
-                        (*drec).super_0.next as *mut htp_decompressor_gzip_t,
-                        &mut d2_1,
-                    )
-                } else {
-                    // Send decompressed data to the callback.
-                    callback_rc =
-                        (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_1)
-                }
-                if callback_rc != HtpStatus::OK {
-                    htp_gzip_decompressor_end(drec);
-                    return callback_rc;
-                }
-                (*drec).stream.avail_out = 8192;
-                (*drec).stream.next_out = (*drec).buffer;
-                // TODO Handle trailer.
-                return HtpStatus::OK;
-            } else {
-                if !(rc != 0) {
-                    continue;
-                }
-                htp_warn!(
-                    connp,
-                    HtpLogCode::GZIP_DECOMPRESSION_FAILED,
-                    format!("GZip decompressor: inflate failed with {}", rc)
-                );
-                if (*drec).zlib_initialized == HtpContentEncoding::LZMA {
-                    LzmaDec::LzmaDec_Free(&mut (*drec).state, &lzma_Alloc);
-                    // so as to clean zlib ressources after restart
-                    (*drec).zlib_initialized = HtpContentEncoding::NONE
-                } else {
-                    inflateEnd(&mut (*drec).stream);
-                }
-                // see if we want to restart the decompressor
-                if htp_gzip_decompressor_restart(drec, (*d).data(), (*d).len(), &mut consumed) == 1
-                {
-                    continue 'c_5645;
-                }
-                (*drec).zlib_initialized = HtpContentEncoding::UNKNOWN;
-                // all our inflate attempts have failed, simply
-                // pass the raw data on to the callback in case
-                // it's not compressed at all
-                let mut d2_2 = (*d).clone();
-                callback_rc =
-                    (*drec).super_0.callback.expect("non-null function pointer")(&mut d2_2);
-                if callback_rc != HtpStatus::OK {
-                    return HtpStatus::ERROR;
-                }
-                (*drec).stream.avail_out = 8192;
-                (*drec).stream.next_out = (*drec).buffer;
-                // successfully passed through, lets continue doing that
-                (*drec).passthrough = 1;
-                return HtpStatus::OK;
-            }
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::WriteZero,
+                "writer was not initialized",
+            ))
         }
-        return HtpStatus::OK;
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        if let Some(mut writer) = self.writer.take() {
+            self.flush_writer(&mut writer)?;
+            self.writer.replace(writer);
+        }
+        if let Some(inner) = &mut self.inner {
+            inner.flush()
+        } else {
+            Ok(())
+        }
     }
 }
 
-/// Shut down gzip decompressor.
-unsafe extern "C" fn htp_gzip_decompressor_destroy(drec: *mut htp_decompressor_gzip_t) {
-    if drec.is_null() {
-        return;
-    }
-    htp_gzip_decompressor_end(drec);
-    free((*drec).buffer as *mut core::ffi::c_void);
-    free(drec as *mut core::ffi::c_void);
-}
-// *< deflate restarted to try rfc1950 instead of 1951
-// *< decompression failed, pass through raw data
-
-/// Create a new decompressor instance.
-///
-/// Returns New htp_decompressor_t instance on success, or NULL on failure.
-pub unsafe fn htp_gzip_decompressor_create(
-    connp: &ConnectionParser,
-    format: HtpContentEncoding,
-) -> *mut htp_decompressor_t {
-    let mut drec: *mut htp_decompressor_gzip_t =
-        calloc(1, ::std::mem::size_of::<htp_decompressor_gzip_t>()) as *mut htp_decompressor_gzip_t;
-    if drec.is_null() {
-        return 0 as *mut htp_decompressor_t;
-    }
-    (*drec).super_0.decompress = ::std::mem::transmute::<
-        Option<unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t, _: *mut Data) -> HtpStatus>,
-        Option<unsafe extern "C" fn(_: *mut htp_decompressor_t, _: *mut Data) -> HtpStatus>,
-    >(Some(
-        htp_gzip_decompressor_decompress
-            as unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t, _: *mut Data) -> HtpStatus,
-    ));
-    (*drec).super_0.destroy = ::std::mem::transmute::<
-        Option<unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t) -> ()>,
-        Option<unsafe extern "C" fn(_: *mut htp_decompressor_t) -> ()>,
-    >(Some(
-        htp_gzip_decompressor_destroy
-            as unsafe extern "C" fn(_: *mut htp_decompressor_gzip_t) -> (),
-    ));
-    (*drec).super_0.next = 0 as *mut htp_decompressor_t;
-    (*drec).buffer = malloc(8192) as *mut u8;
-    if (*drec).buffer.is_null() {
-        free(drec as *mut core::ffi::c_void);
-        return 0 as *mut htp_decompressor_t;
-    }
-    // Initialize zlib.
-    let mut rc: i32 = 0;
-    match format {
-        HtpContentEncoding::LZMA => {
-            if connp.cfg.lzma_memlimit > 0 && connp.cfg.response_lzma_layer_limit > 0 {
-                (*drec).state.dic = 0 as *mut u8;
-                (*drec).state.probs = 0 as *mut LzmaDec::CLzmaProb
+impl Decompress for InnerDecompressor {
+    fn restart(&mut self) -> std::io::Result<()> {
+        if self.restarts < 3 {
+            // first retry the same encoding type
+            let encoding = if self.restarts == 0 {
+                self.encoding
             } else {
-                htp_warn!(
-                    connp,
-                    HtpLogCode::LZMA_DECOMPRESSION_DISABLED,
-                    "LZMA decompression disabled"
-                );
-                (*drec).passthrough = 1
+                // if that still fails, try the other method we support
+                match self.encoding {
+                    HtpContentEncoding::GZIP => HtpContentEncoding::DEFLATE,
+                    HtpContentEncoding::DEFLATE => HtpContentEncoding::GZIP,
+                    HtpContentEncoding::LZMA => HtpContentEncoding::DEFLATE,
+                    HtpContentEncoding::NONE | HtpContentEncoding::ERROR => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "expected a valid encoding",
+                        ))
+                    }
+                }
+            };
+            let (writer, passthrough) = Self::writer(encoding, &self.options)?;
+            self.writer = Some(writer);
+            if passthrough {
+                self.passthrough = passthrough;
             }
-            rc = 0
-        }
-        HtpContentEncoding::DEFLATE => {
-            // Negative values activate raw processing,
-            // which is what we need for deflate.
-            rc = inflateInit2_(
-                &mut (*drec).stream,
-                -15,
-                b"1.2.11\x00" as *const u8 as *const i8,
-                ::std::mem::size_of::<z_stream>() as i32,
-            )
-        }
-        HtpContentEncoding::GZIP => {
-            // Increased windows size activates gzip header processing.
-            rc = inflateInit2_(
-                &mut (*drec).stream,
-                15 + 32,
-                b"1.2.11\x00" as *const u8 as *const i8,
-                ::std::mem::size_of::<z_stream>() as i32,
-            )
-        }
-        _ => {
-            // do nothing
-            rc = -3
+            self.restarts += 1;
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "too many restart attempts",
+            ))
         }
     }
 
-    if rc != 0 {
-        htp_error!(
-            connp,
-            HtpLogCode::GZIP_DECOMPRESSION_FAILED,
-            format!("GZip decompressor: inflateInit2 failed with code {}", rc)
-        );
-        if format == HtpContentEncoding::DEFLATE || format == HtpContentEncoding::GZIP {
-            inflateEnd(&mut (*drec).stream);
+    // Tell all the decompressors to pass through the data instead of calling
+    // the writer.
+    fn set_passthrough(&mut self, passthrough: bool) {
+        self.passthrough = passthrough;
+        if let Some(inner) = &mut self.inner {
+            inner.set_passthrough(passthrough);
         }
-        free((*drec).buffer as *mut core::ffi::c_void);
-        free(drec as *mut core::ffi::c_void);
-        return 0 as *mut htp_decompressor_t;
     }
-    (*drec).zlib_initialized = format;
-    (*drec).stream.avail_out = 8192;
-    (*drec).stream.next_out = (*drec).buffer;
-    return drec as *mut htp_decompressor_t;
+
+    // Tell all decompressors that there is no more data to receive.
+    fn finish(&mut self) -> std::io::Result<()> {
+        let output = if let Some(mut writer) = self.writer.take() {
+            self.flush_writer(&mut writer)?;
+            Some(writer.finish()?)
+        } else {
+            None
+        };
+
+        if let Some(mut inner) = self.inner.take() {
+            if let Some(output) = output {
+                inner.write_all(&output.get_ref()[..output.position() as usize])?;
+            }
+            inner.finish()
+        } else {
+            Ok(())
+        }
+    }
 }

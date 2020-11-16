@@ -16,6 +16,7 @@ use std::{
     ffi::{CStr, CString},
 };
 
+pub mod lzma;
 pub mod transaction;
 pub mod uri;
 
@@ -235,14 +236,6 @@ pub unsafe extern "C" fn htp_config_set_bestfit_replacement_byte(cfg: *mut Confi
     }
 }
 
-/// Configures the maximum layers LibHTP will pass to liblzma.
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut Config, layer: libc::c_int) {
-    if !cfg.is_null() {
-        (*cfg).set_lzma_layers(layer)
-    }
-}
-
 /// Configures the maximum compression bomb size LibHTP will decompress.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
@@ -250,7 +243,7 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
     bomblimit: libc::size_t,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_compression_bomb_limit(bomblimit)
+        (*cfg).compression_options.set_bomb_limit(bomblimit)
     }
 }
 
@@ -277,7 +270,15 @@ pub unsafe extern "C" fn htp_config_set_field_limit(cfg: *mut Config, field_limi
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_lzma_memlimit(cfg: *mut Config, memlimit: libc::size_t) {
     if !cfg.is_null() {
-        (*cfg).set_lzma_memlimit(memlimit)
+        (*cfg).compression_options.set_lzma_memlimit(memlimit)
+    }
+}
+
+/// Configures the maximum number of lzma layers to pass to the decompressor.
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut Config, layer: u32) {
+    if !cfg.is_null() {
+        (*cfg).compression_options.set_lzma_layers(layer)
     }
 }
 

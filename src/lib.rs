@@ -75,14 +75,15 @@ macro_rules! nullcheck {
 pub mod log;
 pub mod bstr;
 pub mod c_api;
+pub mod decompressors;
+pub mod error;
+pub mod hook;
+#[macro_use]
+mod unicode_bestfit_map;
 pub mod config;
 mod connection;
 pub mod connection_parser;
 mod content_handlers;
-pub mod decompressors;
-pub mod hook;
-#[macro_use]
-mod unicode_bestfit_map;
 pub mod list;
 pub mod multipart;
 mod parsers;
@@ -92,11 +93,7 @@ pub mod response;
 mod response_generic;
 pub mod table;
 pub mod transaction;
+pub mod uri;
 pub mod urlencoded;
 mod utf8_decoder;
 pub mod util;
-pub mod lzma {
-    pub mod LzmaDec;
-} // mod lzma
-pub mod error;
-pub mod uri;

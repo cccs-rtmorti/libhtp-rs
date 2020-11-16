@@ -33,11 +33,10 @@ rpm: tar
 
 .PHONY: tar
 tar: all
-	mkdir -p target/_temp/include/htp/lzma
 	mkdir -p target/_temp/lib
+	mkdir -p target/_temp/include/htp
 	mkdir -p target/centos/
 	mkdir -p target/centos/SOURCES
 	cp htp/*.h target/_temp/include/htp
-	cp htp/lzma/* target/_temp/include/htp/lzma
 	cp -d htp/.libs/*.so* target/_temp/lib
 	tar -czvf target/centos/SOURCES/libhtp-${CRATE_VERSION}.tar.gz target/_temp/ --transform 'flags=r;s#^target/_temp/#libhtp-${CRATE_VERSION}/usr/local/#'

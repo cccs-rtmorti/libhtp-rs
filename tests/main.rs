@@ -120,6 +120,8 @@ impl Test {
             let mut cfg = Config::default();
             cfg.set_server_personality(HtpServerPersonality::APACHE_2)
                 .unwrap();
+            // The default bomb limit may be slow in some development environments causing tests to fail.
+            cfg.compression_options.set_time_limit(std::u32::MAX);
             cfg.register_urlencoded_parser();
             cfg.register_multipart_parser();
             let connp = htp_connp_create(&mut cfg);
@@ -2278,7 +2280,7 @@ fn ResponseNoStatusHeaders2() {
 //unsafe {
 //    assert!(t.run("85-zero-byte-request-timeout.t").is_ok());
 //
-//    assert_eq!(1, (*t.connp).conn.tx_len());
+//    assert_eq!(1, (*t.connp).conn.tx_size());
 //
 //    let tx = (*t.connp).conn.get_tx_mut_ptr(0);
 //    assert!(!tx.is_null());
@@ -2468,6 +2470,68 @@ fn CompressedResponseMultiple() {
 }
 
 #[test]
+fn CompressedResponseBombLimitOkay() {
+    let mut t = Test::new();
+    unsafe {
+        (*t.connp).cfg.compression_options.set_bomb_limit(0);
+        assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx = (*t.connp).conn.tx_mut(0).unwrap();
+
+        assert!(tx.is_complete());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        assert_eq!(28261, tx.response_message_len);
+
+        assert_eq!(159_590, tx.response_entity_len);
+    }
+}
+
+#[test]
+fn CompressedResponseBombLimitExceeded() {
+    let mut t = Test::new();
+    unsafe {
+        (*t.connp).cfg.compression_options.set_bomb_limit(0);
+        (*t.connp).cfg.compression_options.set_bomb_ratio(2);
+        assert!(t.run("14-compressed-response-gzip-chunked.t").is_err());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx = (*t.connp).conn.tx_mut(0).unwrap();
+        assert!(!tx.is_complete());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        assert_eq!(1208, tx.response_message_len);
+
+        assert_eq!(2608, tx.response_entity_len);
+    }
+}
+
+#[test]
+fn CompressedResponseTimeLimitExceeded() {
+    let mut t = Test::new();
+    unsafe {
+        (*t.connp).cfg.compression_options.set_time_limit(0);
+        assert!(t.run("14-compressed-response-gzip-chunked.t").is_err());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx = (*t.connp).conn.tx_mut(0).unwrap();
+        assert!(!tx.is_complete());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        assert_eq!(1208, tx.response_message_len);
+
+        assert_eq!(2608, tx.response_entity_len);
+    }
+}
+
+#[test]
 fn CompressedResponseGzipAsDeflate() {
     let mut t = Test::new();
     unsafe {
@@ -2502,6 +2566,46 @@ fn CompressedResponseLzma() {
         assert_eq!(90, (*tx).response_message_len);
 
         assert_eq!(68, (*tx).response_entity_len);
+    }
+}
+
+#[test]
+fn CompressedResponseLzmaDisabled() {
+    let mut t = Test::new();
+    unsafe {
+        (*t.connp).cfg.compression_options.set_lzma_memlimit(0);
+
+        assert!(t.run("96-compressed-response-lzma.t").is_ok());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx = (*t.connp).conn.tx_mut(0).unwrap();
+
+        assert!(tx.is_complete());
+
+        assert_eq!(90, tx.response_message_len);
+
+        assert_eq!(90, tx.response_entity_len);
+    }
+}
+
+#[test]
+fn CompressedResponseLzmaMemlimit() {
+    let mut t = Test::new();
+    unsafe {
+        (*t.connp).cfg.compression_options.set_lzma_memlimit(1);
+
+        assert!(t.run("96-compressed-response-lzma.t").is_ok());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx = (*t.connp).conn.tx_mut(0).unwrap();
+
+        assert!(tx.is_complete());
+
+        assert_eq!(90, tx.response_message_len);
+
+        assert_eq!(54, tx.response_entity_len);
     }
 }
 

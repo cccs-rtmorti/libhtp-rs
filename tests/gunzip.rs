@@ -4,7 +4,7 @@ use htp::{
     c_api::{htp_connp_create, htp_connp_destroy_all},
     config::{create, Config, HtpServerPersonality},
     connection_parser::ConnectionParser,
-    decompressors::{htp_decompressor_t, htp_gzip_decompressor_create, HtpContentEncoding},
+    decompressors::{Decompressor, HtpContentEncoding},
     transaction::{Data, Transaction},
     HtpStatus,
 };
@@ -30,7 +30,7 @@ struct Test {
     output: *mut Bstr,
     o_boxing_wizards: *mut Bstr,
     tx: *mut Transaction,
-    decompressor: *mut htp_decompressor_t,
+    decompressor: Decompressor,
 }
 
 enum TestError {
@@ -46,14 +46,13 @@ impl Test {
             (*cfg)
                 .set_server_personality(HtpServerPersonality::APACHE_2)
                 .unwrap();
+            // The default bomb limit may be slow in some development environments causing tests to fail.
+            (*cfg).compression_options.set_time_limit(std::u32::MAX);
             let connp = htp_connp_create(cfg);
             assert!(!connp.is_null());
             let tx = htp_connp_tx_create(connp);
             assert!(!tx.is_null());
             let output = std::ptr::null_mut();
-
-            let decompressor = htp_gzip_decompressor_create(&*connp, HtpContentEncoding::GZIP);
-            (*decompressor).callback = Some(GUnzip_decompressor_callback);
             let o_boxing_wizards = bstr_dup_str("The five boxing wizards jump quickly.");
 
             Test {
@@ -62,7 +61,16 @@ impl Test {
                 output,
                 o_boxing_wizards,
                 tx,
-                decompressor,
+                decompressor: Decompressor::new_with_callback(
+                    HtpContentEncoding::GZIP,
+                    Box::new(move |data: Option<&[u8]>| {
+                        let mut tx_data = Data::new(tx, data, false);
+                        GUnzip_decompressor_callback(&mut tx_data);
+                        Ok(tx_data.len())
+                    }),
+                    Default::default(),
+                )
+                .unwrap(),
             }
         }
     }
@@ -80,18 +88,15 @@ impl Test {
         };
         filepath.push(filename);
 
-        let mut data = std::fs::read(filepath).map_err(TestError::Io)?;
+        let data = std::fs::read(filepath).map_err(TestError::Io)?;
         unsafe {
             let output_ptr: *mut *mut Bstr = &mut self.output;
             (*self.tx).set_user_data(output_ptr as *mut core::ffi::c_void);
-            let data = std::slice::from_raw_parts(data.as_mut_ptr() as *const u8, data.len());
-            let mut tx = Data::new(self.tx, Some(data), false);
-            let rc = (*self.decompressor).decompress.unwrap()(self.decompressor, &mut tx);
-            if rc == HtpStatus::OK {
-                Ok(())
-            } else {
-                Err(TestError::Htp(rc))
-            }
+
+            self.decompressor
+                .decompress(&data)
+                .map(|_| ())
+                .map_err(|_| TestError::Htp(HtpStatus::ERROR))
         }
     }
 }
@@ -101,7 +106,6 @@ impl Drop for Test {
         unsafe {
             bstr_free(self.output);
             bstr_free(self.o_boxing_wizards);
-            (*self.decompressor).destroy.unwrap()(self.decompressor);
             htp_connp_destroy_all(self.connp);
             (*self.cfg).destroy();
         }
