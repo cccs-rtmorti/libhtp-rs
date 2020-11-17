@@ -564,6 +564,11 @@ fn FailedConnectRequest() {
         assert!((*tx).is_complete());
 
         assert!((*tx).request_method.as_ref().unwrap().eq("CONNECT"));
+        assert!((*tx)
+            .response_content_type
+            .as_ref()
+            .unwrap()
+            .eq("text/html"));
 
         assert!((*tx).response_status_number.eq(405));
     }
@@ -642,6 +647,11 @@ fn ConnectRequestWithExtraData() {
         assert!(!tx1.is_null());
 
         assert!((*tx1).is_complete());
+        assert!((*tx1)
+            .response_content_type
+            .as_ref()
+            .unwrap()
+            .eq("text/html"));
 
         let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
@@ -1857,12 +1867,22 @@ fn PostNoBody() {
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx1).request_progress);
         assert_eq!(HtpResponseProgress::COMPLETE, (*tx1).response_progress);
+        assert!((*tx1)
+            .response_content_type
+            .as_ref()
+            .unwrap()
+            .eq("text/html"));
 
         let tx2: *mut Transaction = (*t.connp).conn.tx_mut_ptr(1);
         assert!(!tx2.is_null());
 
         assert_eq!(HtpRequestProgress::COMPLETE, (*tx2).request_progress);
         assert_eq!(HtpResponseProgress::COMPLETE, (*tx2).response_progress);
+        assert!((*tx2)
+            .response_content_type
+            .as_ref()
+            .unwrap()
+            .eq("text/html"));
     }
 }
 
@@ -2819,4 +2839,11 @@ fn UnknownStatusNumber() {
         assert!(!tx.is_null());
         assert_eq!((*tx).response_status_number, HtpResponseNumber::UNKNOWN);
     }
+}
+
+#[test]
+fn ResponseMultipartRanges() {
+    // This should be is_ok() once multipart/byteranges is handled in response parsing
+    let mut t = Test::new();
+    assert!(t.run("108-response-multipart-byte-ranges.t").is_err());
 }

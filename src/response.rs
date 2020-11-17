@@ -14,6 +14,7 @@ use crate::{
     },
     HtpStatus,
 };
+use nom::{bytes::streaming::take_till as streaming_take_till, error::ErrorKind};
 use std::cmp::Ordering;
 
 pub type Time = libc::timeval;
@@ -573,34 +574,41 @@ impl ConnectionParser {
             }
         }
         // Hack condition to check that we do not assume "no body"
+        let mut multipart_byteranges = false;
         if self.out_state != State::FINALIZE {
             // We have a response body
-            let ct_opt = self
+            let response_content_type = if let Some(ct) = &self
                 .out_tx_mut_ok()?
                 .response_headers
                 .get_nocase_nozero("content-type")
-                .map(|(_, val)| val.clone());
-            if let Some(ct) = &ct_opt {
-                let mut response_content_type = Bstr::from(ct.value.as_slice());
+                .map(|(_, val)| val)
+            {
+                // TODO Some platforms may do things differently here.
+                let response_content_type = if let Ok((_, ct)) =
+                    streaming_take_till::<_, _, (&[u8], ErrorKind)>(|c| {
+                        c == ';' as u8 || is_space(c as u8)
+                    })(&ct.value)
+                {
+                    ct
+                } else {
+                    &ct.value
+                };
+
+                let mut response_content_type = Bstr::from(response_content_type);
                 response_content_type.make_ascii_lowercase();
-                // Ignore parameters
-                let data: *mut u8 = response_content_type.as_mut_ptr();
-                let len: usize = ct.value.len();
-                let mut newlen: usize = 0;
-                while newlen < len {
-                    // TODO Some platforms may do things differently here.
-                    unsafe {
-                        if is_space(*data.offset(newlen as isize))
-                            || *data.offset(newlen as isize) as i32 == ';' as i32
-                        {
-                            response_content_type.set_len(newlen);
-                            break;
-                        } else {
-                            newlen = newlen.wrapping_add(1)
-                        }
-                    }
+                if response_content_type
+                    .index_of_nocase("multipart/byteranges")
+                    .is_some()
+                {
+                    multipart_byteranges = true;
                 }
-                self.out_tx_mut_ok()?.response_content_type = Some(response_content_type);
+                Some(response_content_type)
+            } else {
+                None
+            };
+
+            if response_content_type.is_some() {
+                self.out_tx_mut_ok()?.response_content_type = response_content_type;
             }
             // 2. If a Transfer-Encoding header field (section 14.40) is present and
             //   indicates that the "chunked" transfer coding has been applied, then
@@ -671,16 +679,14 @@ impl ConnectionParser {
                 //   the presence in a request of a Range header with multiple byte-range
                 //   specifiers implies that the client can parse multipart/byteranges
                 //   responses.
-                if let Some(ct) = &ct_opt {
-                    // TODO Handle multipart/byteranges
-                    if ct.value.index_of_nocase("multipart/byteranges").is_some() {
-                        htp_error!(
-                            self,
-                            HtpLogCode::RESPONSE_MULTIPART_BYTERANGES,
-                            "C-T multipart/byteranges in responses not supported"
-                        );
-                        return Err(HtpStatus::ERROR);
-                    }
+                // TODO Handle multipart/byteranges
+                if multipart_byteranges {
+                    htp_error!(
+                        self,
+                        HtpLogCode::RESPONSE_MULTIPART_BYTERANGES,
+                        "C-T multipart/byteranges in responses not supported"
+                    );
+                    return Err(HtpStatus::ERROR);
                 }
                 // 5. By the server closing the connection. (Closing the connection
                 //   cannot be used to indicate the end of a request body, since that
