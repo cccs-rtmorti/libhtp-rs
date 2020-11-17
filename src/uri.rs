@@ -9,8 +9,6 @@ use crate::{
 };
 use nom::{combinator::opt, sequence::tuple};
 
-use std::io::Write;
-
 /// URI structure. Each of the fields provides access to a single
 /// URI element. Where an element is not present in a URI, the
 /// corresponding field will be set to NULL or -1, depending on the
@@ -357,129 +355,6 @@ fn normalize_uri_path_inplace(s: &mut Bstr) {
 }
 
 //Tests
-#[allow(dead_code)]
-fn UriIsExpected(expected: &Uri, actual: &Uri) -> Result<(), std::io::Error> {
-    let mut msg: Vec<u8> = vec![];
-    let mut equal: bool = true;
-
-    if actual.scheme != expected.scheme {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"scheme",
-            expected.scheme.as_ref(),
-            actual.scheme.as_ref(),
-        )?;
-    }
-
-    if actual.username != expected.username {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"username",
-            expected.username.as_ref(),
-            actual.username.as_ref(),
-        )?;
-    }
-
-    if actual.password != expected.password {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"password",
-            expected.password.as_ref(),
-            (*actual).password.as_ref(),
-        )?;
-    }
-
-    if actual.hostname != expected.hostname {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"hostname",
-            expected.hostname.as_ref(),
-            actual.hostname.as_ref(),
-        )?;
-    }
-
-    if actual.port != expected.port {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"port",
-            expected.port.as_ref(),
-            actual.port.as_ref(),
-        )?;
-    }
-
-    if actual.path != expected.path {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"path",
-            expected.path.as_ref(),
-            actual.path.as_ref(),
-        )?;
-    }
-
-    if actual.query != expected.query {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"query",
-            expected.query.as_ref(),
-            actual.query.as_ref(),
-        )?;
-    }
-
-    if actual.fragment != expected.fragment {
-        equal = false;
-        append_message(
-            &mut msg,
-            b"fragment",
-            expected.fragment.as_ref(),
-            actual.fragment.as_ref(),
-        )?;
-    }
-
-    if equal {
-        Ok(())
-    } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            std::str::from_utf8(&msg).unwrap(),
-        ))
-    }
-}
-
-#[allow(dead_code)]
-fn append_message<W: Write>(
-    o: &mut W,
-    label: &[u8],
-    expected: Option<&Bstr>,
-    actual: Option<&Bstr>,
-) -> Result<(), std::io::Error> {
-    o.write(label)?;
-    o.write(b" missmatch: ")?;
-    if let Some(expected) = expected {
-        o.write(b"'")?;
-        o.write(expected.as_slice())?;
-
-        o.write(b"'")?;
-    } else {
-        o.write(b"<NULL>")?;
-    }
-    o.write(b" != ")?;
-    if let Some(actual) = actual {
-        o.write(b"'")?;
-        o.write(actual.as_slice())?;
-        o.write(b"'")?;
-    } else {
-        o.write(b"<NULL>")?;
-    }
-    o.write(b"\n")?;
-    Ok(())
-}
 
 #[test]
 fn ParseUri() {
@@ -599,11 +474,14 @@ fn ParseUri() {
         if test.0.is_some() {
             uri.parse_uri(test.0.as_ref().unwrap().as_slice())
         };
-        if let Err(x) = UriIsExpected(&test.1, &uri) {
-            println!("{}", x);
-            println!("Failed URI = {:?}", test.0.unwrap());
-            assert!(false);
-        }
+        assert_eq!(test.1.scheme, uri.scheme);
+        assert_eq!(test.1.username, uri.username);
+        assert_eq!(test.1.password, uri.password);
+        assert_eq!(test.1.hostname, uri.hostname);
+        assert_eq!(test.1.port, uri.port);
+        assert_eq!(test.1.path, uri.path);
+        assert_eq!(test.1.query, uri.query);
+        assert_eq!(test.1.fragment, uri.fragment);
     }
 }
 
