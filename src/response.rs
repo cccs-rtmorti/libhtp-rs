@@ -179,7 +179,7 @@ impl ConnectionParser {
     /// Consumes bytes until the end of the current line.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_BODY_CHUNKED_DATA_END(&mut self) -> Result<()> {
+    pub fn res_body_chunked_data_end(&mut self) -> Result<()> {
         loop
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
@@ -207,7 +207,7 @@ impl ConnectionParser {
     /// Processes a chunk of data.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_BODY_CHUNKED_DATA(&mut self) -> Result<()> {
+    pub fn res_body_chunked_data(&mut self) -> Result<()> {
         let mut bytes_to_consume: usize = 0;
         // Determine how many bytes we can consume.
         if self.out_current_len - self.out_current_read_offset >= self.out_chunked_length {
@@ -282,7 +282,7 @@ impl ConnectionParser {
     /// Extracts chunk length.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_BODY_CHUNKED_LENGTH(&mut self) -> Result<()> {
+    pub fn res_body_chunked_length(&mut self) -> Result<()> {
         loop {
             if self.out_current_read_offset < self.out_current_len {
                 self.out_next_byte = unsafe {
@@ -357,7 +357,7 @@ impl ConnectionParser {
     /// Processes an identity response body of known length.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_BODY_IDENTITY_CL_KNOWN(&mut self) -> Result<()> {
+    pub fn res_body_identity_cl_known(&mut self) -> Result<()> {
         let mut bytes_to_consume: usize = 0;
         // Determine how many bytes we can consume.
         if self.out_current_len - self.out_current_read_offset >= self.out_body_data_left {
@@ -404,7 +404,7 @@ impl ConnectionParser {
     /// response body consumes all data until the end of the stream.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_BODY_IDENTITY_STREAM_CLOSE(&mut self) -> Result<()> {
+    pub fn res_body_identity_stream_close(&mut self) -> Result<()> {
         // Consume all data from the input buffer.
         let bytes_to_consume: usize =
             (self.out_current_len - self.out_current_read_offset) as usize;
@@ -437,7 +437,7 @@ impl ConnectionParser {
     /// Determines presence (and encoding) of a response body.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_BODY_DETERMINE(&mut self) -> Result<()> {
+    pub fn res_body_determine(&mut self) -> Result<()> {
         // If the request uses the CONNECT method, then not only are we
         // to assume there's no body, but we need to ignore all
         // subsequent data in the stream.
@@ -705,7 +705,7 @@ impl ConnectionParser {
     /// Parses response headers.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_HEADERS(&mut self) -> Result<()> {
+    pub fn res_headers(&mut self) -> Result<()> {
         let mut endwithcr = false;
         let mut lfcrending = false;
         loop {
@@ -989,7 +989,7 @@ impl ConnectionParser {
     /// Parses response line.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_LINE(&mut self) -> Result<()> {
+    pub fn res_line(&mut self) -> Result<()> {
         loop {
             // Don't try to get more data if the stream is closed. If we do, we'll return, asking for more data.
             if self.out_status != HtpStreamState::CLOSED {
@@ -1098,7 +1098,7 @@ impl ConnectionParser {
         }
     }
 
-    pub fn RES_FINALIZE(&mut self) -> Result<()> {
+    pub fn res_finalize(&mut self) -> Result<()> {
         if self.out_status != HtpStreamState::CLOSED {
             if self.out_current_read_offset >= self.out_current_len {
                 self.out_next_byte = -1
@@ -1174,7 +1174,7 @@ impl ConnectionParser {
     /// finalize each transactions after we are done with it.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn RES_IDLE(&mut self) -> Result<()> {
+    pub fn res_idle(&mut self) -> Result<()> {
         // We want to start parsing the next response (and change
         // the state from IDLE) only if there's at least one
         // byte of data available. Otherwise we could be creating

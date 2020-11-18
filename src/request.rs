@@ -176,7 +176,7 @@ impl ConnectionParser {
     /// Returns OK if the request does not use CONNECT, HTP_DATA_OTHER if
     ///          inbound parsing needs to be suspended until we hear from the
     ///          other side
-    pub fn REQ_CONNECT_CHECK(&mut self) -> Result<()> {
+    pub fn req_connect_check(&mut self) -> Result<()> {
         // If the request uses the CONNECT method, then there will
         // not be a request body, but first we need to wait to see the
         // response in order to determine if the tunneling request
@@ -197,7 +197,7 @@ impl ConnectionParser {
     ///
     /// Returns OK if the parser can resume parsing, HTP_DATA_BUFFER if
     ///         we need more data.
-    pub fn REQ_CONNECT_PROBE_DATA(&mut self, line: &[u8]) -> Result<()> {
+    pub fn req_connect_probe_data(&mut self, line: &[u8]) -> Result<()> {
         let data = if let Ok((_, data)) = take_till_lf_null(line) {
             data
         } else {
@@ -235,7 +235,7 @@ impl ConnectionParser {
     ///
     /// Returns OK if the parser can resume parsing, HTP_DATA_OTHER if
     ///         it needs to continue waiting.
-    pub fn REQ_CONNECT_WAIT_RESPONSE(&mut self) -> Result<()> {
+    pub fn req_connect_wait_response(&mut self) -> Result<()> {
         // Check that we saw the response line of the current inbound transaction.
         if self.in_tx_mut_ok()?.response_progress <= HtpResponseProgress::LINE {
             return Err(HtpStatus::DATA_OTHER);
@@ -262,7 +262,7 @@ impl ConnectionParser {
     /// Consumes bytes until the end of the current line.
     ///
     /// Returns OK on state change, ERROR on error, or DATA when more data is needed.
-    pub fn REQ_BODY_CHUNKED_DATA_END(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_body_chunked_data_end(&mut self, data: &[u8]) -> Result<()> {
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
         if let Ok((_, parsed)) = take_till_lf(data) {
@@ -280,7 +280,7 @@ impl ConnectionParser {
     /// Processes a chunk of data.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_BODY_CHUNKED_DATA(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
         let bytes_to_consume: usize = std::cmp::min(data.len(), self.in_chunked_length as usize);
         // If the input buffer is empty, ask for more data.
@@ -309,7 +309,7 @@ impl ConnectionParser {
     /// Extracts chunk length.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_BODY_CHUNKED_LENGTH(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_body_chunked_length(&mut self, data: &[u8]) -> Result<()> {
         if let Ok((_, line)) = take_till_lf(data) {
             self.in_curr_data
                 .seek(SeekFrom::Current(line.len() as i64))?;
@@ -354,7 +354,7 @@ impl ConnectionParser {
     /// Processes identity request body.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_BODY_IDENTITY(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_body_identity(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
         let bytes_to_consume: usize = std::cmp::min(data.len(), self.in_body_data_left as usize);
         // If the input buffer is empty, ask for more data.
@@ -383,7 +383,7 @@ impl ConnectionParser {
     /// Determines presence (and encoding) of a request body.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_BODY_DETERMINE(&mut self) -> Result<()> {
+    pub fn req_body_determine(&mut self) -> Result<()> {
         // Determine the next state based on the presence of the request
         // body, and the coding used.
         match self.in_tx_mut_ok()?.request_transfer_coding {
@@ -417,7 +417,7 @@ impl ConnectionParser {
     /// Parses request headers.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_HEADERS(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_headers(&mut self, data: &[u8]) -> Result<()> {
         let mut rest = data;
         loop {
             if self.in_status == HtpStreamState::CLOSED {
@@ -497,7 +497,7 @@ impl ConnectionParser {
     /// Determines request protocol.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_PROTOCOL(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_protocol(&mut self, data: &[u8]) -> Result<()> {
         // Is this a short-style HTTP/0.9 request? If it is,
         // we will not want to parse request headers.
         if !self.in_tx_mut_ok()?.is_protocol_0_9 {
@@ -542,7 +542,7 @@ impl ConnectionParser {
     /// Parse the request line.
     ///
     /// Returns OK on succesful parse, ERROR on error.
-    pub fn REQ_LINE_complete(&mut self, line: &[u8]) -> Result<()> {
+    pub fn req_line_complete(&mut self, line: &[u8]) -> Result<()> {
         if !self.in_buf.is_empty() {
             self.check_buffer_limit(line.len())?;
         }
@@ -572,17 +572,17 @@ impl ConnectionParser {
     /// Parses request line.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_LINE(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_line(&mut self, data: &[u8]) -> Result<()> {
         match take_till_lf(data) {
             Ok((_, read)) => {
                 self.in_curr_data
                     .seek(SeekFrom::Current(read.len() as i64))?;
-                self.REQ_LINE_complete(read)
+                self.req_line_complete(read)
             }
             _ => {
                 if self.in_status == HtpStreamState::CLOSED {
                     self.in_curr_data.seek(SeekFrom::End(0))?;
-                    self.REQ_LINE_complete(data)
+                    self.req_line_complete(data)
                 } else {
                     return self.handle_absent_lf(data);
                 }
@@ -590,7 +590,7 @@ impl ConnectionParser {
         }
     }
 
-    pub fn REQ_FINALIZE(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_finalize(&mut self, data: &[u8]) -> Result<()> {
         let mut work = data;
         if self.in_status != HtpStreamState::CLOSED {
             let in_next_byte = self
@@ -670,7 +670,7 @@ impl ConnectionParser {
         return self.state_request_complete().into();
     }
 
-    pub fn REQ_IGNORE_DATA_AFTER_HTTP_0_9(&mut self) -> Result<()> {
+    pub fn req_ignore_data_after_http_0_9(&mut self) -> Result<()> {
         // Consume whatever is left in the buffer.
         let bytes_left = self.in_curr_len() - self.in_curr_data.position() as i64;
 
@@ -685,7 +685,7 @@ impl ConnectionParser {
     /// If there is more data available, a new request will be started.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn REQ_IDLE(&mut self) -> Result<()> {
+    pub fn req_idle(&mut self) -> Result<()> {
         // We want to start parsing the next request (and change
         // the state from IDLE) only if there's at least one
         // byte of data available. Otherwise we could be creating
@@ -819,7 +819,7 @@ impl ConnectionParser {
                     }
                     State::FINALIZE => rc = self.state_request_complete().into(),
                     _ => {
-                        // go to htp_connp_REQ_CONNECT_PROBE_DATA ?
+                        // go to req_connect_probe_data ?
                         htp_error!(
                             self,
                             HtpLogCode::INVALID_GAP,

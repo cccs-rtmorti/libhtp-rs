@@ -331,24 +331,22 @@ impl ConnectionParser {
         let data = &data[self.in_curr_data.position() as usize..];
         match self.in_state {
             State::NONE => Err(HtpStatus::ERROR),
-            State::IDLE => self.REQ_IDLE(),
-            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.REQ_IGNORE_DATA_AFTER_HTTP_0_9(),
-            State::LINE => self.REQ_LINE(&data),
-            State::PROTOCOL => self.REQ_PROTOCOL(&data),
-            State::HEADERS => self.REQ_HEADERS(&data),
-            State::CONNECT_WAIT_RESPONSE => self.REQ_CONNECT_WAIT_RESPONSE(),
-            State::CONNECT_CHECK => self.REQ_CONNECT_CHECK(),
-            State::CONNECT_PROBE_DATA => self.REQ_CONNECT_PROBE_DATA(&data),
-            State::BODY_DETERMINE => self.REQ_BODY_DETERMINE(),
-            State::BODY_CHUNKED_DATA => self.REQ_BODY_CHUNKED_DATA(&data),
-            State::BODY_CHUNKED_LENGTH => self.REQ_BODY_CHUNKED_LENGTH(&data),
-            State::BODY_CHUNKED_DATA_END => self.REQ_BODY_CHUNKED_DATA_END(&data),
-            State::BODY_IDENTITY => self.REQ_BODY_IDENTITY(&data),
-            State::FINALIZE => self.REQ_FINALIZE(&data),
+            State::IDLE => self.req_idle(),
+            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.req_ignore_data_after_http_0_9(),
+            State::LINE => self.req_line(&data),
+            State::PROTOCOL => self.req_protocol(&data),
+            State::HEADERS => self.req_headers(&data),
+            State::CONNECT_WAIT_RESPONSE => self.req_connect_wait_response(),
+            State::CONNECT_CHECK => self.req_connect_check(),
+            State::CONNECT_PROBE_DATA => self.req_connect_probe_data(&data),
+            State::BODY_DETERMINE => self.req_body_determine(),
+            State::BODY_CHUNKED_DATA => self.req_body_chunked_data(&data),
+            State::BODY_CHUNKED_LENGTH => self.req_body_chunked_length(&data),
+            State::BODY_CHUNKED_DATA_END => self.req_body_chunked_data_end(&data),
+            State::BODY_IDENTITY => self.req_body_identity(&data),
+            State::FINALIZE => self.req_finalize(&data),
             // These are only used by out_state
-            State::BODY_IDENTITY_STREAM_CLOSE | State::BODY_IDENTITY_CL_KNOWN => {
-                Err(HtpStatus::ERROR)
-            }
+            _ => Err(HtpStatus::ERROR),
         }
     }
 
@@ -356,23 +354,18 @@ impl ConnectionParser {
     pub fn handle_out_state(&mut self) -> Result<()> {
         match self.out_state {
             State::NONE => Err(HtpStatus::ERROR),
-            State::IDLE => self.RES_IDLE(),
-            State::LINE => self.RES_LINE(),
-            State::HEADERS => self.RES_HEADERS(),
-            State::BODY_DETERMINE => self.RES_BODY_DETERMINE(),
-            State::BODY_CHUNKED_DATA => self.RES_BODY_CHUNKED_DATA(),
-            State::BODY_CHUNKED_LENGTH => self.RES_BODY_CHUNKED_LENGTH(),
-            State::BODY_CHUNKED_DATA_END => self.RES_BODY_CHUNKED_DATA_END(),
-            State::FINALIZE => self.RES_FINALIZE(),
-            State::BODY_IDENTITY_STREAM_CLOSE => self.RES_BODY_IDENTITY_STREAM_CLOSE(),
-            State::BODY_IDENTITY_CL_KNOWN => self.RES_BODY_IDENTITY_CL_KNOWN(),
+            State::IDLE => self.res_idle(),
+            State::LINE => self.res_line(),
+            State::HEADERS => self.res_headers(),
+            State::BODY_DETERMINE => self.res_body_determine(),
+            State::BODY_CHUNKED_DATA => self.res_body_chunked_data(),
+            State::BODY_CHUNKED_LENGTH => self.res_body_chunked_length(),
+            State::BODY_CHUNKED_DATA_END => self.res_body_chunked_data_end(),
+            State::FINALIZE => self.res_finalize(),
+            State::BODY_IDENTITY_STREAM_CLOSE => self.res_body_identity_stream_close(),
+            State::BODY_IDENTITY_CL_KNOWN => self.res_body_identity_cl_known(),
             // These are only used by in_state
-            State::PROTOCOL
-            | State::CONNECT_CHECK
-            | State::CONNECT_PROBE_DATA
-            | State::CONNECT_WAIT_RESPONSE
-            | State::BODY_IDENTITY
-            | State::IGNORE_DATA_AFTER_HTTP_0_9 => Err(HtpStatus::ERROR),
+            _ => Err(HtpStatus::ERROR),
         }
     }
 
