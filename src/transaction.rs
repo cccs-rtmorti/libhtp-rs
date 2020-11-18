@@ -109,6 +109,10 @@ impl<'a> Data<'a> {
         self.data.as_ref().map(|data| data.len()).unwrap_or(0)
     }
 
+    pub fn as_slice(&self) -> Option<&[u8]> {
+        self.data
+    }
+
     pub fn is_last(&self) -> bool {
         self.is_last
     }

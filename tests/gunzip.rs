@@ -17,8 +17,8 @@ use common::htp_connp_tx_create;
 #[no_mangle]
 extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> HtpStatus {
     unsafe {
-        let output_ptr: *mut *mut Bstr = (*(*d).tx()).user_data() as *mut *mut Bstr;
-        *output_ptr = bstr_dup_mem((*d).data() as *const core::ffi::c_void, (*d).len());
+        let output_ptr: *mut Bstr = (*(*d).tx()).user_data() as *mut Bstr;
+        (*output_ptr).add((*d).as_slice().unwrap());
     }
     HtpStatus::OK
 }
@@ -27,8 +27,8 @@ extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> HtpStatus {
 struct Test {
     cfg: *mut Config,
     connp: *mut ConnectionParser,
-    output: *mut Bstr,
-    o_boxing_wizards: *mut Bstr,
+    output: Bstr,
+    expected: Bstr,
     tx: *mut Transaction,
     decompressor: Decompressor,
 }
@@ -52,14 +52,15 @@ impl Test {
             assert!(!connp.is_null());
             let tx = htp_connp_tx_create(connp);
             assert!(!tx.is_null());
-            let output = std::ptr::null_mut();
-            let o_boxing_wizards = bstr_dup_str("The five boxing wizards jump quickly.");
+
+            let output = Bstr::new();
+            let expected = Bstr::from("The five boxing wizards jump quickly.");
 
             Test {
                 cfg,
                 connp,
                 output,
-                o_boxing_wizards,
+                expected,
                 tx,
                 decompressor: Decompressor::new_with_callback(
                     HtpContentEncoding::GZIP,
@@ -90,7 +91,7 @@ impl Test {
 
         let data = std::fs::read(filepath).map_err(TestError::Io)?;
         unsafe {
-            let output_ptr: *mut *mut Bstr = &mut self.output;
+            let output_ptr: *mut Bstr = &mut self.output;
             (*self.tx).set_user_data(output_ptr as *mut core::ffi::c_void);
 
             self.decompressor
@@ -104,8 +105,6 @@ impl Test {
 impl Drop for Test {
     fn drop(&mut self) {
         unsafe {
-            bstr_free(self.output);
-            bstr_free(self.o_boxing_wizards);
             htp_connp_destroy_all(self.connp);
             (*self.cfg).destroy();
         }
@@ -114,166 +113,108 @@ impl Drop for Test {
 
 #[test]
 fn GUnzip_Minimal() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-01-minimal.gz").is_ok());
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-01-minimal.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FNAME() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-02-fname.gz").is_ok());
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-02-fname.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FEXTRA() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-05-fextra.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-05-fextra.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FTEXT() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-06-ftext.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-06-ftext.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_Multipart() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-10-multipart.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-10-multipart.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidExtraFlags() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-14-invalid-xfl.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-14-invalid-xfl.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidHeaderCrc() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-15-invalid-fhcrc.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-15-invalid-fhcrc.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 /*
 // These tests were disabled in libhtp
 #[test]
 fn GUnzip_FCOMMENT() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-03-fcomment.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-03-fcomment.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FHCRC() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-04-fhcrc.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-04-fhcrc.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FRESERVED1() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-07-freserved1.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-07-freserved1.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FRESERVED2() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-08-freserved2.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-08-freserved2.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_FRESERVED3() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-09-freserved3.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-09-freserved3.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidMethod() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-11-invalid-method.gz.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-11-invalid-method.gz.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidCrc() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-12-invalid-crc32.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-12-invalid-crc32.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidInputSize() {
-    unsafe {
-        let mut t = Test::new();
-        assert!(t.run("gztest-13-invalid-isize.gz").is_ok());
-
-        assert!(!t.output.is_null());
-        assert_eq!(0, bstr_cmp(t.o_boxing_wizards, t.output));
-    }
+    let mut t = Test::new();
+    assert!(t.run("gztest-13-invalid-isize.gz").is_ok());
+    assert_eq!(t.output, t.expected);
 }
 */

@@ -1,5 +1,4 @@
 use crate::{
-    bstr,
     bstr::Bstr,
     config::{create, Config, HtpServerPersonality, HtpUrlEncodingHandling},
     connection::Connection,
@@ -16,6 +15,7 @@ use std::{
     ffi::{CStr, CString},
 };
 
+pub mod bstr;
 pub mod lzma;
 pub mod transaction;
 pub mod uri;
@@ -922,154 +922,6 @@ pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const ConnectionPar
     }
 }
 
-/// Append as many bytes from the source to destination bstring. The
-/// destination storage will not be expanded if there is not enough space in it
-/// already to accommodate all of the data.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_c_noex(
-    destination: *mut Bstr,
-    source: *const libc::c_char,
-) -> *mut Bstr {
-    bstr::bstr_add_c_noex(destination, source)
-}
-
-/// Append as many bytes from the source bstring to destination bstring. The
-/// destination storage will not be expanded if there is not enough space in it
-/// already to accommodate all of the data.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_add_noex(destination: *mut Bstr, source: *const Bstr) -> *mut Bstr {
-    bstr::bstr_add_noex(destination, source)
-}
-
-/// Allocate a zero-length bstring, reserving space for at least size bytes.
-///
-/// Returns New string instance
-#[no_mangle]
-pub unsafe extern "C" fn bstr_alloc(len: libc::size_t) -> *mut Bstr {
-    bstr::bstr_alloc(len)
-}
-
-/// Create a new bstring by copying the provided NUL-terminated string.
-///
-/// Returns New bstring, or NULL if memory allocation failed.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup_c(cstr: *const libc::c_char) -> *mut Bstr {
-    bstr::bstr_dup_c(cstr)
-}
-
-/// Create a new bstring by copying a part of the provided bstring.
-/// returns New bstring, or NULL if memory allocation failed.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup_ex(
-    b: *const Bstr,
-    offset: libc::size_t,
-    len: libc::size_t,
-) -> *mut Bstr {
-    bstr::bstr_dup_ex(b, offset, len)
-}
-
-/// Case-sensitive comparison of a bstring and a NUL-terminated string.
-/// returns Zero on string match, 1 if b is greater than cstr, and -1 if cstr is
-///         greater than b.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_cmp_c(b: *const Bstr, c: *const libc::c_char) -> libc::c_int {
-    bstr::bstr_cmp_c(b, c)
-}
-
-/// Create a new bstring by copying the provided bstring.
-/// returns New bstring, or NULL if memory allocation failed.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_dup(b: *const Bstr) -> *mut Bstr {
-    bstr::bstr_dup(b)
-}
-
-/// Deallocate the supplied bstring instance and set it to NULL. Allows NULL on
-/// input.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_free(b: *mut Bstr) {
-    bstr::bstr_free(b)
-}
-
-/// This function was a macro in libhtp
-/// #define bstr_len(X) ((*(X)).len)
-#[no_mangle]
-pub unsafe extern "C" fn bstr_len(x: *const Bstr) -> libc::size_t {
-    bstr::bstr_len(x)
-}
-
-/// This function was a macro in libhtp
-/// #define bstr_ptr(X) ( ((*(X)).realptr == NULL) ? ((unsigned char *)(X) + sizeof(bstr)) : (unsigned char *)(*(X)).realptr )
-#[no_mangle]
-pub unsafe extern "C" fn bstr_ptr(x: *const Bstr) -> *mut libc::c_uchar {
-    bstr::bstr_ptr(x)
-}
-
-/// This function was a macro in libhtp
-/// #define bstr_size(X) ((*(X)).size)
-#[no_mangle]
-pub unsafe extern "C" fn bstr_size(x: *const Bstr) -> libc::size_t {
-    bstr::bstr_size(x)
-}
-
-/// Convert contents of a memory region to a positive integer.
-/// base: The desired number base.
-/// lastlen: Points to the first unused byte in the region
-/// returns If the conversion was successful, this function returns the
-/// number. When the conversion fails, -1 will be returned when not
-/// one valid digit was found, and -2 will be returned if an overflow
-/// occurred.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_mem_to_pint(
-    data: *const libc::c_void,
-    len: libc::size_t,
-    base: libc::c_int,
-    lastlen: *mut libc::size_t,
-) -> libc::c_long {
-    bstr::bstr_util_mem_to_pint(data, len, base, lastlen)
-}
-
-/// Create a new NUL-terminated string out of the provided bstring. If NUL bytes
-/// are contained in the bstring, each will be replaced with "\0" (two characters).
-/// The caller is responsible to keep track of the allocated memory area and free
-/// it once it is no longer needed.
-/// returns The newly created NUL-terminated string, or NULL in case of memory
-///         allocation failure.
-#[no_mangle]
-pub unsafe extern "C" fn bstr_util_strdup_to_c(b: *const Bstr) -> *mut libc::c_char {
-    if b.is_null() {
-        return std::ptr::null_mut();
-    }
-    let src = std::slice::from_raw_parts(bstr_ptr(b), bstr_len(b));
-
-    // Since the memory returned here is just a char* and the caller will
-    // free() it we have to use malloc() here.
-    // So we allocate enough space for doubled NULL bytes plus the trailing NULL.
-    let mut null_count = 1;
-    for byte in src {
-        if *byte == 0 {
-            null_count += 1;
-        }
-    }
-    let newlen = bstr_len(b) + null_count;
-    let mem = libc::malloc(newlen) as *mut i8;
-    let dst: &mut [i8] = std::slice::from_raw_parts_mut(mem, newlen);
-    let mut dst_idx = 0;
-    for byte in src {
-        if *byte == 0 {
-            dst[dst_idx] = '\\' as i8;
-            dst_idx += 1;
-            dst[dst_idx] = '0' as i8;
-            dst_idx += 1;
-        } else {
-            dst[dst_idx] = *byte as i8;
-            dst_idx += 1;
-        }
-    }
-    dst[dst_idx] = 0;
-
-    mem
-}
-
 // Get the log message
 // returns a pointer to a null-terminated string
 // The caller is responsible for freeing the memory with htp_log_free
@@ -1130,25 +982,5 @@ pub unsafe extern "C" fn htp_log_get_file(
         }
     } else {
         std::ptr::null_mut()
-    }
-}
-
-#[test]
-fn bstr_tUtilDupToC() {
-    unsafe {
-        let c: *mut i8;
-        let str: *mut Bstr = bstr::bstr_dup_mem(
-            b"ABCDEFGHIJKL\x00NOPQRSTUVWXYZ".as_ptr() as *const core::ffi::c_void,
-            20,
-        );
-
-        c = bstr_util_strdup_to_c(str);
-        assert_eq!(
-            0,
-            libc::strcmp(CString::new("ABCDEFGHIJKL\\0NOPQRST").unwrap().as_ptr(), c)
-        );
-
-        libc::free(c as *mut core::ffi::c_void);
-        bstr::bstr_free(str);
     }
 }

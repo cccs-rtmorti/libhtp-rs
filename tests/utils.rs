@@ -5,7 +5,7 @@ use libc;
 use std::net::{IpAddr, Ipv4Addr};
 
 use htp::{
-    bstr::{bstr_cmp_c, Bstr},
+    bstr::Bstr,
     c_api::{htp_connp_create, htp_connp_destroy_all},
     config::{create, Config, HtpUrlEncodingHandling},
     connection_parser::ConnectionParser,
@@ -106,16 +106,6 @@ fn IsLineFolded() {
     assert_eq!(true, is_line_folded(b"\tline"));
     assert_eq!(true, is_line_folded(b" line"));
     assert_eq!(false, is_line_folded(b"line "));
-}
-
-fn bstr_equal_c(b: *const Bstr, c: *const i8) -> bool {
-    unsafe {
-        if (c == std::ptr::null()) || (b == std::ptr::null()) {
-            (c == std::ptr::null()) && (b == std::ptr::null())
-        } else {
-            0 == bstr_cmp_c(b, c)
-        }
-    }
 }
 
 #[test]
