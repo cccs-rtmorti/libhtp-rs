@@ -1,10 +1,7 @@
-#![allow(mutable_transmutes)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![allow(unused_assignments)]
-#![feature(extern_types)]
-#![feature(ptr_wrapping_offset_from)]
 
 #[repr(C)]
 #[derive(PartialEq, Debug)]
