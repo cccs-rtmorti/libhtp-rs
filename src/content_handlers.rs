@@ -166,7 +166,7 @@ pub fn callback_multipart_request_headers(tx: &mut Transaction) -> Result<()> {
         let mut flags = Flags::empty();
         if let Some(boundary) = find_boundary(&(*(*ct).value).as_slice(), &mut flags) {
             // Create a Multipart parser instance.
-            tx.request_mpartp = MultipartParser::new(&mut (*tx.connp).cfg, boundary, flags);
+            tx.request_mpartp = MultipartParser::new(&*tx.cfg, boundary, flags);
             if tx.request_mpartp.is_none() {
                 return Err(HtpStatus::ERROR);
             }

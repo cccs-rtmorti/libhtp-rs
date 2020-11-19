@@ -999,8 +999,7 @@ fn WithFileExternallyStored() {
         ];
 
         unsafe {
-            (*t.connp).cfg.extract_request_files = true;
-            (*t.connp).cfg.tmpdir = "/tmp".to_string();
+            (*t.connp).cfg.multipart_cfg.extract_request_files = true;
 
             t.parseParts(&parts);
 

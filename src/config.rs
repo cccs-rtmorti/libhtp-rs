@@ -39,12 +39,6 @@ pub struct Config {
     pub parse_request_cookies: bool,
     /// Whether to parse HTTP Authentication headers.
     pub parse_request_auth: bool,
-    /// Whether to extract files from requests using Multipart encoding.
-    pub extract_request_files: bool,
-    /// How many extracted files are allowed in a single Multipart request?
-    pub extract_request_files_limit: u32,
-    /// The location on disk where temporary files will be created.
-    pub tmpdir: String,
     /// Request start hook, invoked when the parser receives the first byte of a new
     /// request. Because in HTTP a transaction always starts with a request, this hook
     /// doubles as a transaction start hook.
@@ -124,6 +118,7 @@ pub struct Config {
     pub response_decompression_layer_limit: i32,
     /// decompression options
     pub compression_options: Options,
+    pub multipart_cfg: MultipartConfig,
 }
 
 impl Default for Config {
@@ -138,9 +133,6 @@ impl Default for Config {
             response_decompression_enabled: true,
             parse_request_cookies: true,
             parse_request_auth: true,
-            extract_request_files: false,
-            extract_request_files_limit: 16,
-            tmpdir: "/tmp".to_string(),
             hook_request_start: TxHook::new(),
             hook_request_line: TxHook::new(),
             hook_request_uri_normalize: TxHook::new(),
@@ -164,6 +156,7 @@ impl Default for Config {
             requestline_leading_whitespace_unwanted: HtpUnwanted::IGNORE,
             response_decompression_layer_limit: 2,
             compression_options: Options::default(),
+            multipart_cfg: Default::default(),
         }
     }
 }
@@ -233,6 +226,26 @@ impl Default for DecoderConfig {
             utf8_invalid_unwanted: HtpUnwanted::IGNORE,
             utf8_convert_bestfit: false,
             bestfit_map: UnicodeBestfitMap::default(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MultipartConfig {
+    /// Whether to extract files from requests using Multipart encoding.
+    pub extract_request_files: bool,
+    /// How many extracted files are allowed in a single Multipart request?
+    pub extract_request_files_limit: u32,
+    /// The location on disk where temporary files will be created.
+    pub tmpdir: String,
+}
+
+impl Default for MultipartConfig {
+    fn default() -> Self {
+        Self {
+            extract_request_files: false,
+            extract_request_files_limit: 16,
+            tmpdir: "/tmp".to_string(),
         }
     }
 }

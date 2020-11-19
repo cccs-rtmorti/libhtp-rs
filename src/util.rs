@@ -1,7 +1,8 @@
 use crate::{
     bstr::Bstr,
-    config::{Config, DecoderConfig, HtpServerPersonality, HtpUnwanted, HtpUrlEncodingHandling},
+    config::{DecoderConfig, HtpServerPersonality, HtpUnwanted, HtpUrlEncodingHandling},
     error::Result,
+    hook::FileDataHook,
     request::HtpMethod,
     transaction::Transaction,
     utf8_decoder::Utf8Decoder,
@@ -147,17 +148,15 @@ impl File {
     /// Update file length and invoke any file data callbacks on the provided cfg
     pub fn handle_file_data(
         &mut self,
-        cfg: *mut Config,
+        hook: &FileDataHook,
         data: *const u8,
         len: usize,
     ) -> Result<()> {
         self.len = self.len.wrapping_add(len);
         // Package data for the callbacks.
         let mut file_data = FileData::new(&self, data, len);
-        unsafe {
-            // Send data to callbacks
-            (*cfg).hook_request_file_data.run_all(&mut file_data)
-        }
+        // Send data to callbacks
+        hook.run_all(&mut file_data)
     }
 }
 

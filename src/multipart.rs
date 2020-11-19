@@ -1,7 +1,8 @@
 use crate::{
     bstr::Bstr,
-    config::Config,
+    config::{Config, MultipartConfig},
     error::Result,
+    hook::FileDataHook,
     list::List,
     parsers::parse_content_type,
     table::Table,
@@ -115,10 +116,8 @@ bitflags::bitflags! {
 #[derive(Clone)]
 pub struct Parser {
     pub multipart: Multipart,
-    pub cfg: *mut Config,
-    pub extract_files: bool,
-    pub extract_limit: u32,
-    pub extract_dir: String,
+    pub cfg: MultipartConfig,
+    pub hook: FileDataHook,
     pub file_count: u32,
     // Internal parsing fields; move into a private structure
     /// Parser state; one of MULTIPART_STATE_* constants.
@@ -177,42 +176,37 @@ pub struct Parser {
 ///
 /// Returns New parser instance, or None on failure.
 impl Parser {
-    pub fn new(cfg: *mut Config, boundary: &[u8], flags: Flags) -> Option<Self> {
-        if cfg.is_null() || boundary.is_empty() {
+    pub fn new(cfg: &Config, boundary: &[u8], flags: Flags) -> Option<Self> {
+        if boundary.is_empty() {
             return None;
         }
-
-        unsafe {
-            Some(Self {
-                multipart: Multipart {
-                    boundary_len: boundary.len() + 2,
-                    boundary: Bstr::from([b"--", boundary].concat()),
-                    boundary_count: 0,
-                    parts: List::with_capacity(64),
-                    flags,
-                },
-                cfg,
-                extract_files: (*cfg).extract_request_files,
-                extract_limit: (*cfg).extract_request_files_limit,
-                extract_dir: (*cfg).tmpdir.clone(),
-                file_count: 0,
-                // We're starting in boundary-matching mode. The first boundary can appear without the
-                // CRLF, and our starting state expects that. If we encounter non-boundary data, the
-                // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
-                // to boundary matching. Thus, we handle all the possibilities.
-                parser_state: HtpMultipartState::BOUNDARY,
-                boundary_match_pos: 0,
-                current_part_idx: None,
-                current_part_mode: HtpMultipartMode::LINE,
-                boundary_candidate: Bstr::with_capacity(boundary.len()),
-                part_header: Bstr::with_capacity(64),
-                pending_header_line: Bstr::with_capacity(64),
-                to_consume: Bstr::new(),
-                part_data_pieces: Bstr::with_capacity(64),
-                boundary_candidate_pos: 0,
-                cr_aside: false,
-            })
-        }
+        Some(Self {
+            multipart: Multipart {
+                boundary_len: boundary.len() + 2,
+                boundary: Bstr::from([b"--", boundary].concat()),
+                boundary_count: 0,
+                parts: List::with_capacity(64),
+                flags,
+            },
+            cfg: cfg.multipart_cfg.clone(),
+            hook: cfg.hook_request_file_data.clone(),
+            file_count: 0,
+            // We're starting in boundary-matching mode. The first boundary can appear without the
+            // CRLF, and our starting state expects that. If we encounter non-boundary data, the
+            // state will switch to data mode. Then, if the data is CRLF or LF, we will go back
+            // to boundary matching. Thus, we handle all the possibilities.
+            parser_state: HtpMultipartState::BOUNDARY,
+            boundary_match_pos: 0,
+            current_part_idx: None,
+            current_part_mode: HtpMultipartMode::LINE,
+            boundary_candidate: Bstr::with_capacity(boundary.len()),
+            part_header: Bstr::with_capacity(64),
+            pending_header_line: Bstr::with_capacity(64),
+            to_consume: Bstr::new(),
+            part_data_pieces: Bstr::with_capacity(64),
+            boundary_candidate_pos: 0,
+            cr_aside: false,
+        })
     }
 
     pub fn get_current_part(&mut self) -> Option<*mut Part> {
@@ -793,16 +787,12 @@ impl Part {
     }
 
     pub fn run_request_file_data_hook(&mut self, data: &[u8]) -> Result<()> {
-        if unsafe { (*self.parser).cfg.is_null() } {
-            return Ok(());
-        }
-
         match &mut self.file {
             // Combine value pieces into a single buffer.
             // Keep track of the file length.
             Some(file) => {
                 // Send data to callbacks
-                file.handle_file_data(unsafe { (*self.parser).cfg }, data.as_ptr(), data.len())
+                file.handle_file_data(unsafe { &(*self.parser).hook }, data.as_ptr(), data.len())
                     .into()
             }
             None => Ok(()),
@@ -873,10 +863,11 @@ impl Part {
                         Some(file) => {
                             // Changing part type because we have a filename.
                             self.type_0 = HtpMultipartType::FILE;
-                            if (*self.parser).extract_files
-                                && (*self.parser).file_count < (*self.parser).extract_limit
+                            if (*self.parser).cfg.extract_request_files
+                                && (*self.parser).file_count
+                                    < (*self.parser).cfg.extract_request_files_limit
                             {
-                                file.create(&(*self.parser).extract_dir)?;
+                                file.create(&(*self.parser).cfg.tmpdir)?;
                                 (*self.parser).file_count += 1;
                             }
                         }
