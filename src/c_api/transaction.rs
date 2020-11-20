@@ -744,7 +744,7 @@ pub unsafe extern "C" fn htp_tx_state_response_complete(tx: *mut Transaction) ->
 
 /// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
 #[no_mangle]
-pub unsafe fn htp_tx_register_response_body_data(
+pub unsafe extern "C" fn htp_tx_register_response_body_data(
     tx: *mut Transaction,
     cbk_fn: DataExternalCallbackFn,
 ) {
