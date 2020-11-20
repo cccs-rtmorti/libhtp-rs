@@ -334,7 +334,7 @@ impl Config {
 
     /// Registers a callback that is invoked every time there is a log message with
     /// severity equal and higher than the configured log level.
-    pub unsafe fn register_log(&mut self, cbk_fn: LogNativeCallbackFn) {
+    pub fn register_log(&mut self, cbk_fn: LogNativeCallbackFn) {
         self.hook_log.register(cbk_fn);
     }
 
@@ -346,7 +346,7 @@ impl Config {
     }
 
     /// Registers a REQUEST_COMPLETE callback.
-    pub unsafe fn register_request_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_request_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_request_complete.register(cbk_fn);
     }
 
@@ -356,80 +356,80 @@ impl Config {
     }
 
     /// Registers a REQUEST_HEADER_DATA callback.
-    pub unsafe fn register_request_header_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+    pub fn register_request_header_data(&mut self, cbk_fn: DataNativeCallbackFn) {
         self.hook_request_header_data.register(cbk_fn);
     }
 
     /// Registers a REQUEST_HEADERS callback.
-    pub unsafe fn register_request_headers(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_request_headers(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_request_headers.register(cbk_fn);
     }
 
     /// Registers a REQUEST_LINE callback.
-    pub unsafe fn register_request_line(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_request_line(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_request_line.register(cbk_fn);
     }
 
     /// Registers a REQUEST_START callback, which is invoked every time a new
     /// request begins and before any parsing is done.
-    pub unsafe fn register_request_start(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_request_start(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_request_start.register(cbk_fn);
     }
 
     /// Registers a HTP_REQUEST_TRAILER callback.
-    pub unsafe fn register_request_trailer(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_request_trailer(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_request_trailer.register(cbk_fn);
     }
 
     /// Registers a REQUEST_TRAILER_DATA callback.
-    pub unsafe fn register_request_trailer_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+    pub fn register_request_trailer_data(&mut self, cbk_fn: DataNativeCallbackFn) {
         self.hook_request_trailer_data.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_BODY_DATA callback.
-    pub unsafe fn register_response_body_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+    pub fn register_response_body_data(&mut self, cbk_fn: DataNativeCallbackFn) {
         self.hook_response_body_data.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_COMPLETE callback.
-    pub unsafe fn register_response_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_response_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_response_complete.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_HEADER_DATA callback.
-    pub unsafe fn register_response_header_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+    pub fn register_response_header_data(&mut self, cbk_fn: DataNativeCallbackFn) {
         self.hook_response_header_data.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_HEADERS callback.
     #[allow(dead_code)]
-    pub unsafe fn register_response_headers(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_response_headers(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_response_headers.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_LINE callback.
     #[allow(dead_code)]
-    pub unsafe fn register_response_line(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_response_line(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_response_line.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_START callback.
-    pub unsafe fn register_response_start(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_response_start(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_response_start.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_TRAILER callback.
-    pub unsafe fn register_response_trailer(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_response_trailer(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_response_trailer.register(cbk_fn);
     }
 
     /// Registers a RESPONSE_TRAILER_DATA callback.
-    pub unsafe fn register_response_trailer_data(&mut self, cbk_fn: DataNativeCallbackFn) {
+    pub fn register_response_trailer_data(&mut self, cbk_fn: DataNativeCallbackFn) {
         self.hook_response_trailer_data.register(cbk_fn);
     }
 
     /// Registers a TRANSACTION_COMPLETE callback.
-    pub unsafe fn register_transaction_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
+    pub fn register_transaction_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_transaction_complete.register(cbk_fn);
     }
 
