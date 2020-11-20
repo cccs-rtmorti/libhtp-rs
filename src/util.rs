@@ -1141,7 +1141,7 @@ pub fn validate_hostname(input: &[u8]) -> bool {
 }
 
 /// Returns the LibHTP version string.
-pub unsafe fn get_version() -> *const i8 {
+pub fn get_version() -> *const i8 {
     HTP_VERSION_STRING_FULL.as_ptr() as *const i8
 }
 
