@@ -29,8 +29,7 @@ use std::io::Write;
 use tempfile::Builder;
 use tempfile::NamedTempFile;
 
-pub const HTP_VERSION_STRING_FULL: &'static str =
-    concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
+pub const HTP_VERSION_STRING_FULL: &'_ str = concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
 
 // Various flag bits. Even though we have a flag field in several places
 // (header, transaction, connection), these fields are all in the same namespace
@@ -211,7 +210,7 @@ pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a
 pub fn chomp(mut data: &[u8]) -> &[u8] {
     loop {
         let last_char = data.last();
-        if last_char == Some(&('\n' as u8)) || last_char == Some(&('\r' as u8)) {
+        if last_char == Some(&(b'\n')) || last_char == Some(&(b'\r')) {
             data = &data[..data.len() - 1];
         } else {
             break;
@@ -234,14 +233,14 @@ pub fn is_space(c: u8) -> bool {
 /// Returns the longest input slice till it case insensitively matches the pattern. It doesn't consume the pattern.
 ///
 /// Returns a tuple of the unconsumed data and the data up to but not including the input tag (if present)
-pub fn take_until_no_case<'a>(tag: &'a [u8]) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> + '_ {
     move |input| {
-        if tag.len() == 0 {
+        if tag.is_empty() {
             return Ok((b"", input));
         }
         let mut new_input = input;
         let mut bytes_consumed: usize = 0;
-        while new_input.len() > 0 {
+        while !new_input.is_empty() {
             let (left, consumed) = take_till::<_, _, (&[u8], nom::error::ErrorKind)>(|c: u8| {
                 c.to_ascii_lowercase() == tag[0] || c.to_ascii_uppercase() == tag[0]
             })(new_input)?;
@@ -320,10 +319,10 @@ pub fn ascii_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &
     move |input| {
         map(
             tuple((
-                take_while(|c| nom_is_space(c)),
+                nom_take_is_space,
                 take_till(|c: u8| c.is_ascii_digit()),
                 digit1,
-                take_while(|c| nom_is_space(c)),
+                nom_take_is_space,
             )),
             |(_, leading_data, digits, _)| (leading_data, digits),
         )(input)
@@ -338,9 +337,9 @@ pub fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         map(
             tuple((
-                take_while(|c| nom_is_space(c)),
+                nom_take_is_space,
                 take_while1(|c: u8| c.is_ascii_hexdigit()),
-                take_while(|c| nom_is_space(c)),
+                nom_take_is_space,
             )),
             |(_, digits, _)| digits,
         )(input)
@@ -381,7 +380,7 @@ pub fn is_line_terminator(
     if is_line_empty(data) {
         return true;
     }
-    if data.len() == 2 && nom_is_space(data[0]) && data[1] == '\n' as u8 {
+    if data.len() == 2 && nom_is_space(data[0]) && data[1] == b'\n' {
         return next_no_lf;
     }
     false
@@ -420,18 +419,17 @@ pub fn convert_port(port: &[u8]) -> Option<u16> {
 fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
     let (input, (c1, c2)) = tuple((be_u8, be_u8))(input)?;
     let mut decoded_byte: u8 = 0;
-    decoded_byte = if c1 >= 'A' as u8 {
-        ((c1 & 0xdf) - 'A' as u8) + 10
+    decoded_byte = if c1 >= b'A' {
+        ((c1 & 0xdf) - b'A') + 10
     } else {
-        c1 - '0' as u8
+        c1 - b'0'
     };
     decoded_byte = (decoded_byte as i32 * 16) as u8;
-    decoded_byte = decoded_byte
-        + if c2 >= 'A' as u8 {
-            ((c2 & 0xdf) - 'A' as u8) + 10
-        } else {
-            c2 - '0' as u8
-        };
+    decoded_byte += if c2 >= b'A' {
+        ((c2 & 0xdf) - b'A') + 10
+    } else {
+        c2 - b'0'
+    };
     Ok((input, decoded_byte))
 }
 
@@ -484,7 +482,7 @@ fn decode_u_encoding_path<'a>(
         r = cfg.bestfit_map.get(bestfit_key!(c1, c2));
     }
     // Check for encoded path separators
-    if r == '/' as u8 || cfg.backslash_convert_slashes && r == '\\' as u8 {
+    if r == b'/' || cfg.backslash_convert_slashes && r == b'\\' {
         flags |= Flags::PATH_ENCODED_SEPARATOR
     }
     Ok((i, (r, flags, expected_status_code)))
@@ -495,7 +493,7 @@ fn decode_u_encoding_path<'a>(
 /// Returns decoded byte
 fn decode_u_encoding_params<'a>(
     i: &'a [u8],
-    cfg: &'a DecoderConfig,
+    cfg: &DecoderConfig,
 ) -> IResult<&'a [u8], (u8, Flags)> {
     let (i, c1) = x2c(&i)?;
     let (i, c2) = x2c(&i)?;
@@ -517,13 +515,13 @@ fn decode_u_encoding_params<'a>(
 /// Decodes path valid uencoded params according to the given cfg settings.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn path_decode_valid_uencoding<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn path_decode_valid_uencoding(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |remaining_input| {
         let (left, _) = tag_no_case("u")(remaining_input)?;
         let mut output = remaining_input;
-        let mut byte = '%' as u8;
+        let mut byte = b'%';
         let mut flags = Flags::empty();
         let mut expected_status_code = HtpUnwanted::IGNORE;
         if cfg.u_encoding_decode {
@@ -559,12 +557,12 @@ fn path_decode_valid_uencoding<'a>(
 /// Decodes path invalid uencoded params according to the given cfg settings.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn path_decode_invalid_uencoding<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn path_decode_invalid_uencoding(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |remaining_input| {
         let mut output = remaining_input;
-        let mut byte = '%' as u8;
+        let mut byte = b'%';
         let mut flags = Flags::empty();
         let mut expected_status_code = HtpUnwanted::IGNORE;
         let (left, _) = tag_no_case("u")(remaining_input)?;
@@ -597,9 +595,9 @@ fn path_decode_invalid_uencoding<'a>(
 /// Decodes path valid hex according to the given cfg settings.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn path_decode_valid_hex<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn path_decode_valid_hex(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |remaining_input| {
         let original_remaining = remaining_input;
         // Valid encoding (2 xbytes)
@@ -617,14 +615,14 @@ fn path_decode_valid_hex<'a>(
                 return Ok((b"", (byte, expected_status_code, flags, false)));
             }
         }
-        if byte == '/' as u8 || (cfg.backslash_convert_slashes && byte == '\\' as u8) {
+        if byte == b'/' || (cfg.backslash_convert_slashes && byte == b'\\') {
             flags |= Flags::PATH_ENCODED_SEPARATOR;
             if cfg.path_separators_encoded_unwanted != HtpUnwanted::IGNORE {
                 expected_status_code = cfg.path_separators_encoded_unwanted
             }
             if !cfg.path_separators_decode {
                 // Leave encoded
-                byte = '%' as u8;
+                byte = b'%';
                 left = original_remaining;
             }
         }
@@ -636,15 +634,15 @@ fn path_decode_valid_hex<'a>(
 /// Decodes path invalid hex according to the given cfg settings.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn path_decode_invalid_hex<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn path_decode_invalid_hex(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |remaining_input| {
         let mut remaining = remaining_input;
         // Valid encoding (2 xbytes)
         not(tag_no_case("u"))(remaining_input)?;
         let (left, hex) = take(2usize)(remaining_input)?;
-        let mut byte = '%' as u8;
+        let mut byte = b'%';
         // Invalid encoding
         let flags = Flags::PATH_INVALID_ENCODING;
         let expected_status_code = cfg.url_encoding_invalid_unwanted;
@@ -667,9 +665,9 @@ fn path_decode_invalid_hex<'a>(
 /// code will be set.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn path_decode_percent<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn path_decode_percent(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |i| {
         let (remaining_input, c) = char('%')(i)?;
         let byte = c as u8;
@@ -709,9 +707,9 @@ fn path_decode_percent<'a>(
 /// according to the decoder configurations settings.
 ///
 /// Returns parsed byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn path_parse_other<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn path_parse_other(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |i| {
         let (remaining_input, byte) = be_u8(i)?;
         let mut expected_status_code = HtpUnwanted::IGNORE;
@@ -748,8 +746,8 @@ fn path_decode_control(mut byte: u8, cfg: &DecoderConfig) -> (u8, HtpUnwanted) {
         HtpUnwanted::IGNORE
     };
     // Convert backslashes to forward slashes, if necessary
-    if byte == '\\' as u8 && cfg.backslash_convert_slashes {
-        byte = '/' as u8
+    if byte == b'\\' && cfg.backslash_convert_slashes {
+        byte = b'/'
     }
     // Lowercase characters, if necessary
     if cfg.convert_lowercase {
@@ -771,9 +769,9 @@ fn path_decode<'a>(
             // If we're compressing separators then we need
             // to check if the previous character was a separator
             if insert {
-                if byte == '/' as u8 && cfg.path_separators_compress {
+                if byte == b'/' && cfg.path_separators_compress {
                     if !acc.0.is_empty() {
-                        if acc.0[acc.0.len() - 1] != '/' as u8 {
+                        if acc.0[acc.0.len() - 1] != b'/' {
                             acc.0.push(byte);
                         }
                     } else {
@@ -864,9 +862,9 @@ pub fn urldecode_inplace(cfg: &DecoderConfig, input: &mut Bstr, flags: &mut Flag
 /// e.g. "u0064" -> "d"
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_decode_valid_uencoding<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn url_decode_valid_uencoding(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |input| {
         let (left, _) = alt((char('u'), char('U')))(input)?;
         if cfg.u_encoding_decode {
@@ -874,10 +872,7 @@ fn url_decode_valid_uencoding<'a>(
             let (_, (byte, flags)) = decode_u_encoding_params(hex, cfg)?;
             return Ok((input, (byte, cfg.u_encoding_unwanted, flags, true)));
         }
-        Ok((
-            input,
-            ('%' as u8, HtpUnwanted::IGNORE, Flags::empty(), true),
-        ))
+        Ok((input, (b'%', HtpUnwanted::IGNORE, Flags::empty(), true)))
     }
 }
 
@@ -885,12 +880,12 @@ fn url_decode_valid_uencoding<'a>(
 /// e.g. "u00}9" -> "i"
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_decode_invalid_uencoding<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn url_decode_invalid_uencoding(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |mut input| {
         let (left, _) = alt((char('u'), char('U')))(input)?;
-        let mut byte = '%' as u8;
+        let mut byte = b'%';
         let mut code = HtpUnwanted::IGNORE;
         let mut flags = Flags::empty();
         let mut insert = true;
@@ -936,13 +931,13 @@ fn url_decode_valid_hex<'a>(
 /// e.g. "}9" -> "i"
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_decode_invalid_hex<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn url_decode_invalid_hex(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |mut input| {
         not(alt((char('u'), char('U'))))(input)?;
         // Invalid encoding (2 bytes, but not hexadecimal digits).
-        let mut byte = '%' as u8;
+        let mut byte = b'%';
         let mut insert = true;
         if cfg.url_encoding_invalid_handling == HtpUrlEncodingHandling::REMOVE_PERCENT {
             // Do not place anything in output; consume the %.
@@ -970,9 +965,9 @@ fn url_decode_invalid_hex<'a>(
 /// code will be set.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_decode_percent<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn url_decode_percent(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |i| {
         let (input, _) = char('%')(i)?;
         let (input, (byte, mut expected_status_code, mut flags, insert)) = alt((
@@ -986,7 +981,7 @@ fn url_decode_percent<'a>(
                 Ok((
                     input,
                     (
-                        '%' as u8,
+                        b'%',
                         cfg.url_encoding_invalid_unwanted,
                         Flags::URLEN_INVALID_ENCODING,
                         !(cfg.url_encoding_invalid_handling
@@ -1013,9 +1008,9 @@ fn url_decode_percent<'a>(
 /// Consumes the next nullbyte if it is a '+', decoding it according to the cfg
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_decode_plus<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn url_decode_plus(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |input| {
         let (input, byte) = map(char('+'), |byte| {
             // Decoding of the plus character is conditional on the configuration.
@@ -1033,9 +1028,9 @@ fn url_decode_plus<'a>(
 /// Handles raw null bytes according to the input cfg settings.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_parse_unencoded_byte<'a>(
-    cfg: &'a DecoderConfig,
-) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, Flags, bool)> {
+fn url_parse_unencoded_byte(
+    cfg: &DecoderConfig,
+) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |input| {
         let (input, byte) = be_u8(input)?;
         // One non-encoded byte.
@@ -1104,16 +1099,12 @@ pub fn treat_response_line_as_body(data: &[u8]) -> bool {
 ///
 /// Returns true if the supplied hostname is valid; false if it is not.
 pub fn validate_hostname(input: &[u8]) -> bool {
-    if input.len() == 0 || input.len() > 255 {
+    if input.is_empty() || input.len() > 255 {
         return false;
     }
     if char::<_, (&[u8], nom::error::ErrorKind)>('[')(input).is_ok() {
         if let Ok((input, _)) = is_not::<_, _, (&[u8], nom::error::ErrorKind)>("#?/]")(input) {
-            if char::<_, (&[u8], nom::error::ErrorKind)>(']')(input).is_ok() {
-                return true;
-            } else {
-                return false;
-            }
+            return char::<_, (&[u8], nom::error::ErrorKind)>(']')(input).is_ok();
         } else {
             return false;
         }
@@ -1123,16 +1114,16 @@ pub fn validate_hostname(input: &[u8]) -> bool {
     {
         return false;
     }
-    for section in input.split(|&c| c == '.' as u8) {
+    for section in input.split(|&c| c == b'.') {
         if section.len() > 63 {
             return false;
         }
-        if !take_while_m_n::<_, _, (&[u8], nom::error::ErrorKind)>(
+        if take_while_m_n::<_, _, (&[u8], nom::error::ErrorKind)>(
             section.len(),
             section.len(),
-            |c| c == '-' as u8 || (c as char).is_alphanumeric(),
+            |c| c == b'-' || (c as char).is_alphanumeric(),
         )(section)
-        .is_ok()
+        .is_err()
         {
             return false;
         }
@@ -1154,12 +1145,12 @@ pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
 
 // Removes whitespace as defined by nom (tab and ' ')
 pub fn nom_take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| nom_is_space(c))(data)
+    take_while(nom_is_space)(data)
 }
 
 /// Returns data before the first null character if it exists
 pub fn take_until_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| c != b'\0')(data)
+    take_while(|c| c != b'\0')(data)
 }
 
 /// Returns data without trailing whitespace
@@ -1173,7 +1164,7 @@ pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
 
 /// Take spaces as defined by is_space
 pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(|c: u8| is_space(c))(data)
+    take_while(is_space)(data)
 }
 
 /// Take any non-space character as defined by is_space
@@ -1189,7 +1180,7 @@ pub fn is_word_token(data: &[u8]) -> bool {
 /// Returns all data up to and including the first new line or null
 /// Returns Err if not found
 pub fn take_till_lf_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let res = streaming_take_till(|c: u8| c == '\n' as u8 || c == 0)(data);
+    let res = streaming_take_till(|c| c == b'\n' || c == 0)(data);
     if let Ok((_, line)) = res {
         Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
     } else {
@@ -1200,7 +1191,7 @@ pub fn take_till_lf_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Returns all data up to and including the first new line
 /// Returns Err if not found
 pub fn take_till_lf(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let res = streaming_take_till(|c: u8| c == '\n' as u8)(data);
+    let res = streaming_take_till(|c| c == b'\n')(data);
     if let Ok((_, line)) = res {
         Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
     } else {
