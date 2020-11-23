@@ -81,7 +81,7 @@ pub fn callback_urlencoded_request_line(tx: &mut Transaction) -> Result<()> {
             .parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.query.as_ref())
-            .map(|query| query.len() == 0)
+            .map(|query| query.is_empty())
             .unwrap_or(true)
         {
             return Err(HtpStatus::DECLINED);

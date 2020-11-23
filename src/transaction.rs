@@ -779,7 +779,7 @@ impl Transaction {
     /// Returns OK on success, ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
-        if data.as_ref().len() == 0 {
+        if data.as_ref().is_empty() {
             return Ok(());
         }
         self.req_process_body_data_ex(Some(data.as_ref()))
@@ -863,7 +863,7 @@ impl Transaction {
     /// Returns OK on success, ERROR on failure.
     #[allow(dead_code)]
     pub unsafe fn res_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
-        if data.as_ref().len() == 0 {
+        if data.as_ref().is_empty() {
             return Ok(());
         }
         self.res_process_body_data_ex(Some(data.as_ref()))

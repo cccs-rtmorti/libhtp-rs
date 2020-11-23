@@ -548,7 +548,7 @@ impl ConnectionParser {
         }
         let mut data = std::mem::take(&mut self.in_buf);
         data.add(line);
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(HtpStatus::DATA);
         }
         // Is this a line that should be ignored?

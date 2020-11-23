@@ -50,7 +50,7 @@ pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
 pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
         if let Some(connp) = connp {
-            if leading_data.len() > 0 {
+            if !leading_data.is_empty() {
                 // Contains invalid characters! But still attempt to process
                 htp_warn!(
                     connp,
@@ -59,7 +59,7 @@ pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> O
                 );
             }
 
-            if trailing_data.len() > 0 {
+            if !trailing_data.is_empty() {
                 // Ok to have junk afterwards
                 htp_warn!(
                     connp,
@@ -234,7 +234,7 @@ pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], (&[u8], Option<(&[u8], Opt
         } else {
             return Ok((input, (host, Some((p, None)), false)));
         }
-    } else if input.len() > 0 {
+    } else if !input.is_empty() {
         //Trailing data after the hostname that is invalid e.g. [::1]xxxxx
         valid = false;
     }
@@ -256,7 +256,7 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
     ))(input)?;
     Ok((
         remaining,
-        (version, leading.len() > 0 || trailing.len() > 0),
+        (version, !leading.is_empty() || !trailing.is_empty()),
     ))
 }
 
@@ -268,7 +268,7 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
 /// Returns HtpProtocol version or invalid.
 pub fn parse_protocol<'a>(input: &'a [u8], connp: &ConnectionParser) -> HtpProtocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
-        if remaining.len() > 0 {
+        if !remaining.is_empty() {
             return HtpProtocol::INVALID;
         }
         if contains_trailing {
@@ -292,7 +292,7 @@ pub fn parse_protocol<'a>(input: &'a [u8], connp: &ConnectionParser) -> HtpProto
 /// Determines the numerical value of a response status given as a string.
 pub fn parse_status(status: &[u8]) -> HtpResponseNumber {
     if let Ok((trailing_data, (leading_data, status_code))) = ascii_digits()(status) {
-        if trailing_data.len() > 0 || leading_data.len() > 0 {
+        if !trailing_data.is_empty() || !leading_data.is_empty() {
             //There are invalid characters in the status code
             return HtpResponseNumber::INVALID;
         }

@@ -236,7 +236,7 @@ impl Parser {
     ///
     /// Returns OK on success, ERROR on failure.
     fn handle_data(&mut self, is_line: bool) -> Result<()> {
-        if self.to_consume.len() == 0 {
+        if self.to_consume.is_empty() {
             return Ok(());
         }
         // Do we have a part already?
@@ -371,7 +371,7 @@ impl Parser {
                 return left;
             } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\r')(remaining)
             {
-                if left.len() == 0 {
+                if left.is_empty() {
                     // We have CR as the last byte in input. We are going to process
                     // what we have in the buffer as data, except for the CR byte,
                     // which we're going to leave for later. If it happens that a
@@ -529,7 +529,7 @@ impl Parser {
     ///
     /// Returns OK on success, ERROR on failure.
     pub fn parse<'a>(&mut self, mut input: &'a [u8]) -> HtpStatus {
-        while input.len() > 0 {
+        while !input.is_empty() {
             match self.parser_state {
                 HtpMultipartState::DATA => {
                     input = self.parse_state_data(input);
@@ -631,7 +631,7 @@ impl Part {
                         // Over the terminating double quote.
                         // Finally, process the parameter value.
                         // Check that we have not seen the name parameter already.
-                        if self.name.len() > 0 {
+                        if !self.name.is_empty() {
                             (*self.parser).multipart.flags |= Flags::CD_PARAM_REPEATED;
                             return Err(HtpStatus::DECLINED);
                         }
@@ -778,7 +778,7 @@ impl Part {
             // Notify callbacks about the end of the file.
             // Ignore result.
             let _ = self.run_request_file_data_hook(b"");
-        } else if (*self.parser).part_data_pieces.len() > 0 {
+        } else if !(*self.parser).part_data_pieces.is_empty() {
             self.value.clear();
             self.value.add((*self.parser).part_data_pieces.as_slice());
             (*self.parser).part_data_pieces.clear();
@@ -824,7 +824,7 @@ impl Part {
             // Line mode.
             if is_line {
                 // If this line came to us in pieces, combine them now into a single buffer.
-                if (*self.parser).part_header.len() > 0 {
+                if !(*self.parser).part_header.is_empty() {
                     // Allocate string
                     let mut header =
                         Bstr::with_capacity((*self.parser).part_header.len() + data.len());
@@ -842,10 +842,10 @@ impl Part {
                     data = &data[..data.len() - 1];
                 }
                 // Is it an empty line?
-                if data.len() == 0 {
+                if data.is_empty() {
                     // Empty line; process headers and switch to data mode.
                     // Process the pending header, if any.
-                    if (*self.parser).pending_header_line.len() > 0 {
+                    if !(*self.parser).pending_header_line.is_empty() {
                         if self.parse_header(&(*(*self.parser).pending_header_line).as_slice())
                             == Err(HtpStatus::ERROR)
                         {
@@ -872,14 +872,14 @@ impl Part {
                             }
                         }
                         None => {
-                            if self.name.len() > 0 {
+                            if !self.name.is_empty() {
                                 // Changing part type because we have a name.
                                 self.type_0 = HtpMultipartType::TEXT;
                                 (*self.parser).part_data_pieces.clear();
                             }
                         }
                     }
-                } else if (*self.parser).pending_header_line.len() == 0 {
+                } else if (*self.parser).pending_header_line.is_empty() {
                     if let Some(header) = line {
                         (*self.parser).pending_header_line.add(header.as_slice());
                         line = None;
@@ -1101,7 +1101,7 @@ fn content_disposition<'a>(input: &'a [u8]) -> IResult<&'a [u8], Vec<(&'a [u8], 
 fn validate_boundary(boundary: &[u8], flags: &mut Flags) {
     // The RFC allows up to 70 characters. In real life,
     // boundaries tend to be shorter.
-    if boundary.len() == 0 || boundary.len() > 70 {
+    if boundary.is_empty() || boundary.len() > 70 {
         *flags |= Flags::HBOUNDARY_INVALID
     }
     // Check boundary characters. This check is stricter than the
@@ -1284,27 +1284,27 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut Flags) -> Option<&'
         ),
     )) = boundary()(content_type)
     {
-        if spaces_before_equal.len() > 0
-            || spaces_after_equal.len() > 0
+        if !spaces_before_equal.is_empty()
+            || !spaces_after_equal.is_empty()
             || opening_quote.is_some()
-            || (chars_after_boundary.len() == 0 && spaces_after_boundary.len() > 0)
+            || (chars_after_boundary.is_empty() && !spaces_after_boundary.is_empty())
         {
             // It is unusual to see whitespace before and/or after the equals sign.
             // Unusual to have a quoted boundary
             // Unusual but allowed to have only whitespace after the boundary
             *flags |= Flags::HBOUNDARY_UNUSUAL
         }
-        if chars_before_equal.len() > 0
+        if !chars_before_equal.is_empty()
             || (opening_quote.is_some() && !closing_quote.is_some())
             || (!opening_quote.is_some() && closing_quote.is_some())
-            || chars_after_boundary.len() > 0
+            || !chars_after_boundary.is_empty()
         {
             // Seeing a non-whitespace character before equal sign may indicate evasion
             // Having an opening quote, but no closing quote is invalid
             // Seeing any character after the boundary, other than whitespace is invalid
             *flags |= Flags::HBOUNDARY_INVALID
         }
-        if boundary.len() == 0 {
+        if boundary.is_empty() {
             *flags |= Flags::HBOUNDARY_INVALID;
             return None;
         }

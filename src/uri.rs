@@ -322,8 +322,8 @@ impl Uri {
             partial_normalized_uri.add(fragment.as_slice());
         }
         normalized_uri.add(partial_normalized_uri.as_slice());
-        if normalized_uri.len() > 0 {
-            if partial_normalized_uri.len() > 0 {
+        if !normalized_uri.is_empty() {
+            if !partial_normalized_uri.is_empty() {
                 (Some(partial_normalized_uri), Some(normalized_uri))
             } else {
                 (None, Some(normalized_uri))
