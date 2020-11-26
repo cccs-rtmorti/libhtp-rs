@@ -384,23 +384,21 @@ impl ConnectionParser {
     /// The function used for request line parsing. Depends on the personality.
     pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
         self.in_tx_mut_ok()?.request_line = Some(Bstr::from(request_line));
-        unsafe {
-            if self.cfg.server_personality == HtpServerPersonality::APACHE_2 {
-                self.parse_request_line_generic_ex(request_line, true)
-            } else {
-                self.parse_request_line_generic_ex(request_line, false)
-            }
+        if self.cfg.server_personality == HtpServerPersonality::APACHE_2 {
+            self.parse_request_line_generic_ex(request_line, true)
+        } else {
+            self.parse_request_line_generic_ex(request_line, false)
         }
     }
 
     /// The function used for response line parsing.
     pub fn parse_response_line(&mut self, response_line: &[u8]) -> Result<()> {
         self.out_tx_mut_ok()?.response_line = Some(Bstr::from(response_line));
-        unsafe { self.parse_response_line_generic(response_line) }
+        self.parse_response_line_generic(response_line)
     }
 
     pub fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
-        unsafe { self.process_request_header_generic(data) }
+        self.process_request_header_generic(data)
     }
 
     pub fn process_response_header(&mut self, data: &[u8]) -> Result<()> {
@@ -410,7 +408,7 @@ impl ConnectionParser {
     /// Closes the connection associated with the supplied parser.
     ///
     /// timestamp is optional
-    pub unsafe fn req_close(&mut self, timestamp: Option<Time>) {
+    pub fn req_close(&mut self, timestamp: Option<Time>) {
         // Update internal flags
         if self.in_status != HtpStreamState::ERROR {
             self.in_status = HtpStreamState::CLOSED
@@ -423,7 +421,7 @@ impl ConnectionParser {
     /// Closes the connection associated with the supplied parser.
     ///
     /// timestamp is optional
-    pub unsafe fn close(&mut self, timestamp: Option<Time>) {
+    pub fn close(&mut self, timestamp: Option<Time>) {
         // Close the underlying connection.
         self.conn.close(timestamp.clone());
         // Update internal flags
@@ -465,7 +463,7 @@ impl ConnectionParser {
     /// Opens connection.
     ///
     /// timestamp is optional
-    pub unsafe fn open(
+    pub fn open(
         &mut self,
         client_addr: Option<IpAddr>,
         client_port: Option<u16>,
@@ -494,7 +492,7 @@ impl ConnectionParser {
     }
 
     /// Associate user data with the supplied parser.
-    pub unsafe fn set_user_data(&mut self, user_data: *mut core::ffi::c_void) {
+    pub fn set_user_data(&mut self, user_data: *mut core::ffi::c_void) {
         (*self).user_data = user_data;
     }
 
@@ -513,7 +511,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_start(&mut self) -> Result<()> {
+    pub fn state_request_start(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_start()
         } else {
@@ -528,7 +526,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_headers(&mut self) -> Result<()> {
+    pub fn state_request_headers(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_headers()
         } else {
@@ -543,7 +541,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_request_line(&mut self) -> Result<()> {
+    pub fn state_request_line(&mut self) -> Result<()> {
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_line()
         } else {
@@ -565,7 +563,7 @@ impl ConnectionParser {
         }
     }
 
-    pub unsafe fn res_process_body_data_ex(
+    pub fn res_process_body_data_ex(
         &mut self,
         data: *const core::ffi::c_void,
         len: usize,
@@ -573,7 +571,7 @@ impl ConnectionParser {
         let data = if data.is_null() {
             None
         } else {
-            Some(std::slice::from_raw_parts(data as *const u8, len))
+            unsafe { Some(std::slice::from_raw_parts(data as *const u8, len)) }
         };
 
         if let Some(tx) = self.out_tx_mut() {
@@ -583,7 +581,7 @@ impl ConnectionParser {
         }
     }
 
-    pub unsafe fn state_response_start(&mut self) -> Result<()> {
+    pub fn state_response_start(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_start()
         } else {
@@ -597,7 +595,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_headers(&mut self) -> Result<()> {
+    pub fn state_response_headers(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_headers()
         } else {
@@ -611,7 +609,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub unsafe fn state_response_line(&mut self) -> Result<()> {
+    pub fn state_response_line(&mut self) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_line()
         } else {
@@ -619,7 +617,7 @@ impl ConnectionParser {
         }
     }
 
-    pub unsafe fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
+    pub fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_complete_ex(hybrid_mode)
         } else {

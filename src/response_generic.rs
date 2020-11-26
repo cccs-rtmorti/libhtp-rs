@@ -15,7 +15,7 @@ use std::cmp::Ordering;
 
 impl ConnectionParser {
     /// Generic response line parser.
-    pub unsafe fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
+    pub fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
         let out_tx = self.out_tx_mut_ok()?;
         out_tx.response_protocol_number = HtpProtocol::INVALID;
         out_tx.response_status = None;
@@ -61,7 +61,7 @@ impl ConnectionParser {
     }
 
     /// Generic response header parser.
-    pub unsafe fn parse_response_header_generic(&mut self, data: &[u8]) -> Result<Header> {
+    pub fn parse_response_header_generic(&mut self, data: &[u8]) -> Result<Header> {
         let data = chomp(&data);
         let mut flags = Flags::empty();
 
@@ -167,7 +167,7 @@ impl ConnectionParser {
     /// Generic response header line(s) processor, which assembles folded lines
     /// into a single buffer before invoking the parsing function.
     pub fn process_response_header_generic(&mut self, data: &[u8]) -> Result<()> {
-        let header = unsafe { self.parse_response_header_generic(data)? };
+        let header = self.parse_response_header_generic(data)?;
         let mut repeated = false;
         let reps = self.out_tx_mut_ok()?.res_header_repetitions;
         let mut update_reps = false;

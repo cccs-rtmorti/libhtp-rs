@@ -368,7 +368,7 @@ impl ConnectionParser {
         if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             // Sends close signal to decompressors
-            return unsafe { self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0) };
+            return self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
         }
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
@@ -395,7 +395,7 @@ impl ConnectionParser {
         if self.out_body_data_left == 0 {
             self.out_state = State::FINALIZE;
             // Tells decompressors to output partially decompressed data
-            return unsafe { self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0) };
+            return self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
         }
         Err(HtpStatus::DATA)
     }
@@ -454,7 +454,7 @@ impl ConnectionParser {
                 // side we wrap up the tx and wait.
                 self.out_state = State::FINALIZE;
                 // we may have response headers
-                return unsafe { self.state_response_headers().into() };
+                return self.state_response_headers().into();
             } else if self.out_tx_mut_ok()?.response_status_number.eq(407) {
                 // proxy telling us to auth
                 if self.in_status != HtpStreamState::ERROR {
@@ -496,7 +496,7 @@ impl ConnectionParser {
                 }
                 self.out_status = HtpStreamState::TUNNEL;
                 // we may have response headers
-                return unsafe { self.state_response_headers().into() };
+                return self.state_response_headers().into();
             } else {
                 htp_warn!(
                     self,
@@ -699,7 +699,7 @@ impl ConnectionParser {
         }
         // NOTE We do not need to check for short-style HTTP/0.9 requests here because
         //      that is done earlier, before response line parsing begins
-        unsafe { self.state_response_headers() }
+        self.state_response_headers()
     }
 
     /// Parses response headers.
@@ -1068,12 +1068,10 @@ impl ConnectionParser {
                     self.out_tx_mut_ok()?.response_content_encoding_processing =
                         HtpContentEncoding::NONE;
                     self.out_current_consume_offset = self.out_current_read_offset;
-                    unsafe {
-                        self.res_process_body_data_ex(
-                            data as *const core::ffi::c_void,
-                            len.wrapping_add(chomp_result),
-                        )?;
-                    }
+                    self.res_process_body_data_ex(
+                        data as *const core::ffi::c_void,
+                        len.wrapping_add(chomp_result),
+                    )?;
                     // Continue to process response body. Because we don't have
                     // any headers to parse, we assume the body continues until
                     // the end of the stream.
@@ -1088,7 +1086,7 @@ impl ConnectionParser {
                     return Ok(());
                 }
                 self.parse_response_line(s)?;
-                unsafe { self.state_response_line()? };
+                self.state_response_line()?;
                 self.res_clear_buffer();
                 // Move on to the next phase.
                 self.out_state = State::HEADERS;
@@ -1110,7 +1108,7 @@ impl ConnectionParser {
                 }
             }
             if self.out_next_byte == -1 {
-                return unsafe { self.state_response_complete_ex(0).into() };
+                return self.state_response_complete_ex(0).into();
             }
             if self.out_next_byte != '\n' as i32
                 || self.out_current_consume_offset >= self.out_current_read_offset
@@ -1142,7 +1140,7 @@ impl ConnectionParser {
         self.res_consolidate_data(&mut data, &mut bytes_left)?;
         if bytes_left == 0 {
             //closing
-            return unsafe { self.state_response_complete_ex(0).into() };
+            return self.state_response_complete_ex(0).into();
         }
         if treat_response_line_as_body(unsafe { std::slice::from_raw_parts(data, bytes_left) }) {
             // Interpret remaining bytes as body data
@@ -1151,9 +1149,7 @@ impl ConnectionParser {
                 HtpLogCode::RESPONSE_BODY_UNEXPECTED,
                 "Unexpected response body"
             );
-            let rc = unsafe {
-                self.res_process_body_data_ex(data as *const core::ffi::c_void, bytes_left)
-            };
+            let rc = self.res_process_body_data_ex(data as *const core::ffi::c_void, bytes_left);
             self.res_clear_buffer();
             return rc;
         }
@@ -1167,7 +1163,7 @@ impl ConnectionParser {
         if self.out_current_read_offset < self.out_current_consume_offset {
             self.out_current_consume_offset = self.out_current_read_offset
         }
-        unsafe { self.state_response_complete_ex(0).into() }
+        self.state_response_complete_ex(0).into()
     }
 
     /// The response idle state will initialize response processing, as well as
@@ -1218,7 +1214,7 @@ impl ConnectionParser {
             self.out_content_length = -1;
             self.out_body_data_left = -1
         }
-        unsafe { self.state_response_start() }
+        self.state_response_start()
     }
 
     /// Run the RESPONSE_BODY_DATA hook.
@@ -1318,9 +1314,9 @@ impl ConnectionParser {
                     State::BODY_IDENTITY_CL_KNOWN | State::BODY_IDENTITY_STREAM_CLOSE => {
                         rc = self.handle_out_state()
                     }
-                    State::FINALIZE => unsafe {
+                    State::FINALIZE => {
                         rc = self.state_response_complete_ex(0);
-                    },
+                    }
                     _ => {
                         htp_error!(
                             self,

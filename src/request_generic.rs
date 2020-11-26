@@ -19,7 +19,7 @@ impl ConnectionParser {
     /// which case they will be folded into one before parsing is attempted.
     ///
     /// Returns OK or ERROR
-    pub unsafe fn process_request_header_generic(&mut self, data: &[u8]) -> Result<()> {
+    pub fn process_request_header_generic(&mut self, data: &[u8]) -> Result<()> {
         // Try to parse the header.
         let header = self.parse_request_header_generic(data)?;
         let mut repeated = false;
@@ -84,7 +84,7 @@ impl ConnectionParser {
     }
 
     /// Generic request header parser.
-    pub unsafe fn parse_request_header_generic(&mut self, data: &[u8]) -> Result<Header> {
+    pub fn parse_request_header_generic(&mut self, data: &[u8]) -> Result<Header> {
         let mut flags = Flags::empty();
         let data = chomp(&data);
 
@@ -171,7 +171,7 @@ impl ConnectionParser {
         Ok(Header::new_with_flags(name.into(), value.into(), flags))
     }
 
-    pub unsafe fn parse_request_line_generic_ex(
+    pub fn parse_request_line_generic_ex(
         &mut self,
         request_line: &[u8],
         nul_terminates: bool,

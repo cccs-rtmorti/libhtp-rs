@@ -428,7 +428,7 @@ impl ConnectionParser {
                 self.in_buf.clear();
                 self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER;
                 // We've seen all the request headers.
-                unsafe { return self.state_request_headers().into() };
+                return self.state_request_headers().into();
             }
             if let Ok((remaining, line)) = take_till_lf(rest) {
                 self.in_curr_data
@@ -440,15 +440,13 @@ impl ConnectionParser {
                 data.add(line);
 
                 rest = remaining;
-                unsafe {
-                    if is_line_terminator(self.cfg.server_personality, &data, false) {
-                        // Parse previous header, if any.
-                        if let Some(in_header) = self.in_header.take() {
-                            self.process_request_header(in_header.as_slice())?;
-                        }
-                        // We've seen all the request headers.
-                        return self.state_request_headers().into();
+                if is_line_terminator(self.cfg.server_personality, &data, false) {
+                    // Parse previous header, if any.
+                    if let Some(in_header) = self.in_header.take() {
+                        self.process_request_header(in_header.as_slice())?;
                     }
+                    // We've seen all the request headers.
+                    return self.state_request_headers().into();
                 }
 
                 let chomped = chomp(&data);
@@ -561,11 +559,9 @@ impl ConnectionParser {
         // Process request line.
         let data = chomp(&data);
         self.in_tx_mut_ok()?.request_line = Some(Bstr::from(data));
-        unsafe {
-            self.parse_request_line(data)?;
-            // Finalize request line parsing.
-            self.state_request_line()?;
-        }
+        self.parse_request_line(data)?;
+        // Finalize request line parsing.
+        self.state_request_line()?;
         Ok(())
     }
 
@@ -703,9 +699,7 @@ impl ConnectionParser {
 
         // Change state to TRANSACTION_START
         // Ignore the result.
-        unsafe {
-            let _ = self.state_request_start();
-        }
+        let _ = self.state_request_start();
         Ok(())
     }
 
@@ -736,7 +730,7 @@ impl ConnectionParser {
     }
 
     /// Returns HtpStreamState
-    pub unsafe fn req_data(
+    pub fn req_data(
         &mut self,
         timestamp: Option<Time>,
         data: *const core::ffi::c_void,
@@ -788,7 +782,7 @@ impl ConnectionParser {
         }
 
         // Store the current chunk information
-        let chunk = std::slice::from_raw_parts(data as *mut u8, len);
+        let chunk = unsafe { std::slice::from_raw_parts(data as *mut u8, len) };
         self.in_curr_data = Cursor::new(chunk.to_vec());
         self.in_current_receiver_offset = 0;
         self.in_chunk_count = self.in_chunk_count.wrapping_add(1);
