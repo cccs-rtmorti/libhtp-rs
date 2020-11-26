@@ -154,6 +154,18 @@ pub struct ConnectionParser {
     pub put_file: Option<File>,
 }
 
+impl std::fmt::Debug for ConnectionParser {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("ConnectionParser")
+            .field("in_status", &self.in_status)
+            .field("out_status", &self.out_status)
+            .field("user_data", &self.user_data)
+            .field("in_tx", &self.out_tx)
+            .field("out_tx", &self.out_tx)
+            .finish()
+    }
+}
+
 impl ConnectionParser {
     pub fn new(cfg: Config) -> Self {
         Self {

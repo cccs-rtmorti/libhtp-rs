@@ -1,8 +1,7 @@
 #![allow(non_snake_case)]
 use htp::{
     bstr::*,
-    c_api::{htp_connp_create, htp_connp_destroy_all},
-    config::{create, Config, HtpServerPersonality},
+    config::{Config, HtpServerPersonality},
     connection_parser::ConnectionParser,
     decompressors::{Decompressor, HtpContentEncoding},
     transaction::{Data, Transaction},
@@ -12,24 +11,20 @@ use std::{env, path::PathBuf};
 
 // import common testing utilities
 mod common;
-use common::htp_connp_tx_create;
 
-#[no_mangle]
-extern "C" fn GUnzip_decompressor_callback(d: *mut Data) -> HtpStatus {
+fn GUnzip_decompressor_callback(d: &mut Data) -> HtpStatus {
     unsafe {
-        let output_ptr: *mut Bstr = (*(*d).tx()).user_data() as *mut Bstr;
-        (*output_ptr).add((*d).as_slice().unwrap());
+        let output_ptr: *mut Bstr = (*d.tx()).user_data() as *mut Bstr;
+        (*output_ptr).add(d.as_slice().unwrap());
     }
     HtpStatus::OK
 }
 
 #[derive(Debug)]
 struct Test {
-    cfg: *mut Config,
-    connp: *mut ConnectionParser,
+    connp: ConnectionParser,
     output: Bstr,
     expected: Bstr,
-    tx: *mut Transaction,
     decompressor: Decompressor,
 }
 
@@ -40,39 +35,32 @@ enum TestError {
 
 impl Test {
     fn new() -> Self {
-        unsafe {
-            let cfg = create();
-            assert!(!cfg.is_null());
-            (*cfg)
-                .set_server_personality(HtpServerPersonality::APACHE_2)
-                .unwrap();
-            // The default bomb limit may be slow in some development environments causing tests to fail.
-            (*cfg).compression_options.set_time_limit(std::u32::MAX);
-            let connp = htp_connp_create(cfg);
-            assert!(!connp.is_null());
-            let tx = htp_connp_tx_create(connp);
-            assert!(!tx.is_null());
+        let mut cfg = Config::default();
+        cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+            .unwrap();
+        // The default bomb limit may be slow in some development environments causing tests to fail.
+        cfg.compression_options.set_time_limit(std::u32::MAX);
+        let mut connp = ConnectionParser::new(cfg);
+        let tx_id = Transaction::new(&mut connp).unwrap();
+        connp.set_in_tx_id(Some(tx_id));
 
-            let output = Bstr::new();
-            let expected = Bstr::from("The five boxing wizards jump quickly.");
-
-            Test {
-                cfg,
-                connp,
-                output,
-                expected,
-                tx,
-                decompressor: Decompressor::new_with_callback(
-                    HtpContentEncoding::GZIP,
-                    Box::new(move |data: Option<&[u8]>| {
-                        let mut tx_data = Data::new(tx, data, false);
-                        GUnzip_decompressor_callback(&mut tx_data);
-                        Ok(tx_data.len())
-                    }),
-                    Default::default(),
-                )
-                .unwrap(),
-            }
+        let output = Bstr::new();
+        let expected = Bstr::from("The five boxing wizards jump quickly.");
+        let tx = connp.in_tx_mut_ok().unwrap() as *mut Transaction;
+        Test {
+            connp,
+            output,
+            expected,
+            decompressor: Decompressor::new_with_callback(
+                HtpContentEncoding::GZIP,
+                Box::new(move |data: Option<&[u8]>| {
+                    let mut tx_data = Data::new(tx, data, false);
+                    GUnzip_decompressor_callback(&mut tx_data);
+                    Ok(tx_data.len())
+                }),
+                Default::default(),
+            )
+            .unwrap(),
         }
     }
 
@@ -90,24 +78,15 @@ impl Test {
         filepath.push(filename);
 
         let data = std::fs::read(filepath).map_err(TestError::Io)?;
-        unsafe {
-            let output_ptr: *mut Bstr = &mut self.output;
-            (*self.tx).set_user_data(output_ptr as *mut core::ffi::c_void);
+        self.connp
+            .in_tx_mut_ok()
+            .unwrap()
+            .set_user_data(&mut self.output as *mut Bstr as *mut core::ffi::c_void);
 
-            self.decompressor
-                .decompress(&data)
-                .map(|_| ())
-                .map_err(|_| TestError::Htp(HtpStatus::ERROR))
-        }
-    }
-}
-
-impl Drop for Test {
-    fn drop(&mut self) {
-        unsafe {
-            htp_connp_destroy_all(self.connp);
-            (*self.cfg).destroy();
-        }
+        self.decompressor
+            .decompress(&data)
+            .map(|_| ())
+            .map_err(|_| TestError::Htp(HtpStatus::ERROR))
     }
 }
 
