@@ -16,7 +16,10 @@ use nom::{
     branch::alt, bytes::complete::take_until, character::complete::char,
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
 };
-use std::io::{Cursor, Seek, SeekFrom};
+use std::{
+    cmp::Ordering,
+    io::{Cursor, Seek, SeekFrom},
+};
 
 /// HTTP methods.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
@@ -223,7 +226,7 @@ impl ConnectionParser {
                 self.in_status = HtpStreamState::TUNNEL;
                 self.out_status = HtpStreamState::TUNNEL
             } else {
-                return self.state_request_complete().into();
+                return self.state_request_complete();
             }
         };
         Ok(())
@@ -270,7 +273,7 @@ impl ConnectionParser {
             self.in_curr_data.seek(SeekFrom::Current(len))?;
             self.in_tx_mut_ok()?.request_message_len += len;
             self.in_state = State::BODY_CHUNKED_LENGTH;
-            return Ok(());
+            Ok(())
         } else {
             self.in_tx_mut_ok()?.request_message_len += data.len() as i64;
             self.handle_absent_lf(data)
@@ -329,25 +332,29 @@ impl ConnectionParser {
             }
 
             // Handle chunk length.
-            if self.in_chunked_length > 0 {
-                // More data available.
-                self.in_state = State::BODY_CHUNKED_DATA
-            } else if self.in_chunked_length == 0 {
-                // End of data.
-                self.in_state = State::HEADERS;
-                self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER
-            } else {
-                // Invalid chunk length.
-                htp_error!(
-                    self,
-                    HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
-                    "Request chunk encoding: Invalid chunk length"
-                );
-                return Err(HtpStatus::ERROR);
+            match self.in_chunked_length.cmp(&0) {
+                Ordering::Equal => {
+                    // End of data.
+                    self.in_state = State::HEADERS;
+                    self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER
+                }
+                Ordering::Greater => {
+                    // More data available.
+                    self.in_state = State::BODY_CHUNKED_DATA
+                }
+                _ => {
+                    // Invalid chunk length.
+                    htp_error!(
+                        self,
+                        HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
+                        "Request chunk encoding: Invalid chunk length"
+                    );
+                    return Err(HtpStatus::ERROR);
+                }
             }
             Ok(())
         } else {
-            return self.handle_absent_lf(data);
+            self.handle_absent_lf(data)
         }
     }
 
@@ -428,7 +435,7 @@ impl ConnectionParser {
                 self.in_buf.clear();
                 self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER;
                 // We've seen all the request headers.
-                return self.state_request_headers().into();
+                return self.state_request_headers();
             }
             if let Ok((remaining, line)) = take_till_lf(rest) {
                 self.in_curr_data
@@ -580,7 +587,7 @@ impl ConnectionParser {
                     self.in_curr_data.seek(SeekFrom::End(0))?;
                     self.req_line_complete(data)
                 } else {
-                    return self.handle_absent_lf(data);
+                    self.handle_absent_lf(data)
                 }
             }
         }
@@ -594,11 +601,9 @@ impl ConnectionParser {
                 .get_ref()
                 .get(self.in_curr_data.position() as usize);
             if in_next_byte.is_none() {
-                return self.state_request_complete().into();
+                return self.state_request_complete();
             }
-            let lf = in_next_byte
-                .map(|byte| *byte == '\n' as u8)
-                .unwrap_or(false);
+            let lf = in_next_byte.map(|byte| *byte == b'\n').unwrap_or(false);
             if !lf {
                 if let Ok((_, line)) = take_till_lf(data) {
                     self.in_curr_data
@@ -617,7 +622,7 @@ impl ConnectionParser {
         let mut data = std::mem::take(&mut self.in_buf);
 
         if data.is_empty() {
-            return self.state_request_complete().into();
+            return self.state_request_complete();
         }
 
         let res = tuple::<_, _, (&[u8], ErrorKind), _>((take_is_space, take_not_is_space))(&data);
@@ -661,9 +666,9 @@ impl ConnectionParser {
             self.in_curr_data.set_position(0);
         } else {
             self.in_curr_data
-                .seek(SeekFrom::Current((self.in_buf.len() as i64) * -1))?;
+                .seek(SeekFrom::Current(-(self.in_buf.len() as i64)))?;
         }
-        return self.state_request_complete().into();
+        self.state_request_complete()
     }
 
     pub fn req_ignore_data_after_http_0_9(&mut self) -> Result<()> {
@@ -707,12 +712,13 @@ impl ConnectionParser {
         self.in_curr_data.seek(SeekFrom::End(0))?;
         self.check_buffer_limit(data.len())?;
         self.in_buf.add(data);
-        return Err(HtpStatus::DATA_BUFFER);
+        Err(HtpStatus::DATA_BUFFER)
     }
+
     /// Run the REQUEST_BODY_DATA hook.
     pub fn req_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
         // Do not invoke callbacks with an empty data chunk
-        if !d.data().is_null() && d.len() == 0 {
+        if !d.data().is_null() && d.is_empty() {
             return Ok(());
         }
         // Do not invoke callbacks without a transaction.

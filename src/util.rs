@@ -49,45 +49,45 @@ bitflags::bitflags! {
 // All other flags are 64 bits wide.
 bitflags::bitflags! {
     pub struct Flags: u64 {
-        const FIELD_UNPARSEABLE      = 0x000000004;
-        const FIELD_INVALID          = 0x000000008;
-        const FIELD_FOLDED           = 0x000000010;
-        const FIELD_REPEATED         = 0x000000020;
-        const FIELD_LONG             = 0x000000040;
-        const FIELD_RAW_NUL          = 0x000000080;
-        const REQUEST_SMUGGLING      = 0x000000100;
-        const INVALID_FOLDING        = 0x000000200;
-        const REQUEST_INVALID_T_E    = 0x000000400;
-        const MULTI_PACKET_HEAD      = 0x000000800;
-        const HOST_MISSING           = 0x000001000;
-        const HOST_AMBIGUOUS         = 0x000002000;
-        const PATH_ENCODED_NUL       = 0x000004000;
-        const PATH_RAW_NUL           = 0x000008000;
-        const PATH_INVALID_ENCODING  = 0x000010000;
-        const PATH_INVALID           = 0x000020000;
-        const PATH_OVERLONG_U        = 0x000040000;
-        const PATH_ENCODED_SEPARATOR = 0x000080000;
+        const FIELD_UNPARSEABLE      = 0x0000_0000_0004;
+        const FIELD_INVALID          = 0x0000_0000_0008;
+        const FIELD_FOLDED           = 0x0000_0000_0010;
+        const FIELD_REPEATED         = 0x0000_0000_0020;
+        const FIELD_LONG             = 0x0000_0000_0040;
+        const FIELD_RAW_NUL          = 0x0000_0000_0080;
+        const REQUEST_SMUGGLING      = 0x0000_0000_0100;
+        const INVALID_FOLDING        = 0x0000_0000_0200;
+        const REQUEST_INVALID_T_E    = 0x0000_0000_0400;
+        const MULTI_PACKET_HEAD      = 0x0000_0000_0800;
+        const HOST_MISSING           = 0x0000_0000_1000;
+        const HOST_AMBIGUOUS         = 0x0000_0000_2000;
+        const PATH_ENCODED_NUL       = 0x0000_0000_4000;
+        const PATH_RAW_NUL           = 0x0000_0000_8000;
+        const PATH_INVALID_ENCODING  = 0x0000_0001_0000;
+        const PATH_INVALID           = 0x0000_0002_0000;
+        const PATH_OVERLONG_U        = 0x0000_0004_0000;
+        const PATH_ENCODED_SEPARATOR = 0x0000_0008_0000;
         /// At least one valid UTF-8 character and no invalid ones.
-        const PATH_UTF8_VALID        = 0x000100000;
-        const PATH_UTF8_INVALID      = 0x000200000;
-        const PATH_UTF8_OVERLONG     = 0x000400000;
+        const PATH_UTF8_VALID        = 0x0000_0010_0000;
+        const PATH_UTF8_INVALID      = 0x0000_0020_0000;
+        const PATH_UTF8_OVERLONG     = 0x0000_0040_0000;
         /// Range U+FF00 - U+FFEF detected.
-        const PATH_HALF_FULL_RANGE   = 0x000800000;
-        const STATUS_LINE_INVALID    = 0x001000000;
+        const PATH_HALF_FULL_RANGE   = 0x0000_0080_0000;
+        const STATUS_LINE_INVALID    = 0x0000_0100_0000;
         /// Host in the URI.
-        const HOSTU_INVALID          = 0x002000000;
+        const HOSTU_INVALID          = 0x0000_0200_0000;
         /// Host in the Host header.
-        const HOSTH_INVALID          = 0x004000000;
+        const HOSTH_INVALID          = 0x0000_0400_0000;
         const HOST_INVALID           = ( Self::HOSTU_INVALID.bits | Self::HOSTH_INVALID.bits );
-        const URLEN_ENCODED_NUL      = 0x008000000;
-        const URLEN_INVALID_ENCODING = 0x010000000;
-        const URLEN_OVERLONG_U       = 0x020000000;
+        const URLEN_ENCODED_NUL      = 0x0000_0800_0000;
+        const URLEN_INVALID_ENCODING = 0x0000_1000_0000;
+        const URLEN_OVERLONG_U       = 0x0000_2000_0000;
         /// Range U+FF00 - U+FFEF detected.
-        const URLEN_HALF_FULL_RANGE  = 0x040000000;
-        const URLEN_RAW_NUL          = 0x080000000;
-        const REQUEST_INVALID        = 0x100000000;
-        const REQUEST_INVALID_C_L    = 0x200000000;
-        const AUTH_INVALID           = 0x400000000;
+        const URLEN_HALF_FULL_RANGE  = 0x0000_4000_0000;
+        const URLEN_RAW_NUL          = 0x0000_8000_0000;
+        const REQUEST_INVALID        = 0x0001_0000_0000;
+        const REQUEST_INVALID_C_L    = 0x0002_0000_0000;
+        const AUTH_INVALID           = 0x0004_0000_0000;
     }
 }
 

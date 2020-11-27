@@ -259,22 +259,15 @@ impl ConnectionParser {
                 .offset(self.out_current_consume_offset as isize)
         };
         let len: usize = (self.out_current_read_offset - self.out_current_consume_offset) as usize;
-        let mut i: usize = 0;
-        while i < len {
-            let c = unsafe { *data.offset(i as isize) };
+        let mut i: isize = 0;
+        while (i as usize) < len {
+            let c = unsafe { *data.offset(i) };
             if is_chunked_ctl_char(c as u8) {
                 // ctl char, still good.
-            } else if c.is_ascii_digit()
-                || c >= 'a' as u8 && c <= 'f' as u8
-                || c >= 'A' as u8 && c <= 'F' as u8
-            {
-                // real chunklen char
-                return true;
+                i = i.wrapping_add(1)
             } else {
-                // leading junk, bad
-                return false;
+                return c.is_ascii_digit() || c >= b'a' && c <= b'f' || c >= b'A' && c <= b'F';
             }
-            i = i.wrapping_add(1)
         }
         true
     }
@@ -302,7 +295,7 @@ impl ConnectionParser {
             {
                 continue;
             }
-            let mut data: *mut u8 = 0 as *mut u8;
+            let mut data = std::ptr::null_mut();
             let mut len: usize = 0;
             self.res_consolidate_data(&mut data, &mut len)?;
             self.out_tx_mut_ok()?.response_message_len =
@@ -342,13 +335,17 @@ impl ConnectionParser {
             }
             self.res_clear_buffer();
             // Handle chunk length
-            if self.out_chunked_length > 0 {
-                // More data available
-                self.out_state = State::BODY_CHUNKED_DATA
-            } else if self.out_chunked_length == 0 {
-                // End of data
-                self.out_state = State::HEADERS;
-                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::TRAILER
+            match self.out_chunked_length.cmp(&0) {
+                Ordering::Equal => {
+                    // End of data
+                    self.out_state = State::HEADERS;
+                    self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::TRAILER
+                }
+                Ordering::Greater => {
+                    // More data available
+                    self.out_state = State::BODY_CHUNKED_DATA
+                }
+                _ => {}
             }
             return Ok(());
         }
@@ -368,7 +365,7 @@ impl ConnectionParser {
         if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             // Sends close signal to decompressors
-            return self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
+            return self.res_process_body_data_ex(std::ptr::null(), 0);
         }
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
@@ -395,7 +392,7 @@ impl ConnectionParser {
         if self.out_body_data_left == 0 {
             self.out_state = State::FINALIZE;
             // Tells decompressors to output partially decompressed data
-            return self.res_process_body_data_ex(0 as *const core::ffi::c_void, 0);
+            return self.res_process_body_data_ex(std::ptr::null(), 0);
         }
         Err(HtpStatus::DATA)
     }
@@ -454,7 +451,7 @@ impl ConnectionParser {
                 // side we wrap up the tx and wait.
                 self.out_state = State::FINALIZE;
                 // we may have response headers
-                return self.state_response_headers().into();
+                return self.state_response_headers();
             } else if self.out_tx_mut_ok()?.response_status_number.eq(407) {
                 // proxy telling us to auth
                 if self.in_status != HtpStreamState::ERROR {
@@ -496,7 +493,7 @@ impl ConnectionParser {
                 }
                 self.out_status = HtpStreamState::TUNNEL;
                 // we may have response headers
-                return self.state_response_headers().into();
+                return self.state_response_headers();
             } else {
                 htp_warn!(
                     self,
@@ -523,7 +520,7 @@ impl ConnectionParser {
             // Expecting to see another response line next.
             self.out_state = State::LINE;
             self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::LINE;
-            self.out_tx_mut_ok()?.seen_100continue;
+            self.out_tx_mut_ok()?.seen_100continue = true;
             return Ok(());
         }
 
@@ -585,10 +582,9 @@ impl ConnectionParser {
             {
                 // TODO Some platforms may do things differently here.
                 let response_content_type = if let Ok((_, ct)) =
-                    streaming_take_till::<_, _, (&[u8], ErrorKind)>(|c| {
-                        c == ';' as u8 || is_space(c as u8)
-                    })(&ct.value)
-                {
+                    streaming_take_till::<_, _, (&[u8], ErrorKind)>(|c| c == b';' || is_space(c))(
+                        &ct.value,
+                    ) {
                     ct
                 } else {
                     &ct.value
@@ -857,7 +853,7 @@ impl ConnectionParser {
                         lfcrending = true
                     }
                 }
-                let mut data: *mut u8 = 0 as *mut u8;
+                let mut data = std::ptr::null_mut();
                 let mut len: usize = 0;
                 self.res_consolidate_data(&mut data, &mut len)?;
                 // CRCRLF is not an empty line
@@ -949,13 +945,11 @@ impl ConnectionParser {
                     // Keep the header data for parsing later.
                     self.out_header = Some(Bstr::from(s));
                 } else {
-                    let mut colon_pos: usize = 0;
-                    while colon_pos < len
-                        && unsafe { *data.offset(colon_pos as isize) != ':' as u8 }
-                    {
+                    let mut colon_pos: isize = 0;
+                    while (colon_pos as usize) < len && unsafe { *data.offset(colon_pos) != b':' } {
                         colon_pos = colon_pos.wrapping_add(1)
                     }
-                    if colon_pos < len
+                    if (colon_pos as usize) < len
                         && self
                             .out_header
                             .as_ref()
@@ -1031,7 +1025,7 @@ impl ConnectionParser {
                 }
             }
             if self.out_next_byte == '\n' as i32 || self.out_status == HtpStreamState::CLOSED {
-                let mut data: *mut u8 = 0 as *mut u8;
+                let mut data = std::ptr::null_mut();
                 let mut len: usize = 0;
                 self.res_consolidate_data(&mut data, &mut len)?;
                 // Is this a line that should be ignored?
@@ -1108,7 +1102,7 @@ impl ConnectionParser {
                 }
             }
             if self.out_next_byte == -1 {
-                return self.state_response_complete_ex(0).into();
+                return self.state_response_complete_ex(0);
             }
             if self.out_next_byte != '\n' as i32
                 || self.out_current_consume_offset >= self.out_current_read_offset
@@ -1136,11 +1130,11 @@ impl ConnectionParser {
             }
         }
         let mut bytes_left: usize = 0;
-        let mut data: *mut u8 = 0 as *mut u8;
+        let mut data = std::ptr::null_mut();
         self.res_consolidate_data(&mut data, &mut bytes_left)?;
         if bytes_left == 0 {
             //closing
-            return self.state_response_complete_ex(0).into();
+            return self.state_response_complete_ex(0);
         }
         if treat_response_line_as_body(unsafe { std::slice::from_raw_parts(data, bytes_left) }) {
             // Interpret remaining bytes as body data
@@ -1163,7 +1157,7 @@ impl ConnectionParser {
         if self.out_current_read_offset < self.out_current_consume_offset {
             self.out_current_consume_offset = self.out_current_read_offset
         }
-        self.state_response_complete_ex(0).into()
+        self.state_response_complete_ex(0)
     }
 
     /// The response idle state will initialize response processing, as well as
@@ -1221,7 +1215,7 @@ impl ConnectionParser {
     pub fn res_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
         let out_tx = self.out_tx_mut_ok()?;
         // Do not invoke callbacks with an empty data chunk.
-        if !d.data().is_null() && d.len() == 0 {
+        if d.is_empty() {
             return Ok(());
         }
         // Run transaction hooks first

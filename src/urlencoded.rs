@@ -32,7 +32,7 @@ impl Parser {
     pub fn new(tx: *mut Transaction) -> Self {
         Self {
             tx,
-            argument_separator: '&' as u8,
+            argument_separator: b'&',
             decode_url_encoding: true,
             params: Table::with_capacity(32),
             complete: false,
@@ -64,11 +64,7 @@ pub fn urlenp_parse_complete(urlenp: &mut Parser, data: &[u8]) {
 /// Returns a name value pair, separated by an '='
 fn urlen_name_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
     map(
-        tuple((
-            peek(take(1usize)),
-            take_till(|c: u8| c == '=' as u8),
-            opt(char('=')),
-        )),
+        tuple((peek(take(1usize)), take_till(|c| c == b'='), opt(char('=')))),
         |(_, name, _)| name,
     )(input)
 }

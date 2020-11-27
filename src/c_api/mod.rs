@@ -942,7 +942,7 @@ pub unsafe extern "C" fn htp_log_get(
 
 // Free the message
 #[no_mangle]
-pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) -> () {
+pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) {
     if !msg.is_null() {
         CString::from_raw(msg);
     }

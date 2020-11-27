@@ -14,7 +14,7 @@ impl Default for UnicodeBestfitMap {
     fn default() -> Self {
         Self {
             map: &bestfit_1252,
-            replacement_byte: '?' as u8,
+            replacement_byte: b'?',
         }
     }
 }
@@ -23,7 +23,7 @@ impl UnicodeBestfitMap {
     pub fn get(&self, unicode: u32) -> u8 {
         self.map
             .get(&unicode)
-            .map(|b| *b)
+            .copied()
             .unwrap_or(self.replacement_byte)
     }
 }

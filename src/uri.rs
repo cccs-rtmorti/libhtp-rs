@@ -121,7 +121,7 @@ impl Uri {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut hostname);
             hostname.make_ascii_lowercase();
             // Remove dots from the end of the string.
-            while hostname.last() == Some(&('.' as u8)) {
+            while hostname.last() == Some(&(b'.')) {
                 hostname.pop();
             }
             Some(hostname)
@@ -167,7 +167,7 @@ impl Uri {
             // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
             // compress separators and convert backslashes.
             // Ignore result.
-            let _ = decode_uri_path_inplace(decoder_cfg, flags, status, &mut path);
+            decode_uri_path_inplace(decoder_cfg, flags, status, &mut path);
             // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
             utf8_decode_and_validate_uri_path_inplace(&decoder_cfg, flags, status, &mut path);
             // RFC normalization.
@@ -339,7 +339,7 @@ impl Uri {
 fn normalize_uri_path_inplace(s: &mut Bstr) {
     let mut out = Vec::<&[u8]>::with_capacity(10);
     s.as_slice()
-        .split(|c| *c == '/' as u8)
+        .split(|c| *c == b'/')
         .for_each(|segment| match segment {
             b"." => {}
             b".." => {

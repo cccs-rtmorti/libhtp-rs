@@ -5,17 +5,17 @@ use std::time::Instant;
 const ENCODING_CHUNK_SIZE: usize = 8192;
 
 /// Default LZMA dictionary memory limit in bytes.
-const DEFAULT_LZMA_MEMLIMIT: usize = 1048576;
+const DEFAULT_LZMA_MEMLIMIT: usize = 1_048_576;
 /// Default number of LZMA layers to pass to the decompressor.
 const DEFAULT_LZMA_LAYERS: u32 = 1;
 /// Default max output size for a compression bomb.
-const DEFAULT_BOMB_LIMIT: i32 = 1048576;
+const DEFAULT_BOMB_LIMIT: i32 = 1_048_576;
 /// Upper limit to max output size for a compression bomb.
-const MAX_BOMB_LIMIT: i32 = 2147483647;
+const MAX_BOMB_LIMIT: i32 = std::i32::MAX;
 /// Default compressed-to-decrompressed ratio that should not be exceeded during decompression.
 const DEFAULT_BOMB_RATIO: i64 = 2048;
 /// Default time limit for a decompression bomb in microseconds.
-const DEFAULT_TIME_LIMIT: u32 = 100000;
+const DEFAULT_TIME_LIMIT: u32 = 100_000;
 /// Default number of iterations before checking the time limit.
 const DEFAULT_TIME_FREQ_TEST: u32 = 256;
 
@@ -495,12 +495,10 @@ impl InnerDecompressor {
                     Ok((Box::new(NullBufWriter(buf)), true))
                 }
             }
-            HtpContentEncoding::NONE | HtpContentEncoding::ERROR => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "expected a valid encoding",
-                ))
-            }
+            HtpContentEncoding::NONE | HtpContentEncoding::ERROR => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "expected a valid encoding",
+            )),
         }
     }
 
@@ -514,7 +512,7 @@ impl InnerDecompressor {
         let (writer, passthrough) = Self::writer(encoding, &options)?;
         Ok(Self {
             inner: Some(inner),
-            encoding: encoding,
+            encoding,
             writer: Some(writer),
             passthrough,
             restarts: 0,

@@ -83,7 +83,7 @@ pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> O
 /// Returns a chunked_length or None if empty.
 pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i32>, &'static str> {
     if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
-        if trailing_data.len() == 0 && chunked_length.len() == 0 {
+        if trailing_data.is_empty() && chunked_length.is_empty() {
             return Ok(None);
         }
         if let Ok(chunked_length) = std::str::from_utf8(chunked_length) {
@@ -162,7 +162,7 @@ pub fn hostname<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
             |(_, _, _, hostname)| hostname,
         )(input)?;
         //There may be spaces in the middle of a hostname, so much trim only at the end
-        while hostname.ends_with(&[' ' as u8]) {
+        while hostname.ends_with(&[b' ']) {
             hostname = &hostname[..hostname.len() - 1];
         }
         Ok((input, hostname))
@@ -250,7 +250,7 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
         tag_no_case("HTTP"),
         take_ascii_whitespace(),
         tag("/"),
-        take_while(|c: u8| c.is_ascii_whitespace() || c == '0' as u8),
+        take_while(|c: u8| c.is_ascii_whitespace() || c == b'0'),
         alt((tag(".9"), tag("1.0"), tag("1.1"))),
         take_ascii_whitespace(),
     ))(input)?;
@@ -304,7 +304,7 @@ pub fn parse_status(status: &[u8]) -> HtpResponseNumber {
             }
         }
     }
-    return HtpResponseNumber::INVALID;
+    HtpResponseNumber::INVALID
 }
 
 /// Parses Digest Authorization request header.
@@ -322,10 +322,10 @@ fn parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'a [u
         let (remaining, (auth_header, _)) = tuple((take_until("\""), tag("\"")))(remaining_input)?;
         remaining_input = remaining;
         result.extend_from_slice(auth_header);
-        if result.last() == Some(&('\\' as u8)) {
+        if result.last() == Some(&(b'\\')) {
             // Remove the escape and push back the double quote
             result.pop();
-            result.push('\"' as u8);
+            result.push(b'\"');
         } else {
             // We found the closing double quote!
             break;
@@ -357,7 +357,7 @@ pub fn parse_authorization_basic(in_tx: &mut Transaction, auth_header: &Header) 
     };
 
     // Extract username and password
-    let i = if let Some(i) = decoded.iter().position(|&c| c == ':' as u8) {
+    let i = if let Some(i) = decoded.iter().position(|&c| c == b':') {
         i
     } else {
         return Err(HtpStatus::DECLINED);
@@ -408,7 +408,7 @@ pub fn parse_authorization(in_tx: &mut Transaction) -> Result<()> {
 ///
 /// Returns the (name, value).
 pub fn single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
-    let parts: Vec<&[u8]> = data.splitn(2, |&x| x == '=' as u8).collect();
+    let parts: Vec<&[u8]> = data.splitn(2, |&x| x == b'=').collect();
     match parts.len() {
         1 => (data, b""),
         2 => (parts[0], parts[1]),
@@ -424,7 +424,7 @@ pub fn parse_cookies_v0(in_tx: &mut Transaction) -> Result<()> {
         let data: &[u8] = cookie_header.value.as_ref();
         // Create a new table to store cookies.
         in_tx.request_cookies = Table::with_capacity(4);
-        for cookie in data.split(|b| *b == ';' as u8) {
+        for cookie in data.split(|b| *b == b';') {
             if let Ok((cookie, _)) = take_ascii_whitespace()(cookie) {
                 if cookie.is_empty() {
                     continue;

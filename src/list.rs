@@ -114,10 +114,7 @@ impl<T> List<T> {
     /// The element returned will always be the last element. The returned element can be
     /// `None` if the element as been removed.
     pub fn get_last(&self) -> Option<&T> {
-        self.elements
-            .get(self.elements.len() - 1)
-            .map(|val| val.as_ref())
-            .flatten()
+        self.elements.last().map(|val| val.as_ref()).flatten()
     }
 
     /// Retrieve a mutable reference to the last element in the list.
@@ -179,6 +176,11 @@ impl<T> List<T> {
     /// removed.
     pub fn len(&self) -> usize {
         self.elements.len()
+    }
+
+    /// Returns whether the list is empty.
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty()
     }
 }
 
@@ -278,15 +280,13 @@ mod tests {
         assert_eq!(status, Err(HtpStatus::DECLINED));
         list.push('a');
         list.push('b');
-        let status = list.replace(0, 'b').unwrap(); //Replace element
-        assert_eq!(status, ());
+        assert_eq!(list.replace(0, 'b'), Ok(())); //Replace element
         assert_eq!(list.get(0), Some(&'b'));
         let _ = list.remove(0);
         assert_eq!(list.get(0), None);
         let _ = list.replace(0, 'a'); //Replace deleted element
         assert_eq!(list.get(0), Some(&'a'));
-        let status = list.replace(2, 'a'); //Replace out of bounds
-        assert_eq!(status, Err(HtpStatus::DECLINED));
+        assert_eq!(list.replace(2, 'a'), Err(HtpStatus::DECLINED)); //Replace out of bounds
     }
 
     #[test]

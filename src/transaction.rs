@@ -153,17 +153,17 @@ pub enum HtpResponseNumber {
 }
 
 impl HtpResponseNumber {
-    pub fn in_range(&self, min: u16, max: u16) -> bool {
+    pub fn in_range(self, min: u16, max: u16) -> bool {
         use HtpResponseNumber::*;
-        match *self {
+        match self {
             UNKNOWN | INVALID => false,
             VALID(ref status) => status >= &min && status <= &max,
         }
     }
 
-    pub fn eq(&self, num: u16) -> bool {
+    pub fn eq(self, num: u16) -> bool {
         use HtpResponseNumber::*;
-        match *self {
+        match self {
             UNKNOWN | INVALID => false,
             VALID(ref status) => status == &num,
         }
@@ -510,8 +510,8 @@ impl Transaction {
             request_content_encoding: HtpContentEncoding::NONE,
             request_content_type: None,
             request_content_length: -1,
-            hook_request_body_data: DataHook::new(),
-            hook_response_body_data: DataHook::new(),
+            hook_request_body_data: DataHook::default(),
+            hook_response_body_data: DataHook::default(),
             request_urlenp_body: None,
             request_mpartp: None,
             request_params: Table::with_capacity(32),
@@ -691,7 +691,7 @@ impl Transaction {
         // Examine the Host header.
         if let Some((_, header)) = self.request_headers.get_nocase_nozero_mut("host") {
             // Host information available in the headers.
-            if let Ok((_, (hostname, port_nmb, valid))) = parse_hostport(&mut header.value) {
+            if let Ok((_, (hostname, port_nmb, valid))) = parse_hostport(&header.value) {
                 if !valid {
                     self.flags |= Flags::HOSTH_INVALID
                 }
@@ -912,7 +912,7 @@ impl Transaction {
                 // is identical to response_message_len.
                 let mut tx_data = Data {
                     tx: self,
-                    data: data,
+                    data,
                     is_last: false,
                 };
                 self.response_entity_len =
@@ -1159,7 +1159,7 @@ impl Transaction {
         // response body.
         let mut tx_data = Data {
             tx: self,
-            data: data,
+            data,
             // is_last is not used in this callback
             is_last: false,
         };
@@ -1400,7 +1400,7 @@ impl Transaction {
                     HtpLogCode::INVALID_CONTENT_ENCODING,
                     "Expected a valid content encoding"
                 );
-                return Err(HtpStatus::ERROR);
+                Err(HtpStatus::ERROR)
             }
         }
     }

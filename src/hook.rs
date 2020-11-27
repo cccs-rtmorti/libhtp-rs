@@ -48,14 +48,15 @@ pub struct Hook<E, N> {
     pub callbacks: Vec<Callback<E, N>>,
 }
 
-impl<E, N> Hook<E, N> {
+impl<E, N> Default for Hook<E, N> {
     /// Create a new callback list
-    pub fn new() -> Self {
+    fn default() -> Self {
         Hook {
             callbacks: Vec::new(),
         }
     }
-
+}
+impl<E, N> Hook<E, N> {
     /// Register a native (rust) callback function
     pub fn register(&mut self, cbk_fn: N) {
         self.callbacks.push(Callback::Native(cbk_fn))
@@ -193,7 +194,7 @@ mod test {
         unsafe extern "C" fn foo(_: *mut Data) -> HtpStatus {
             HtpStatus::OK
         }
-        let mut hook = DataHook::new();
+        let mut hook = DataHook::default();
         let mut data = Data::new(std::ptr::null_mut(), None, false);
 
         hook.register(|_| Ok(()));

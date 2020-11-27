@@ -187,6 +187,6 @@ impl Utf8Decoder {
         if self.codepoint < 0x100 {
             return self.codepoint as u8;
         }
-        return self.bestfit_map.get(self.codepoint);
+        self.bestfit_map.get(self.codepoint)
     }
 }
