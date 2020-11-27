@@ -4,7 +4,7 @@ use htp::{
     config::{Config, HtpServerPersonality},
     connection_parser::{ConnectionParser, HtpStreamState},
     error::Result,
-    log::HtpLogLevel,
+    log::{HtpLogCode, HtpLogLevel},
     transaction::{
         Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
         HtpResponseProgress, Transaction,
@@ -562,7 +562,11 @@ fn FailedConnectRequest() {
         assert!(!tx.is_null());
 
         assert!((*tx).is_complete());
-
+        assert!((*tx)
+            .response_message
+            .as_ref()
+            .unwrap()
+            .eq("Method Not Allowed"));
         assert!((*tx).request_method.as_ref().unwrap().eq("CONNECT"));
         assert!((*tx)
             .response_content_type
@@ -586,9 +590,12 @@ fn CompressedResponseContentType() {
         assert!(!tx.is_null());
 
         assert!((*tx).is_complete());
-
+        assert!((*tx)
+            .response_message
+            .as_ref()
+            .unwrap()
+            .eq("Moved Temporarily"));
         assert_eq!(187, (*tx).response_message_len);
-
         assert_eq!(225, (*tx).response_entity_len);
     }
 }
@@ -2622,9 +2629,8 @@ fn CompressedResponseLzmaMemlimit() {
         let tx = (*t.connp).conn.tx_mut(0).unwrap();
 
         assert!(tx.is_complete());
-
+        assert!((*tx).response_message.as_ref().unwrap().eq("ok"));
         assert_eq!(90, tx.response_message_len);
-
         assert_eq!(54, tx.response_entity_len);
     }
 }
@@ -2842,8 +2848,104 @@ fn UnknownStatusNumber() {
 }
 
 #[test]
+fn ResponseHeaderCrOnly() {
+    // Content-Length terminated with \r only.
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("108-response-headers-cr-only.t").is_ok());
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+        assert_eq!(2, (*tx).response_headers.size());
+        // Check response headers
+        assert_response_header_eq!(tx, "content-type", "text/html");
+        assert_response_header_eq!(tx, "content-length", "7");
+    }
+}
+
+#[test]
+fn ResponseHeaderDeformedEOL() {
+    // Content-Length terminated with \n\r\r\n\r\n only.
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("109-response-headers-deformed-eol.t").is_ok());
+        let tx = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+        assert_eq!(2, (*tx).response_headers.size());
+        // Check response headers
+        assert_response_header_eq!(tx, "content-type", "text/html");
+        assert_response_header_eq!(tx, "content-length", "6");
+        let logs = (*(*tx).connp).conn.messages.borrow();
+        let log_message_count = logs.len();
+        assert_eq!(log_message_count, 1);
+        assert_eq!(logs.get(0).unwrap().code, HtpLogCode::DEFORMED_EOL);
+    }
+}
+
+#[test]
+fn ResponseFoldedHeaders2() {
+    // Space folding char
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("110-response-folded-headers-2.t").is_ok());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
+
+        assert_response_header_eq!(tx, "Server", "Apache Server");
+        assert_eq!(3, (*tx).response_headers.size());
+    }
+}
+
+#[test]
+fn ResponseHeadersChunked() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("111-response-headers-chunked.t").is_ok());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
+
+        assert_eq!(2, (*tx).response_headers.size());
+
+        assert_response_header_eq!(tx, "content-type", "text/html");
+        assert_response_header_eq!(tx, "content-length", "12");
+    }
+}
+
+#[test]
+fn ResponseHeadersChunked2() {
+    let mut t = Test::new();
+    unsafe {
+        assert!(t.run("112-response-headers-chunked-2.t").is_ok());
+
+        assert_eq!(1, (*t.connp).conn.tx_size());
+
+        let tx: *mut Transaction = (*t.connp).conn.tx_mut_ptr(0);
+        assert!(!tx.is_null());
+
+        assert_eq!(HtpRequestProgress::COMPLETE, (*tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, (*tx).response_progress);
+
+        assert_eq!(2, (*tx).response_headers.size());
+
+        assert_response_header_eq!(tx, "content-type", "text/html");
+        assert_response_header_eq!(tx, "content-length", "12");
+    }
+}
+
+#[test]
 fn ResponseMultipartRanges() {
     // This should be is_ok() once multipart/byteranges is handled in response parsing
     let mut t = Test::new();
-    assert!(t.run("108-response-multipart-byte-ranges.t").is_err());
+    assert!(t.run("113-response-multipart-byte-ranges.t").is_err());
 }

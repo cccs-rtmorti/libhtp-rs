@@ -147,7 +147,7 @@ impl ConnectionParser {
     /// by htp_config_t::field_limit.
     ///
     /// Returns OK, or ERROR on fatal failure.
-    fn check_buffer_limit(&mut self, len: usize) -> Result<()> {
+    fn check_in_buffer_limit(&mut self, len: usize) -> Result<()> {
         if len == 0 {
             return Ok(());
         }
@@ -204,11 +204,11 @@ impl ConnectionParser {
         let data = if let Ok((_, data)) = take_till_lf_null(line) {
             data
         } else {
-            return self.handle_absent_lf(line);
+            return self.handle_in_absent_lf(line);
         };
 
         if !self.in_buf.is_empty() {
-            self.check_buffer_limit(data.len())?;
+            self.check_in_buffer_limit(data.len())?;
         }
         // copy, will still need buffer data for next state.
         let mut buffered = self.in_buf.clone();
@@ -276,7 +276,7 @@ impl ConnectionParser {
             Ok(())
         } else {
             self.in_tx_mut_ok()?.request_message_len += data.len() as i64;
-            self.handle_absent_lf(data)
+            self.handle_in_absent_lf(data)
         }
     }
 
@@ -317,7 +317,7 @@ impl ConnectionParser {
             self.in_curr_data
                 .seek(SeekFrom::Current(line.len() as i64))?;
             if !self.in_buf.is_empty() {
-                self.check_buffer_limit(line.len())?;
+                self.check_in_buffer_limit(line.len())?;
             }
             let mut data = std::mem::take(&mut self.in_buf);
             data.add(line);
@@ -354,7 +354,7 @@ impl ConnectionParser {
             }
             Ok(())
         } else {
-            self.handle_absent_lf(data)
+            return self.handle_in_absent_lf(data);
         }
     }
 
@@ -441,7 +441,7 @@ impl ConnectionParser {
                 self.in_curr_data
                     .seek(SeekFrom::Current(line.len() as i64))?;
                 if !self.in_buf.is_empty() {
-                    self.check_buffer_limit(line.len())?;
+                    self.check_in_buffer_limit(line.len())?;
                 }
                 let mut data = std::mem::take(&mut self.in_buf);
                 data.add(line);
@@ -494,7 +494,7 @@ impl ConnectionParser {
                     header.add(&chomped);
                 }
             } else {
-                self.handle_absent_lf(rest)?;
+                self.handle_in_absent_lf(rest)?;
             }
         }
     }
@@ -549,7 +549,7 @@ impl ConnectionParser {
     /// Returns OK on succesful parse, ERROR on error.
     pub fn req_line_complete(&mut self, line: &[u8]) -> Result<()> {
         if !self.in_buf.is_empty() {
-            self.check_buffer_limit(line.len())?;
+            self.check_in_buffer_limit(line.len())?;
         }
         let mut data = std::mem::take(&mut self.in_buf);
         data.add(line);
@@ -587,7 +587,7 @@ impl ConnectionParser {
                     self.in_curr_data.seek(SeekFrom::End(0))?;
                     self.req_line_complete(data)
                 } else {
-                    self.handle_absent_lf(data)
+                    self.handle_in_absent_lf(data)
                 }
             }
         }
@@ -610,13 +610,13 @@ impl ConnectionParser {
                         .seek(SeekFrom::Current(line.len() as i64))?;
                     work = line;
                 } else {
-                    return self.handle_absent_lf(data);
+                    return self.handle_in_absent_lf(data);
                 }
             }
         }
 
         if !self.in_buf.is_empty() {
-            self.check_buffer_limit(work.len())?;
+            self.check_in_buffer_limit(work.len())?;
         }
         self.in_buf.add(work);
         let mut data = std::mem::take(&mut self.in_buf);
@@ -708,9 +708,9 @@ impl ConnectionParser {
         Ok(())
     }
 
-    pub fn handle_absent_lf(&mut self, data: &[u8]) -> Result<()> {
+    pub fn handle_in_absent_lf(&mut self, data: &[u8]) -> Result<()> {
         self.in_curr_data.seek(SeekFrom::End(0))?;
-        self.check_buffer_limit(data.len())?;
+        self.check_in_buffer_limit(data.len())?;
         self.in_buf.add(data);
         Err(HtpStatus::DATA_BUFFER)
     }

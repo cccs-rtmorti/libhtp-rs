@@ -1561,10 +1561,73 @@ fn IsWordToken() {
 }
 
 #[test]
+fn TakeNotEol() {
+    assert_eq!(
+        Ok(("\n".as_bytes(), "header:value\r".as_bytes())),
+        take_not_eol(b"header:value\r\n")
+    );
+    assert_eq!(
+        Err(Incomplete(Needed::Size(1))),
+        take_not_eol(b"header:value")
+    );
+}
+
+#[test]
 fn TakeTillLF() {
     assert_eq!(
         Ok(("hijk".as_bytes(), "abcdefg\n".as_bytes())),
         take_till_lf(b"abcdefg\nhijk")
     );
     assert_eq!(Err(Incomplete(Needed::Size(1))), take_till_lf(b"abcdefg"));
+}
+
+#[test]
+fn SepByLineEndings() {
+    let sep = sep_by_line_endings(b"Content-Type: test/html\r\n");
+    let res = vec![&b"Content-Type: test/html"[..], &b"\r\n"[..]];
+    assert_eq!(sep, Ok((&b""[..], res)));
+    let sep = sep_by_line_endings(b"Content-Type: test/html\r\nContent-Length: 6\r\n\r\n");
+    let res = vec![
+        &b"Content-Type: test/html"[..],
+        &b"\r\n"[..],
+        &b"Content-Length: 6"[..],
+        &b"\r\n\r\n"[..],
+    ];
+    assert_eq!(sep, Ok((&b""[..], res)));
+
+    let sep = sep_by_line_endings(b"Content-Type: test/html\nContent-Length: 6\n\n");
+    let res = vec![
+        &b"Content-Type: test/html"[..],
+        &b"\n"[..],
+        &b"Content-Length: 6"[..],
+        &b"\n\n"[..],
+    ];
+    assert_eq!(sep, Ok((&b""[..], res)));
+
+    let sep = sep_by_line_endings(b"Content-Type: test/html\rContent-Length: 6\r\r");
+    let res = vec![
+        &b"Content-Type: test/html"[..],
+        &b"\r"[..],
+        &b"Content-Length: 6"[..],
+        &b"\r\r"[..],
+    ];
+    assert_eq!(sep, Ok((&b""[..], res)));
+
+    let sep = sep_by_line_endings(b"Content-Type: test/html\r\nContent-Length: 6\n\r\r\n\r\n");
+    let res = vec![
+        &b"Content-Type: test/html"[..],
+        &b"\r\n"[..],
+        &b"Content-Length: 6"[..],
+        &b"\n\r\r\n\r\n"[..],
+    ];
+    assert_eq!(sep, Ok((&b""[..], res)));
+
+    // Incomplete line
+    let sep = sep_by_line_endings(b"Content-Type: test/html\r\nContent-Le");
+    let res = vec![
+        &b"Content-Type: test/html"[..],
+        &b"\r\n"[..],
+        &b"Content-Le"[..],
+    ];
+    assert_eq!(sep, Ok((&b""[..], res)));
 }

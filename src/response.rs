@@ -9,13 +9,17 @@ use crate::{
     transaction::{Data, HtpProtocol, HtpResponseProgress, HtpTransferCoding},
     uri::Uri,
     util::{
-        chomp, is_folding_char, is_line_folded, is_line_ignorable, is_line_terminator, is_space,
+        chomp, is_line_folded, is_line_ignorable, is_space, sep_by_line_endings, take_till_lf,
         treat_response_line_as_body, Flags,
     },
     HtpStatus,
 };
 use nom::{bytes::streaming::take_till as streaming_take_till, error::ErrorKind};
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    io::{Cursor, Seek, SeekFrom},
+    mem::take,
+};
 
 pub type Time = libc::timeval;
 
@@ -24,21 +28,21 @@ impl ConnectionParser {
     ///
     /// Returns OK, or a value returned from a callback.
     fn res_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
-        unsafe {
-            let data = std::slice::from_raw_parts(
-                self.out_current_data
-                    .offset(self.out_current_receiver_offset as isize) as *const u8,
-                (self.out_current_read_offset - self.out_current_receiver_offset) as usize,
-            );
+        let mut data = Data::new(
+            self.out_tx_mut_ptr(),
+            Some(
+                &self.out_curr_data.get_ref()[self.out_current_receiver_offset as usize
+                    ..self.out_curr_data.position() as usize],
+            ),
+            is_last,
+        );
 
-            let mut data = Data::new(self.out_tx_mut_ptr(), Some(data), is_last);
-            if let Some(hook) = &self.out_data_receiver_hook {
-                hook.run_all(&mut data)?;
-            } else {
-                return Ok(());
-            };
-        }
-        self.out_current_receiver_offset = self.out_current_read_offset;
+        if let Some(hook) = &self.out_data_receiver_hook {
+            hook.run_all(&mut data)?;
+        } else {
+            return Ok(());
+        };
+        self.out_current_receiver_offset = self.out_curr_data.position();
         Ok(())
     }
 
@@ -62,7 +66,7 @@ impl ConnectionParser {
         // Ignore result.
         let _ = self.res_receiver_finalize_clear();
         self.out_data_receiver_hook = data_receiver_hook;
-        self.out_current_receiver_offset = self.out_current_read_offset;
+        self.out_current_receiver_offset = self.out_curr_data.position();
         Ok(())
     }
 
@@ -104,102 +108,55 @@ impl ConnectionParser {
         Ok(())
     }
 
-    /// If there is any data left in the outbound data chunk, this function will preserve
-    /// it for later consumption. The maximum amount accepted for buffering is controlled
+    /// The maximum amount accepted for buffering is controlled
     /// by htp_config_t::field_limit.
     ///
     /// Returns OK, or ERROR on fatal failure.
-    fn res_buffer(&mut self) -> Result<()> {
-        if self.out_current_data.is_null() {
+    fn check_out_buffer_limit(&mut self, len: usize) -> Result<()> {
+        if self.out_curr_len() == 0 || len == 0 {
             return Ok(());
         }
-        unsafe {
-            let data: *mut u8 = self
-                .out_current_data
-                .offset(self.out_current_consume_offset as isize);
-            let len: usize =
-                (self.out_current_read_offset - self.out_current_consume_offset) as usize;
-            // Check the hard (buffering) limit.
-            let mut newlen: usize = self.out_buf.len().wrapping_add(len);
-            // When calculating the size of the buffer, take into account the
-            // space we're using for the response header buffer.
-            if let Some(out_header) = &self.out_header {
-                newlen = newlen.wrapping_add(out_header.len())
-            }
-            let field_limit = (*self.out_tx_mut_ok()?.cfg).field_limit;
-            if newlen > field_limit {
-                htp_error!(
-                    self,
-                    HtpLogCode::RESPONSE_FIELD_TOO_LONG,
-                    format!(
-                        "Response the buffer limit: size {} limit {}.",
-                        newlen, field_limit
-                    )
-                );
-                return Err(HtpStatus::ERROR);
-            }
-            // Copy the data remaining in the buffer.
-            self.out_buf.add(std::slice::from_raw_parts(data, len));
+        // Check the hard (buffering) limit.
+        let mut newlen: usize = self.out_buf.len().wrapping_add(len);
+        // When calculating the size of the buffer, take into account the
+        // space we're using for the response header buffer.
+        if let Some(out_header) = &self.out_header {
+            newlen = newlen.wrapping_add(out_header.len())
         }
-        // Reset the consumer position.
-        self.out_current_consume_offset = self.out_current_read_offset;
-        Ok(())
-    }
-
-    /// Returns to the caller the memory region that should be processed next. This function
-    /// hides away the buffering process from the rest of the code, allowing it to work with
-    /// non-buffered data that's in the outbound chunk, or buffered data that's in our structures.
-    ///
-    /// Returns OK
-    fn res_consolidate_data(&mut self, data: *mut *mut u8, len: *mut usize) -> Result<()> {
-        unsafe {
-            if self.out_buf.is_empty() {
-                // We do not have any data buffered; point to the current data chunk.
-                *data = self
-                    .out_current_data
-                    .offset(self.out_current_consume_offset as isize);
-                *len = (self.out_current_read_offset - self.out_current_consume_offset) as usize
-            } else {
-                // We do have data in the buffer. Add data from the current
-                // chunk, and point to the consolidated buffer.
-                self.res_buffer()?;
-                *data = self.out_buf.as_mut_ptr();
-                *len = self.out_buf.len();
-            }
+        let field_limit = unsafe { (*self.out_tx_mut_ok()?.cfg).field_limit };
+        if newlen > field_limit {
+            htp_error!(
+                self,
+                HtpLogCode::RESPONSE_FIELD_TOO_LONG,
+                format!(
+                    "Response the buffer limit: size {} limit {}.",
+                    newlen, field_limit
+                )
+            );
+            return Err(HtpStatus::ERROR);
         }
         Ok(())
-    }
-
-    /// Clears buffered outbound data and resets the consumer position to the reader position.
-    fn res_clear_buffer(&mut self) {
-        self.out_current_consume_offset = self.out_current_read_offset;
-        self.out_buf.clear()
     }
 
     /// Consumes bytes until the end of the current line.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_body_chunked_data_end(&mut self) -> Result<()> {
-        loop
+    pub fn res_body_chunked_data_end(&mut self, data: &[u8]) -> Result<()> {
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
-        {
-            if self.out_current_read_offset < self.out_current_len {
-                self.out_next_byte = unsafe {
-                    *self
-                        .out_current_data
-                        .offset(self.out_current_read_offset as isize) as i32
-                };
-                self.out_current_read_offset += 1;
-                self.out_current_consume_offset += 1;
-                self.out_stream_offset += 1
-            } else {
-                return Err(HtpStatus::DATA);
-            }
-            self.out_tx_mut_ok()?.response_message_len += 1;
-            if self.out_next_byte == '\n' as i32 {
+        match take_till_lf(data) {
+            Ok((_, line)) => {
+                let len = line.len() as i64;
+                self.out_curr_data.seek(SeekFrom::Current(len))?;
+                self.out_tx_mut_ok()?.response_message_len += len;
                 self.out_state = State::BODY_CHUNKED_LENGTH;
-                return Ok(());
+                Ok(())
+            }
+            _ => {
+                // Advance to end. Dont need to buffer
+                self.out_curr_data.seek(SeekFrom::End(0))?;
+                self.out_tx_mut_ok()?.response_message_len += data.len() as i64;
+                Err(HtpStatus::DATA_BUFFER)
             }
         }
     }
@@ -207,33 +164,16 @@ impl ConnectionParser {
     /// Processes a chunk of data.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_body_chunked_data(&mut self) -> Result<()> {
-        let mut bytes_to_consume: usize = 0;
-        // Determine how many bytes we can consume.
-        if self.out_current_len - self.out_current_read_offset >= self.out_chunked_length {
-            bytes_to_consume = self.out_chunked_length as usize
-        } else {
-            bytes_to_consume = (self.out_current_len - self.out_current_read_offset) as usize
-        }
+    pub fn res_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
+        let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_chunked_length as usize);
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
         // Consume the data.
-        unsafe {
-            self.res_process_body_data_ex(
-                self.out_current_data
-                    .offset(self.out_current_read_offset as isize)
-                    as *const core::ffi::c_void,
-                bytes_to_consume,
-            )?;
-        }
+        self.res_process_body_data_ex(Some(&data[0..bytes_to_consume]))?;
         // Adjust the counters.
-        self.out_current_read_offset =
-            (self.out_current_read_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.out_current_consume_offset =
-            (self.out_current_consume_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.out_stream_offset =
-            (self.out_stream_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
+        self.out_curr_data
+            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         self.out_chunked_length =
             (self.out_chunked_length as u64).wrapping_sub(bytes_to_consume as u64) as i64;
         // Have we seen the entire chunk?
@@ -244,82 +184,32 @@ impl ConnectionParser {
         Err(HtpStatus::DATA)
     }
 
-    /// Peeks ahead into the data to try to see if it starts with a valid Chunked
-    /// length field.
-    ///
-    /// Returns true if it looks valid, false if it looks invalid
-    #[inline]
-    fn data_probe_chunk_length(&self) -> bool {
-        if self.out_current_read_offset - self.out_current_consume_offset < 8 {
-            // not enough data so far, consider valid still
-            return true;
-        }
-        let data: *mut u8 = unsafe {
-            self.out_current_data
-                .offset(self.out_current_consume_offset as isize)
-        };
-        let len: usize = (self.out_current_read_offset - self.out_current_consume_offset) as usize;
-        let mut i: isize = 0;
-        while (i as usize) < len {
-            let c = unsafe { *data.offset(i) };
-            if is_chunked_ctl_char(c as u8) {
-                // ctl char, still good.
-                i = i.wrapping_add(1)
-            } else {
-                return c.is_ascii_digit() || c >= b'a' && c <= b'f' || c >= b'A' && c <= b'F';
-            }
-        }
-        true
-    }
-
     /// Extracts chunk length.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_body_chunked_length(&mut self) -> Result<()> {
-        loop {
-            if self.out_current_read_offset < self.out_current_len {
-                self.out_next_byte = unsafe {
-                    *self
-                        .out_current_data
-                        .offset(self.out_current_read_offset as isize) as i32
-                };
-                self.out_current_read_offset += 1;
-                self.out_stream_offset += 1
-            } else {
-                return Err(HtpStatus::DATA_BUFFER);
-            }
-            // Have we reached the end of the line? Or is this not chunked after all?
-            if !(self.out_next_byte == '\n' as i32
-                || (!is_chunked_ctl_char(self.out_next_byte as u8)
-                    && !self.data_probe_chunk_length()))
-            {
-                continue;
-            }
-            let mut data = std::ptr::null_mut();
-            let mut len: usize = 0;
-            self.res_consolidate_data(&mut data, &mut len)?;
-            self.out_tx_mut_ok()?.response_message_len =
-                (self.out_tx_mut_ok()?.response_message_len as u64).wrapping_add(len as u64) as i64;
-
-            let buf: &mut [u8] = unsafe { std::slice::from_raw_parts_mut(data, len) };
-            if let Ok(chunked_length) = parse_chunked_length(buf) {
-                if let Some(chunked_length) = chunked_length {
-                    self.out_chunked_length = chunked_length as i64;
-                } else {
-                    // empty chunk length line, lets try to continue
-                    continue;
+    /// Returns Ok(()) on success, Err(HTP_ERROR) on error, or Err(HTP_DATA) when more data is needed.
+    pub fn res_body_chunked_length(&mut self, data: &[u8]) -> Result<()> {
+        match take_till_lf(data) {
+            Ok((_, line)) => {
+                self.out_curr_data
+                    .seek(SeekFrom::Current(line.len() as i64))?;
+                if !self.out_buf.is_empty() {
+                    self.check_out_buffer_limit(line.len())?;
                 }
-            } else {
-                self.out_chunked_length = -1;
-            }
-            if self.out_chunked_length < 0 {
-                // reset out_current_read_offset so RES_BODY_IDENTITY_STREAM_CLOSE
-                // doesn't miss the first bytes
-                if len > self.out_current_read_offset as usize {
-                    self.out_current_read_offset = 0
+                let mut data = take(&mut self.in_buf);
+                data.add(line);
+                self.out_tx_mut_ok()?.response_message_len =
+                    (self.out_tx_mut_ok()?.response_message_len as u64)
+                        .wrapping_add(data.len() as u64) as i64;
+
+                if let Ok(chunked_length) = parse_chunked_length(&data) {
+                    if let Some(chunked_length) = chunked_length {
+                        self.out_chunked_length = chunked_length as i64;
+                    } else {
+                        // empty chunk length line, dont change state & try again
+                        return Ok(());
+                    }
                 } else {
-                    self.out_current_read_offset =
-                        (self.out_current_read_offset as u64).wrapping_sub(len as u64) as i64
+                    self.out_chunked_length = -1;
                 }
                 self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
                 self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
@@ -331,68 +221,50 @@ impl ConnectionParser {
                         self.out_chunked_length
                     )
                 );
-                return Ok(());
-            }
-            self.res_clear_buffer();
-            // Handle chunk length
-            match self.out_chunked_length.cmp(&0) {
-                Ordering::Equal => {
-                    // End of data
-                    self.out_state = State::HEADERS;
-                    self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::TRAILER
+                // Handle chunk length
+                match self.out_chunked_length.cmp(&0) {
+                    Ordering::Equal => {
+                        // End of data
+                        self.out_state = State::HEADERS;
+                        self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::TRAILER
+                    }
+                    Ordering::Greater => {
+                        // More data available
+                        self.out_state = State::BODY_CHUNKED_DATA
+                    }
+                    _ => {}
                 }
-                Ordering::Greater => {
-                    // More data available
-                    self.out_state = State::BODY_CHUNKED_DATA
-                }
-                _ => {}
+                Ok(())
             }
-            return Ok(());
+            _ => self.handle_out_absent_lf(data),
         }
     }
 
     /// Processes an identity response body of known length.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_body_identity_cl_known(&mut self) -> Result<()> {
-        let mut bytes_to_consume: usize = 0;
-        // Determine how many bytes we can consume.
-        if self.out_current_len - self.out_current_read_offset >= self.out_body_data_left {
-            bytes_to_consume = self.out_body_data_left as usize
-        } else {
-            bytes_to_consume = (self.out_current_len - self.out_current_read_offset) as usize
-        }
+    /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
+    pub fn res_body_identity_cl_known(&mut self, data: &[u8]) -> Result<()> {
+        let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_body_data_left as usize);
         if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             // Sends close signal to decompressors
-            return self.res_process_body_data_ex(std::ptr::null(), 0);
+            return self.res_process_body_data_ex(None);
         }
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
         // Consume the data.
-        unsafe {
-            self.res_process_body_data_ex(
-                self.out_current_data
-                    .offset(self.out_current_read_offset as isize)
-                    as *const core::ffi::c_void,
-                bytes_to_consume,
-            )?;
-        }
+        self.res_process_body_data_ex(Some(&data[0..bytes_to_consume]))?;
         // Adjust the counters.
-        self.out_current_read_offset =
-            (self.out_current_read_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.out_current_consume_offset =
-            (self.out_current_consume_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-        self.out_stream_offset =
-            (self.out_stream_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
+        self.out_curr_data
+            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         self.out_body_data_left =
             (self.out_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
         // Have we seen the entire response body?
         if self.out_body_data_left == 0 {
             self.out_state = State::FINALIZE;
             // Tells decompressors to output partially decompressed data
-            return self.res_process_body_data_ex(std::ptr::null(), 0);
+            return self.res_process_body_data_ex(None);
         }
         Err(HtpStatus::DATA)
     }
@@ -401,27 +273,12 @@ impl ConnectionParser {
     /// response body consumes all data until the end of the stream.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_body_identity_stream_close(&mut self) -> Result<()> {
+    pub fn res_body_identity_stream_close(&mut self, data: &[u8]) -> Result<()> {
         // Consume all data from the input buffer.
-        let bytes_to_consume: usize =
-            (self.out_current_len - self.out_current_read_offset) as usize;
-        if bytes_to_consume != 0 {
-            unsafe {
-                self.res_process_body_data_ex(
-                    self.out_current_data
-                        .offset(self.out_current_read_offset as isize)
-                        as *const core::ffi::c_void,
-                    bytes_to_consume,
-                )?;
-            }
+        if !data.is_empty() {
+            self.res_process_body_data_ex(Some(&data))?;
             // Adjust the counters.
-            self.out_current_read_offset =
-                (self.out_current_read_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
-            self.out_current_consume_offset = (self.out_current_consume_offset as u64)
-                .wrapping_add(bytes_to_consume as u64)
-                as i64;
-            self.out_stream_offset =
-                (self.out_stream_offset as u64).wrapping_add(bytes_to_consume as u64) as i64;
+            self.out_curr_data.seek(SeekFrom::End(0))?;
         }
         // Have we seen the entire response body?
         if self.out_status == HtpStreamState::CLOSED {
@@ -701,191 +558,114 @@ impl ConnectionParser {
     /// Parses response headers.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_headers(&mut self) -> Result<()> {
-        let mut endwithcr = false;
-        let mut lfcrending = false;
-        loop {
-            if self.out_status == HtpStreamState::CLOSED {
-                // Finalize sending raw trailer data.
-                self.res_receiver_finalize_clear()?;
-                // Run hook response_TRAILER.
-                // TODO: Figure out how to do this without clone()
-                let cfg = self.cfg.clone();
-                cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
-                self.out_state = State::FINALIZE;
-                return Ok(());
+    pub fn res_headers(&mut self, data: &[u8]) -> Result<()> {
+        if self.out_status == HtpStreamState::CLOSED {
+            // Finalize sending raw trailer data.
+            self.res_receiver_finalize_clear()?;
+            // Run hook response_TRAILER.
+            // TODO: Figure out how to do this without clone()
+            let cfg = self.cfg.clone();
+            cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
+            self.out_state = State::FINALIZE;
+            return Ok(());
+        }
+        let is_terminator = |val: &[u8]| -> bool {
+            match val {
+                b"\r\n\r\n" | b"\n\r\r\n\r\n" | b"\n\n" | b"\r\r" => true,
+                _ => false,
             }
-            if self.out_current_read_offset < self.out_current_len {
-                self.out_next_byte = unsafe {
-                    *self
-                        .out_current_data
-                        .offset(self.out_current_read_offset as isize) as i32
-                };
-                self.out_current_read_offset += 1;
-                self.out_stream_offset += 1
-            } else {
-                return Err(HtpStatus::DATA_BUFFER);
-            }
-            // Have we reached the end of the line?
-            if self.out_next_byte != '\n' as i32 && self.out_next_byte != '\r' as i32 {
-                lfcrending = false
-            } else {
-                endwithcr = false;
-                if self.out_next_byte == '\r' as i32 {
-                    if self.out_current_read_offset >= self.out_current_len {
-                        self.out_next_byte = -1
-                    } else {
-                        self.out_next_byte = unsafe {
-                            *self
-                                .out_current_data
-                                .offset(self.out_current_read_offset as isize)
-                                as i32
-                        }
+        };
+        if let Ok((_, headers)) = sep_by_line_endings(data) {
+            let mut header: &[u8] = b"";
+            for (i, val) in headers.iter().enumerate() {
+                // header
+                if val != b"\r\n" && val != b"\n" && val != b"\r" && !is_terminator(val) {
+                    header = val;
+                    // Extra data not yet terminated, wait for more.
+                    if i == headers.len() - 1 {
+                        return self.handle_out_absent_lf(val);
                     }
-                    if self.out_next_byte == -1 {
-                        return Err(HtpStatus::DATA_BUFFER);
-                    } else {
-                        if self.out_next_byte == '\n' as i32 {
-                            if self.out_current_read_offset < self.out_current_len {
-                                self.out_next_byte = unsafe {
-                                    *self
-                                        .out_current_data
-                                        .offset(self.out_current_read_offset as isize)
-                                        as i32
-                                };
-                                self.out_current_read_offset += 1;
-                                self.out_stream_offset += 1
-                            } else {
-                                return Err(HtpStatus::DATA_BUFFER);
-                            }
-                            if lfcrending {
-                                // Handling LFCRCRLFCRLF
-                                // These 6 characters mean only 2 end of lines
-                                if self.out_current_read_offset >= self.out_current_len {
-                                    self.out_next_byte = -1
-                                } else {
-                                    self.out_next_byte = unsafe {
-                                        *self
-                                            .out_current_data
-                                            .offset(self.out_current_read_offset as isize)
-                                            as i32
-                                    }
-                                }
-                                if self.out_next_byte == '\r' as i32 {
-                                    if self.out_current_read_offset < self.out_current_len {
-                                        self.out_next_byte = unsafe {
-                                            *self
-                                                .out_current_data
-                                                .offset(self.out_current_read_offset as isize)
-                                                as i32
-                                        };
-                                        self.out_current_read_offset += 1;
-                                        self.out_stream_offset += 1
-                                    } else {
-                                        return Err(HtpStatus::DATA_BUFFER);
-                                    }
-                                    self.out_current_consume_offset += 1;
-                                    if self.out_current_read_offset >= self.out_current_len {
-                                        self.out_next_byte = -1
-                                    } else {
-                                        self.out_next_byte = unsafe {
-                                            *self
-                                                .out_current_data
-                                                .offset(self.out_current_read_offset as isize)
-                                                as i32
-                                        }
-                                    }
-                                    if self.out_next_byte == '\n' as i32 {
-                                        if self.out_current_read_offset < self.out_current_len {
-                                            self.out_next_byte = unsafe {
-                                                *self
-                                                    .out_current_data
-                                                    .offset(self.out_current_read_offset as isize)
-                                                    as i32
-                                            };
-                                            self.out_current_read_offset += 1;
-                                            self.out_stream_offset += 1
-                                        } else {
-                                            return Err(HtpStatus::DATA_BUFFER);
-                                        }
-                                        self.out_current_consume_offset += 1;
-                                        htp_warn!(
-                                            self,
-                                            HtpLogCode::DEFORMED_EOL,
-                                            "Weird response end of lines mix"
-                                        );
-                                    }
-                                }
-                            }
-                        } else if self.out_next_byte == '\r' as i32 {
-                            continue;
-                        }
-                        lfcrending = false;
-                        endwithcr = true
-                    }
-                } else {
-                    // connp->out_next_byte == LF
-                    if self.out_current_read_offset >= self.out_current_len {
-                        self.out_next_byte = -1
-                    } else {
-                        self.out_next_byte = unsafe {
-                            *self
-                                .out_current_data
-                                .offset(self.out_current_read_offset as isize)
-                                as i32
-                        }
-                    }
-                    lfcrending = false;
-                    if self.out_next_byte == '\r' as i32 {
-                        // hanldes LF-CR sequence as end of line
-                        if self.out_current_read_offset < self.out_current_len {
-                            self.out_next_byte = unsafe {
-                                *self
-                                    .out_current_data
-                                    .offset(self.out_current_read_offset as isize)
-                                    as i32
-                            };
-                            self.out_current_read_offset += 1;
-                            self.out_stream_offset += 1
-                        } else {
-                            return Err(HtpStatus::DATA_BUFFER);
-                        }
-                        lfcrending = true
-                    }
-                }
-                let mut data = std::ptr::null_mut();
-                let mut len: usize = 0;
-                self.res_consolidate_data(&mut data, &mut len)?;
-                // CRCRLF is not an empty line
-                if endwithcr && len < 2 {
+
+                    self.out_curr_data
+                        .seek(SeekFrom::Current(val.len() as i64))?;
+
                     continue;
                 }
-                let mut next_no_lf: bool = false;
-                if self.out_current_read_offset < self.out_current_len
-                    && unsafe {
-                        *self
-                            .out_current_data
-                            .offset(self.out_current_read_offset as isize)
-                            as i32
-                            != '\n' as i32
-                    }
-                {
-                    next_no_lf = true
-                }
-                // Should we terminate headers?
-                if !data.is_null()
-                    && is_line_terminator(
-                        self.cfg.server_personality,
-                        unsafe { std::slice::from_raw_parts(data, len) },
-                        next_no_lf,
-                    )
-                {
+
+                // reached a new line
+                self.out_curr_data
+                    .seek(SeekFrom::Current(val.len() as i64))?;
+                if !self.out_buf.is_empty() {
+                    self.check_out_buffer_limit(header.len())?;
+                };
+                let mut data = take(&mut self.out_buf);
+                data.add(header);
+
+                // Check for folding
+                if !is_line_folded(data.as_slice()) {
+                    // New header line.
                     // Parse previous header, if any.
                     if let Some(out_header) = self.out_header.take() {
                         self.process_response_header(out_header.as_slice())?;
                     }
-                    self.res_clear_buffer();
-                    // We've seen all response headers.
+                    let is_next_folded = headers
+                        .get(i + 1)
+                        .map(|line| is_line_folded(line))
+                        .unwrap_or(false);
+                    if is_next_folded {
+                        // Keep the partial header data for parsing later.
+                        self.out_header = Some(data);
+                    } else {
+                        // Because we know this header is not folded, we can process the buffer straight away
+                        self.process_response_header(data.as_slice())?;
+                    }
+                } else {
+                    // Line is folded but theres no buffered data.
+                    if self.out_header.is_none() {
+                        if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
+                            self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
+                            htp_warn!(
+                                self,
+                                HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
+                                "Invalid response field folding"
+                            );
+                        }
+                        self.out_header = Some(data);
+                    } else {
+                        // Line is folded, there is buffered data.
+                        if data.iter().any(|&c| c == b':')
+                            && self.out_tx_mut_ok()?.response_protocol_number == HtpProtocol::V1_1
+                        {
+                            // Warn only once per transaction.
+                            if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
+                                self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
+                                htp_warn!(
+                                    self,
+                                    HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
+                                    "Invalid response field folding"
+                                );
+                            }
+                            if let Some(out_header) = self.out_header.take() {
+                                self.process_response_header(out_header.as_slice())?;
+                            }
+                            self.out_header = Some(data.clone());
+                        }
+                        if let Some(out_header) = &mut self.out_header {
+                            // Add to the existing header.
+                            out_header.add(data.as_slice());
+                        }
+                    }
+                }
+                // Are we at end of headers? Second case is for headers state with no data.
+                if is_terminator(val) || header.is_empty() {
+                    if val == b"\n\r\r\n\r\n" {
+                        htp_warn!(
+                            self,
+                            HtpLogCode::DEFORMED_EOL,
+                            "Weird response end of lines mix"
+                        );
+                    }
+                    // We've seen all response headers. At terminator.
                     if self.out_tx_mut_ok()?.response_progress == HtpResponseProgress::HEADERS {
                         // Response headers.
                         // The next step is to determine if this response has a body.
@@ -895,7 +675,6 @@ impl ConnectionParser {
                         // Finalize sending raw trailer data.
                         self.res_receiver_finalize_clear()?;
                         // Run hook response_TRAILER.
-                        // TODO: Figure out how to do this without clone()
                         let cfg = self.cfg.clone();
                         cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
                         // The next step is to finalize this response.
@@ -903,259 +682,135 @@ impl ConnectionParser {
                     }
                     return Ok(());
                 }
-                let s = unsafe { std::slice::from_raw_parts(data as *const u8, len) };
-                let s = chomp(&s);
-                len = s.len();
-                // Check for header folding.
-                if !is_line_folded(s) {
-                    // New header line.
-                    // Parse previous header, if any.
-                    if let Some(out_header) = self.out_header.take() {
-                        self.process_response_header(out_header.as_slice())?;
-                    }
-                    if self.out_current_read_offset >= self.out_current_len {
-                        self.out_next_byte = -1
-                    } else {
-                        self.out_next_byte = unsafe {
-                            *self
-                                .out_current_data
-                                .offset(self.out_current_read_offset as isize)
-                                as i32
-                        }
-                    }
-                    if !is_folding_char(self.out_next_byte as u8) {
-                        // Because we know this header is not folded, we can process the buffer straight away.
-                        self.process_response_header(s)?;
-                    } else {
-                        // Keep the partial header data for parsing later.
-                        self.out_header = Some(Bstr::from(s));
-                    }
-                } else if self.out_header.is_none() {
-                    // Folding; check that there's a previous header line to add to.
-                    // Invalid folding.
-                    // Warn only once per transaction.
-                    if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
-                        self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                        htp_warn!(
-                            self,
-                            HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
-                            "Invalid response field folding"
-                        );
-                    }
-                    // Keep the header data for parsing later.
-                    self.out_header = Some(Bstr::from(s));
-                } else {
-                    let mut colon_pos: isize = 0;
-                    while (colon_pos as usize) < len && unsafe { *data.offset(colon_pos) != b':' } {
-                        colon_pos = colon_pos.wrapping_add(1)
-                    }
-                    if (colon_pos as usize) < len
-                        && self
-                            .out_header
-                            .as_ref()
-                            .and_then(|hdr| hdr.index_of(":"))
-                            .is_some()
-                        && self.out_tx_mut_ok()?.response_protocol_number == HtpProtocol::V1_1
-                    {
-                        // Warn only once per transaction.
-                        if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
-                            self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                            htp_warn!(
-                                self,
-                                HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
-                                "Invalid response field folding"
-                            );
-                        }
-                        if let Some(out_header) = self.out_header.take() {
-                            self.process_response_header(out_header.as_slice())?;
-                        }
-                        self.out_header = Some(Bstr::from(&s[1..]));
-                    } else if let Some(out_header) = &mut self.out_header {
-                        // Add to the existing header.
-                        out_header.add(s);
-                    }
-                }
-                self.res_clear_buffer();
             }
+            Ok(())
+        } else {
+            self.handle_out_absent_lf(data)
         }
     }
 
     /// Parses response line.
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
-    pub fn res_line(&mut self) -> Result<()> {
-        loop {
-            // Don't try to get more data if the stream is closed. If we do, we'll return, asking for more data.
-            if self.out_status != HtpStreamState::CLOSED {
-                // Get one byte
-                if self.out_current_read_offset < self.out_current_len {
-                    self.out_next_byte = unsafe {
-                        *self
-                            .out_current_data
-                            .offset(self.out_current_read_offset as isize)
-                            as i32
-                    };
-                    self.out_current_read_offset += 1;
-                    self.out_stream_offset += 1
+    pub fn res_line(&mut self, data: &[u8]) -> Result<()> {
+        let line = match take_till_lf(data) {
+            Ok((_, line)) => {
+                self.out_curr_data
+                    .seek(SeekFrom::Current(line.len() as i64))?;
+                line
+            }
+            _ => {
+                if self.out_status == HtpStreamState::CLOSED {
+                    self.out_curr_data.seek(SeekFrom::End(0))?;
+                    data
                 } else {
-                    return Err(HtpStatus::DATA_BUFFER);
+                    return self.handle_out_absent_lf(data);
                 }
             }
-            // Have we reached the end of the line? We treat stream closure as end of line in
-            // order to handle the case when the first line of the response is actually response body
-            // (and we wish it processed as such).
-            if self.out_next_byte == '\r' as i32 {
-                if self.out_current_read_offset >= self.out_current_len {
-                    self.out_next_byte = -1
-                } else {
-                    self.out_next_byte = unsafe {
-                        *self
-                            .out_current_data
-                            .offset(self.out_current_read_offset as isize)
-                            as i32
-                    }
-                }
-                if self.out_next_byte == -1 {
-                    return Err(HtpStatus::DATA_BUFFER);
-                } else {
-                    if self.out_next_byte == '\n' as i32 {
-                        continue;
-                    }
-                    self.out_next_byte = '\n' as i32
-                }
-            }
-            if self.out_next_byte == '\n' as i32 || self.out_status == HtpStreamState::CLOSED {
-                let mut data = std::ptr::null_mut();
-                let mut len: usize = 0;
-                self.res_consolidate_data(&mut data, &mut len)?;
-                // Is this a line that should be ignored?
-                if !data.is_null()
-                    && is_line_ignorable(self.cfg.server_personality, unsafe {
-                        std::slice::from_raw_parts(data, len)
-                    })
-                {
-                    if self.out_status == HtpStreamState::CLOSED {
-                        self.out_state = State::FINALIZE
-                    }
-                    // We have an empty/whitespace line, which we'll note, ignore and move on
-                    self.out_tx_mut_ok()?.response_ignored_lines =
-                        self.out_tx_mut_ok()?.response_ignored_lines.wrapping_add(1);
-                    // TODO How many lines are we willing to accept?
-                    // Start again
-                    self.res_clear_buffer();
-                    return Ok(());
-                }
-                // Deallocate previous response line allocations, which we would have on a 100 response.
-                self.out_tx_mut_ok()?.response_line = None;
-                self.out_tx_mut_ok()?.response_protocol = None;
-                self.out_tx_mut_ok()?.response_status = None;
-                self.out_tx_mut_ok()?.response_message = None;
-                // Process response line.
-                let s = unsafe { std::slice::from_raw_parts(data as *const u8, len) };
-                let s = chomp(&s);
-                let chomp_result = len - s.len();
-                len = s.len();
-                // If the response line is invalid, determine if it _looks_ like
-                // a response line. If it does not look like a line, process the
-                // data as a response body because that is what browsers do.
-                if treat_response_line_as_body(s) {
-                    self.out_tx_mut_ok()?.response_content_encoding_processing =
-                        HtpContentEncoding::NONE;
-                    self.out_current_consume_offset = self.out_current_read_offset;
-                    self.res_process_body_data_ex(
-                        data as *const core::ffi::c_void,
-                        len.wrapping_add(chomp_result),
-                    )?;
-                    // Continue to process response body. Because we don't have
-                    // any headers to parse, we assume the body continues until
-                    // the end of the stream.
-                    // Have we seen the entire response body?
-                    if self.out_current_len <= self.out_current_read_offset {
-                        self.out_tx_mut_ok()?.response_transfer_coding =
-                            HtpTransferCoding::IDENTITY;
-                        self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY;
-                        self.out_body_data_left = -1;
-                        self.out_state = State::FINALIZE
-                    }
-                    return Ok(());
-                }
-                self.parse_response_line(s)?;
-                self.state_response_line()?;
-                self.res_clear_buffer();
-                // Move on to the next phase.
-                self.out_state = State::HEADERS;
-                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::HEADERS;
-                return Ok(());
-            }
+        };
+
+        if !self.out_buf.is_empty() {
+            self.check_out_buffer_limit(data.len())?;
         }
+        let mut data = take(&mut self.out_buf);
+        data.add(line);
+
+        if is_line_ignorable(self.cfg.server_personality, &data) {
+            if self.out_status == HtpStreamState::CLOSED {
+                self.out_state = State::FINALIZE
+            }
+            // We have an empty/whitespace line, which we'll note, ignore and move on
+            self.out_tx_mut_ok()?.response_ignored_lines =
+                self.out_tx_mut_ok()?.response_ignored_lines.wrapping_add(1);
+            // TODO How many lines are we willing to accept?
+            // Start again
+            return Ok(());
+        }
+        // Deallocate previous response line allocations, which we would have on a 100 response.
+        self.out_tx_mut_ok()?.response_line = None;
+        self.out_tx_mut_ok()?.response_protocol = None;
+        self.out_tx_mut_ok()?.response_status = None;
+        self.out_tx_mut_ok()?.response_message = None;
+        // Process response line.
+        let data = chomp(&data);
+        // If the response line is invalid, determine if it _looks_ like
+        // a response line. If it does not look like a line, process the
+        // data as a response body because that is what browsers do.
+        if treat_response_line_as_body(data) {
+            self.out_tx_mut_ok()?.response_content_encoding_processing = HtpContentEncoding::NONE;
+            self.res_process_body_data_ex(Some(data))?;
+            // Continue to process response body. Because we don't have
+            // any headers to parse, we assume the body continues until
+            // the end of the stream.
+            // Have we seen the entire response body?
+            if self.out_curr_len() <= self.out_curr_data.position() as i64 {
+                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
+                self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY;
+                self.out_body_data_left = -1;
+                self.out_state = State::FINALIZE
+            }
+            return Ok(());
+        }
+        self.parse_response_line(data)?;
+        self.state_response_line()?;
+        // Move on to the next phase.
+        self.out_state = State::HEADERS;
+        self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::HEADERS;
+        return Ok(());
     }
 
-    pub fn res_finalize(&mut self) -> Result<()> {
+    pub fn res_finalize(&mut self, data: &[u8]) -> Result<()> {
+        let mut work = data;
         if self.out_status != HtpStreamState::CLOSED {
-            if self.out_current_read_offset >= self.out_current_len {
-                self.out_next_byte = -1
-            } else {
-                self.out_next_byte = unsafe {
-                    *self
-                        .out_current_data
-                        .offset(self.out_current_read_offset as isize) as i32
-                }
-            }
-            if self.out_next_byte == -1 {
+            let out_next_byte = self
+                .out_curr_data
+                .get_ref()
+                .get(self.out_curr_data.position() as usize);
+            if out_next_byte.is_none() {
                 return self.state_response_complete_ex(0);
             }
-            if self.out_next_byte != '\n' as i32
-                || self.out_current_consume_offset >= self.out_current_read_offset
-            {
-                loop {
-                    //;i < max_read; i++) {
-                    if self.out_current_read_offset < self.out_current_len {
-                        self.out_next_byte = unsafe {
-                            *self
-                                .out_current_data
-                                .offset(self.out_current_read_offset as isize)
-                                as i32
-                        };
-                        self.out_current_read_offset += 1;
-                        self.out_stream_offset += 1
-                    } else {
-                        return Err(HtpStatus::DATA_BUFFER);
-                    }
-                    // Have we reached the end of the line? For some reason
-                    // we can't test after IN_COPY_BYTE_OR_RETURN */
-                    if self.out_next_byte == '\n' as i32 {
-                        break;
-                    }
+            let lf = out_next_byte.map(|byte| *byte == b'\n').unwrap_or(false);
+            if !lf {
+                if let Ok((_, line)) = take_till_lf(data) {
+                    self.out_curr_data
+                        .seek(SeekFrom::Current(line.len() as i64))?;
+                    work = line;
+                } else {
+                    return self.handle_out_absent_lf(data);
                 }
+            } else {
+                self.out_curr_data
+                    .seek(SeekFrom::Current(data.len() as i64))?;
             }
         }
-        let mut bytes_left: usize = 0;
-        let mut data = std::ptr::null_mut();
-        self.res_consolidate_data(&mut data, &mut bytes_left)?;
-        if bytes_left == 0 {
+        if !self.out_buf.is_empty() {
+            self.check_out_buffer_limit(work.len())?;
+        }
+        let mut data = take(&mut self.out_buf);
+        let buf_len = data.len();
+        data.add(work);
+
+        if data.is_empty() {
             //closing
             return self.state_response_complete_ex(0);
         }
-        if treat_response_line_as_body(unsafe { std::slice::from_raw_parts(data, bytes_left) }) {
+        if treat_response_line_as_body(&data) {
             // Interpret remaining bytes as body data
             htp_warn!(
                 self,
                 HtpLogCode::RESPONSE_BODY_UNEXPECTED,
                 "Unexpected response body"
             );
-            let rc = self.res_process_body_data_ex(data as *const core::ffi::c_void, bytes_left);
-            self.res_clear_buffer();
-            return rc;
+            return self.res_process_body_data_ex(Some(&data));
         }
+        // didnt use data, restore
+        self.out_buf.add(&data[0..buf_len]);
         //unread last end of line so that RES_LINE works
-        if self.out_current_read_offset < bytes_left as i64 {
-            self.out_current_read_offset = 0
+        if self.out_curr_data.position() < data.len() as u64 {
+            self.out_curr_data.seek(SeekFrom::Start(0))?;
         } else {
-            self.out_current_read_offset =
-                (self.out_current_read_offset as u64).wrapping_sub(bytes_left as u64) as i64
-        }
-        if self.out_current_read_offset < self.out_current_consume_offset {
-            self.out_current_consume_offset = self.out_current_read_offset
+            self.out_curr_data
+                .seek(SeekFrom::Current((data.len() as i64) * -1))?;
         }
         self.state_response_complete_ex(0)
     }
@@ -1170,7 +825,7 @@ impl ConnectionParser {
         // byte of data available. Otherwise we could be creating
         // new structures even if there's no more data on the
         // connection.
-        if self.out_current_read_offset >= self.out_current_len {
+        if self.out_curr_data.position() as i64 >= self.out_curr_len() {
             return Err(HtpStatus::DATA);
         }
         // Parsing a new response
@@ -1280,10 +935,8 @@ impl ConnectionParser {
             self.out_timestamp = timestamp;
         }
         // Store the current chunk information
-        self.out_current_data = data as *mut u8;
-        self.out_current_len = len as i64;
-        self.out_current_read_offset = 0;
-        self.out_current_consume_offset = 0;
+        let chunk = unsafe { std::slice::from_raw_parts(data as *mut u8, len) };
+        self.out_curr_data = Cursor::new(chunk.to_vec());
         self.out_current_receiver_offset = 0;
         self.conn.track_outbound_data(len);
         // Return without processing any data if the stream is in tunneling
@@ -1306,7 +959,7 @@ impl ConnectionParser {
             if data.is_null() && len > 0 {
                 match self.out_state {
                     State::BODY_IDENTITY_CL_KNOWN | State::BODY_IDENTITY_STREAM_CLOSE => {
-                        rc = self.handle_out_state()
+                        rc = self.handle_out_state(chunk)
                     }
                     State::FINALIZE => {
                         rc = self.state_response_complete_ex(0);
@@ -1321,7 +974,7 @@ impl ConnectionParser {
                     }
                 }
             } else {
-                rc = self.handle_out_state();
+                rc = self.handle_out_state(chunk);
             }
 
             if rc.is_ok() {
@@ -1337,10 +990,6 @@ impl ConnectionParser {
                 Err(HtpStatus::DATA) | Err(HtpStatus::DATA_BUFFER) => {
                     // Ignore result.
                     let _ = self.res_receiver_send_data(false);
-                    if rc == Err(HtpStatus::DATA_BUFFER) && self.res_buffer().is_err() {
-                        self.out_status = HtpStreamState::ERROR;
-                        return HtpStreamState::ERROR;
-                    }
                     self.out_status = HtpStreamState::DATA;
                     return HtpStreamState::DATA;
                 }
@@ -1352,7 +1001,7 @@ impl ConnectionParser {
                 // Check for suspended parsing
                 Err(HtpStatus::DATA_OTHER) => {
                     // We might have actually consumed the entire data chunk?
-                    if self.out_current_read_offset >= self.out_current_len {
+                    if self.out_curr_data.position() as i64 >= self.out_curr_len() {
                         self.out_status = HtpStreamState::DATA;
                         // Do not send STREAM_DATE_DATA_OTHER if we've
                         // consumed the entire chunk
@@ -1370,6 +1019,16 @@ impl ConnectionParser {
                 }
             }
         }
+    }
+    pub fn handle_out_absent_lf(&mut self, data: &[u8]) -> Result<()> {
+        self.out_curr_data.seek(SeekFrom::End(0))?;
+        self.check_out_buffer_limit(data.len())?;
+        self.out_buf.add(data);
+        return Err(HtpStatus::DATA_BUFFER);
+    }
+
+    pub fn out_curr_len(&self) -> i64 {
+        self.out_curr_data.get_ref().len() as i64
     }
 }
 

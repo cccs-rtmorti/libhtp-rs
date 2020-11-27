@@ -113,22 +113,11 @@ pub struct ConnectionParser {
     /// The time when the last response data chunk was received. Can be NULL.
     pub out_timestamp: Time,
     /// Pointer to the current response data chunk.
-    pub out_current_data: *mut u8,
-    /// The length of the current response data chunk.
-    pub out_current_len: i64,
-    /// The offset of the next byte in the response data chunk to consume.
-    pub out_current_read_offset: i64,
-    /// The starting point of the data waiting to be consumed. This field is used
-    /// in the states where reading data is not the same as consumption.
-    pub out_current_consume_offset: i64,
+    pub out_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the outbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
     /// RESPONSE_HEADER_DATA).
-    pub out_current_receiver_offset: i64,
-    /// The offset, in the entire connection stream, of the next response byte.
-    pub out_stream_offset: i64,
-    /// The value of the response byte currently being processed.
-    pub out_next_byte: i32,
+    pub out_current_receiver_offset: u64,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
     pub out_buf: Bstr,
     /// Stores the current value of a folded response header. Such headers span
@@ -197,13 +186,8 @@ impl ConnectionParser {
                 tv_sec: 0,
                 tv_usec: 0,
             },
-            out_current_data: std::ptr::null_mut(),
-            out_current_len: 0,
-            out_current_read_offset: 0,
-            out_current_consume_offset: 0,
+            out_curr_data: Cursor::new(Vec::new()),
             out_current_receiver_offset: 0,
-            out_stream_offset: 0,
-            out_next_byte: 0,
             out_buf: Bstr::new(),
             out_header: None,
             out_tx: None,
@@ -363,19 +347,20 @@ impl ConnectionParser {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_out_state(&mut self) -> Result<()> {
+    pub fn handle_out_state(&mut self, data: &[u8]) -> Result<()> {
+        let data = &data[self.out_curr_data.position() as usize..];
         match self.out_state {
             State::NONE => Err(HtpStatus::ERROR),
             State::IDLE => self.res_idle(),
-            State::LINE => self.res_line(),
-            State::HEADERS => self.res_headers(),
+            State::LINE => self.res_line(data),
+            State::HEADERS => self.res_headers(data),
             State::BODY_DETERMINE => self.res_body_determine(),
-            State::BODY_CHUNKED_DATA => self.res_body_chunked_data(),
-            State::BODY_CHUNKED_LENGTH => self.res_body_chunked_length(),
-            State::BODY_CHUNKED_DATA_END => self.res_body_chunked_data_end(),
-            State::FINALIZE => self.res_finalize(),
-            State::BODY_IDENTITY_STREAM_CLOSE => self.res_body_identity_stream_close(),
-            State::BODY_IDENTITY_CL_KNOWN => self.res_body_identity_cl_known(),
+            State::BODY_CHUNKED_DATA => self.res_body_chunked_data(data),
+            State::BODY_CHUNKED_LENGTH => self.res_body_chunked_length(data),
+            State::BODY_CHUNKED_DATA_END => self.res_body_chunked_data_end(data),
+            State::FINALIZE => self.res_finalize(data),
+            State::BODY_IDENTITY_STREAM_CLOSE => self.res_body_identity_stream_close(data),
+            State::BODY_IDENTITY_CL_KNOWN => self.res_body_identity_cl_known(data),
             // These are only used by in_state
             _ => Err(HtpStatus::ERROR),
         }
@@ -457,7 +442,7 @@ impl ConnectionParser {
     /// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
     /// or -1 on error.
     pub fn res_data_consumed(&self) -> i64 {
-        self.out_current_read_offset
+        self.out_curr_data.position() as i64
     }
 
     /// Opens connection.
@@ -563,17 +548,7 @@ impl ConnectionParser {
         }
     }
 
-    pub fn res_process_body_data_ex(
-        &mut self,
-        data: *const core::ffi::c_void,
-        len: usize,
-    ) -> Result<()> {
-        let data = if data.is_null() {
-            None
-        } else {
-            unsafe { Some(std::slice::from_raw_parts(data as *const u8, len)) }
-        };
-
+    pub fn res_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
         if let Some(tx) = self.out_tx_mut() {
             tx.res_process_body_data_ex(data)
         } else {

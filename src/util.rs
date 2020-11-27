@@ -16,10 +16,11 @@ use nom::{
         take_while_m_n,
     },
     bytes::streaming::take_till as streaming_take_till,
+    bytes::streaming::take_while as streaming_take_while,
     character::complete::{char, digit1},
     character::is_space as nom_is_space,
     combinator::{map, not, opt},
-    multi::fold_many0,
+    multi::{fold_many0, many1},
     number::complete::be_u8,
     sequence::tuple,
     IResult,
@@ -1172,7 +1173,7 @@ pub fn take_not_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(|c: u8| !is_space(c))(data)
 }
 
-// Returns true if each character is a token
+/// Returns true if each character is a token
 pub fn is_word_token(data: &[u8]) -> bool {
     !data.iter().any(|c| !is_token(*c))
 }
@@ -1197,6 +1198,33 @@ pub fn take_till_lf(data: &[u8]) -> IResult<&[u8], &[u8]> {
     } else {
         res
     }
+}
+
+/// Returns all data up to and including the first lf or cr character
+/// Returns Err if not found
+pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    let res = streaming_take_while(|c: u8| c != b'\n' && c != b'\r')(data);
+    if let Ok((_, line)) = res {
+        Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
+    } else {
+        res
+    }
+}
+
+pub fn sep_by_line_endings(data: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+    let header_parser = alt((
+        take_while1(|c: u8| c != b'\n' && c != b'\r'),
+        alt((
+            tag("\r\n\r\n"),
+            tag("\n\r\r\n\r\n"),
+            tag("\n\n"),
+            tag("\r\r"),
+            tag("\r\n"),
+            tag("\r"),
+            tag("\n"),
+        )),
+    ));
+    return many1(header_parser)(data);
 }
 
 // Tests
