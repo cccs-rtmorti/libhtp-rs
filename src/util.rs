@@ -103,7 +103,7 @@ pub enum HtpFileSource {
 /// Used to represent files that are seen during the processing of HTTP traffic. Most
 /// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
 /// request bodies can be treated as files.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct File {
     /// Where did this file come from? Possible values: MULTIPART and PUT.
     pub source: HtpFileSource,
@@ -112,7 +112,8 @@ pub struct File {
     /// File length.
     pub len: usize,
     /// The file used for external storage.
-    pub tmpfile: Option<NamedTempFile>,
+    //TODO: Remove this mem management by making File not cloneable
+    pub tmpfile: Option<*mut NamedTempFile>,
 }
 
 impl File {
@@ -127,20 +128,19 @@ impl File {
 
     /// Create new tempfile
     pub fn create(&mut self, tmpfile: &str) -> Result<()> {
-        self.tmpfile = Some(
+        self.tmpfile = Some(Box::into_raw(Box::new(
             Builder::new()
                 .prefix("libhtp-multipart-file-")
                 .rand_bytes(5)
                 .tempfile_in(tmpfile)?,
-        );
+        )));
         Ok(())
     }
 
     /// Write data to tempfile
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        match &mut self.tmpfile {
-            Some(tmpfile) => tmpfile.write_all(data)?,
-            None => (),
+        if let Some(tmpfile) = self.tmpfile {
+            unsafe { (*tmpfile).write_all(data)? }
         }
         Ok(())
     }
@@ -148,7 +148,7 @@ impl File {
     /// Update file length and invoke any file data callbacks on the provided cfg
     pub fn handle_file_data(
         &mut self,
-        hook: &FileDataHook,
+        hook: FileDataHook,
         data: *const u8,
         len: usize,
     ) -> Result<()> {
@@ -157,6 +157,16 @@ impl File {
         let mut file_data = FileData::new(&self, data, len);
         // Send data to callbacks
         hook.run_all(&mut file_data)
+    }
+}
+
+impl Drop for File {
+    fn drop(&mut self) {
+        if let Some(tmpfile) = self.tmpfile {
+            unsafe {
+                Box::from_raw(tmpfile);
+            }
+        }
     }
 }
 

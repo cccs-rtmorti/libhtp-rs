@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     error::Result,
-    multipart::{find_boundary, Flags, HtpMultipartType, Multipart, Parser as MultipartParser},
+    multipart::{find_boundary, Flags, HtpMultipartType, Parser as MultipartParser},
     transaction::{Data, HtpDataSource, HtpParserId, Param, Transaction},
     urlencoded::{
         urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser as UrlEncodedParser,
@@ -113,7 +113,7 @@ pub fn callback_urlencoded_request_line(tx: &mut Transaction) -> Result<()> {
 /// Returns OK on success, ERROR on failure.
 pub fn callback_multipart_request_body_data(d: &mut Data) -> Result<()> {
     let tx = unsafe { &mut d.tx().as_mut().ok_or(HtpStatus::ERROR)? };
-    if let Some(parser) = &mut (*tx).request_mpartp {
+    if let Some(parser) = &mut tx.request_mpartp {
         if !d.data().is_null() {
             // Process one chunk of data.
             let data = unsafe { std::slice::from_raw_parts(d.data(), d.len()) };
@@ -123,13 +123,13 @@ pub fn callback_multipart_request_body_data(d: &mut Data) -> Result<()> {
             // Ignore result.
             unsafe {
                 let _ = parser.finalize();
-                let body: *mut Multipart = parser.get_multipart();
-                for part in &(*body).parts {
+                //TODO: Remove this clone
+                for part in &parser.get_multipart().parts.clone() {
                     // Use text parameters.
-                    if (*(*part)).type_0 == HtpMultipartType::TEXT {
+                    if part.type_0 == HtpMultipartType::TEXT {
                         let param = Param::new(
-                            Bstr::from((*(*(*part)).name).as_slice()),
-                            Bstr::from((*(*(*part)).value).as_slice()),
+                            Bstr::from((*part.name).as_slice()),
+                            Bstr::from((*part.value).as_slice()),
                             HtpDataSource::BODY,
                             HtpParserId::MULTIPART,
                         );

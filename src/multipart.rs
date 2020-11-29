@@ -8,8 +8,8 @@ use crate::{
     table::Table,
     transaction::{Header, Headers},
     util::{
-        is_space, is_token, take_ascii_whitespace, take_until_no_case, File, Flags as UtilFlags,
-        HtpFileSource,
+        is_space, is_token, nom_take_is_space, take_ascii_whitespace, take_is_space,
+        take_until_no_case, File, Flags as UtilFlags, HtpFileSource,
     },
     HtpStatus,
 };
@@ -25,7 +25,6 @@ use nom::{
     sequence::tuple,
     IResult,
 };
-use std::cmp::Ordering;
 
 bitflags::bitflags! {
     pub struct Flags: u64 {
@@ -209,21 +208,16 @@ impl Parser {
         })
     }
 
-    pub fn get_current_part(&mut self) -> Option<*mut Part> {
-        if let Some(idx) = self.current_part_idx {
-            if let Some(part) = self.multipart.parts.get_mut(idx) {
-                return Some(*part);
-            }
-        }
-        None
+    pub fn get_current_part(&mut self) -> Result<&mut Part> {
+        self.current_part_idx
+            .and_then(move |idx| self.multipart.parts.get_mut(idx))
+            .ok_or(HtpStatus::ERROR)
     }
 
     /// Handles a boundary event, which means that it will finalize a part if one exists.
     fn handle_boundary(&mut self) -> Result<()> {
-        if let Some(part) = self.get_current_part() {
-            unsafe {
-                (*part).finalize_data()?;
-            }
+        if self.current_part_idx.is_some() {
+            self.finalize_part_data()?;
             // We're done with this part
             self.current_part_idx = None;
             // Revert to line mode
@@ -242,7 +236,7 @@ impl Parser {
         // Do we have a part already?
         if self.current_part_idx.is_none() {
             // Create a new part.
-            let mut part = Part::new(self);
+            let mut part = Part::default();
             // Set current part.
             if self.multipart.boundary_count == 0 {
                 part.type_0 = HtpMultipartType::PREAMBLE;
@@ -253,18 +247,155 @@ impl Parser {
                 self.current_part_mode = HtpMultipartMode::LINE
             }
             // Add part to the list.
-            self.multipart.parts.push(Box::into_raw(Box::new(part)));
+            self.multipart.parts.push(part);
             self.current_part_idx = Some(self.multipart.parts.len() - 1);
         }
 
-        let rc = if let Some(current_part) = self.get_current_part() {
-            unsafe { (*current_part).handle_data(self.to_consume.as_slice(), is_line) }
+        let rc = if self.current_part_idx.is_some() {
+            let data = self.to_consume.clone();
+            self.handle_part_data(data.as_slice(), is_line)
         } else {
             Ok(())
         };
 
         self.to_consume.clear();
         rc
+    }
+
+    /// Handles part data, updating flags, and creating new headers as necessary
+    ///
+    /// Returns OK on success, ERROR on failure.
+    pub fn handle_part_data(&mut self, to_consume: &[u8], is_line: bool) -> Result<()> {
+        // End of the line.
+        let mut line: Option<Bstr> = None;
+        // Keep track of raw part length.
+        self.get_current_part()?.len += to_consume.len();
+        // If we're processing a part that came after the last boundary, then we're not sure if it
+        // is the epilogue part or some other part (in case of evasion attempt). For that reason we
+        // will keep all its data in the part_data_pieces structure. If it ends up not being the
+        // epilogue, this structure will be cleared.
+        if self.multipart.flags.contains(Flags::SEEN_LAST_BOUNDARY)
+            && self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN
+        {
+            self.part_data_pieces.add(to_consume);
+        }
+        if self.current_part_mode == HtpMultipartMode::LINE {
+            // Line mode.
+            if is_line {
+                // If this line came to us in pieces, combine them now into a single buffer.
+                if !self.part_header.is_empty() {
+                    // Allocate string
+                    let mut header = Bstr::with_capacity(self.part_header.len() + to_consume.len());
+                    header.add(self.part_header.as_slice());
+                    header.add(self.to_consume.as_slice());
+                    line = Some(header);
+                    self.part_header.clear();
+                }
+                let mut data = line
+                    .as_ref()
+                    .map(|line| line.as_slice())
+                    .unwrap_or(to_consume);
+                // Ignore the line endings.
+                if data.last() == Some(&(b'\n')) {
+                    data = &data[..data.len() - 1];
+                }
+                if data.last() == Some(&(b'\r')) {
+                    data = &data[..data.len() - 1];
+                }
+                // Is it an empty line?
+                if data.is_empty() {
+                    // Empty line; process headers and switch to data mode.
+                    // Process the pending header, if any.
+                    if !self.pending_header_line.is_empty() {
+                        if self.parse_header() == Err(HtpStatus::ERROR) {
+                            return Err(HtpStatus::ERROR);
+                        };
+                        self.pending_header_line.clear()
+                    }
+                    if self.parse_c_d() == Err(HtpStatus::ERROR) {
+                        return Err(HtpStatus::ERROR);
+                    }
+                    if let Some((_, header)) = self
+                        .get_current_part()?
+                        .headers
+                        .get_nocase_nozero("content-type")
+                    {
+                        self.get_current_part()?.content_type =
+                            Some(parse_content_type(header.value.as_slice())?);
+                    }
+                    self.current_part_mode = HtpMultipartMode::DATA;
+                    self.part_header.clear();
+                    let file_count = self.file_count;
+                    let cfg = self.cfg.clone();
+                    let part = self.get_current_part()?;
+                    match &mut part.file {
+                        Some(file) => {
+                            // Changing part type because we have a filename.
+                            part.type_0 = HtpMultipartType::FILE;
+                            if cfg.extract_request_files
+                                && file_count < cfg.extract_request_files_limit
+                            {
+                                file.create(&cfg.tmpdir)?;
+                                self.file_count += 1;
+                            }
+                        }
+                        None => {
+                            if !self.get_current_part()?.name.is_empty() {
+                                // Changing part type because we have a name.
+                                self.get_current_part()?.type_0 = HtpMultipartType::TEXT;
+                                self.part_data_pieces.clear();
+                            }
+                        }
+                    }
+                } else if self.pending_header_line.is_empty() {
+                    if let Some(header) = line {
+                        self.pending_header_line.add(header.as_slice());
+                        line = None;
+                    } else {
+                        self.pending_header_line.add(data);
+                    }
+                } else if data[0].is_ascii_whitespace() {
+                    // Not an empty line.
+                    // Is there a pending header?
+                    // Is this a folded line?
+                    // Folding; add to the existing line.
+                    self.multipart.flags |= Flags::PART_HEADER_FOLDING;
+                    self.pending_header_line.add(data);
+                } else {
+                    // Process the pending header line.
+                    if self.parse_header() == Err(HtpStatus::ERROR) {
+                        return Err(HtpStatus::ERROR);
+                    }
+                    self.pending_header_line.clear();
+                    if let Some(header) = line {
+                        self.pending_header_line.add(header.as_slice());
+                    } else {
+                        self.pending_header_line.add(data);
+                    }
+                }
+            } else {
+                // Not end of line; keep the data chunk for later.
+                self.part_header.add(to_consume);
+            }
+        } else {
+            // Data mode; keep the data chunk for later (but not if it is a file).
+            match self.get_current_part()?.type_0 {
+                HtpMultipartType::FILE => {
+                    // Invoke file data callbacks.
+                    // Ignore error.
+                    let _ = self.run_request_file_data_hook(false);
+                    // Optionally, store the data in a file.
+                    if let Some(file) = &mut self.get_current_part()?.file {
+                        return file.write(to_consume);
+                    }
+                }
+                _ => {
+                    // Make a copy of the data in RAM.
+                    self.part_data_pieces.add(to_consume);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Processes set-aside data.
@@ -279,10 +410,10 @@ impl Parser {
         if matched || self.current_part_mode == HtpMultipartMode::LINE {
             // Line mode or boundary match
             if matched {
-                if self.to_consume.last() == Some(&('\n' as u8)) {
+                if self.to_consume.last() == Some(&(b'\n')) {
                     self.to_consume.pop();
                 }
-                if self.to_consume.last() == Some(&('\r' as u8)) {
+                if self.to_consume.last() == Some(&(b'\r')) {
                     self.to_consume.pop();
                 }
             } else {
@@ -333,18 +464,64 @@ impl Parser {
     /// Finalize parsing.
     ///
     /// Returns OK on success, ERROR on failure.
-    pub unsafe fn finalize(&mut self) -> Result<()> {
-        if let Some(part) = self.get_current_part() {
+    pub fn finalize(&mut self) -> Result<()> {
+        if self.current_part_idx.is_some() {
             // Process buffered data, if any.
             self.process_aside(false);
             // Finalize the last part.
-            (*part).finalize_data()?;
+            self.finalize_part_data()?;
             // It is OK to end abruptly in the epilogue part, but not in any other.
-            if (*part).type_0 != HtpMultipartType::EPILOGUE {
-                (*self).multipart.flags |= Flags::INCOMPLETE
+            if self.get_current_part()?.type_0 != HtpMultipartType::EPILOGUE {
+                self.multipart.flags |= Flags::INCOMPLETE
             }
         }
-        (*self).boundary_candidate.clear();
+        self.boundary_candidate.clear();
+        Ok(())
+    }
+
+    /// Finalizes part processing.
+    ///
+    /// Returns OK on success, ERROR on failure.
+    pub fn finalize_part_data(&mut self) -> Result<()> {
+        // Determine if this part is the epilogue.
+        if self.multipart.flags.contains(Flags::SEEN_LAST_BOUNDARY) {
+            if self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN {
+                // Assume that the unknown part after the last boundary is the epilogue.
+                self.get_current_part()?.type_0 = HtpMultipartType::EPILOGUE;
+
+                // But if we've already seen a part we thought was the epilogue,
+                // raise PART_UNKNOWN. Multiple epilogues are not allowed.
+                if self.multipart.flags.contains(Flags::HAS_EPILOGUE) {
+                    self.multipart.flags |= Flags::PART_UNKNOWN
+                }
+                self.multipart.flags |= Flags::HAS_EPILOGUE
+            } else {
+                self.multipart.flags |= Flags::PART_AFTER_LAST_BOUNDARY
+            }
+        }
+        // Sanity checks.
+        // Have we seen complete part headers? If we have not, that means that the part ended prematurely.
+        if self.get_current_part()?.type_0 != HtpMultipartType::EPILOGUE
+            && self.current_part_mode != HtpMultipartMode::DATA
+        {
+            self.multipart.flags |= Flags::PART_INCOMPLETE
+        }
+        // Have we been able to determine the part type? If not, this means
+        // that the part did not contain the C-D header.
+        if self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN {
+            self.multipart.flags |= Flags::PART_UNKNOWN
+        }
+        // Finalize part value.
+        if self.get_current_part()?.type_0 == HtpMultipartType::FILE {
+            // Notify callbacks about the end of the file.
+            // Ignore result.
+            let _ = self.run_request_file_data_hook(true);
+        } else if !self.part_data_pieces.is_empty() {
+            let data = self.part_data_pieces.clone();
+            self.get_current_part()?.value.clear();
+            self.get_current_part()?.value.add(data.as_slice());
+            self.part_data_pieces.clear();
+        }
         Ok(())
     }
 
@@ -356,10 +533,9 @@ impl Parser {
     }
 
     fn parse_state_data<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        if let Ok((remaining, mut consumed)) =
-            take_till::<_, _, (&[u8], nom::error::ErrorKind)>(|c: u8| {
-                c == '\r' as u8 || c == '\n' as u8
-            })(input)
+        if let Ok((remaining, mut consumed)) = take_till::<_, _, (&[u8], nom::error::ErrorKind)>(
+            |c: u8| c == b'\r' || c == b'\n',
+        )(input)
         {
             if let Ok((left, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(remaining) {
                 consumed = &input[..consumed.len() + 2];
@@ -507,7 +683,7 @@ impl Parser {
             self.parser_state = HtpMultipartState::DATA;
             remaining
         } else if let Ok((remaining, byte)) = be_u8::<(&[u8], nom::error::ErrorKind)>(input) {
-            if byte == '\n' as u8 {
+            if byte == b'\n' {
                 // LF line ending; we're done with boundary processing; data bytes follow.
                 self.multipart.flags |= Flags::LF_LINE;
                 self.parser_state = HtpMultipartState::DATA;
@@ -550,24 +726,135 @@ impl Parser {
         }
         HtpStatus::OK
     }
-}
 
-impl Drop for Parser {
-    fn drop(&mut self) {
-        unsafe {
-            // Free the parts.
-            for part in &self.multipart.parts {
-                Box::from_raw(*part);
+    /// Parses one part header.
+    ///
+    /// Returns OK on success, DECLINED on parsing error, ERROR on fatal error.
+    pub fn parse_header(&mut self) -> Result<()> {
+        // We do not allow NUL bytes here.
+        if self.pending_header_line.as_slice().contains(&(b'\0')) {
+            self.multipart.flags |= Flags::NUL_BYTE;
+            return Err(HtpStatus::DECLINED);
+        }
+        // Extract the name and the value
+        if let Ok((_, (name, value))) = header()(self.pending_header_line.as_slice()) {
+            // Now extract the name and the value.
+            let header = Header::new(name.into(), value.into());
+
+            if !header.name.eq_nocase("content-disposition")
+                && !header.name.eq_nocase("content-type")
+            {
+                self.multipart.flags |= Flags::PART_HEADER_UNKNOWN
             }
-            drop(&self.multipart.parts);
+            // Check if the header already exists.
+            if let Some((_, h_existing)) = self
+                .get_current_part()?
+                .headers
+                .get_nocase_mut(header.name.as_slice())
+            {
+                h_existing.value.extend_from_slice(b", ");
+                h_existing.value.extend_from_slice(header.value.as_slice());
+                // Keep track of same-name headers.
+                // FIXME: Normalize the flags? define the symbol in both Flags and Flags and set the value in both from their own namespace
+                h_existing.flags |=
+                    unsafe { UtilFlags::from_bits_unchecked(Flags::PART_HEADER_REPEATED.bits()) };
+                self.multipart.flags |= Flags::PART_HEADER_REPEATED
+            } else {
+                self.get_current_part()?
+                    .headers
+                    .add(header.name.clone(), header);
+            }
+        } else {
+            // Invalid name and/or value found
+            self.multipart.flags |= Flags::PART_HEADER_INVALID;
+            return Err(HtpStatus::DECLINED);
+        }
+        Ok(())
+    }
+
+    /// Parses the Content-Disposition part header.
+    ///
+    /// Returns OK on success (header found and parsed), DECLINED if there is no C-D header or if
+    ///         it could not be processed, and ERROR on fatal error.
+    pub fn parse_c_d(&mut self) -> Result<()> {
+        // Find the C-D header.
+        let part = self.get_current_part()?;
+        let header = {
+            if let Some((_, header)) = part.headers.get_nocase_nozero_mut("content-disposition") {
+                header
+            } else {
+                self.multipart.flags |= Flags::PART_UNKNOWN;
+                return Err(HtpStatus::DECLINED);
+            }
+        };
+
+        // Require "form-data" at the beginning of the header.
+        if let Ok((_, params)) = content_disposition((*header.value).as_slice()) {
+            for (param_name, param_value) in params {
+                match param_name {
+                    b"name" => {
+                        // If we've reached the end of the string that means the
+                        // value was not terminated properly (the second double quote is missing).
+                        // Expecting the terminating double quote.
+                        // Over the terminating double quote.
+                        // Finally, process the parameter value.
+                        // Check that we have not seen the name parameter already.
+                        if !part.name.is_empty() {
+                            self.multipart.flags |= Flags::CD_PARAM_REPEATED;
+                            return Err(HtpStatus::DECLINED);
+                        }
+                        part.name.clear();
+                        part.name.add(param_value);
+                    }
+                    b"filename" => {
+                        // Check that we have not seen the filename parameter already.
+                        match part.file {
+                            Some(_) => {
+                                self.multipart.flags |= Flags::CD_PARAM_REPEATED;
+                                return Err(HtpStatus::DECLINED);
+                            }
+                            None => {
+                                part.file = Some(File::new(
+                                    HtpFileSource::MULTIPART,
+                                    Some(Bstr::from(param_value)),
+                                ));
+                            }
+                        };
+                    }
+                    _ => {
+                        // Unknown parameter.
+                        self.multipart.flags |= Flags::CD_PARAM_UNKNOWN;
+                        return Err(HtpStatus::DECLINED);
+                    }
+                }
+            }
+        } else {
+            self.multipart.flags |= Flags::CD_SYNTAX_INVALID;
+            return Err(HtpStatus::DECLINED);
+        }
+        Ok(())
+    }
+
+    pub fn run_request_file_data_hook(&mut self, is_end: bool) -> Result<()> {
+        //TODO: do without these clones!
+        let data = self.to_consume.clone();
+        let data = if !is_end { data.as_slice() } else { b"" };
+        let hook = self.hook.clone();
+        match &mut self.get_current_part()?.file {
+            // Combine value pieces into a single buffer.
+            // Keep track of the file length.
+            Some(file) => {
+                // Send data to callbacks
+                file.handle_file_data(hook, data.as_ptr(), data.len())
+            }
+            None => Ok(()),
         }
     }
 }
 
 /// Holds information related to a part.
+#[derive(Clone)]
 pub struct Part {
-    /// Pointer to the parser.
-    pub parser: *mut Parser,
     /// Part type; see the * constants.
     pub type_0: HtpMultipartType,
     /// Raw part length (i.e., headers and data).
@@ -588,13 +875,9 @@ pub struct Part {
     pub file: Option<File>,
 }
 
-impl Part {
-    /// Creates a new Multipart part.
-    ///
-    /// Returns New part instance.
-    pub fn new(parser: &mut Parser) -> Part {
-        Part {
-            parser,
+impl Default for Part {
+    fn default() -> Self {
+        Self {
             type_0: HtpMultipartType::UNKNOWN,
             len: 0,
             name: Bstr::with_capacity(64),
@@ -603,333 +886,6 @@ impl Part {
             headers: Table::with_capacity(4),
             file: None,
         }
-    }
-
-    /// Parses the Content-Disposition part header.
-    ///
-    /// Returns OK on success (header found and parsed), DECLINED if there is no C-D header or if
-    ///         it could not be processed, and ERROR on fatal error.
-    pub unsafe fn parse_c_d(&mut self) -> Result<()> {
-        // Find the C-D header.
-        let header = {
-            if let Some((_, header)) = self.headers.get_nocase_nozero_mut("content-disposition") {
-                header
-            } else {
-                (*self.parser).multipart.flags |= Flags::PART_UNKNOWN;
-                return Err(HtpStatus::DECLINED);
-            }
-        };
-
-        // Require "form-data" at the beginning of the header.
-        if let Ok((_, params)) = content_disposition((*header.value).as_slice()) {
-            for (param_name, param_value) in params {
-                match param_name {
-                    b"name" => {
-                        // If we've reached the end of the string that means the
-                        // value was not terminated properly (the second double quote is missing).
-                        // Expecting the terminating double quote.
-                        // Over the terminating double quote.
-                        // Finally, process the parameter value.
-                        // Check that we have not seen the name parameter already.
-                        if !self.name.is_empty() {
-                            (*self.parser).multipart.flags |= Flags::CD_PARAM_REPEATED;
-                            return Err(HtpStatus::DECLINED);
-                        }
-                        self.name.clear();
-                        self.name.add(param_value);
-                    }
-                    b"filename" => {
-                        // Check that we have not seen the filename parameter already.
-                        match self.file {
-                            Some(_) => {
-                                (*self.parser).multipart.flags |= Flags::CD_PARAM_REPEATED;
-                                return Err(HtpStatus::DECLINED);
-                            }
-                            None => {
-                                self.file = Some(File::new(
-                                    HtpFileSource::MULTIPART,
-                                    Some(Bstr::from(param_value)),
-                                ));
-                            }
-                        };
-                    }
-                    _ => {
-                        // Unknown parameter.
-                        (*self.parser).multipart.flags |= Flags::CD_PARAM_UNKNOWN;
-                        return Err(HtpStatus::DECLINED);
-                    }
-                }
-            }
-        } else {
-            (*self.parser).multipart.flags |= Flags::CD_SYNTAX_INVALID;
-            return Err(HtpStatus::DECLINED);
-        }
-        Ok(())
-    }
-
-    /// Parses the Content-Type part header, if present.
-    ///
-    /// Returns OK on success, DECLINED if the C-T header is not present, and ERROR on failure.
-    fn parse_c_t(&mut self) -> Result<()> {
-        if let Some((_, header)) = self.headers.get_nocase_nozero("content-type") {
-            self.content_type = Some(parse_content_type(header.value.as_slice())?);
-            Ok(())
-        } else {
-            Err(HtpStatus::DECLINED)
-        }
-    }
-
-    /// Processes part headers.
-    ///
-    /// Returns OK on success, ERROR on failure.
-    pub fn process_headers(&mut self) -> Result<()> {
-        unsafe {
-            if self.parse_c_d() == Err(HtpStatus::ERROR) {
-                return Err(HtpStatus::ERROR);
-            }
-        }
-        if self.parse_c_t() == Err(HtpStatus::ERROR) {
-            return Err(HtpStatus::ERROR);
-        }
-        Ok(())
-    }
-
-    /// Parses one part header.
-    ///
-    /// Returns OK on success, DECLINED on parsing error, ERROR on fatal error.
-    pub unsafe fn parse_header(&mut self, input: &[u8]) -> Result<()> {
-        // We do not allow NUL bytes here.
-        if input.contains(&('\0' as u8)) {
-            (*self.parser).multipart.flags |= Flags::NUL_BYTE;
-            return Err(HtpStatus::DECLINED);
-        }
-        // Extract the name and the value
-        if let Ok((_, (name, value))) = header()(input) {
-            // Now extract the name and the value.
-            let header = Header::new(name.into(), value.into());
-
-            if header.name.cmp_nocase("content-disposition") != Ordering::Equal
-                && header.name.cmp_nocase("content-type") != Ordering::Equal
-            {
-                (*self.parser).multipart.flags |= Flags::PART_HEADER_UNKNOWN
-            }
-            // Check if the header already exists.
-            if let Some((_, h_existing)) = self.headers.get_nocase_mut(header.name.as_slice()) {
-                h_existing.value.extend_from_slice(b", ");
-                h_existing.value.extend_from_slice(header.value.as_slice());
-                // Keep track of same-name headers.
-                // FIXME: Normalize the flags? define the symbol in both Flags and Flags and set the value in both from their own namespace
-                h_existing.flags |=
-                    UtilFlags::from_bits_unchecked(Flags::PART_HEADER_REPEATED.bits());
-                (*self.parser).multipart.flags |= Flags::PART_HEADER_REPEATED
-            } else {
-                self.headers.add(header.name.clone(), header);
-            }
-        } else {
-            // Invalid name and/or value found
-            (*self.parser).multipart.flags |= Flags::PART_HEADER_INVALID;
-            return Err(HtpStatus::DECLINED);
-        }
-        Ok(())
-    }
-
-    /// Finalizes part processing.
-    ///
-    /// Returns OK on success, ERROR on failure.
-    pub unsafe fn finalize_data(&mut self) -> Result<()> {
-        // Determine if this part is the epilogue.
-        if (*self.parser)
-            .multipart
-            .flags
-            .contains(Flags::SEEN_LAST_BOUNDARY)
-        {
-            if self.type_0 == HtpMultipartType::UNKNOWN {
-                // Assume that the unknown part after the last boundary is the epilogue.
-                if let Some(current_part) = (*self.parser).get_current_part() {
-                    (*current_part).type_0 = HtpMultipartType::EPILOGUE;
-                }
-
-                // But if we've already seen a part we thought was the epilogue,
-                // raise PART_UNKNOWN. Multiple epilogues are not allowed.
-                if (*self.parser).multipart.flags.contains(Flags::HAS_EPILOGUE) {
-                    (*self.parser).multipart.flags |= Flags::PART_UNKNOWN
-                }
-                (*self.parser).multipart.flags |= Flags::HAS_EPILOGUE
-            } else {
-                (*self.parser).multipart.flags |= Flags::PART_AFTER_LAST_BOUNDARY
-            }
-        }
-        // Sanity checks.
-        // Have we seen complete part headers? If we have not, that means that the part ended prematurely.
-        if let Some(current_part) = (*self.parser).get_current_part() {
-            if (*current_part).type_0 != HtpMultipartType::EPILOGUE
-                && (*self.parser).current_part_mode != HtpMultipartMode::DATA
-            {
-                (*self.parser).multipart.flags |= Flags::PART_INCOMPLETE
-            }
-        }
-        // Have we been able to determine the part type? If not, this means
-        // that the part did not contain the C-D header.
-        if self.type_0 == HtpMultipartType::UNKNOWN {
-            (*self.parser).multipart.flags |= Flags::PART_UNKNOWN
-        }
-        // Finalize part value.
-        if self.type_0 == HtpMultipartType::FILE {
-            // Notify callbacks about the end of the file.
-            // Ignore result.
-            let _ = self.run_request_file_data_hook(b"");
-        } else if !(*self.parser).part_data_pieces.is_empty() {
-            self.value.clear();
-            self.value.add((*self.parser).part_data_pieces.as_slice());
-            (*self.parser).part_data_pieces.clear();
-        }
-        Ok(())
-    }
-
-    pub fn run_request_file_data_hook(&mut self, data: &[u8]) -> Result<()> {
-        match &mut self.file {
-            // Combine value pieces into a single buffer.
-            // Keep track of the file length.
-            Some(file) => {
-                // Send data to callbacks
-                file.handle_file_data(unsafe { &(*self.parser).hook }, data.as_ptr(), data.len())
-                    .into()
-            }
-            None => Ok(()),
-        }
-    }
-
-    /// Handles part data.
-    ///
-    /// Returns OK on success, ERROR on failure.
-    pub unsafe fn handle_data(&mut self, data: &[u8], is_line: bool) -> Result<()> {
-        let mut data = data;
-        // End of the line.
-        let mut line: Option<Bstr> = None;
-        // Keep track of raw part length.
-        self.len = (self.len).wrapping_add(data.len());
-        // If we're processing a part that came after the last boundary, then we're not sure if it
-        // is the epilogue part or some other part (in case of evasion attempt). For that reason we
-        // will keep all its data in the part_data_pieces structure. If it ends up not being the
-        // epilogue, this structure will be cleared.
-        if (*self.parser)
-            .multipart
-            .flags
-            .contains(Flags::SEEN_LAST_BOUNDARY)
-            && self.type_0 == HtpMultipartType::UNKNOWN
-        {
-            (*self.parser).part_data_pieces.add(data);
-        }
-        if (*self.parser).current_part_mode == HtpMultipartMode::LINE {
-            // Line mode.
-            if is_line {
-                // If this line came to us in pieces, combine them now into a single buffer.
-                if !(*self.parser).part_header.is_empty() {
-                    // Allocate string
-                    let mut header =
-                        Bstr::with_capacity((*self.parser).part_header.len() + data.len());
-                    header.add((*self.parser).part_header.as_slice());
-                    header.add(data);
-                    line = Some(header);
-                    (*self.parser).part_header.clear();
-                }
-                data = line.as_ref().map(|line| line.as_slice()).unwrap_or(data);
-                // Ignore the line endings.
-                if data.last() == Some(&('\n' as u8)) {
-                    data = &data[..data.len() - 1];
-                }
-                if data.last() == Some(&('\r' as u8)) {
-                    data = &data[..data.len() - 1];
-                }
-                // Is it an empty line?
-                if data.is_empty() {
-                    // Empty line; process headers and switch to data mode.
-                    // Process the pending header, if any.
-                    if !(*self.parser).pending_header_line.is_empty() {
-                        if self.parse_header(&(*(*self.parser).pending_header_line).as_slice())
-                            == Err(HtpStatus::ERROR)
-                        {
-                            return Err(HtpStatus::ERROR);
-                        }
-                        (*self.parser).pending_header_line.clear()
-                    }
-                    if self.process_headers() == Err(HtpStatus::ERROR) {
-                        return Err(HtpStatus::ERROR);
-                    }
-                    (*self.parser).current_part_mode = HtpMultipartMode::DATA;
-                    (*self.parser).part_header.clear();
-
-                    match &mut (*self).file {
-                        Some(file) => {
-                            // Changing part type because we have a filename.
-                            self.type_0 = HtpMultipartType::FILE;
-                            if (*self.parser).cfg.extract_request_files
-                                && (*self.parser).file_count
-                                    < (*self.parser).cfg.extract_request_files_limit
-                            {
-                                file.create(&(*self.parser).cfg.tmpdir)?;
-                                (*self.parser).file_count += 1;
-                            }
-                        }
-                        None => {
-                            if !self.name.is_empty() {
-                                // Changing part type because we have a name.
-                                self.type_0 = HtpMultipartType::TEXT;
-                                (*self.parser).part_data_pieces.clear();
-                            }
-                        }
-                    }
-                } else if (*self.parser).pending_header_line.is_empty() {
-                    if let Some(header) = line {
-                        (*self.parser).pending_header_line.add(header.as_slice());
-                        line = None;
-                    } else {
-                        (*self.parser).pending_header_line.add(data);
-                    }
-                } else if data[0].is_ascii_whitespace() {
-                    // Not an empty line.
-                    // Is there a pending header?
-                    // Is this a folded line?
-                    // Folding; add to the existing line.
-                    (*self.parser).multipart.flags |= Flags::PART_HEADER_FOLDING;
-                    (*self.parser).pending_header_line.add(data);
-                } else {
-                    // Process the pending header line.
-                    if self.parse_header(&(*(*self.parser).pending_header_line).as_slice())
-                        == Err(HtpStatus::ERROR)
-                    {
-                        return Err(HtpStatus::ERROR);
-                    }
-                    (*self.parser).pending_header_line.clear();
-                    if let Some(header) = line {
-                        (*self.parser).pending_header_line.add(header.as_slice());
-                    } else {
-                        (*self.parser).pending_header_line.add(data);
-                    }
-                }
-            } else {
-                // Not end of line; keep the data chunk for later.
-                (*self.parser).part_header.add(data);
-            }
-        } else {
-            // Data mode; keep the data chunk for later (but not if it is a file).
-            match self.type_0 {
-                HtpMultipartType::FILE => {
-                    // Invoke file data callbacks.
-                    // Ignore error.
-                    let _ = self.run_request_file_data_hook(data);
-                    // Optionally, store the data in a file.
-                    if let Some(file) = &mut (*self).file {
-                        return file.write(data);
-                    }
-                }
-                _ => {
-                    // Make a copy of the data in RAM.
-                    (*self.parser).part_data_pieces.add(data);
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -992,7 +948,7 @@ pub struct Multipart {
     /// How many boundaries were there?
     pub boundary_count: i32,
     /// List of parts, in the order in which they appeared in the body.
-    pub parts: List<*mut Part>,
+    pub parts: List<Part>,
     /// Parsing flags.
     pub flags: Flags,
 }
@@ -1010,7 +966,7 @@ fn content_disposition_param() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Vec<u
                 take_ascii_whitespace(),
                 char(';'),
                 take_ascii_whitespace(),
-                take_while(|c: u8| c != '=' as u8 && !c.is_ascii_whitespace()),
+                take_while(|c: u8| c != b'=' && !c.is_ascii_whitespace()),
                 take_ascii_whitespace(),
                 char('='),
                 take_ascii_whitespace(),
@@ -1022,7 +978,7 @@ fn content_disposition_param() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Vec<u
         let mut param_value = Vec::new();
         loop {
             let (left, (value, to_insert)) = tuple((
-                take_while(|c: u8| c != '\"' as u8 && c != '\\' as u8),
+                take_while(|c: u8| c != b'\"' && c != b'\\'),
                 opt(tuple((char('\\'), alt((char('\"'), char('\\')))))),
             ))(remaining_input)?;
             remaining_input = left;
@@ -1047,7 +1003,7 @@ fn content_disposition_param() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Vec<u
 ///  - Chrome encodes " as %22.
 ///  - IE encodes " as \", and \ is not encoded.
 ///  - Opera encodes " as \" and \ as \\.
-fn content_disposition<'a>(input: &'a [u8]) -> IResult<&'a [u8], Vec<(&'a [u8], Vec<u8>)>> {
+fn content_disposition(input: &[u8]) -> IResult<&[u8], Vec<(&[u8], Vec<u8>)>> {
     // Multiple header values are seperated by a ", ": https://tools.ietf.org/html/rfc7230#section-3.2.2
     map(
         tuple((
@@ -1060,7 +1016,7 @@ fn content_disposition<'a>(input: &'a [u8]) -> IResult<&'a [u8], Vec<(&'a [u8], 
                     take_ascii_whitespace(),
                 )),
                 Vec::new(),
-                |mut acc: Vec<(&'a [u8], Vec<u8>)>, (param, _, _, _)| {
+                |mut acc: Vec<(&[u8], Vec<u8>)>, (param, _, _, _)| {
                     acc.push(param);
                     acc
                 },
@@ -1107,7 +1063,7 @@ fn validate_boundary(boundary: &[u8], flags: &mut Flags) {
     // Check boundary characters. This check is stricter than the
     // RFC, which seems to allow many separator characters.
     for byte in boundary {
-        if !byte.is_ascii_alphanumeric() && *byte != '-' as u8 {
+        if !byte.is_ascii_alphanumeric() && *byte != b'-' {
             match *byte as char {
                 '\'' | '(' | ')' | '+' | '_' | ',' | '.' | '/' | ':' | '=' | '?' => {
                     // These characters are allowed by the RFC, but not common.
@@ -1162,15 +1118,15 @@ fn validate_content_type(content_type: &[u8], flags: &mut Flags) {
 /// Does not allow leading or trailing whitespace for a name, but allows leading and trailing whitespace for the value.
 ///
 /// Returns a tuple of a valid name and value
-fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> {
+fn header() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     move |input| {
         let (value, (name, _, _, _)) = tuple((
             // The name must not be empty and must consist only of token characters (i.e., no spaces, seperators, control characters, etc)
-            take_while1(|c: u8| is_token(c)),
+            take_while1(is_token),
             // First non token character must be a colon, to seperate name and value
             tag(":"),
             // Allow whitespace between the colon and the value
-            take_while(|c| nom_is_space(c)),
+            nom_take_is_space,
             // Peek ahead to ensure a non empty header value
             peek(take(1usize)),
         ))(input)?;
@@ -1180,19 +1136,19 @@ fn header<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> 
 
 /// Attempts to locate and extract the boundary from an input slice, returning a tuple of the matched
 /// boundary and any leading/trailing whitespace and non whitespace characters that might be relevant
-fn boundary<'a>() -> impl Fn(
-    &'a [u8],
+fn boundary() -> impl Fn(
+    &[u8],
 ) -> IResult<
-    &'a [u8],
+    &[u8],
     (
-        &'a [u8],
-        &'a [u8],
-        &'a [u8],
+        &[u8],
+        &[u8],
+        &[u8],
         Option<char>,
-        &'a [u8],
+        &[u8],
         Option<char>,
-        &'a [u8],
-        &'a [u8],
+        &[u8],
+        &[u8],
     ),
 > {
     move |input| {
@@ -1200,10 +1156,10 @@ fn boundary<'a>() -> impl Fn(
             tuple((
                 take_until_no_case(b"boundary"),
                 tag_no_case("boundary"),
-                take_while(|c: u8| is_space(c)),
+                take_is_space,
                 take_until("="),
                 tag("="),
-                take_while(|c: u8| is_space(c)),
+                take_is_space,
                 peek(opt(char('\"'))),
                 alt((
                     map(tuple((tag("\""), take_until("\""))), |(_, boundary)| {
@@ -1211,15 +1167,15 @@ fn boundary<'a>() -> impl Fn(
                     }),
                     map(
                         tuple((
-                            take_while(|c: u8| c != ',' as u8 && c != ';' as u8 && !is_space(c)),
+                            take_while(|c: u8| c != b',' && c != b';' && !is_space(c)),
                             opt(alt((char(','), char(';')))), //Skip the matched character if we matched one without hitting the end
                         )),
                         |(boundary, _)| boundary,
                     ),
                 )),
                 peek(opt(char('\"'))),
-                take_while(|c: u8| is_space(c)),
-                take_while(|c: u8| !is_space(c)),
+                take_is_space,
+                take_while(|c| !is_space(c)),
             )),
             |(
                 _,
@@ -1295,8 +1251,8 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut Flags) -> Option<&'
             *flags |= Flags::HBOUNDARY_UNUSUAL
         }
         if !chars_before_equal.is_empty()
-            || (opening_quote.is_some() && !closing_quote.is_some())
-            || (!opening_quote.is_some() && closing_quote.is_some())
+            || (opening_quote.is_some() && closing_quote.is_none())
+            || (opening_quote.is_none() && closing_quote.is_some())
             || !chars_after_boundary.is_empty()
         {
             // Seeing a non-whitespace character before equal sign may indicate evasion

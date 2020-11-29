@@ -730,7 +730,7 @@ impl ConnectionParser {
         self.cfg.hook_request_body_data.run_all(d)?;
         // On PUT requests, treat request body as file
         if let Some(file) = &mut self.put_file {
-            file.handle_file_data(&self.cfg.hook_request_file_data, d.data(), d.len())?;
+            file.handle_file_data(self.cfg.hook_request_file_data.clone(), d.data(), d.len())?;
         }
         Ok(())
     }
