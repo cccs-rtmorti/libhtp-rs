@@ -18,12 +18,9 @@ use nom::{
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
 };
 use std::{
-    cmp::Ordering,
     io::{Cursor, Seek, SeekFrom},
     mem::take,
 };
-
-/// HTTP methods.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -285,7 +282,10 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
     pub fn req_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
-        let bytes_to_consume: usize = std::cmp::min(data.len(), self.in_chunked_length as usize);
+        let bytes_to_consume: usize = std::cmp::min(
+            data.len(),
+            self.in_chunked_length.map(|len| len).unwrap_or(0) as usize,
+        );
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
@@ -298,12 +298,13 @@ impl ConnectionParser {
         self.in_tx_mut_ok()?.request_message_len = (self.in_tx_mut_ok()?.request_message_len as u64)
             .wrapping_add(bytes_to_consume as u64)
             as i64;
-        self.in_chunked_length =
-            (self.in_chunked_length as u64).wrapping_sub(bytes_to_consume as u64) as i64;
-        if self.in_chunked_length == 0 {
-            // End of the chunk.
-            self.in_state = State::BODY_CHUNKED_DATA_END;
-            return Ok(());
+        if let Some(len) = &mut self.in_chunked_length {
+            *len = len.wrapping_sub(bytes_to_consume as i32);
+            if *len == 0 {
+                // End of the chunk.
+                self.in_state = State::BODY_CHUNKED_DATA_END;
+                return Ok(());
+            }
         }
         // Ask for more data.
         Err(HtpStatus::DATA)
@@ -325,34 +326,32 @@ impl ConnectionParser {
             self.in_tx_mut_ok()?.request_message_len =
                 (self.in_tx_mut_ok()?.request_message_len as u64).wrapping_add(data.len() as u64)
                     as i64;
-            if let Ok(Some(chunked_len)) = parse_chunked_length(&data) {
-                self.in_chunked_length = chunked_len as i64;
-            } else {
-                self.in_chunked_length = -1;
-            }
-
             // Handle chunk length.
-            match self.in_chunked_length.cmp(&0) {
-                Ordering::Equal => {
-                    // End of data.
-                    self.in_state = State::HEADERS;
-                    self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER
+            match parse_chunked_length(&data) {
+                Ok(len) => {
+                    self.in_chunked_length = len;
+                    if let Some(len) = len {
+                        if len > 0 {
+                            // More data available.
+                            self.in_state = State::BODY_CHUNKED_DATA
+                        } else if len == 0 {
+                            // End of data
+                            self.in_state = State::HEADERS;
+                            self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER
+                        }
+                        Ok(())
+                    } else {
+                        // Invalid chunk length
+                        htp_error!(
+                            self,
+                            HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
+                            "Request chunk encoding: Invalid chunk length"
+                        );
+                        Err(HtpStatus::ERROR)
+                    }
                 }
-                Ordering::Greater => {
-                    // More data available.
-                    self.in_state = State::BODY_CHUNKED_DATA
-                }
-                _ => {
-                    // Invalid chunk length.
-                    htp_error!(
-                        self,
-                        HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
-                        "Request chunk encoding: Invalid chunk length"
-                    );
-                    return Err(HtpStatus::ERROR);
-                }
+                Err(_) => Err(HtpStatus::ERROR),
             }
-            Ok(())
         } else {
             return self.handle_in_absent_lf(data);
         }

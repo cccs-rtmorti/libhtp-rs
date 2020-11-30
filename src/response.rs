@@ -164,7 +164,10 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
     pub fn res_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
-        let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_chunked_length as usize);
+        let bytes_to_consume: usize = std::cmp::min(
+            data.len(),
+            self.out_chunked_length.map(|len| len).unwrap_or(0) as usize,
+        );
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
@@ -173,13 +176,15 @@ impl ConnectionParser {
         // Adjust the counters.
         self.out_curr_data
             .seek(SeekFrom::Current(bytes_to_consume as i64))?;
-        self.out_chunked_length =
-            (self.out_chunked_length as u64).wrapping_sub(bytes_to_consume as u64) as i64;
-        // Have we seen the entire chunk?
-        if self.out_chunked_length == 0 {
-            self.out_state = State::BODY_CHUNKED_DATA_END;
-            return Ok(());
+        if let Some(len) = &mut self.out_chunked_length {
+            *len = len.wrapping_sub(bytes_to_consume as i32);
+            // Have we seen the entire chunk?
+            if *len == 0 {
+                self.out_state = State::BODY_CHUNKED_DATA_END;
+                return Ok(());
+            }
         }
+
         Err(HtpStatus::DATA)
     }
 
@@ -200,39 +205,37 @@ impl ConnectionParser {
                     (self.out_tx_mut_ok()?.response_message_len as u64)
                         .wrapping_add(data.len() as u64) as i64;
 
-                if let Ok(chunked_length) = parse_chunked_length(&data) {
-                    if let Some(chunked_length) = chunked_length {
-                        self.out_chunked_length = chunked_length as i64;
-                    } else {
-                        // empty chunk length line, dont change state & try again
-                        return Ok(());
+                match parse_chunked_length(&data) {
+                    Ok(len) => {
+                        self.out_chunked_length = len;
+                        // Handle chunk length
+                        if let Some(len) = len {
+                            if len > 0 {
+                                // More data available
+                                self.out_state = State::BODY_CHUNKED_DATA
+                            } else if len == 0 {
+                                // End of data
+                                self.out_state = State::HEADERS;
+                                self.out_tx_mut_ok()?.response_progress =
+                                    HtpResponseProgress::TRAILER
+                            } else {
+                                // empty chunk length line, lets try to continue
+                                return Ok(());
+                            }
+                        }
                     }
-                } else {
-                    self.out_chunked_length = -1;
+                    Err(_) => {
+                        self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
+                        self.out_tx_mut_ok()?.response_transfer_coding =
+                            HtpTransferCoding::IDENTITY;
+                        htp_error!(
+                            self,
+                            HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
+                            format!("Response chunk encoding: Invalid chunk length")
+                        );
+                    }
                 }
-                self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-                self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
-                htp_error!(
-                    self,
-                    HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
-                    format!(
-                        "Response chunk encoding: Invalid chunk length: {}",
-                        self.out_chunked_length
-                    )
-                );
-                // Handle chunk length
-                match self.out_chunked_length.cmp(&0) {
-                    Ordering::Equal => {
-                        // End of data
-                        self.out_state = State::HEADERS;
-                        self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::TRAILER
-                    }
-                    Ordering::Greater => {
-                        // More data available
-                        self.out_state = State::BODY_CHUNKED_DATA
-                    }
-                    _ => {}
-                }
+
                 Ok(())
             }
             _ => self.handle_out_absent_lf(data),

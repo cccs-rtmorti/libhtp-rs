@@ -97,7 +97,7 @@ pub struct ConnectionParser {
     pub in_body_data_left: i64,
     /// Holds the amount of data that needs to be read from the
     /// current data chunk. Only used with chunked request bodies.
-    pub in_chunked_length: i64,
+    pub in_chunked_length: Option<i32>,
     /// Current request parser state.
     pub in_state: State,
     /// Previous request parser state. Used to detect state changes.
@@ -131,7 +131,7 @@ pub struct ConnectionParser {
     pub out_body_data_left: i64,
     /// Holds the amount of data that needs to be read from the
     /// current response data chunk. Only used with chunked response bodies.
-    pub out_chunked_length: i64,
+    pub out_chunked_length: Option<i32>,
     /// Current response parser state.
     pub out_state: State,
     /// Previous response parser state.
@@ -173,7 +173,7 @@ impl ConnectionParser {
             in_tx: None,
             in_content_length: 0,
             in_body_data_left: 0,
-            in_chunked_length: 0,
+            in_chunked_length: None,
             in_state: State::IDLE,
             in_state_previous: State::NONE,
             in_data_receiver_hook: None,
@@ -186,7 +186,7 @@ impl ConnectionParser {
             out_tx: None,
             out_content_length: 0,
             out_body_data_left: 0,
-            out_chunked_length: 0,
+            out_chunked_length: None,
             out_state: State::IDLE,
             out_state_previous: State::NONE,
             out_data_receiver_hook: None,
