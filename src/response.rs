@@ -9,7 +9,7 @@ use crate::{
     transaction::{Data, HtpProtocol, HtpResponseProgress, HtpTransferCoding},
     uri::Uri,
     util::{
-        chomp, is_line_folded, is_line_ignorable, is_space, sep_by_line_endings, take_till_lf,
+        chomp, is_line_folded, is_line_ignorable, is_space, res_sep_by_line_endings, take_till_lf,
         treat_response_line_as_body, Flags,
     },
     HtpStatus,
@@ -574,7 +574,7 @@ impl ConnectionParser {
                 _ => false,
             }
         };
-        if let Ok((_, headers)) = sep_by_line_endings(data) {
+        if let Ok((_, headers)) = res_sep_by_line_endings(data) {
             let mut header: &[u8] = b"";
             for (i, val) in headers.iter().enumerate() {
                 // header

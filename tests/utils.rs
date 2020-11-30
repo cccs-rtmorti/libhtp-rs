@@ -1583,10 +1583,10 @@ fn TakeTillLF() {
 
 #[test]
 fn SepByLineEndings() {
-    let sep = sep_by_line_endings(b"Content-Type: test/html\r\n");
+    let sep = res_sep_by_line_endings(b"Content-Type: test/html\r\n");
     let res = vec![&b"Content-Type: test/html"[..], &b"\r\n"[..]];
     assert_eq!(sep, Ok((&b""[..], res)));
-    let sep = sep_by_line_endings(b"Content-Type: test/html\r\nContent-Length: 6\r\n\r\n");
+    let sep = res_sep_by_line_endings(b"Content-Type: test/html\r\nContent-Length: 6\r\n\r\n");
     let res = vec![
         &b"Content-Type: test/html"[..],
         &b"\r\n"[..],
@@ -1595,7 +1595,7 @@ fn SepByLineEndings() {
     ];
     assert_eq!(sep, Ok((&b""[..], res)));
 
-    let sep = sep_by_line_endings(b"Content-Type: test/html\nContent-Length: 6\n\n");
+    let sep = res_sep_by_line_endings(b"Content-Type: test/html\nContent-Length: 6\n\n");
     let res = vec![
         &b"Content-Type: test/html"[..],
         &b"\n"[..],
@@ -1604,7 +1604,7 @@ fn SepByLineEndings() {
     ];
     assert_eq!(sep, Ok((&b""[..], res)));
 
-    let sep = sep_by_line_endings(b"Content-Type: test/html\rContent-Length: 6\r\r");
+    let sep = res_sep_by_line_endings(b"Content-Type: test/html\rContent-Length: 6\r\r");
     let res = vec![
         &b"Content-Type: test/html"[..],
         &b"\r"[..],
@@ -1613,7 +1613,7 @@ fn SepByLineEndings() {
     ];
     assert_eq!(sep, Ok((&b""[..], res)));
 
-    let sep = sep_by_line_endings(b"Content-Type: test/html\r\nContent-Length: 6\n\r\r\n\r\n");
+    let sep = res_sep_by_line_endings(b"Content-Type: test/html\r\nContent-Length: 6\n\r\r\n\r\n");
     let res = vec![
         &b"Content-Type: test/html"[..],
         &b"\r\n"[..],
@@ -1623,7 +1623,7 @@ fn SepByLineEndings() {
     assert_eq!(sep, Ok((&b""[..], res)));
 
     // Incomplete line
-    let sep = sep_by_line_endings(b"Content-Type: test/html\r\nContent-Le");
+    let sep = res_sep_by_line_endings(b"Content-Type: test/html\r\nContent-Le");
     let res = vec![
         &b"Content-Type: test/html"[..],
         &b"\r\n"[..],

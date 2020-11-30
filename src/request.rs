@@ -7,8 +7,8 @@ use crate::{
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
         chomp, convert_to_method, is_folding_char, is_line_folded, is_line_ignorable,
-        is_line_terminator, is_space, nom_take_is_space, take_is_space, take_not_is_space,
-        take_till_lf, take_till_lf_null, ConnectionFlags, Flags,
+        is_line_terminator, is_space, nom_take_is_space, req_sep_by_line_endings, take_is_space,
+        take_not_is_space, take_till_lf, take_till_lf_null, ConnectionFlags, Flags,
     },
     HtpStatus,
 };
@@ -20,6 +20,7 @@ use nom::{
 use std::{
     cmp::Ordering,
     io::{Cursor, Seek, SeekFrom},
+    mem::take,
 };
 
 /// HTTP methods.
@@ -318,7 +319,7 @@ impl ConnectionParser {
             if !self.in_buf.is_empty() {
                 self.check_in_buffer_limit(line.len())?;
             }
-            let mut data = std::mem::take(&mut self.in_buf);
+            let mut data = take(&mut self.in_buf);
             data.add(line);
 
             self.in_tx_mut_ok()?.request_message_len =
@@ -424,28 +425,40 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
     pub fn req_headers(&mut self, data: &[u8]) -> Result<()> {
-        let mut rest = data;
-        loop {
-            if self.in_status == HtpStreamState::CLOSED {
-                // Parse previous header, if any.
-                if let Some(in_header) = self.in_header.take() {
-                    self.process_request_header(in_header.as_slice())?;
-                }
-                self.in_buf.clear();
-                self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER;
-                // We've seen all the request headers.
-                return self.state_request_headers();
+        let mut header: &[u8] = b"";
+        if self.in_status == HtpStreamState::CLOSED {
+            // Parse previous header, if any.
+            if let Some(in_header) = self.in_header.take() {
+                self.process_request_header(in_header.as_slice())?;
             }
-            if let Ok((remaining, line)) = take_till_lf(rest) {
-                self.in_curr_data
-                    .seek(SeekFrom::Current(line.len() as i64))?;
-                if !self.in_buf.is_empty() {
-                    self.check_in_buffer_limit(line.len())?;
-                }
-                let mut data = std::mem::take(&mut self.in_buf);
-                data.add(line);
+            self.in_buf.clear();
+            self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER;
+            // We've seen all the request headers.
+            return self.state_request_headers().into();
+        }
 
-                rest = remaining;
+        if let Ok((_, headers)) = req_sep_by_line_endings(data) {
+            for (i, val) in headers.iter().enumerate() {
+                // if its header data.
+                if val != b"\n" && val != b"\r\n" {
+                    header = val;
+                    if i == headers.len() - 1 {
+                        return self.handle_in_absent_lf(val);
+                    }
+                    self.in_curr_data
+                        .seek(SeekFrom::Current(val.len() as i64))?;
+                    continue;
+                }
+
+                // we reached eol.
+                self.in_curr_data
+                    .seek(SeekFrom::Current(val.len() as i64))?;
+                if !self.in_buf.is_empty() {
+                    self.check_in_buffer_limit(header.len() + val.len())?;
+                }
+                let mut data = take(&mut self.in_buf);
+                data.add(header);
+                data.add(val);
                 if is_line_terminator(self.cfg.server_personality, &data, false) {
                     // Parse previous header, if any.
                     if let Some(in_header) = self.in_header.take() {
@@ -454,47 +467,48 @@ impl ConnectionParser {
                     // We've seen all the request headers.
                     return self.state_request_headers().into();
                 }
-
-                let chomped = chomp(&data);
-                if !is_line_folded(chomped) {
+                let data = chomp(&data);
+                if !is_line_folded(data) {
                     // New header line.
                     // Parse previous header, if any.
                     if let Some(in_header) = self.in_header.take() {
                         self.process_request_header(in_header.as_slice())?;
                     }
 
-                    if let Some(byte) = remaining.get(0) {
-                        if !is_folding_char(*byte) {
-                            // Because we know this header is not folded, we can process the buffer straight away.
-                            self.process_request_header(chomped)?;
-                        } else {
-                            self.in_header = Some(Bstr::from(chomped));
+                    if let Some(next) = headers.get(i + 1) {
+                        if let Some(byte) = next.get(0) {
+                            if !is_folding_char(*byte) {
+                                self.process_request_header(data)?;
+                            } else {
+                                self.in_header = Some(Bstr::from(data));
+                            }
                         }
                     } else {
-                        // Keep the partial header data for parsing later.
-                        self.in_header = Some(Bstr::from(chomped));
+                        self.in_header = Some(Bstr::from(data));
                     }
-                } else if self.in_header.is_none() {
-                    // Folding; check that there's a previous header line to add to.
-                    // Invalid folding.
-                    // Warn only once per transaction.
-                    if !self.in_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
-                        self.in_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                        htp_warn!(
-                            self,
-                            HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
-                            "Invalid request field folding"
-                        );
+                } else {
+                    if let Some(header) = &mut self.in_header {
+                        header.add(&data);
+                    } else {
+                        // Invalid folding.
+                        // Warn only once per transaction.
+                        if !self.in_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
+                            self.in_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
+                            htp_warn!(
+                                self,
+                                HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
+                                "Invalid request field folding"
+                            );
+                        }
+                        // Keep the header data for parsing later.
+                        self.in_header = Some(Bstr::from(data));
                     }
-                    // Keep the header data for parsing later.
-                    self.in_header = Some(Bstr::from(chomped));
-                } else if let Some(header) = &mut self.in_header {
-                    // Add to the existing header.
-                    header.add(&chomped);
                 }
-            } else {
-                self.handle_in_absent_lf(rest)?;
+                header = b"";
             }
+            Ok(())
+        } else {
+            self.handle_in_absent_lf(data)
         }
     }
 
@@ -550,7 +564,7 @@ impl ConnectionParser {
         if !self.in_buf.is_empty() {
             self.check_in_buffer_limit(line.len())?;
         }
-        let mut data = std::mem::take(&mut self.in_buf);
+        let mut data = take(&mut self.in_buf);
         data.add(line);
         if data.is_empty() {
             return Err(HtpStatus::DATA);
@@ -618,7 +632,7 @@ impl ConnectionParser {
             self.check_in_buffer_limit(work.len())?;
         }
         self.in_buf.add(work);
-        let mut data = std::mem::take(&mut self.in_buf);
+        let mut data = take(&mut self.in_buf);
 
         if data.is_empty() {
             return self.state_request_complete();
@@ -660,7 +674,7 @@ impl ConnectionParser {
             self.in_body_data_left = -1;
         }
 
-        self.in_buf = std::mem::take(&mut data);
+        self.in_buf = take(&mut data);
         if (self.in_curr_data.position() as i64) < self.in_buf.len() as i64 {
             self.in_curr_data.set_position(0);
         } else {
@@ -874,6 +888,7 @@ impl ConnectionParser {
         }
     }
 
+    // Return total length of current request chunk.
     pub fn in_curr_len(&self) -> i64 {
         self.in_curr_data.get_ref().len() as i64
     }

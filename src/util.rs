@@ -1204,6 +1204,15 @@ pub fn take_till_lf(data: &[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
+/// Returns a vector of data followed by line ending.
+pub fn req_sep_by_line_endings(data: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+    let header_parser = alt((
+        take_while1(|c: u8| c != b'\n' && c != b'\r'),
+        alt((tag("\r\n"), tag("\n"))),
+    ));
+    return many1(header_parser)(data);
+}
+
 /// Returns all data up to and including the first lf or cr character
 /// Returns Err if not found
 pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -1215,7 +1224,8 @@ pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
-pub fn sep_by_line_endings(data: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+/// Returns a vector of data followed by line endings.
+pub fn res_sep_by_line_endings(data: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
     let header_parser = alt((
         take_while1(|c: u8| c != b'\n' && c != b'\r'),
         alt((
