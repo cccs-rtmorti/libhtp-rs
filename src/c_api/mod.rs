@@ -2,7 +2,7 @@ use crate::{
     bstr::Bstr,
     config::{create, Config, HtpServerPersonality, HtpUrlEncodingHandling},
     connection::Connection,
-    connection_parser::{ConnectionParser, HtpStreamState, Time},
+    connection_parser::{ConnectionParser, HtpStreamState},
     hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn},
     list::List,
     log::{HtpLogCode, Log},
@@ -10,10 +10,13 @@ use crate::{
     util::{get_version, urldecode_inplace, Flags},
     HtpStatus,
 };
+use chrono::{DateTime, NaiveDateTime, Utc};
 use std::{
     convert::TryFrom,
     ffi::{CStr, CString},
 };
+
+pub type Time = libc::timeval;
 
 pub mod bstr;
 pub mod lzma;
@@ -414,7 +417,12 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_close(connp: *mut ConnectionParser, timestamp: *const Time) {
     if let Some(connp) = connp.as_mut() {
-        connp.close(timestamp.as_ref().map(|val| val.clone()))
+        connp.close(timestamp.as_ref().map(|val| {
+            DateTime::<Utc>::from_utc(
+                NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
+                Utc,
+            )
+        }))
     }
 }
 
@@ -499,7 +507,12 @@ pub unsafe extern "C" fn htp_connp_open(
     } else {
         None
     };
-    let timestamp = timestamp.as_ref().map(|timestamp| timestamp.clone());
+    let timestamp = timestamp.as_ref().map(|timestamp| {
+        DateTime::<Utc>::from_utc(
+            NaiveDateTime::from_timestamp(timestamp.tv_sec, timestamp.tv_usec as u32),
+            Utc,
+        )
+    });
     connp.open(
         client_addr,
         client_port,
@@ -515,7 +528,12 @@ pub unsafe extern "C" fn htp_connp_open(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_close(connp: *mut ConnectionParser, timestamp: *const Time) {
     if let Some(connp) = connp.as_mut() {
-        connp.req_close(timestamp.as_ref().map(|val| val.clone()))
+        connp.req_close(timestamp.as_ref().map(|val| {
+            DateTime::<Utc>::from_utc(
+                NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
+                Utc,
+            )
+        }))
     }
 }
 
@@ -532,7 +550,16 @@ pub unsafe extern "C" fn htp_connp_req_data(
     len: libc::size_t,
 ) -> HtpStreamState {
     if let Some(connp) = connp.as_mut() {
-        connp.req_data(timestamp.as_ref().map(|val| val.clone()), data, len)
+        connp.req_data(
+            timestamp.as_ref().map(|val| {
+                DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
+                    Utc,
+                )
+            }),
+            data,
+            len,
+        )
     } else {
         HtpStreamState::ERROR
     }
@@ -550,7 +577,16 @@ pub unsafe extern "C" fn htp_connp_res_data(
     len: libc::size_t,
 ) -> HtpStreamState {
     if let Some(connp) = connp.as_mut() {
-        connp.res_data(timestamp.as_ref().map(|val| val.clone()), data, len)
+        connp.res_data(
+            timestamp.as_ref().map(|val| {
+                DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
+                    Utc,
+                )
+            }),
+            data,
+            len,
+        )
     } else {
         HtpStreamState::ERROR
     }

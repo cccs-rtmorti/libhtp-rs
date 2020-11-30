@@ -121,20 +121,18 @@ pub fn callback_multipart_request_body_data(d: &mut Data) -> Result<()> {
         } else {
             // Finalize parsing.
             // Ignore result.
-            unsafe {
-                let _ = parser.finalize();
-                //TODO: Remove this clone
-                for part in &parser.get_multipart().parts.clone() {
-                    // Use text parameters.
-                    if part.type_0 == HtpMultipartType::TEXT {
-                        let param = Param::new(
-                            Bstr::from((*part.name).as_slice()),
-                            Bstr::from((*part.value).as_slice()),
-                            HtpDataSource::BODY,
-                            HtpParserId::MULTIPART,
-                        );
-                        tx.req_add_param(param)?;
-                    }
+            let _ = parser.finalize();
+            //TODO: Remove this clone
+            for part in &parser.get_multipart().parts.clone() {
+                // Use text parameters.
+                if part.type_0 == HtpMultipartType::TEXT {
+                    let param = Param::new(
+                        Bstr::from((*part.name).as_slice()),
+                        Bstr::from((*part.value).as_slice()),
+                        HtpDataSource::BODY,
+                        HtpParserId::MULTIPART,
+                    );
+                    tx.req_add_param(param)?;
                 }
             }
         }

@@ -28,6 +28,7 @@ tempfile = "3.1.0"
 lzma-rs = { git = "https://github.com/cccs-sadugas/lzma-rs.git", branch = "streaming-decompressor-v4", features = ["stream"] }
 flate2 = "1.0"
 lazy_static = "1.4.0"
+chrono = "0.4.19"
 
 [dev-dependencies]
 criterion = "0.3"

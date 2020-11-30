@@ -12,6 +12,7 @@ use crate::{
     },
     HtpStatus,
 };
+use chrono::{DateTime, Utc};
 use nom::{
     branch::alt, bytes::complete::take_until, character::complete::char,
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
@@ -59,8 +60,6 @@ pub enum HtpMethod {
     INVALID,
     ERROR,
 }
-
-pub type Time = libc::timeval;
 
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
@@ -738,7 +737,7 @@ impl ConnectionParser {
     /// Returns HtpStreamState
     pub fn req_data(
         &mut self,
-        timestamp: Option<Time>,
+        timestamp: Option<DateTime<Utc>>,
         data: *const core::ffi::c_void,
         len: usize,
     ) -> HtpStreamState {

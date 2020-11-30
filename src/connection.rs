@@ -5,9 +5,8 @@ use crate::{
     transaction::{Transaction, Transactions},
     util::ConnectionFlags,
 };
-use std::{cell::RefCell, net::IpAddr};
-
-pub type Time = libc::timeval;
+use chrono::{DateTime, Utc};
+use std::{cell::RefCell, net::IpAddr, time::SystemTime};
 
 pub struct Connection {
     /// Client IP address.
@@ -28,9 +27,9 @@ pub struct Connection {
     /// Parsing flags: HTP_CONN_PIPELINED.
     pub flags: ConnectionFlags,
     /// When was this connection opened? Can be NULL.
-    pub open_timestamp: Time,
+    pub open_timestamp: DateTime<Utc>,
     /// When was this connection closed? Can be NULL.
-    pub close_timestamp: Time,
+    pub close_timestamp: DateTime<Utc>,
     /// Inbound data counter.
     pub in_data_counter: i64,
     /// Outbound data counter.
@@ -47,14 +46,8 @@ impl Connection {
             transactions: List::with_capacity(16),
             messages: RefCell::new(List::with_capacity(8)),
             flags: ConnectionFlags::UNKNOWN,
-            open_timestamp: Time {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
-            close_timestamp: Time {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
+            open_timestamp: DateTime::<Utc>::from(SystemTime::now()),
+            close_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             in_data_counter: 0,
             out_data_counter: 0,
         }
@@ -119,7 +112,7 @@ impl Connection {
         client_port: Option<u16>,
         server_addr: Option<IpAddr>,
         server_port: Option<u16>,
-        timestamp: Option<Time>,
+        timestamp: Option<DateTime<Utc>>,
     ) {
         self.client_addr = client_addr;
         self.client_port = client_port;
@@ -133,7 +126,7 @@ impl Connection {
     }
 
     /// Closes the connection.
-    pub fn close(&mut self, timestamp: Option<Time>) {
+    pub fn close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Update timestamp.
         if let Some(timestamp) = timestamp {
             self.close_timestamp = timestamp;

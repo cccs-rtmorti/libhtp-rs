@@ -1,14 +1,18 @@
+use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use htp::c_api::{htp_connp_create, htp_connp_destroy_all};
-use htp::config;
-use htp::config::HtpServerPersonality::*;
-use htp::connection_parser::*;
-use std::convert::TryInto;
-use std::fmt;
-use std::iter::IntoIterator;
-use std::net::{IpAddr, Ipv4Addr};
-use std::ops::Drop;
-use std::time::Duration;
+use htp::{
+    c_api::{htp_connp_create, htp_connp_destroy_all},
+    config::{create, Config, HtpServerPersonality},
+    connection_parser::*,
+};
+use std::{
+    convert::TryInto,
+    fmt,
+    iter::IntoIterator,
+    net::{IpAddr, Ipv4Addr},
+    ops::Drop,
+    time::{Duration, SystemTime},
+};
 
 #[derive(Debug, Clone)]
 enum Chunk {
@@ -43,15 +47,17 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut config::Config,
+    cfg: *mut Config,
     connp: *mut ConnectionParser,
 }
 
 impl Test {
     fn new() -> Self {
         unsafe {
-            let cfg = config::create();
-            (*cfg).set_server_personality(APACHE_2).unwrap();
+            let cfg = create();
+            (*cfg)
+                .set_server_personality(HtpServerPersonality::APACHE_2)
+                .unwrap();
             (*cfg).register_urlencoded_parser();
             (*cfg).register_multipart_parser();
             let connp = htp_connp_create(cfg);
@@ -63,11 +69,7 @@ impl Test {
 
     fn run(&mut self, test: TestInput) -> Result<(), TestError> {
         unsafe {
-            let mut tv_start = libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            };
-            libc::gettimeofday(&mut tv_start, std::ptr::null_mut());
+            let tv_start = DateTime::<Utc>::from(SystemTime::now());
             (*self.connp).open(
                 Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
                 Some(10000),
@@ -163,12 +165,7 @@ impl Test {
                 }
             }
 
-            let mut tv_end = libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            };
-            libc::gettimeofday(&mut tv_end, std::ptr::null_mut());
-            (*self.connp).close(Some(tv_end));
+            (*self.connp).close(Some(DateTime::<Utc>::from(SystemTime::now())));
         }
         Ok(())
     }

@@ -14,14 +14,13 @@ use crate::{
     },
     HtpStatus,
 };
+use chrono::{DateTime, Utc};
 use nom::{bytes::streaming::take_till as streaming_take_till, error::ErrorKind};
 use std::{
     cmp::Ordering,
     io::{Cursor, Seek, SeekFrom},
     mem::take,
 };
-
-pub type Time = libc::timeval;
 
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
@@ -886,7 +885,7 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed
     pub fn res_data(
         &mut self,
-        timestamp: Option<Time>,
+        timestamp: Option<DateTime<Utc>>,
         data: *const core::ffi::c_void,
         len: usize,
     ) -> HtpStreamState {

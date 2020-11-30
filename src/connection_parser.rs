@@ -8,7 +8,8 @@ use crate::{
     util::{ConnectionFlags, File},
     HtpStatus,
 };
-use std::{io::Cursor, net::IpAddr};
+use chrono::{DateTime, Utc};
+use std::{io::Cursor, net::IpAddr, time::SystemTime};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
@@ -49,8 +50,6 @@ pub enum HtpStreamState {
     DATA,
 }
 
-pub type Time = libc::timeval;
-
 pub struct ConnectionParser {
     // General fields
     /// Current parser configuration structure.
@@ -70,7 +69,7 @@ pub struct ConnectionParser {
     pub out_data_other_at_tx_end: bool,
     /// The time when the last request data chunk was received. Can be NULL if
     /// the upstream code is not providing the timestamps when calling us.
-    pub in_timestamp: Time,
+    pub in_timestamp: DateTime<Utc>,
     /// Pointer to the current request data chunk.
     pub in_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the inbound data chunk. Raw
@@ -111,7 +110,7 @@ pub struct ConnectionParser {
     /// response there will already be a transaction (request) waiting.
     pub out_next_tx_index: usize,
     /// The time when the last response data chunk was received. Can be NULL.
-    pub out_timestamp: Time,
+    pub out_timestamp: DateTime<Utc>,
     /// Pointer to the current response data chunk.
     pub out_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the outbound data chunk. Raw
@@ -164,10 +163,7 @@ impl ConnectionParser {
             in_status: HtpStreamState::NEW,
             out_status: HtpStreamState::NEW,
             out_data_other_at_tx_end: false,
-            in_timestamp: Time {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
+            in_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             in_curr_data: Cursor::new(Vec::new()),
             in_current_receiver_offset: 0,
             in_chunk_count: 0,
@@ -182,10 +178,7 @@ impl ConnectionParser {
             in_state_previous: State::NONE,
             in_data_receiver_hook: None,
             out_next_tx_index: 0,
-            out_timestamp: Time {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
+            out_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             out_curr_data: Cursor::new(Vec::new()),
             out_current_receiver_offset: 0,
             out_buf: Bstr::new(),
@@ -393,7 +386,7 @@ impl ConnectionParser {
     /// Closes the connection associated with the supplied parser.
     ///
     /// timestamp is optional
-    pub fn req_close(&mut self, timestamp: Option<Time>) {
+    pub fn req_close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Update internal flags
         if self.in_status != HtpStreamState::ERROR {
             self.in_status = HtpStreamState::CLOSED
@@ -406,7 +399,7 @@ impl ConnectionParser {
     /// Closes the connection associated with the supplied parser.
     ///
     /// timestamp is optional
-    pub fn close(&mut self, timestamp: Option<Time>) {
+    pub fn close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Close the underlying connection.
         self.conn.close(timestamp.clone());
         // Update internal flags
@@ -454,7 +447,7 @@ impl ConnectionParser {
         client_port: Option<u16>,
         server_addr: Option<IpAddr>,
         server_port: Option<u16>,
-        timestamp: Option<Time>,
+        timestamp: Option<DateTime<Utc>>,
     ) {
         // Check connection parser state first.
         if self.in_status != HtpStreamState::NEW || self.out_status != HtpStreamState::NEW {
