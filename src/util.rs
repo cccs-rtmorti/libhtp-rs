@@ -27,6 +27,8 @@ use nom::{
 };
 
 use std::io::Write;
+use std::rc::Rc;
+use std::sync::Mutex;
 use tempfile::Builder;
 use tempfile::NamedTempFile;
 
@@ -113,7 +115,7 @@ pub struct File {
     pub len: usize,
     /// The file used for external storage.
     //TODO: Remove this mem management by making File not cloneable
-    pub tmpfile: Option<*mut NamedTempFile>,
+    pub tmpfile: Option<Rc<Mutex<NamedTempFile>>>,
 }
 
 impl File {
@@ -128,7 +130,7 @@ impl File {
 
     /// Create new tempfile
     pub fn create(&mut self, tmpfile: &str) -> Result<()> {
-        self.tmpfile = Some(Box::into_raw(Box::new(
+        self.tmpfile = Some(Rc::new(Mutex::new(
             Builder::new()
                 .prefix("libhtp-multipart-file-")
                 .rand_bytes(5)
@@ -139,8 +141,10 @@ impl File {
 
     /// Write data to tempfile
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        if let Some(tmpfile) = self.tmpfile {
-            unsafe { (*tmpfile).write_all(data)? }
+        if let Some(mutex) = &self.tmpfile {
+            if let Ok(mut tmpfile) = mutex.lock() {
+                tmpfile.write_all(data)?;
+            }
         }
         Ok(())
     }
@@ -157,16 +161,6 @@ impl File {
         let mut file_data = FileData::new(&self, data, len);
         // Send data to callbacks
         hook.run_all(&mut file_data)
-    }
-}
-
-impl Drop for File {
-    fn drop(&mut self) {
-        if let Some(tmpfile) = self.tmpfile {
-            unsafe {
-                Box::from_raw(tmpfile);
-            }
-        }
     }
 }
 
