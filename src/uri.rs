@@ -241,7 +241,7 @@ impl Uri {
     }
 
     pub fn generate_normalized_uri(
-        &mut self,
+        &self,
         decoder_cfg: &DecoderConfig,
     ) -> (Option<Bstr>, Option<Bstr>) {
         // On the first pass determine the length of the final bstrs
@@ -568,7 +568,7 @@ fn GenerateNormalizedUri6() {
 #[test]
 fn GenerateNormalizedUri7() {
     let cfg = DecoderConfig::default();
-    let mut uri = Uri::default();
+    let uri = Uri::default();
     let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, None);
