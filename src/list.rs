@@ -341,4 +341,93 @@ mod tests {
         assert_eq!(list[0], Some('a'));
         assert_eq!(list[1], Some('b'));
     }
+
+    #[test]
+    fn expand1() {
+        let mut l = List::with_capacity(2);
+
+        l.push("1");
+        l.push("2");
+
+        assert_eq!(2, l.len());
+
+        l.push("3");
+
+        assert_eq!(3, l.len());
+
+        let p = l.get(0).unwrap();
+        assert_eq!(*p, "1");
+
+        let p = l.get(1).unwrap();
+        assert_eq!(*p, "2");
+
+        let p = l.get(2).unwrap();
+        assert_eq!(*p, "3");
+
+        drop(&l);
+    }
+
+    #[test]
+    fn expand2() {
+        let mut l = List::with_capacity(2);
+        l.push("1");
+        l.push("2");
+
+        assert_eq!(2, l.len());
+
+        l.push("3");
+        l.push("4");
+
+        assert_eq!(4, l.len());
+
+        let p = l.get(0).unwrap();
+        assert_eq!(*p, "1");
+
+        let p = l.get(1).unwrap();
+        assert_eq!(*p, "2");
+
+        let p = l.get(2).unwrap();
+        assert_eq!(*p, "3");
+
+        let p = l.pop().unwrap();
+        assert_eq!(p, "4");
+    }
+
+    #[test]
+    fn misc() {
+        let mut l = List::with_capacity(16);
+        l.push("1");
+        l.push("2");
+        l.push("3");
+
+        assert_eq!(3, l.len());
+
+        let p = l.pop().unwrap();
+        assert_eq!("3", p);
+
+        assert_eq!(2, l.len());
+
+        let p = l.pop().unwrap();
+        assert_eq!(p, "2");
+
+        let p = l.pop().unwrap();
+        assert_eq!(p, "1");
+
+        let p = l.pop();
+        assert!(p.is_none());
+    }
+
+    #[test]
+    fn misc2() {
+        let mut l = List::with_capacity(2);
+        l.push("1");
+        l.push("2");
+        l.push("3");
+        let p = l.get(2).unwrap();
+        assert_eq!(*p, "3");
+        assert_eq!(3, l.len());
+        let _ = l.replace(2, "4");
+        let p = l.pop().unwrap();
+        assert_eq!(p, "4");
+    }
 }

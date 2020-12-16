@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
-use libc;
 use std::net::{IpAddr, Ipv4Addr};
 
 use htp::{
@@ -9,9 +8,7 @@ use htp::{
     c_api::{htp_connp_create, htp_connp_destroy_all},
     config::{create, Config, HtpUrlEncodingHandling},
     connection_parser::ConnectionParser,
-    list::List,
     request::HtpMethod,
-    table::Table,
     transaction::Transaction,
     urlencoded::{urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser},
     util::*,
@@ -1247,145 +1244,6 @@ fn UrlencodedParser_Partial6() {
     assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq("12"));
     assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq("23"));
     assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn List_Misc() {
-    unsafe {
-        let mut l = List::with_capacity(16);
-
-        l.push("1".as_ptr() as *mut core::ffi::c_void);
-        l.push("2".as_ptr() as *mut core::ffi::c_void);
-        l.push("3".as_ptr() as *mut core::ffi::c_void);
-
-        assert_eq!(3, l.len());
-
-        let p: *mut i8 = l.pop().unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
-
-        assert_eq!(2, l.len());
-
-        let p = l.pop().unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
-
-        let p = l.pop().unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
-
-        let p = l.pop();
-        assert!(p.is_none());
-
-        drop(&l);
-    }
-}
-
-#[test]
-fn List_Misc2() {
-    unsafe {
-        let mut l = List::with_capacity(2);
-
-        l.push("1".as_ptr() as *mut core::ffi::c_void);
-        l.push("2".as_ptr() as *mut core::ffi::c_void);
-        l.push("3".as_ptr() as *mut core::ffi::c_void);
-
-        let p: *mut i8 = *l.get(2).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
-
-        assert_eq!(3, l.len());
-
-        let _ = l.replace(2, "4".as_ptr() as *mut core::ffi::c_void);
-
-        let p = l.pop().unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("4".as_ptr() as *mut i8, p));
-
-        drop(&l);
-    }
-}
-
-#[test]
-fn List_Expand1() {
-    unsafe {
-        let mut l = List::with_capacity(2);
-
-        l.push("1".as_ptr() as *mut core::ffi::c_void);
-        l.push("2".as_ptr() as *mut core::ffi::c_void);
-
-        assert_eq!(2, l.len());
-
-        l.push("3".as_ptr() as *mut core::ffi::c_void);
-
-        assert_eq!(3, l.len());
-
-        let p: *mut i8 = *l.get(0).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
-
-        let p = *l.get(1).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
-
-        let p = *l.get(2).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
-
-        drop(&l);
-    }
-}
-
-#[test]
-fn List_Expand2() {
-    unsafe {
-        let mut l = List::with_capacity(2);
-
-        l.push("1".as_ptr() as *mut core::ffi::c_void);
-        l.push("2".as_ptr() as *mut core::ffi::c_void);
-
-        assert_eq!(2, l.len());
-
-        l.push("3".as_ptr() as *mut core::ffi::c_void);
-        l.push("4".as_ptr() as *mut core::ffi::c_void);
-
-        assert_eq!(4, l.len());
-
-        let p: *mut i8 = *l.get(0).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("1".as_ptr() as *mut i8, p));
-
-        let p = *l.get(1).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("2".as_ptr() as *mut i8, p));
-
-        let p = *l.get(2).unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("3".as_ptr() as *mut i8, p));
-
-        let p = l.pop().unwrap() as *mut i8;
-        assert!(!p.is_null());
-        assert_eq!(0, libc::strcmp("4".as_ptr() as *mut i8, p));
-
-        drop(&l);
-    }
-}
-
-#[test]
-fn Table_Misc() {
-    let mut t: Table<&str> = Table::with_capacity(2);
-
-    let mut pkey = Bstr::with_capacity(1);
-    pkey.add("p");
-
-    let mut qkey = Bstr::with_capacity(1);
-    qkey.add("q");
-
-    t.add(pkey, "1");
-    t.add(qkey, "2");
-
-    assert!(t.get_nocase("z").is_none());
-    assert_eq!("1", t.get_nocase("p").unwrap().1);
 }
 
 #[test]

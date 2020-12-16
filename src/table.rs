@@ -217,3 +217,20 @@ fn Iterators() {
     assert_eq!(key1, "1");
     assert_eq!(val1, "xyz");
 }
+
+#[test]
+fn Table_Misc() {
+    let mut t: Table<&str> = Table::with_capacity(2);
+
+    let mut pkey = Bstr::with_capacity(1);
+    pkey.add("p");
+
+    let mut qkey = Bstr::with_capacity(1);
+    qkey.add("q");
+
+    t.add(pkey, "1");
+    t.add(qkey, "2");
+
+    assert!(t.get_nocase("z").is_none());
+    assert_eq!("1", t.get_nocase("p").unwrap().1);
+}
