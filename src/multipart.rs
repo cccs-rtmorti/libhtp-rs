@@ -350,7 +350,6 @@ impl Parser {
                 } else if self.pending_header_line.is_empty() {
                     if let Some(header) = line {
                         self.pending_header_line.add(header.as_slice());
-                        line = None;
                     } else {
                         self.pending_header_line.add(data);
                     }

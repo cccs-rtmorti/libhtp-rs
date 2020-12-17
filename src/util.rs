@@ -423,8 +423,7 @@ pub fn convert_port(port: &[u8]) -> Option<u16> {
 /// Returns hex-decoded byte
 fn x2c(input: &[u8]) -> IResult<&[u8], u8> {
     let (input, (c1, c2)) = tuple((be_u8, be_u8))(input)?;
-    let mut decoded_byte: u8 = 0;
-    decoded_byte = if c1 >= b'A' {
+    let mut decoded_byte = if c1 >= b'A' {
         ((c1 & 0xdf) - b'A') + 10
     } else {
         c1 - b'0'
@@ -609,22 +608,17 @@ fn path_decode_valid_hex(
         not(tag_no_case("u"))(remaining_input)?;
         let (mut left, hex) = take_while_m_n(2, 2, |c: u8| c.is_ascii_hexdigit())(remaining_input)?;
         let mut flags = Flags::empty();
-        let mut expected_status_code = HtpUnwanted::IGNORE;
         // Convert from hex.
         let (_, mut byte) = x2c(&hex)?;
         if byte == 0 {
             flags |= Flags::PATH_ENCODED_NUL;
-            expected_status_code = cfg.nul_encoded_unwanted;
             if cfg.nul_encoded_terminates {
                 // Terminate the path at the raw NUL byte.
-                return Ok((b"", (byte, expected_status_code, flags, false)));
+                return Ok((b"", (byte, cfg.nul_encoded_unwanted, flags, false)));
             }
         }
         if byte == b'/' || (cfg.backslash_convert_slashes && byte == b'\\') {
             flags |= Flags::PATH_ENCODED_SEPARATOR;
-            if cfg.path_separators_encoded_unwanted != HtpUnwanted::IGNORE {
-                expected_status_code = cfg.path_separators_encoded_unwanted
-            }
             if !cfg.path_separators_decode {
                 // Leave encoded
                 byte = b'%';
@@ -717,15 +711,11 @@ fn path_parse_other(
 ) -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, Flags, bool)> + '_ {
     move |i| {
         let (remaining_input, byte) = be_u8(i)?;
-        let mut expected_status_code = HtpUnwanted::IGNORE;
         // One non-encoded byte.
         // Did we get a raw NUL byte?
-        if byte == 0 {
-            expected_status_code = cfg.nul_raw_unwanted;
-            if cfg.nul_raw_terminates {
-                // Terminate the path at the encoded NUL byte.
-                return Ok((b"", (byte, expected_status_code, Flags::empty(), false)));
-            }
+        if byte == 0 && cfg.nul_raw_terminates {
+            // Terminate the path at the encoded NUL byte.
+            return Ok((b"", (byte, cfg.nul_raw_unwanted, Flags::empty(), false)));
         }
         let (byte, expected_status_code) = path_decode_control(byte, cfg);
         Ok((
