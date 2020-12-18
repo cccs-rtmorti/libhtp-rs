@@ -41,7 +41,7 @@ impl Test {
         // The default bomb limit may be slow in some development environments causing tests to fail.
         cfg.compression_options.set_time_limit(std::u32::MAX);
         let mut connp = ConnectionParser::new(cfg);
-        let tx_id = Transaction::new(&mut connp).unwrap();
+        let tx_id = connp.create_tx().unwrap();
         connp.set_in_tx_id(Some(tx_id));
 
         let output = Bstr::new();

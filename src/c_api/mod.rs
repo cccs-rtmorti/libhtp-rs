@@ -461,9 +461,9 @@ pub unsafe extern "C" fn htp_connp_connection(connp: *mut ConnectionParser) -> *
 /// Retrieve the user data associated with this connection parser.
 /// Returns user data, or NULL if there isn't any.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_user_data(connp: *mut ConnectionParser) -> *mut libc::c_void {
+pub unsafe extern "C" fn htp_connp_user_data(connp: *const ConnectionParser) -> *mut libc::c_void {
     connp
-        .as_mut()
+        .as_ref()
         .map(|val| val.user_data)
         .unwrap_or(std::ptr::null_mut())
 }
@@ -873,6 +873,15 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     let res = urldecode_inplace(&(*cfg).decoder_cfg, &mut *input, &mut f);
     *flags = f.bits();
     res.into()
+}
+
+/// Configures whether to normalize URIs into a complete or partial form.
+/// Pass `true` to use complete normalized URI or `false` to use partials.
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_normalized_uri_include_all(cfg: *mut Config, set: bool) {
+    if !cfg.is_null() {
+        (*cfg).set_normalized_uri_include_all(set);
+    }
 }
 
 /// Configures whether transactions will be automatically destroyed once they

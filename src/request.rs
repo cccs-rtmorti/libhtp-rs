@@ -73,7 +73,7 @@ impl ConnectionParser {
             is_last,
         );
         if let Some(hook) = &self.in_data_receiver_hook {
-            hook.run_all(&mut data)?;
+            hook.run_all(self, &mut data)?;
         } else {
             return Ok(());
         };
@@ -404,7 +404,7 @@ impl ConnectionParser {
                     self.in_state = State::BODY_IDENTITY;
                     self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::BODY
                 } else {
-                    unsafe { (*self.in_tx_mut_ok()?.connp).in_state = State::FINALIZE }
+                    self.in_state = State::FINALIZE
                 }
             }
             HtpTransferCoding::NO_BODY => {
@@ -640,12 +640,13 @@ impl ConnectionParser {
         let res = tuple::<_, _, (&[u8], ErrorKind), _>((take_is_space, take_not_is_space))(&data);
 
         if let Ok((_, (_, method))) = res {
+            let connp_ptr: *mut Self = self as *mut Self;
             if method.is_empty() {
                 // empty whitespace line
                 let rc = self
                     .in_tx_mut()
                     .ok_or(HtpStatus::ERROR)?
-                    .req_process_body_data_ex(Some(&data));
+                    .req_process_body_data(unsafe { &mut *connp_ptr }, Some(&data));
                 self.in_buf.clear();
                 return rc;
             }
@@ -666,7 +667,7 @@ impl ConnectionParser {
                 let rc = self
                     .in_tx_mut()
                     .ok_or(HtpStatus::ERROR)?
-                    .req_process_body_data_ex(Some(&data));
+                    .req_process_body_data(unsafe { &mut *connp_ptr }, Some(&data));
                 self.in_buf.clear();
                 return rc;
             } // else continue
@@ -736,10 +737,10 @@ impl ConnectionParser {
         // Do not invoke callbacks without a transaction.
         if let Some(in_tx) = self.in_tx() {
             // Run transaction hooks first
-            in_tx.hook_request_body_data.run_all(d)?;
+            in_tx.hook_request_body_data.run_all(self, d)?;
         }
         // Run configuration hooks second
-        self.cfg.hook_request_body_data.run_all(d)?;
+        self.cfg.hook_request_body_data.run_all(self, d)?;
         // On PUT requests, treat request body as file
         if let Some(file) = &mut self.put_file {
             file.handle_file_data(self.cfg.hook_request_file_data.clone(), d.data(), d.len())?;

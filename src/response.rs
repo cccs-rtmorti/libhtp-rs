@@ -37,7 +37,7 @@ impl ConnectionParser {
         );
 
         if let Some(hook) = &self.out_data_receiver_hook {
-            hook.run_all(&mut data)?;
+            hook.run_all(self, &mut data)?;
         } else {
             return Ok(());
         };
@@ -567,7 +567,9 @@ impl ConnectionParser {
             // Run hook response_TRAILER.
             // TODO: Figure out how to do this without clone()
             let cfg = self.cfg.clone();
-            cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
+            let tx_ptr = self.out_tx_mut_ptr();
+            cfg.hook_response_trailer
+                .run_all(self, unsafe { &mut *tx_ptr })?;
             self.out_state = State::FINALIZE;
             return Ok(());
         }
@@ -678,7 +680,9 @@ impl ConnectionParser {
                         self.res_receiver_finalize_clear()?;
                         // Run hook response_TRAILER.
                         let cfg = self.cfg.clone();
-                        cfg.hook_response_trailer.run_all(self.out_tx_mut_ok()?)?;
+                        let tx_ptr = self.out_tx_mut_ptr();
+                        cfg.hook_response_trailer
+                            .run_all(self, unsafe { &mut *tx_ptr })?;
                         // The next step is to finalize this response.
                         self.out_state = State::FINALIZE
                     }
@@ -870,15 +874,17 @@ impl ConnectionParser {
 
     /// Run the RESPONSE_BODY_DATA hook.
     pub fn res_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
-        let out_tx = self.out_tx_mut_ok()?;
         // Do not invoke callbacks with an empty data chunk.
         if d.is_empty() {
             return Ok(());
         }
-        // Run transaction hooks first
-        out_tx.hook_response_body_data.run_all(d)?;
-        // Run configuration hooks second
-        self.cfg.hook_response_body_data.run_all(d)
+        if let Some(out_tx) = self.out_tx() {
+            // Run transaction hooks first
+            out_tx.hook_response_body_data.run_all(self, d)?;
+            // Run configuration hooks second
+            self.cfg.hook_response_body_data.run_all(self, d)?;
+        }
+        Ok(())
     }
 
     /// Process a chunk of outbound (server or response) data.

@@ -259,8 +259,6 @@ pub enum HtpProtocol {
 
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct Transaction {
-    /// The connection parser associated with this transaction.
-    pub connp: *mut ConnectionParser,
     /// The configuration structure associated with this transaction.
     pub cfg: *mut Config,
     /// Is the configuration structure shared with other transactions or connections? If
@@ -485,9 +483,8 @@ pub struct Transaction {
 pub type Transactions = List<Transaction>;
 
 impl Transaction {
-    pub fn new(connp: &mut ConnectionParser) -> Result<usize> {
-        let tx = Self {
-            connp,
+    pub fn new(connp: &mut ConnectionParser, index: usize) -> Self {
+        Self {
             cfg: &mut connp.cfg,
             is_config_shared: true,
             user_data: std::ptr::null_mut(),
@@ -542,14 +539,10 @@ impl Transaction {
             flags: Flags::empty(),
             request_progress: HtpRequestProgress::NOT_STARTED,
             response_progress: HtpResponseProgress::NOT_STARTED,
-            index: connp.conn.tx_size(),
+            index,
             req_header_repetitions: 0,
             res_header_repetitions: 0,
-        };
-
-        let tx_id = tx.index;
-        unsafe { (*tx.connp).conn.push_tx(tx) };
-        Ok(tx_id)
+        }
     }
 
     /// Register callback for the transaction-specific REQUEST_BODY_DATA hook.
@@ -558,12 +551,12 @@ impl Transaction {
     }
 
     /// Destroys the supplied transaction.
-    pub fn destroy(&mut self) -> Result<()> {
+    pub fn destroy(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         if !self.is_complete() {
             return Err(HtpStatus::ERROR);
         }
         // remove the tx from the connection so it will be dropped
-        let _ = unsafe { (*self.connp).conn.remove_tx(self.index) };
+        let _ = connp.conn.remove_tx(self.index);
         Ok(())
     }
 
@@ -597,7 +590,7 @@ impl Transaction {
             || self.request_transfer_coding == HtpTransferCoding::CHUNKED
     }
 
-    fn process_request_headers(&mut self) -> Result<()> {
+    fn process_request_headers(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Determine if we have a request body, and how it is packaged.
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
         // Check for the Transfer-Encoding header, which would indicate a chunked request body.
@@ -653,7 +646,7 @@ impl Transaction {
             }
             // Get the body length.
             if let Some(content_length) =
-                parse_content_length((*(*cl).value).as_slice(), unsafe { Some(&*self.connp) })
+                parse_content_length((*(*cl).value).as_slice(), Some(connp))
             {
                 // We have a request body of known length.
                 self.request_content_length = content_length;
@@ -677,7 +670,7 @@ impl Transaction {
         // Check for PUT requests, which we need to treat as file uploads.
         if self.request_method_number == HtpMethod::PUT && self.req_has_body() {
             // Prepare to treat PUT request body as a file.
-            unsafe { (*self.connp).put_file = Some(File::new(HtpFileSource::PUT, None)) };
+            connp.put_file = Some(File::new(HtpFileSource::PUT, None));
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.
@@ -740,28 +733,25 @@ impl Transaction {
             self.request_content_type = Some(parse_content_type(ct.value.as_slice())?);
         }
         // Parse cookies.
-        if unsafe { (*self.connp).cfg.parse_request_cookies } {
-            parse_cookies_v0(unsafe { (*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)? })?;
+        if connp.cfg.parse_request_cookies {
+            parse_cookies_v0(self)?;
         }
         // Parse authentication information.
-        if unsafe { (*self.connp).cfg.parse_request_auth } {
-            parse_authorization(unsafe { (*self.connp).in_tx_mut().ok_or(HtpStatus::ERROR)? })
-                .or_else(|rc| {
-                    if rc == HtpStatus::DECLINED {
-                        // Don't fail the stream if an authorization header is invalid, just set a flag.
-                        self.flags |= Flags::AUTH_INVALID;
-                        Ok(())
-                    } else {
-                        Err(rc)
-                    }
-                })?;
+        if connp.cfg.parse_request_auth {
+            parse_authorization(self).or_else(|rc| {
+                if rc == HtpStatus::DECLINED {
+                    // Don't fail the stream if an authorization header is invalid, just set a flag.
+                    self.flags |= Flags::AUTH_INVALID;
+                    Ok(())
+                } else {
+                    Err(rc)
+                }
+            })?;
         }
-        unsafe {
-            // Finalize sending raw header data.
-            (*self.connp).req_receiver_finalize_clear()?;
-            // Run hook REQUEST_HEADERS.
-            (*self.connp).cfg.hook_request_headers.run_all(self)?;
-        }
+        // Finalize sending raw header data.
+        connp.req_receiver_finalize_clear()?;
+        // Run hook REQUEST_HEADERS.
+        connp.cfg.hook_request_headers.run_all(connp, self)?;
         // We cannot proceed if the request is invalid.
         if self.flags.contains(Flags::REQUEST_INVALID) {
             return Err(HtpStatus::ERROR);
@@ -776,17 +766,11 @@ impl Transaction {
     /// fully consumed and there is no expectation that it will be available
     /// afterwards. The protocol parsing code makes no copies of the data,
     /// but some parsers might.
-    ///
-    /// Returns OK on success, ERROR on failure.
-    #[allow(dead_code)]
-    pub fn req_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
-        if data.as_ref().is_empty() {
-            return Ok(());
-        }
-        self.req_process_body_data_ex(Some(data.as_ref()))
-    }
-
-    pub fn req_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
+    pub fn req_process_body_data(
+        &mut self,
+        connp: &mut ConnectionParser,
+        data: Option<&[u8]>,
+    ) -> Result<()> {
         // NULL data is allowed in this private function; it's
         // used to indicate the end of request body.
         // Keep track of the body length.
@@ -796,29 +780,25 @@ impl Transaction {
         }
         // Send data to the callbacks.
         let mut data = Data::new(self, data, false);
-        unsafe {
-            (*self.connp)
-                .req_run_hook_body_data(&mut data)
-                .map_err(|e| {
-                    htp_error!(
-                        &*self.connp,
-                        HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
-                        format!("Request body data callback returned error ({:?})", e)
-                    );
-                    e
-                })
-        }
+        connp.req_run_hook_body_data(&mut data).map_err(|e| {
+            htp_error!(
+                connp,
+                HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                format!("Request body data callback returned error ({:?})", e)
+            );
+            e
+        })
     }
 
     /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_response_line(&mut self) -> Result<()> {
+    pub fn state_response_line(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Is the response line valid?
         if self.response_protocol_number == HtpProtocol::INVALID {
             htp_warn!(
-                unsafe { &*self.connp },
+                connp,
                 HtpLogCode::RESPONSE_LINE_INVALID_PROTOCOL,
                 "Invalid response line: invalid protocol"
             );
@@ -826,7 +806,7 @@ impl Transaction {
         }
         if !self.response_status_number.in_range(100, 999) {
             htp_warn!(
-                unsafe { &*self.connp },
+                connp,
                 HtpLogCode::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
                 format!("Invalid response line: invalid response status.",)
             );
@@ -834,7 +814,7 @@ impl Transaction {
             self.flags |= Flags::STATUS_LINE_INVALID
         }
         // Run hook HTP_RESPONSE_LINE
-        unsafe { (*self.connp).cfg.hook_response_line.run_all(self) }
+        connp.cfg.hook_response_line.run_all(connp, self)
     }
 
     /// Set one response header. This function should be invoked once for
@@ -862,15 +842,11 @@ impl Transaction {
     /// decompression algorithms.
     ///
     /// Returns OK on success, ERROR on failure.
-    #[allow(dead_code)]
-    pub fn res_process_body_data<S: AsRef<[u8]>>(&mut self, data: S) -> Result<()> {
-        if data.as_ref().is_empty() {
-            return Ok(());
-        }
-        self.res_process_body_data_ex(Some(data.as_ref()))
-    }
-
-    pub fn res_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
+    pub fn res_process_body_data(
+        &mut self,
+        connp: &mut ConnectionParser,
+        data: Option<&[u8]>,
+    ) -> Result<()> {
         // Keep track of body size before decompression.
         self.response_message_len = (self.response_message_len as u64)
             .wrapping_add(data.map(|data| data.len()).unwrap_or(0) as u64)
@@ -889,7 +865,7 @@ impl Transaction {
                         > unsafe { (*(*self).cfg).compression_options.get_time_limit() as u64 }
                     {
                         htp_log!(
-                            unsafe { &*self.connp },
+                            connp,
                             HtpLogLevel::ERROR,
                             HtpLogCode::COMPRESSION_BOMB,
                             format!(
@@ -917,11 +893,11 @@ impl Transaction {
                 };
                 self.response_entity_len =
                     (self.response_entity_len as u64).wrapping_add(tx_data.len() as u64) as i64;
-                unsafe { (*self.connp).res_run_hook_body_data(&mut tx_data)? };
+                connp.res_run_hook_body_data(&mut tx_data)?;
             }
             HtpContentEncoding::ERROR => {
                 htp_error!(
-                    unsafe { &*self.connp },
+                    connp,
                     HtpLogCode::INVALID_CONTENT_ENCODING,
                     "Expected a valid content encoding"
                 );
@@ -931,16 +907,14 @@ impl Transaction {
         Ok(())
     }
 
-    pub fn state_request_complete_partial(&mut self) -> Result<()> {
+    pub fn state_request_complete_partial(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Finalize request body.
         if self.req_has_body() {
-            self.req_process_body_data_ex(None)?;
+            self.req_process_body_data(connp, None)?;
         }
         self.request_progress = HtpRequestProgress::COMPLETE;
         // Run hook REQUEST_COMPLETE.
-        unsafe {
-            (*self.connp).cfg.hook_request_complete.run_all(self)?;
-        }
+        connp.cfg.hook_request_complete.run_all(connp, self)?;
         Ok(())
     }
 
@@ -948,31 +922,21 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_request_complete(&mut self) -> Result<()> {
+    pub fn state_request_complete(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         if self.request_progress != HtpRequestProgress::COMPLETE {
-            self.state_request_complete_partial()?;
+            self.state_request_complete_partial(connp)?;
         }
-        // Make a copy of the connection parser pointer, so that
-        // we don't have to reference it via tx, which may be
-        // destroyed later.
-        let connp: *mut ConnectionParser = self.connp;
         // Determine what happens next, and remove this transaction from the parser.
         if self.is_protocol_0_9 {
-            unsafe {
-                (*connp).in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
-            }
+            connp.in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
         } else {
-            unsafe {
-                (*connp).in_state = State::IDLE;
-            }
+            connp.in_state = State::IDLE;
         }
         // Check if the entire transaction is complete. This call may
         // destroy the transaction, if auto-destroy is enabled.
-        let _ = self.finalize();
+        let _ = self.finalize(connp);
         // At this point, tx may no longer be valid.
-        unsafe {
-            (*connp).clear_in_tx();
-        }
+        connp.clear_in_tx();
         Ok(())
     }
 
@@ -981,13 +945,11 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_request_start(&mut self) -> Result<()> {
-        unsafe {
-            // Run hook REQUEST_START.
-            (*self.connp).cfg.hook_request_start.run_all(self)?;
-            // Change state into request line parsing.
-            (*self.connp).in_state = State::LINE;
-        }
+    pub fn state_request_start(&mut self, connp: &mut ConnectionParser) -> Result<()> {
+        // Run hook REQUEST_START.
+        connp.cfg.hook_request_start.run_all(connp, self)?;
+        // Change state into request line parsing.
+        connp.in_state = State::LINE;
         self.request_progress = HtpRequestProgress::LINE;
         Ok(())
     }
@@ -997,31 +959,29 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_request_headers(&mut self) -> Result<()> {
+    pub fn state_request_headers(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // If we're in HTP_REQ_HEADERS that means that this is the
         // first time we're processing headers in a request. Otherwise,
         // we're dealing with trailing headers.
         if self.request_progress > HtpRequestProgress::HEADERS {
             // Request trailers.
             // Run hook HTP_REQUEST_TRAILER.
-            unsafe {
-                (*self.connp).cfg.hook_request_trailer.run_all(self)?;
-                // Finalize sending raw header data.
-                (*self.connp).req_receiver_finalize_clear()?;
-                // Completed parsing this request; finalize it now.
-                (*self.connp).in_state = State::FINALIZE;
-            }
+            connp.cfg.hook_request_trailer.run_all(connp, self)?;
+            // Finalize sending raw header data.
+            connp.req_receiver_finalize_clear()?;
+            // Completed parsing this request; finalize it now.
+            connp.in_state = State::FINALIZE;
         } else if self.request_progress >= HtpRequestProgress::LINE {
             // Request headers.
             // Did this request arrive in multiple data chunks?
-            if unsafe { (*self.connp).in_chunk_count != (*self.connp).in_chunk_request_index } {
+            if connp.in_chunk_count != connp.in_chunk_request_index {
                 self.flags |= Flags::MULTI_PACKET_HEAD
             }
-            self.process_request_headers()?;
-            unsafe { (*self.connp).in_state = State::CONNECT_CHECK };
+            self.process_request_headers(connp)?;
+            connp.in_state = State::CONNECT_CHECK;
         } else {
             htp_warn!(
-                unsafe { &*self.connp },
+                connp,
                 HtpLogCode::RESPONSE_BODY_INTERNAL_ERROR,
                 format!(
                     "[Internal Error] Invalid tx progress: {:?}",
@@ -1038,7 +998,7 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_request_line(&mut self) -> Result<()> {
+    pub fn state_request_line(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Determine how to process the request URI.
         let mut parsed_uri = Uri::default();
         if self.request_method_number == HtpMethod::CONNECT {
@@ -1063,12 +1023,10 @@ impl Transaction {
                 self.flags |= Flags::HOSTU_INVALID
             }
         }
-        unsafe {
-            // Run hook REQUEST_URI_NORMALIZE.
-            (*self.connp).cfg.hook_request_uri_normalize.run_all(self)?;
-            // Run hook REQUEST_LINE.
-            (*self.connp).cfg.hook_request_line.run_all(self)?;
-        }
+        // Run hook REQUEST_URI_NORMALIZE.
+        connp.cfg.hook_request_uri_normalize.run_all(connp, self)?;
+        // Run hook REQUEST_LINE.
+        connp.cfg.hook_request_line.run_all(connp, self)?;
         if let Some(parsed_uri) = self.parsed_uri.as_mut() {
             let (partial_normalized_uri, complete_normalized_uri) =
                 parsed_uri.generate_normalized_uri(unsafe { &(*(self.cfg)).decoder_cfg });
@@ -1076,7 +1034,7 @@ impl Transaction {
             self.complete_normalized_uri = complete_normalized_uri;
         }
         // Move on to the next phase.
-        unsafe { (*self.connp).in_state = State::PROTOCOL };
+        connp.in_state = State::PROTOCOL;
         Ok(())
     }
 
@@ -1084,34 +1042,36 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_response_complete(&mut self) -> Result<()> {
-        self.state_response_complete_ex(1)
+    pub fn state_response_complete(&mut self, connp: &mut ConnectionParser) -> Result<()> {
+        self.state_response_complete_ex(connp, 1)
     }
 
-    pub fn finalize(&mut self) -> Result<()> {
+    pub fn finalize(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         if !self.is_complete() {
             return Ok(());
         }
-        unsafe {
-            // Run hook TRANSACTION_COMPLETE.
-            (*self.connp).cfg.hook_transaction_complete.run_all(self)?;
-            // In streaming processing, we destroy the transaction because it will not be needed any more.
-            if (*self.connp).cfg.tx_auto_destroy {
-                self.destroy()?;
-            }
+        // Run hook TRANSACTION_COMPLETE.
+        connp.cfg.hook_transaction_complete.run_all(connp, self)?;
+        // In streaming processing, we destroy the transaction because it will not be needed any more.
+        if connp.cfg.tx_auto_destroy {
+            self.destroy(connp)?;
         }
         Ok(())
     }
 
-    pub fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
+    pub fn state_response_complete_ex(
+        &mut self,
+        connp: &mut ConnectionParser,
+        hybrid_mode: i32,
+    ) -> Result<()> {
         if self.response_progress != HtpResponseProgress::COMPLETE {
             self.response_progress = HtpResponseProgress::COMPLETE;
             // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
             if self.response_transfer_coding != HtpTransferCoding::NO_BODY {
-                let _ = self.res_process_body_data_ex(None);
+                let _ = self.res_process_body_data(connp, None);
             }
             // Run hook RESPONSE_COMPLETE.
-            unsafe { (*self.connp).cfg.hook_response_complete.run_all(self)? };
+            connp.cfg.hook_response_complete.run_all(connp, self)?;
         }
         if hybrid_mode == 0 {
             // Check if the inbound parser is waiting on us. If it is, that means that
@@ -1127,34 +1087,29 @@ impl Transaction {
             // It is not enough to check only in_status here. Because of pipelining, it's possible
             // that many inbound transactions have been processed, and that the parser is
             // waiting on a response that we have not seen yet.
-            if unsafe {
-                (*self.connp).in_status == HtpStreamState::DATA_OTHER
-                    && (*self.connp).in_tx() == (*self.connp).out_tx()
-            } {
+            if connp.in_status == HtpStreamState::DATA_OTHER && connp.in_tx() == connp.out_tx() {
                 return Err(HtpStatus::DATA_OTHER);
             }
             // Do we have a signal to yield to inbound processing at
             // the end of the next transaction?
-            if unsafe { (*self.connp).out_data_other_at_tx_end } {
+            if connp.out_data_other_at_tx_end {
                 // We do. Let's yield then.
-                unsafe { (*self.connp).out_data_other_at_tx_end = false };
+                connp.out_data_other_at_tx_end = false;
                 return Err(HtpStatus::DATA_OTHER);
             }
         }
-        // Make a copy of the connection parser pointer, so that
-        // we don't have to reference it via tx, which may be destroyed later.
-        unsafe {
-            let connp: *mut ConnectionParser = self.connp;
-            // Finalize the transaction. This may call may destroy the transaction, if auto-destroy is enabled.
-            self.finalize()?;
-            // Disconnect transaction from the parser.
-            (*connp).clear_out_tx();
-            (*connp).out_state = State::IDLE;
-        }
+        self.finalize(connp)?;
+        // Disconnect transaction from the parser.
+        connp.clear_out_tx();
+        connp.out_state = State::IDLE;
         Ok(())
     }
 
-    fn decompressor_callback(&mut self, data: Option<&[u8]>) -> std::io::Result<usize> {
+    fn decompressor_callback(
+        &mut self,
+        connp: &mut ConnectionParser,
+        data: Option<&[u8]>,
+    ) -> std::io::Result<usize> {
         // If no data is passed, call the hooks with NULL to signify the end of the
         // response body.
         let mut tx_data = Data {
@@ -1169,13 +1124,9 @@ impl Transaction {
             (self.response_entity_len as u64).wrapping_add(tx_data.len() as u64) as i64;
 
         // Invoke all callbacks.
-        unsafe {
-            (*self.connp)
-                .res_run_hook_body_data(&mut tx_data)
-                .map_err(|_| {
-                    std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed")
-                })?
-        }
+        connp
+            .res_run_hook_body_data(&mut tx_data)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
 
         unsafe {
             if let Some(decompressor) = &mut self.out_decompressor {
@@ -1186,7 +1137,7 @@ impl Transaction {
                     if let Some(time_spent) = decompressor.timer_reset() {
                         if time_spent > (*self.cfg).compression_options.get_time_limit() as u64 {
                             htp_log!(
-                                &*self.connp,
+                                connp,
                                 HtpLogLevel::ERROR,
                                 HtpLogCode::COMPRESSION_BOMB,
                                 format!("Compression bomb: spent {} us decompressing", time_spent)
@@ -1212,17 +1163,15 @@ impl Transaction {
 
         let bomb_limit = unsafe { (*self.cfg).compression_options.get_bomb_limit() };
         if self.response_entity_len > bomb_limit as i64 && exceeds_ratio {
-            unsafe {
-                htp_log!(
-                    &*self.connp,
-                    HtpLogLevel::ERROR,
-                    HtpLogCode::COMPRESSION_BOMB,
-                    format!(
-                        "Compression bomb: decompressed {} bytes out of {}",
-                        self.response_entity_len, self.response_message_len,
-                    )
-                );
-            }
+            htp_log!(
+                connp,
+                HtpLogLevel::ERROR,
+                HtpLogCode::COMPRESSION_BOMB,
+                format!(
+                    "Compression bomb: decompressed {} bytes out of {}",
+                    self.response_entity_len, self.response_message_len,
+                )
+            );
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "compression_bomb_limit reached",
@@ -1231,7 +1180,11 @@ impl Transaction {
         Ok(tx_data.len())
     }
 
-    fn prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
+    fn prepend_decompressor(
+        &mut self,
+        connp: &mut ConnectionParser,
+        encoding: HtpContentEncoding,
+    ) -> Result<()> {
         if encoding != HtpContentEncoding::NONE {
             if let Some(decompressor) = self.out_decompressor.take() {
                 self.out_decompressor.replace(
@@ -1247,12 +1200,13 @@ impl Transaction {
 
                 // TODO: fix lifetime error and remove this line!
                 let tx = self as *mut Self;
+                let connp_ptr: *mut ConnectionParser = connp as *mut ConnectionParser;
 
                 self.out_decompressor.replace(unsafe {
                     Decompressor::new_with_callback(
                         encoding,
                         Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
-                            (*tx).decompressor_callback(data)
+                            (*tx).decompressor_callback(&mut *connp_ptr, data)
                         }),
                         (*(*self).cfg).compression_options,
                     )?
@@ -1266,7 +1220,7 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_response_headers(&mut self) -> Result<()> {
+    pub fn state_response_headers(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         let ce = (*self)
             .response_headers
             .get_nocase_nozero("content-encoding")
@@ -1306,9 +1260,9 @@ impl Transaction {
             };
         unsafe {
             // Finalize sending raw header data.
-            (&mut *self.connp).res_receiver_finalize_clear()?;
+            connp.res_receiver_finalize_clear()?;
             // Run hook RESPONSE_HEADERS.
-            (*self.cfg).hook_response_headers.run_all(self)?;
+            (*self.cfg).hook_response_headers.run_all(connp, self)?;
         }
 
         // Initialize the decompression engine as necessary. We can deal with three
@@ -1324,7 +1278,7 @@ impl Transaction {
         //    supported algorithms.
         match &self.response_content_encoding_processing {
             HtpContentEncoding::GZIP | HtpContentEncoding::DEFLATE | HtpContentEncoding::LZMA => {
-                self.prepend_decompressor(self.response_content_encoding_processing)?;
+                self.prepend_decompressor(connp, self.response_content_encoding_processing)?;
                 Ok(())
             }
             HtpContentEncoding::NONE => {
@@ -1345,7 +1299,7 @@ impl Transaction {
 
                             if layers > limit {
                                 htp_warn!(
-                                    unsafe { &*self.connp },
+                                    connp,
                                     HtpLogCode::TOO_MANY_ENCODING_LAYERS,
                                     "Too many response content encoding layers"
                                 );
@@ -1358,7 +1312,7 @@ impl Transaction {
                                     || encoding.cmp(b"x-gzip") == Ordering::Equal)
                                 {
                                     htp_warn!(
-                                        unsafe { &*self.connp },
+                                        connp,
                                         HtpLogCode::ABNORMAL_CE_HEADER,
                                         "C-E gzip has abnormal value"
                                     );
@@ -1369,7 +1323,7 @@ impl Transaction {
                                     || encoding.cmp(b"x-deflate") == Ordering::Equal)
                                 {
                                     htp_warn!(
-                                        unsafe { &*self.connp },
+                                        connp,
                                         HtpLogCode::ABNORMAL_CE_HEADER,
                                         "C-E deflate has abnormal value"
                                     );
@@ -1381,14 +1335,14 @@ impl Transaction {
                                 HtpContentEncoding::NONE
                             } else {
                                 htp_warn!(
-                                    unsafe { &*self.connp },
+                                    connp,
                                     HtpLogCode::ABNORMAL_CE_HEADER,
                                     "C-E unknown setting"
                                 );
                                 HtpContentEncoding::NONE
                             };
 
-                            self.prepend_decompressor(encoding)?;
+                            self.prepend_decompressor(connp, encoding)?;
                         }
                     }
                 }
@@ -1396,7 +1350,7 @@ impl Transaction {
             }
             HtpContentEncoding::ERROR => {
                 htp_error!(
-                    unsafe { &*self.connp },
+                    connp,
                     HtpLogCode::INVALID_CONTENT_ENCODING,
                     "Expected a valid content encoding"
                 );
@@ -1409,24 +1363,20 @@ impl Transaction {
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
-    pub fn state_response_start(&mut self) -> Result<()> {
-        unsafe {
-            (*self.connp).set_out_tx(self);
-            // Run hook RESPONSE_START.
-            (*self.connp).cfg.hook_response_start.run_all(self)?;
-        }
+    pub fn state_response_start(&mut self, connp: &mut ConnectionParser) -> Result<()> {
+        connp.set_out_tx(self);
+        // Run hook RESPONSE_START.
+        connp.cfg.hook_response_start.run_all(connp, self)?;
         // Change state into response line parsing, except if we're following
         // a HTTP/0.9 request (no status line or response headers).
         if self.is_protocol_0_9 {
             self.response_transfer_coding = HtpTransferCoding::IDENTITY;
             self.response_content_encoding_processing = HtpContentEncoding::NONE;
             self.response_progress = HtpResponseProgress::BODY;
-            unsafe {
-                (*self.connp).out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-                (*self.connp).out_body_data_left = -1
-            }
+            connp.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
+            connp.out_body_data_left = -1
         } else {
-            unsafe { (*self.connp).out_state = State::LINE };
+            connp.out_state = State::LINE;
             self.response_progress = HtpResponseProgress::LINE
         }
         // If at this point we have no method and no uri and our status
@@ -1434,10 +1384,10 @@ impl Transaction {
         // or a overly long request
         if self.request_method.is_none()
             && self.request_uri.is_none()
-            && unsafe { (*self.connp).in_state == State::LINE }
+            && connp.in_state == State::LINE
         {
             htp_warn!(
-                unsafe { &*self.connp },
+                connp,
                 HtpLogCode::REQUEST_LINE_INCOMPLETE,
                 "Request line incomplete"
             );
@@ -1507,6 +1457,6 @@ impl Drop for Transaction {
 
 impl PartialEq for Transaction {
     fn eq(&self, other: &Self) -> bool {
-        unsafe { (*self.connp).conn == (*other.connp).conn && self.index == other.index }
+        self.index == other.index
     }
 }

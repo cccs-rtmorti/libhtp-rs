@@ -21,9 +21,12 @@ pub unsafe extern "C" fn htp_tx_create(connp: *mut ConnectionParser) -> *mut Tra
 
 /// Destroys the supplied transaction.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy(tx: *mut Transaction) -> HtpStatus {
+pub unsafe extern "C" fn htp_tx_destroy(
+    connp: *mut ConnectionParser,
+    tx: *mut Transaction,
+) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
-        tx.destroy().into()
+        tx.destroy(&mut *connp).into()
     } else {
         HtpStatus::ERROR
     }
@@ -32,11 +35,9 @@ pub unsafe extern "C" fn htp_tx_destroy(tx: *mut Transaction) -> HtpStatus {
 /// Get a transaction's normalized parsed uri.
 ///
 /// tx: Transaction pointer.
-///
-/// Returns the complete normalized uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction, all: bool) -> *const Bstr {
-    if all {
+pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction) -> *const Bstr {
+    if (*(*tx).cfg).decoder_cfg.normalized_uri_include_all {
         if let Some(uri) = tx
             .as_ref()
             .and_then(|tx| tx.complete_normalized_uri.as_ref())
@@ -52,20 +53,6 @@ pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction, all: bool) 
         return uri;
     }
     std::ptr::null()
-}
-
-/// Get a transaction's connection parser.
-///
-/// tx: Transaction pointer.
-///
-/// Returns the connection parser or NULL on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_connp(tx: *mut Transaction) -> *mut ConnectionParser {
-    if let Some(tx) = tx.as_ref() {
-        tx.connp
-    } else {
-        std::ptr::null_mut()
-    }
 }
 
 /// Get the transaction's configuration.
@@ -719,9 +706,12 @@ pub unsafe extern "C" fn htp_tx_set_response_progress(
 /// Returns OK on success; ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete(tx: *mut Transaction) -> HtpStatus {
+pub unsafe extern "C" fn htp_tx_state_request_complete(
+    connp: *mut ConnectionParser,
+    tx: *mut Transaction,
+) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
-        tx.state_request_complete().into()
+        tx.state_request_complete(&mut *connp).into()
     } else {
         HtpStatus::ERROR
     }
@@ -734,9 +724,12 @@ pub unsafe extern "C" fn htp_tx_state_request_complete(tx: *mut Transaction) -> 
 /// Returns OK on success; ERROR on error, HTP_STOP if one of the
 ///         callbacks does not want to follow the transaction any more.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_complete(tx: *mut Transaction) -> HtpStatus {
+pub unsafe extern "C" fn htp_tx_state_response_complete(
+    connp: *mut ConnectionParser,
+    tx: *mut Transaction,
+) -> HtpStatus {
     if let Some(tx) = tx.as_mut() {
-        tx.state_response_complete().into()
+        tx.state_response_complete(&mut *connp).into()
     } else {
         HtpStatus::ERROR
     }

@@ -202,11 +202,12 @@ impl ConnectionParser {
         if self.conn.tx_size() > self.out_next_tx_index {
             self.conn.flags |= ConnectionFlags::PIPELINED
         }
-        Transaction::new(self).map(|tx_id| {
-            self.in_tx = Some(tx_id);
-            self.in_reset();
-            tx_id
-        })
+        let index = self.conn.tx_size();
+        let tx = Transaction::new(self, index);
+        self.conn.push_tx(tx);
+        self.in_tx = Some(index);
+        self.in_reset();
+        Ok(index)
     }
 
     /// Removes references to the supplied transaction.
@@ -475,8 +476,9 @@ impl ConnectionParser {
     }
 
     pub fn req_process_body_data_ex(&mut self, data: &[u8]) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
-            tx.req_process_body_data_ex(Some(data))
+            tx.req_process_body_data(unsafe { &mut *connp_ptr }, Some(data))
         } else {
             Err(HtpStatus::ERROR)
         }
@@ -490,8 +492,9 @@ impl ConnectionParser {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_start(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_start()
+            tx.state_request_start(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
@@ -505,8 +508,9 @@ impl ConnectionParser {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_headers(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_headers()
+            tx.state_request_headers(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
@@ -520,8 +524,9 @@ impl ConnectionParser {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_line(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_line()
+            tx.state_request_line(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
@@ -534,24 +539,27 @@ impl ConnectionParser {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_complete(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
-            tx.state_request_complete()
+            tx.state_request_complete(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
     }
 
     pub fn res_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
-            tx.res_process_body_data_ex(data)
+            tx.res_process_body_data(unsafe { &mut *connp_ptr }, data)
         } else {
             Err(HtpStatus::ERROR)
         }
     }
 
     pub fn state_response_start(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_start()
+            tx.state_response_start(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
@@ -564,8 +572,9 @@ impl ConnectionParser {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_response_headers(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_headers()
+            tx.state_response_headers(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
@@ -578,16 +587,18 @@ impl ConnectionParser {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_response_line(&mut self) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_line()
+            tx.state_response_line(unsafe { &mut *connp_ptr })
         } else {
             Err(HtpStatus::ERROR)
         }
     }
 
     pub fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
+        let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
-            tx.state_response_complete_ex(hybrid_mode)
+            tx.state_response_complete_ex(unsafe { &mut *connp_ptr }, hybrid_mode)
         } else {
             Err(HtpStatus::ERROR)
         }

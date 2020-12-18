@@ -1284,16 +1284,12 @@ fn Util() {
     let mut t = Test::new();
     assert!(t.run("50-util.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
-
     // A message that should not be logged.
-    unsafe {
-        let log_message_count = (*tx.connp).conn.messages.borrow().len();
+    let log_message_count = t.connp.conn.messages.borrow().len();
 
-        (*tx.connp).cfg.log_level = HtpLogLevel::NONE;
-        htp_error!(&(*tx.connp), HtpLogCode::UNKNOWN, "Log message");
-        assert_eq!(log_message_count, (*tx.connp).conn.messages.borrow().len());
-    }
+    t.connp.cfg.log_level = HtpLogLevel::NONE;
+    htp_error!(&t.connp, HtpLogCode::UNKNOWN, "Log message");
+    assert_eq!(log_message_count, t.connp.conn.messages.borrow().len());
 }
 
 #[test]
@@ -1822,25 +1818,23 @@ fn ResponseMultipleClMismatch() {
     assert_response_header_eq!(tx, "Content-Length", "12");
     assert_response_header_flag_contains!(tx, "Content-Length", Flags::FIELD_REPEATED);
 
-    unsafe {
-        assert_eq!(2, (*tx.connp).conn.messages.borrow().len());
-        assert_eq!(
-            (*tx.connp).conn.messages.borrow().get(0).unwrap().msg,
-            "Ambiguous response C-L value"
-        );
-        assert_eq!(
-            HtpLogLevel::WARNING,
-            (*tx.connp).conn.messages.borrow().get(1).unwrap().level
-        );
-        assert_eq!(
-            (*tx.connp).conn.messages.borrow().get(1).unwrap().msg,
-            "Repetition for header"
-        );
-        assert_eq!(
-            HtpLogLevel::WARNING,
-            (*tx.connp).conn.messages.borrow().get(1).unwrap().level
-        );
-    }
+    assert_eq!(2, t.connp.conn.messages.borrow().len());
+    assert_eq!(
+        t.connp.conn.messages.borrow().get(0).unwrap().msg,
+        "Ambiguous response C-L value"
+    );
+    assert_eq!(
+        HtpLogLevel::WARNING,
+        t.connp.conn.messages.borrow().get(1).unwrap().level
+    );
+    assert_eq!(
+        t.connp.conn.messages.borrow().get(1).unwrap().msg,
+        "Repetition for header"
+    );
+    assert_eq!(
+        HtpLogLevel::WARNING,
+        t.connp.conn.messages.borrow().get(1).unwrap().level
+    );
 }
 
 #[test]
@@ -2478,7 +2472,7 @@ fn ResponseHeaderDeformedEOL() {
     // Check response headers
     assert_response_header_eq!(tx, "content-type", "text/html");
     assert_response_header_eq!(tx, "content-length", "6");
-    let logs = unsafe { (*tx.connp).conn.messages.borrow() };
+    let logs = t.connp.conn.messages.borrow();
     let log_message_count = logs.len();
     assert_eq!(log_message_count, 1);
     assert_eq!(logs.get(0).unwrap().code, HtpLogCode::DEFORMED_EOL);

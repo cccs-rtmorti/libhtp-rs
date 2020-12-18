@@ -196,6 +196,9 @@ pub struct DecoderConfig {
     pub nul_encoded_terminates: bool,
     /// How are we expected to react to an encoded NUL byte?
     pub nul_encoded_unwanted: HtpUnwanted,
+    // Normalized URI preference
+    /// Controls whether the client wants the complete or partial normalized URI.
+    pub normalized_uri_include_all: bool,
     // UTF-8 options.
     /// Controls how invalid UTF-8 characters are handled.
     pub utf8_invalid_unwanted: HtpUnwanted,
@@ -223,6 +226,7 @@ impl Default for DecoderConfig {
             url_encoding_invalid_unwanted: HtpUnwanted::IGNORE,
             nul_encoded_terminates: false,
             nul_encoded_unwanted: HtpUnwanted::IGNORE,
+            normalized_uri_include_all: false,
             utf8_invalid_unwanted: HtpUnwanted::IGNORE,
             utf8_convert_bestfit: false,
             bestfit_map: UnicodeBestfitMap::default(),
@@ -614,6 +618,11 @@ impl Config {
     /// Controls reaction to raw control characters in the data.
     pub fn set_control_chars_unwanted(&mut self, unwanted: HtpUnwanted) {
         self.decoder_cfg.control_chars_unwanted = unwanted;
+    }
+
+    /// Controls whether to use complete or partial URI normalization
+    pub fn set_normalized_uri_include_all(&mut self, set: bool) {
+        self.decoder_cfg.normalized_uri_include_all = set;
     }
 
     /// Configures how the server reacts to invalid URL encoding.

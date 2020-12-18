@@ -1,4 +1,5 @@
 use crate::{
+    connection_parser::ConnectionParser,
     error::Result,
     log::Log,
     transaction::{Data, Transaction},
@@ -7,7 +8,8 @@ use crate::{
 };
 
 /// External (C) callback function prototype
-pub type TxExternalCallbackFn = unsafe extern "C" fn(tx: *mut Transaction) -> HtpStatus;
+pub type TxExternalCallbackFn =
+    unsafe extern "C" fn(connp: *const ConnectionParser, tx: *mut Transaction) -> HtpStatus;
 
 /// Native (rust) callback function prototype
 pub type TxNativeCallbackFn = fn(tx: &mut Transaction) -> Result<()>;
@@ -16,7 +18,8 @@ pub type TxNativeCallbackFn = fn(tx: &mut Transaction) -> Result<()>;
 pub type TxHook = Hook<TxExternalCallbackFn, TxNativeCallbackFn>;
 
 /// External (C) callback function prototype
-pub type DataExternalCallbackFn = unsafe extern "C" fn(data: *mut Data) -> HtpStatus;
+pub type DataExternalCallbackFn =
+    unsafe extern "C" fn(connp: *const ConnectionParser, data: *mut Data) -> HtpStatus;
 
 /// Native (rust) callback function prototype
 pub type DataNativeCallbackFn = fn(data: &mut Data) -> Result<()>;
@@ -73,11 +76,11 @@ impl TxHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, tx: &mut Transaction) -> Result<()> {
+    pub fn run_all(&self, connp: &ConnectionParser, tx: &mut Transaction) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
-                    let result = unsafe { cbk_fn(tx) };
+                    let result = unsafe { cbk_fn(connp, tx) };
                     if result != HtpStatus::OK && result != HtpStatus::DECLINED {
                         return Err(result);
                     }
@@ -100,11 +103,11 @@ impl DataHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, data: &mut Data) -> Result<()> {
+    pub fn run_all(&self, connp: &ConnectionParser, data: &mut Data) -> Result<()> {
         for cbk_fn in &self.callbacks {
             match cbk_fn {
                 Callback::External(cbk_fn) => {
-                    let result = unsafe { cbk_fn(data) };
+                    let result = unsafe { cbk_fn(connp, data) };
                     if result != HtpStatus::OK && result != HtpStatus::DECLINED {
                         return Err(result);
                     }
@@ -188,18 +191,20 @@ pub enum Callback<E, N> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::config::Config;
 
     #[test]
     fn test_callback() {
-        unsafe extern "C" fn foo(_: *mut Data) -> HtpStatus {
+        unsafe extern "C" fn foo(_: *const ConnectionParser, _: *mut Data) -> HtpStatus {
             HtpStatus::OK
         }
+        let connp = ConnectionParser::new(Config::default());
         let mut hook = DataHook::default();
         let mut data = Data::new(std::ptr::null_mut(), None, false);
 
         hook.register(|_| Ok(()));
         hook.register_extern(foo);
 
-        assert!(hook.run_all(&mut data).is_ok());
+        assert!(hook.run_all(&connp, &mut data).is_ok());
     }
 }
