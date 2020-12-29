@@ -3,12 +3,13 @@ use crate::{
     config::HtpUnwanted,
     connection_parser::ConnectionParser,
     error::Result,
+    headers::{headers, Flags as HeaderFlags},
     parsers::{parse_content_length, parse_protocol},
     request::HtpMethod,
     transaction::{Header, HtpProtocol},
     util::{
-        chomp, convert_to_method, is_space, is_word_token, split_by_colon, take_ascii_whitespace,
-        take_is_space, take_is_space_trailing, take_not_is_space, take_until_null, Flags,
+        convert_to_method, is_space, take_ascii_whitespace, take_is_space, take_not_is_space,
+        take_until_null, Flags,
     },
 };
 use nom::{bytes::complete::take_while, error::ErrorKind, sequence::tuple};
@@ -19,9 +20,8 @@ impl ConnectionParser {
     /// which case they will be folded into one before parsing is attempted.
     ///
     /// Returns OK or ERROR
-    pub fn process_request_header_generic(&mut self, data: &[u8]) -> Result<()> {
+    fn process_request_header_generic(&mut self, header: Header) -> Result<()> {
         // Try to parse the header.
-        let header = self.parse_request_header_generic(data)?;
         let mut repeated = false;
         let reps = self.in_tx_mut_ok()?.req_header_repetitions;
         let mut update_reps = false;
@@ -84,91 +84,90 @@ impl ConnectionParser {
     }
 
     /// Generic request header parser.
-    pub fn parse_request_header_generic(&mut self, data: &[u8]) -> Result<Header> {
-        let mut flags = Flags::empty();
-        let data = chomp(&data);
-
-        let (name, value): (&[u8], &[u8]) = match split_by_colon(data) {
-            Ok((mut name, mut value)) => {
-                // Empty header name.
-                if name.is_empty() {
-                    flags |= Flags::FIELD_INVALID;
-                    // Log only once per transaction.
-                    if !self.in_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
-                        flags |= Flags::FIELD_INVALID;
-                        htp_warn!(
-                            self,
-                            HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
-                            "Request field invalid: empty name"
-                        );
-                    }
-                }
+    pub fn process_request_headers_generic<'a>(
+        &mut self,
+        data: &'a [u8],
+    ) -> Result<(&'a [u8], bool)> {
+        let rc = headers(data);
+        if let Ok((remaining, (headers, eoh))) = rc {
+            for h in headers {
+                let mut flags = Flags::empty();
+                let name_flags = h.name.flags;
                 // Ignore LWS after field-name.
-                if let Ok((name_remaining, tws)) = take_is_space_trailing(name) {
-                    flags |= Flags::FIELD_INVALID;
-                    if !tws.is_empty() {
-                        // Log only once per transaction.
-                        if !self.in_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
-                            flags |= Flags::FIELD_INVALID;
-                            htp_warn!(
-                                self,
-                                HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
-                                "Request field invalid: LWS after name"
-                            );
-                        }
-                    }
-                    name = name_remaining;
-                }
-                // Remove value characters after null
-                if let Ok((_, val_before_null)) = take_until_null(value) {
-                    value = val_before_null;
-                }
-                // Remove value trailing whitespace
-                if let Ok((val_remaining, _)) = take_is_space_trailing(value) {
-                    value = val_remaining;
-                }
-
-                // Check that field-name is a token
-                if !is_word_token(name) {
-                    // Incorrectly formed header name.
-                    flags |= Flags::FIELD_INVALID;
+                if name_flags.contains(HeaderFlags::NAME_TRAILING_WHITESPACE) {
                     // Log only once per transaction.
-                    if !self.in_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
-                        self.in_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
-                        htp_warn!(
-                            self,
-                            HtpLogCode::REQUEST_HEADER_INVALID,
-                            "Request header name is not a token"
-                        );
-                    }
-                }
-                (name, value)
-            }
-            _ => {
-                // No colon
-                flags |= Flags::FIELD_UNPARSEABLE;
-                // Log only once per transaction.
-                if !self
-                    .in_tx_mut_ok()?
-                    .flags
-                    .contains(Flags::FIELD_UNPARSEABLE)
-                {
-                    self.in_tx_mut_ok()?.flags |= Flags::FIELD_UNPARSEABLE;
-                    htp_warn!(
+                    htp_warn_once!(
                         self,
-                        HtpLogCode::REQUEST_FIELD_MISSING_COLON,
-                        "Request field invalid: colon missing"
+                        HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
+                        "Request field invalid: LWS after name",
+                        self.in_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_INVALID
                     );
                 }
-                // We handle this case as a header with an empty name, with the value equal
-                // to the entire input string.
-                // TODO Apache will respond to this problem with a 400.
-                // Now extract the name and the value
-                (b"", data)
+                //If name has leading whitespace, probably invalid folding
+                if name_flags.contains(HeaderFlags::NAME_LEADING_WHITESPACE) {
+                    // Invalid folding.
+                    // Warn only once per transaction.
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
+                        "Invalid request field folding",
+                        self.in_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::INVALID_FOLDING
+                    );
+                }
+                // Check that field-name is a token
+                if name_flags.contains(HeaderFlags::NAME_NON_TOKEN_CHARS) {
+                    // Incorrectly formed header name.
+                    // Log only once per transaction.
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::REQUEST_HEADER_INVALID,
+                        "Request header name is not a token",
+                        self.in_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_INVALID
+                    );
+                }
+                // No colon?
+                if name_flags.contains(HeaderFlags::MISSING_COLON) {
+                    // Log only once per transaction.
+                    // We handle this case as a header with an empty name, with the value equal
+                    // to the entire input string.
+                    // TODO Apache will respond to this problem with a 400.
+                    // Now extract the name and the value
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::REQUEST_FIELD_MISSING_COLON,
+                        "Request field invalid: colon missing",
+                        self.in_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_UNPARSEABLE
+                    );
+                } else if name_flags.contains(HeaderFlags::NAME_EMPTY) {
+                    // Empty header name.
+                    // Log only once per transaction.
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
+                        "Request field invalid: empty name",
+                        self.in_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_INVALID
+                    );
+                }
+                self.process_request_header_generic(Header::new_with_flags(
+                    h.name.name.into(),
+                    h.value.value.into(),
+                    flags,
+                ))?;
             }
-        };
-
-        Ok(Header::new_with_flags(name.into(), value.into(), flags))
+            Ok((remaining, eoh))
+        } else {
+            Ok((data, false))
+        }
     }
 
     pub fn parse_request_line_generic_ex(

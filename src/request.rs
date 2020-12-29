@@ -6,9 +6,8 @@ use crate::{
     parsers::parse_chunked_length,
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
-        chomp, convert_to_method, is_folding_char, is_line_folded, is_line_ignorable,
-        is_line_terminator, is_space, nom_take_is_space, req_sep_by_line_endings, take_is_space,
-        take_not_is_space, take_till_lf, take_till_lf_null, ConnectionFlags, Flags,
+        chomp, convert_to_method, is_line_ignorable, is_space, nom_take_is_space, take_is_space,
+        take_not_is_space, take_till_lf, take_till_lf_null, ConnectionFlags,
     },
     HtpStatus,
 };
@@ -18,9 +17,11 @@ use nom::{
     character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
 };
 use std::{
+    cmp::{min, Ordering},
     io::{Cursor, Seek, SeekFrom},
     mem::take,
 };
+
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -282,7 +283,7 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
     pub fn req_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
-        let bytes_to_consume: usize = std::cmp::min(
+        let bytes_to_consume: usize = min(
             data.len(),
             self.in_chunked_length.map(|len| len).unwrap_or(0) as usize,
         );
@@ -331,13 +332,17 @@ impl ConnectionParser {
                 Ok(len) => {
                     self.in_chunked_length = len;
                     if let Some(len) = len {
-                        if len > 0 {
-                            // More data available.
-                            self.in_state = State::BODY_CHUNKED_DATA
-                        } else if len == 0 {
-                            // End of data
-                            self.in_state = State::HEADERS;
-                            self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER
+                        match len.cmp(&0) {
+                            Ordering::Equal => {
+                                // End of data
+                                self.in_state = State::HEADERS;
+                                self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER
+                            }
+                            Ordering::Greater => {
+                                // More data available.
+                                self.in_state = State::BODY_CHUNKED_DATA
+                            }
+                            _ => {}
                         }
                         Ok(())
                     } else {
@@ -353,7 +358,7 @@ impl ConnectionParser {
                 Err(_) => Err(HtpStatus::ERROR),
             }
         } else {
-            return self.handle_in_absent_lf(data);
+            self.handle_in_absent_lf(data)
         }
     }
 
@@ -362,7 +367,7 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
     pub fn req_body_identity(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
-        let bytes_to_consume: usize = std::cmp::min(data.len(), self.in_body_data_left as usize);
+        let bytes_to_consume: usize = min(data.len(), self.in_body_data_left as usize);
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
@@ -422,92 +427,54 @@ impl ConnectionParser {
 
     /// Parses request headers.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or DATA when more data is needed.
     pub fn req_headers(&mut self, data: &[u8]) -> Result<()> {
-        let mut header: &[u8] = b"";
         if self.in_status == HtpStreamState::CLOSED {
             // Parse previous header, if any.
             if let Some(in_header) = self.in_header.take() {
-                self.process_request_header(in_header.as_slice())?;
+                self.process_request_headers(in_header.as_slice())?;
             }
             self.in_buf.clear();
             self.in_tx_mut_ok()?.request_progress = HtpRequestProgress::TRAILER;
             // We've seen all the request headers.
-            return self.state_request_headers().into();
+            return self.state_request_headers();
         }
-
-        if let Ok((_, headers)) = req_sep_by_line_endings(data) {
-            for (i, val) in headers.iter().enumerate() {
-                // if its header data.
-                if val != b"\n" && val != b"\r\n" {
-                    header = val;
-                    if i == headers.len() - 1 {
-                        return self.handle_in_absent_lf(val);
-                    }
-                    self.in_curr_data
-                        .seek(SeekFrom::Current(val.len() as i64))?;
-                    continue;
-                }
-
-                // we reached eol.
-                self.in_curr_data
-                    .seek(SeekFrom::Current(val.len() as i64))?;
-                if !self.in_buf.is_empty() {
-                    self.check_in_buffer_limit(header.len() + val.len())?;
-                }
-                let mut data = take(&mut self.in_buf);
-                data.add(header);
-                data.add(val);
-                if is_line_terminator(self.cfg.server_personality, &data, false) {
-                    // Parse previous header, if any.
-                    if let Some(in_header) = self.in_header.take() {
-                        self.process_request_header(in_header.as_slice())?;
-                    }
-                    // We've seen all the request headers.
-                    return self.state_request_headers().into();
-                }
-                let data = chomp(&data);
-                if !is_line_folded(data) {
-                    // New header line.
-                    // Parse previous header, if any.
-                    if let Some(in_header) = self.in_header.take() {
-                        self.process_request_header(in_header.as_slice())?;
-                    }
-
-                    if let Some(next) = headers.get(i + 1) {
-                        if let Some(byte) = next.get(0) {
-                            if !is_folding_char(*byte) {
-                                self.process_request_header(data)?;
-                            } else {
-                                self.in_header = Some(Bstr::from(data));
-                            }
-                        }
-                    } else {
-                        self.in_header = Some(Bstr::from(data));
-                    }
-                } else {
-                    if let Some(header) = &mut self.in_header {
-                        header.add(&data);
-                    } else {
-                        // Invalid folding.
-                        // Warn only once per transaction.
-                        if !self.in_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
-                            self.in_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                            htp_warn!(
-                                self,
-                                HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
-                                "Invalid request field folding"
-                            );
-                        }
-                        // Keep the header data for parsing later.
-                        self.in_header = Some(Bstr::from(data));
-                    }
-                }
-                header = b"";
-            }
-            Ok(())
+        let in_header = if let Some(mut in_header) = self.in_header.take() {
+            in_header.add(data);
+            in_header
         } else {
-            self.handle_in_absent_lf(data)
+            Bstr::from(data)
+        };
+
+        let (remaining, eoh) = self.process_request_headers(in_header.as_slice())?;
+        //TODO: Update the request state machine so that we don't have to have this EOL check
+        let eol = remaining.len() == in_header.len()
+            && (remaining.starts_with(b"\r\n") || remaining.starts_with(b"\n"));
+        if eoh
+            //If the input started with an EOL, we assume this is the end of the headers
+            || eol
+        {
+            if remaining.len() < data.len() {
+                self.in_curr_data
+                    .seek(SeekFrom::Current((data.len() - remaining.len()) as i64))?;
+            } else if eol {
+                if remaining.starts_with(b"\r\n") {
+                    self.in_curr_data
+                        .seek(SeekFrom::Current(min(data.len() as i64, 2)))?;
+                } else if remaining.starts_with(b"\n") {
+                    self.in_curr_data
+                        .seek(SeekFrom::Current(min(data.len() as i64, 1)))?;
+                }
+            }
+            // We've seen all the request headers.
+            self.state_request_headers()
+        } else {
+            self.in_curr_data
+                .seek(SeekFrom::Current(data.len() as i64))?;
+            self.check_in_buffer_limit(remaining.len())?;
+            let remaining = Bstr::from(remaining);
+            self.in_header.replace(remaining);
+            Err(HtpStatus::DATA_BUFFER)
         }
     }
 
@@ -708,12 +675,8 @@ impl ConnectionParser {
         if self.in_curr_data.position() as i64 >= self.in_curr_len() {
             return Err(HtpStatus::DATA);
         }
-
-        if let Ok(tx_id) = self.create_tx() {
-            self.set_in_tx_id(Some(tx_id))
-        } else {
-            return Err(HtpStatus::ERROR);
-        }
+        let tx_id = self.create_tx()?;
+        self.set_in_tx_id(Some(tx_id));
 
         // Change state to TRANSACTION_START
         // Ignore the result.
@@ -830,7 +793,7 @@ impl ConnectionParser {
                     State::BODY_IDENTITY | State::IGNORE_DATA_AFTER_HTTP_0_9 => {
                         rc = self.handle_in_state(chunk)
                     }
-                    State::FINALIZE => rc = self.state_request_complete().into(),
+                    State::FINALIZE => rc = self.state_request_complete(),
                     _ => {
                         // go to req_connect_probe_data ?
                         htp_error!(

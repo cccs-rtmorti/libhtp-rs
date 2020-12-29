@@ -198,3 +198,15 @@ macro_rules! htp_error {
         htp_log!($connp, HtpLogLevel::ERROR, $code, $msg);
     };
 }
+
+#[macro_export]
+macro_rules! htp_warn_once {
+    ($connp:expr, $code:expr, $msg:expr, $tx_flags:expr, $flags:expr, $flag:expr) => {
+        // Log only once per transaction.
+        if !$tx_flags.contains($flag) {
+            htp_warn!($connp, $code, $msg);
+        }
+        $tx_flags |= $flag;
+        $flags |= $flag;
+    };
+}

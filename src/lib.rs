@@ -73,6 +73,7 @@ pub mod bstr;
 pub mod c_api;
 pub mod decompressors;
 pub mod error;
+mod headers;
 pub mod hook;
 #[macro_use]
 mod unicode_bestfit_map;

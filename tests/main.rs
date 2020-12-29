@@ -23,7 +23,6 @@ use std::{
 
 // import common testing utilities
 mod common;
-
 #[derive(Debug)]
 enum Chunk {
     Client(Vec<u8>),
@@ -299,7 +298,7 @@ fn ApacheHeaderParsing() {
         .collect();
 
     let expected: Vec<(&[u8], &[u8])> = [
-        (" Invalid-Folding", "1"),
+        ("Invalid-Folding", "1"),
         ("Valid-Folding", "2 2"),
         ("Normal-Header", "3"),
         ("Invalid Header Name", "4"),
@@ -312,7 +311,6 @@ fn ApacheHeaderParsing() {
     .iter()
     .map(|(key, val)| (key.as_bytes(), val.as_bytes()))
     .collect();
-
     assert_eq!(
         actual,
         expected,
@@ -1825,7 +1823,7 @@ fn ResponseMultipleClMismatch() {
     );
     assert_eq!(
         HtpLogLevel::WARNING,
-        t.connp.conn.messages.borrow().get(1).unwrap().level
+        t.connp.conn.messages.borrow().get(0).unwrap().level
     );
     assert_eq!(
         t.connp.conn.messages.borrow().get(1).unwrap().msg,
@@ -2452,14 +2450,13 @@ fn UnknownStatusNumber() {
 
 #[test]
 fn ResponseHeaderCrOnly() {
-    // Content-Length terminated with \r only.
+    // Content-Type terminated with \r only.
     let mut t = Test::new();
     assert!(t.run("108-response-headers-cr-only.t").is_ok());
     let tx = t.connp.conn.tx(0).unwrap();
-    assert_eq!(2, tx.response_headers.size());
+    assert_eq!(1, tx.response_headers.size());
     // Check response headers
-    assert_response_header_eq!(tx, "content-type", "text/html");
-    assert_response_header_eq!(tx, "content-length", "7");
+    assert_response_header_eq!(tx, "content-type", "text/html\rContent-Length: 7");
 }
 
 #[test]

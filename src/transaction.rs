@@ -590,7 +590,7 @@ impl Transaction {
             || self.request_transfer_coding == HtpTransferCoding::CHUNKED
     }
 
-    fn process_request_headers(&mut self, connp: &mut ConnectionParser) -> Result<()> {
+    pub fn process_request_headers(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Determine if we have a request body, and how it is packaged.
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
         // Check for the Transfer-Encoding header, which would indicate a chunked request body.

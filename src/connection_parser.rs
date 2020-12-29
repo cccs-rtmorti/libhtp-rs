@@ -376,12 +376,12 @@ impl ConnectionParser {
         self.parse_response_line_generic(response_line)
     }
 
-    pub fn process_request_header(&mut self, data: &[u8]) -> Result<()> {
-        self.process_request_header_generic(data)
+    pub fn process_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
+        self.process_request_headers_generic(data)
     }
 
-    pub fn process_response_header(&mut self, data: &[u8]) -> Result<()> {
-        self.process_response_header_generic(data)
+    pub fn process_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
+        self.process_response_headers_generic(data)
     }
 
     /// Closes the connection associated with the supplied parser.

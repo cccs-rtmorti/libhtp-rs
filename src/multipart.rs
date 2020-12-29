@@ -2,21 +2,22 @@ use crate::{
     bstr::Bstr,
     config::{Config, MultipartConfig},
     error::Result,
+    headers::{headers, Flags as HeaderFlags},
     hook::FileDataHook,
     list::List,
     parsers::parse_content_type,
     table::Table,
     transaction::{Header, Headers},
     util::{
-        is_space, is_token, nom_take_is_space, take_ascii_whitespace, take_is_space,
-        take_until_no_case, File, Flags as UtilFlags, HtpFileSource,
+        is_space, take_ascii_whitespace, take_is_space, take_until_no_case, File,
+        Flags as UtilFlags, HtpFileSource,
     },
     HtpStatus,
 };
 use bitflags;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, tag_no_case, take, take_till, take_until, take_while, take_while1},
+    bytes::complete::{tag, tag_no_case, take, take_till, take_until, take_while},
     character::complete::char,
     character::is_space as nom_is_space,
     combinator::{map, not, opt, peek},
@@ -291,26 +292,19 @@ impl Parser {
                     line = Some(header);
                     self.part_header.clear();
                 }
-                let mut data = line
+                let data = line
                     .as_ref()
                     .map(|line| line.as_slice())
                     .unwrap_or(to_consume);
-                // Ignore the line endings.
-                if data.last() == Some(&(b'\n')) {
-                    data = &data[..data.len() - 1];
-                }
-                if data.last() == Some(&(b'\r')) {
-                    data = &data[..data.len() - 1];
-                }
                 // Is it an empty line?
-                if data.is_empty() {
+                if data.is_empty() || data.eq(b"\r\n") || data.eq(b"\n") {
+                    self.pending_header_line.add(data);
                     // Empty line; process headers and switch to data mode.
                     // Process the pending header, if any.
-                    if !self.pending_header_line.is_empty() {
-                        if self.parse_header() == Err(HtpStatus::ERROR) {
-                            return Err(HtpStatus::ERROR);
-                        };
-                        self.pending_header_line.clear()
+                    if !self.pending_header_line.is_empty()
+                        && self.parse_header() == Err(HtpStatus::ERROR)
+                    {
+                        return Err(HtpStatus::ERROR);
                     }
                     if self.parse_c_d() == Err(HtpStatus::ERROR) {
                         return Err(HtpStatus::ERROR);
@@ -347,30 +341,10 @@ impl Parser {
                             }
                         }
                     }
-                } else if self.pending_header_line.is_empty() {
-                    if let Some(header) = line {
-                        self.pending_header_line.add(header.as_slice());
-                    } else {
-                        self.pending_header_line.add(data);
-                    }
-                } else if data[0].is_ascii_whitespace() {
-                    // Not an empty line.
-                    // Is there a pending header?
-                    // Is this a folded line?
-                    // Folding; add to the existing line.
-                    self.multipart.flags |= Flags::PART_HEADER_FOLDING;
-                    self.pending_header_line.add(data);
+                } else if let Some(header) = line {
+                    self.pending_header_line.add(header.as_slice());
                 } else {
-                    // Process the pending header line.
-                    if self.parse_header() == Err(HtpStatus::ERROR) {
-                        return Err(HtpStatus::ERROR);
-                    }
-                    self.pending_header_line.clear();
-                    if let Some(header) = line {
-                        self.pending_header_line.add(header.as_slice());
-                    } else {
-                        self.pending_header_line.add(data);
-                    }
+                    self.pending_header_line.add(data);
                 }
             } else {
                 // Not end of line; keep the data chunk for later.
@@ -736,33 +710,52 @@ impl Parser {
             return Err(HtpStatus::DECLINED);
         }
         // Extract the name and the value
-        if let Ok((_, (name, value))) = header()(self.pending_header_line.as_slice()) {
-            // Now extract the name and the value.
-            let header = Header::new(name.into(), value.into());
-
-            if !header.name.eq_nocase("content-disposition")
-                && !header.name.eq_nocase("content-type")
-            {
-                self.multipart.flags |= Flags::PART_HEADER_UNKNOWN
-            }
-            // Check if the header already exists.
-            if let Some((_, h_existing)) = self
-                .get_current_part()?
-                .headers
-                .get_nocase_mut(header.name.as_slice())
-            {
-                h_existing.value.extend_from_slice(b", ");
-                h_existing.value.extend_from_slice(header.value.as_slice());
-                // Keep track of same-name headers.
-                // FIXME: Normalize the flags? define the symbol in both Flags and Flags and set the value in both from their own namespace
-                h_existing.flags |=
-                    unsafe { UtilFlags::from_bits_unchecked(Flags::PART_HEADER_REPEATED.bits()) };
-                self.multipart.flags |= Flags::PART_HEADER_REPEATED
-            } else {
-                self.get_current_part()?
+        if let Ok((remaining, (headers, _))) = headers(self.pending_header_line.as_slice()) {
+            let remaining = remaining.to_vec();
+            for header in headers {
+                let value_flags = &header.value.flags;
+                let name_flags = &header.name.flags;
+                if value_flags.contains(HeaderFlags::FOLDING) {
+                    self.multipart.flags |= Flags::PART_HEADER_FOLDING
+                }
+                if value_flags.contains(HeaderFlags::VALUE_EMPTY)
+                    || name_flags.contains(HeaderFlags::NAME_LEADING_WHITESPACE)
+                    || name_flags.contains(HeaderFlags::NAME_EMPTY)
+                    || name_flags.contains(HeaderFlags::NAME_NON_TOKEN_CHARS)
+                    || name_flags.contains(HeaderFlags::NAME_TRAILING_WHITESPACE)
+                {
+                    // Invalid name and/or value found
+                    self.multipart.flags |= Flags::PART_HEADER_INVALID;
+                }
+                // Now extract the name and the value.
+                let header = Header::new(header.name.name.into(), header.value.value.into());
+                if !header.name.eq_nocase("content-disposition")
+                    && !header.name.eq_nocase("content-type")
+                {
+                    self.multipart.flags |= Flags::PART_HEADER_UNKNOWN
+                }
+                // Check if the header already exists.
+                if let Some((_, h_existing)) = self
+                    .get_current_part()?
                     .headers
-                    .add(header.name.clone(), header);
+                    .get_nocase_mut(header.name.as_slice())
+                {
+                    h_existing.value.extend_from_slice(b", ");
+                    h_existing.value.extend_from_slice(header.value.as_slice());
+                    // Keep track of same-name headers.
+                    // FIXME: Normalize the flags? define the symbol in both Flags and Flags and set the value in both from their own namespace
+                    h_existing.flags |= unsafe {
+                        UtilFlags::from_bits_unchecked(Flags::PART_HEADER_REPEATED.bits())
+                    };
+                    self.multipart.flags |= Flags::PART_HEADER_REPEATED
+                } else {
+                    self.get_current_part()?
+                        .headers
+                        .add(header.name.clone(), header);
+                }
             }
+            self.pending_header_line.clear();
+            self.pending_header_line.add(remaining);
         } else {
             // Invalid name and/or value found
             self.multipart.flags |= Flags::PART_HEADER_INVALID;
@@ -977,7 +970,7 @@ fn content_disposition_param() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Vec<u
         let mut param_value = Vec::new();
         loop {
             let (left, (value, to_insert)) = tuple((
-                take_while(|c: u8| c != b'\"' && c != b'\\'),
+                take_while(|c| c != b'\"' && c != b'\\'),
                 opt(tuple((char('\\'), alt((char('\"'), char('\\')))))),
             ))(remaining_input)?;
             remaining_input = left;
@@ -1110,26 +1103,6 @@ fn validate_content_type(content_type: &[u8], flags: &mut Flags) {
     } else {
         // There must be at least one occurrence!
         *flags |= Flags::HBOUNDARY_INVALID;
-    }
-}
-
-/// Parses header, extracting a valid name and valid value.
-/// Does not allow leading or trailing whitespace for a name, but allows leading and trailing whitespace for the value.
-///
-/// Returns a tuple of a valid name and value
-fn header() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
-    move |input| {
-        let (value, (name, _, _, _)) = tuple((
-            // The name must not be empty and must consist only of token characters (i.e., no spaces, seperators, control characters, etc)
-            take_while1(is_token),
-            // First non token character must be a colon, to seperate name and value
-            tag(":"),
-            // Allow whitespace between the colon and the value
-            nom_take_is_space,
-            // Peek ahead to ensure a non empty header value
-            peek(take(1usize)),
-        ))(input)?;
-        Ok((b"", (name, value)))
     }
 }
 
@@ -1370,60 +1343,4 @@ fn ValidateContentType() {
         validate_content_type(inputs[i], &mut flags);
         assert_eq!(outputs[i], flags);
     }
-}
-
-// Tests
-
-#[test]
-fn Header() {
-    // Space after header name
-    let input: &[u8] =
-        b"Content-Disposition: form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    let name: &[u8] = b"Content-Disposition";
-    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert_eq!((name, value), header()(input).unwrap().1);
-
-    // Tab after header name
-    let input: &[u8] =
-        b"Content-Disposition:\tform-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    let name: &[u8] = b"Content-Disposition";
-    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert_eq!((name, value), header()(input).unwrap().1);
-
-    // Space/tabs after header name
-    let input: &[u8] =
-        b"Content-Disposition: \t form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    let name: &[u8] = b"Content-Disposition";
-    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert_eq!((name, value), header()(input).unwrap().1);
-
-    // No space after header name
-    let input: &[u8] =
-        b"Content-Disposition:form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    let name: &[u8] = b"Content-Disposition";
-    let value: &[u8] = b"form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert_eq!((name, value), header()(input).unwrap().1);
-
-    // Space before header name
-    let input: &[u8] =
-        b" Content-Disposition: form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert!(header()(input).is_err());
-
-    // Null characters
-    let input: &[u8] =
-        b"Content-Disposition\0: form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert!(header()(input).is_err());
-
-    // Empty header name
-    let input: &[u8] = b": form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert!(header()(input).is_err());
-
-    // Empty header value
-    let input: &[u8] = b"Content-Disposition:  ";
-    assert!(header()(input).is_err());
-
-    // Invalid header name characters
-    let input: &[u8] =
-        b"Content-Disposition\r\n:form-data; name=\"file1\"; filename=\"file.bin\"\r\n\"";
-    assert!(header()(input).is_err());
 }

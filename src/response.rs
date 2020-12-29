@@ -8,10 +8,7 @@ use crate::{
     request::HtpMethod,
     transaction::{Data, HtpProtocol, HtpResponseProgress, HtpTransferCoding},
     uri::Uri,
-    util::{
-        chomp, is_line_folded, is_line_ignorable, is_space, res_sep_by_line_endings, take_till_lf,
-        treat_response_line_as_body, Flags,
-    },
+    util::{chomp, is_line_ignorable, is_space, take_till_lf, treat_response_line_as_body, Flags},
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
@@ -210,17 +207,18 @@ impl ConnectionParser {
                         self.out_chunked_length = len;
                         // Handle chunk length
                         if let Some(len) = len {
-                            if len > 0 {
-                                // More data available
-                                self.out_state = State::BODY_CHUNKED_DATA
-                            } else if len == 0 {
-                                // End of data
-                                self.out_state = State::HEADERS;
-                                self.out_tx_mut_ok()?.response_progress =
-                                    HtpResponseProgress::TRAILER
-                            } else {
-                                // empty chunk length line, lets try to continue
-                                return Ok(());
+                            match len.cmp(&0) {
+                                Ordering::Greater => {
+                                    // More data available
+                                    self.out_state = State::BODY_CHUNKED_DATA
+                                }
+                                Ordering::Equal => {
+                                    // End of data
+                                    self.out_state = State::HEADERS;
+                                    self.out_tx_mut_ok()?.response_progress =
+                                        HtpResponseProgress::TRAILER
+                                }
+                                _ => return Ok(()), // empty chunk length line, lets try to continue
                             }
                         }
                     }
@@ -231,7 +229,7 @@ impl ConnectionParser {
                         htp_error!(
                             self,
                             HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
-                            format!("Response chunk encoding: Invalid chunk length")
+                            "Response chunk encoding: Invalid chunk length"
                         );
                     }
                 }
@@ -573,125 +571,53 @@ impl ConnectionParser {
             self.out_state = State::FINALIZE;
             return Ok(());
         }
-        let is_terminator = |val: &[u8]| -> bool {
-            match val {
-                b"\r\n\r\n" | b"\n\r\r\n\r\n" | b"\n\n" | b"\r\r" => true,
-                _ => false,
-            }
+        let out_header = if let Some(mut out_header) = self.out_header.take() {
+            out_header.add(data);
+            out_header
+        } else {
+            Bstr::from(data)
         };
-        if let Ok((_, headers)) = res_sep_by_line_endings(data) {
-            let mut header: &[u8] = b"";
-            for (i, val) in headers.iter().enumerate() {
-                // header
-                if val != b"\r\n" && val != b"\n" && val != b"\r" && !is_terminator(val) {
-                    header = val;
-                    // Extra data not yet terminated, wait for more.
-                    if i == headers.len() - 1 {
-                        return self.handle_out_absent_lf(val);
-                    }
 
-                    self.out_curr_data
-                        .seek(SeekFrom::Current(val.len() as i64))?;
-
-                    continue;
-                }
-
-                // reached a new line
+        let (remaining, eoh) = self.process_response_headers(out_header.as_slice())?;
+        //TODO: Update the response state machine so that we don't have to have this EOL check
+        let eol =
+            remaining.len() == out_header.len() && (remaining.eq(b"\r\n") || remaining.eq(b"\n"));
+        // If remaining is EOL or header parsing saw EOH this is end of headers
+        if eoh || eol {
+            if eol {
+                //Consume the EOL so it isn't included in data processing
                 self.out_curr_data
-                    .seek(SeekFrom::Current(val.len() as i64))?;
-                if !self.out_buf.is_empty() {
-                    self.check_out_buffer_limit(header.len())?;
-                };
-                let mut data = take(&mut self.out_buf);
-                data.add(header);
-
-                // Check for folding
-                if !is_line_folded(data.as_slice()) {
-                    // New header line.
-                    // Parse previous header, if any.
-                    if let Some(out_header) = self.out_header.take() {
-                        self.process_response_header(out_header.as_slice())?;
-                    }
-                    let is_next_folded = headers
-                        .get(i + 1)
-                        .map(|line| is_line_folded(line))
-                        .unwrap_or(false);
-                    if is_next_folded {
-                        // Keep the partial header data for parsing later.
-                        self.out_header = Some(data);
-                    } else {
-                        // Because we know this header is not folded, we can process the buffer straight away
-                        self.process_response_header(data.as_slice())?;
-                    }
-                } else {
-                    // Line is folded but theres no buffered data.
-                    if self.out_header.is_none() {
-                        if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
-                            self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                            htp_warn!(
-                                self,
-                                HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
-                                "Invalid response field folding"
-                            );
-                        }
-                        self.out_header = Some(data);
-                    } else {
-                        // Line is folded, there is buffered data.
-                        if data.iter().any(|&c| c == b':')
-                            && self.out_tx_mut_ok()?.response_protocol_number == HtpProtocol::V1_1
-                        {
-                            // Warn only once per transaction.
-                            if !self.out_tx_mut_ok()?.flags.contains(Flags::INVALID_FOLDING) {
-                                self.out_tx_mut_ok()?.flags |= Flags::INVALID_FOLDING;
-                                htp_warn!(
-                                    self,
-                                    HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
-                                    "Invalid response field folding"
-                                );
-                            }
-                            if let Some(out_header) = self.out_header.take() {
-                                self.process_response_header(out_header.as_slice())?;
-                            }
-                            self.out_header = Some(data.clone());
-                        }
-                        if let Some(out_header) = &mut self.out_header {
-                            // Add to the existing header.
-                            out_header.add(data.as_slice());
-                        }
-                    }
-                }
-                // Are we at end of headers? Second case is for headers state with no data.
-                if is_terminator(val) || header.is_empty() {
-                    if val == b"\n\r\r\n\r\n" {
-                        htp_warn!(
-                            self,
-                            HtpLogCode::DEFORMED_EOL,
-                            "Weird response end of lines mix"
-                        );
-                    }
-                    // We've seen all response headers. At terminator.
-                    if self.out_tx_mut_ok()?.response_progress == HtpResponseProgress::HEADERS {
-                        // Response headers.
-                        // The next step is to determine if this response has a body.
-                        self.out_state = State::BODY_DETERMINE
-                    } else {
-                        // Response trailer.
-                        // Finalize sending raw trailer data.
-                        self.res_receiver_finalize_clear()?;
-                        // Run hook response_TRAILER.
-                        let cfg = self.cfg.clone();
-                        let tx_ptr = self.out_tx_mut_ptr();
-                        cfg.hook_response_trailer
-                            .run_all(self, unsafe { &mut *tx_ptr })?;
-                        // The next step is to finalize this response.
-                        self.out_state = State::FINALIZE
-                    }
-                    return Ok(());
-                }
+                    .seek(SeekFrom::Current(data.len() as i64))?;
+            } else if remaining.len() <= data.len() {
+                self.out_curr_data
+                    .seek(SeekFrom::Current((data.len() - remaining.len()) as i64))?;
             }
+            // We've seen all response headers. At terminator.
+            self.out_state =
+                if self.out_tx_mut_ok()?.response_progress == HtpResponseProgress::HEADERS {
+                    // Response headers.
+                    // The next step is to determine if this response has a body.
+                    State::BODY_DETERMINE
+                } else {
+                    // Response trailer.
+                    // Finalize sending raw trailer data.
+                    self.res_receiver_finalize_clear()?;
+                    // Run hook response_TRAILER.
+                    let cfg = self.cfg.clone();
+                    let tx_ptr = self.out_tx_mut_ptr();
+                    cfg.hook_response_trailer
+                        .run_all(self, unsafe { &mut *tx_ptr })?;
+                    // The next step is to finalize this response.
+                    State::FINALIZE
+                };
             Ok(())
         } else {
-            self.handle_out_absent_lf(data)
+            self.out_curr_data
+                .seek(SeekFrom::Current(data.len() as i64))?;
+            self.check_out_buffer_limit(remaining.len())?;
+            let remaining = Bstr::from(remaining);
+            self.out_header.replace(remaining);
+            Err(HtpStatus::DATA_BUFFER)
         }
     }
 
@@ -762,7 +688,7 @@ impl ConnectionParser {
         // Move on to the next phase.
         self.out_state = State::HEADERS;
         self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::HEADERS;
-        return Ok(());
+        Ok(())
     }
 
     pub fn res_finalize(&mut self, data: &[u8]) -> Result<()> {
@@ -816,7 +742,7 @@ impl ConnectionParser {
             self.out_curr_data.seek(SeekFrom::Start(0))?;
         } else {
             self.out_curr_data
-                .seek(SeekFrom::Current((data.len() as i64) * -1))?;
+                .seek(SeekFrom::Current(-(data.len() as i64)))?;
         }
         self.state_response_complete_ex(0)
     }
@@ -1032,7 +958,7 @@ impl ConnectionParser {
         self.out_curr_data.seek(SeekFrom::End(0))?;
         self.check_out_buffer_limit(data.len())?;
         self.out_buf.add(data);
-        return Err(HtpStatus::DATA_BUFFER);
+        Err(HtpStatus::DATA_BUFFER)
     }
 
     pub fn out_curr_len(&self) -> i64 {

@@ -2,15 +2,13 @@ use crate::{
     bstr::Bstr,
     connection_parser::ConnectionParser,
     error::Result,
+    headers::{headers, Flags as HeaderFlags},
     parsers::{parse_content_length, parse_protocol, parse_status},
     transaction::{Header, HtpProtocol, HtpResponseNumber},
-    util::{
-        chomp, is_word_token, split_by_colon, take_ascii_whitespace, take_is_space,
-        take_not_is_space, Flags,
-    },
+    util::{take_ascii_whitespace, take_is_space, take_not_is_space, Flags},
     HtpStatus,
 };
-use nom::{error::ErrorKind, sequence::tuple, Err::Error};
+use nom::{error::ErrorKind, sequence::tuple};
 use std::cmp::Ordering;
 
 impl ConnectionParser {
@@ -61,113 +59,103 @@ impl ConnectionParser {
     }
 
     /// Generic response header parser.
-    pub fn parse_response_header_generic(&mut self, data: &[u8]) -> Result<Header> {
-        let data = chomp(&data);
-        let mut flags = Flags::empty();
-
-        let mut header: &[u8] = b"";
-        let mut value: &[u8] = b"";
-
-        match split_by_colon(data) {
-            Ok((mut name, val)) => {
-                // Colon present
-                // Log empty header name
-                let name_len = name.len();
-                if name_len == 0 {
-                    flags |= Flags::FIELD_INVALID;
-                    if !self.out_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
-                        // Only once per transaction.
-                        self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
-                        htp_warn!(
-                            self,
-                            HtpLogCode::RESPONSE_INVALID_EMPTY_NAME,
-                            "Response field invalid: empty name."
-                        );
-                    }
-                }
-
-                let mut unprintable = 0;
-                // Ignore unprintable after field-name
-                for item in name.iter().rev() {
-                    if item <= &0x20 {
-                        flags |= Flags::FIELD_INVALID;
-                        if !self.out_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
-                            // Only once per transaction.
-                            self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
-                            htp_log!(
-                                self,
-                                HtpLogLevel::WARNING,
-                                HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
-                                "Response field invalid: LWS after name"
-                            );
-                        }
-                        unprintable += 1;
-                    } else {
-                        break;
-                    }
-                }
-
-                if unprintable > 0 {
-                    name = &name[0..name_len - unprintable];
-                }
-
-                // Check header is a token
-                if !is_word_token(name) {
-                    flags |= Flags::FIELD_INVALID;
-                    if !self.out_tx_mut_ok()?.flags.contains(Flags::FIELD_INVALID) {
-                        self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
-                        htp_warn!(
-                            self,
-                            HtpLogCode::RESPONSE_HEADER_NAME_NOT_TOKEN,
-                            "Response header name is not a token."
-                        );
-                    }
-                }
-
-                header = name;
-                value = val;
-            }
-            Err(Error(_)) => {
-                // No colon
-                flags |= Flags::FIELD_UNPARSEABLE;
-                flags |= Flags::FIELD_INVALID;
-                // clean up
-                if !self
-                    .out_tx_mut_ok()?
-                    .flags
-                    .contains(Flags::FIELD_UNPARSEABLE)
+    ///
+    ///Returns a tuple of the unparsed data and a boolean indicating if the EOH was seen.
+    pub fn process_response_headers_generic<'a>(
+        &mut self,
+        data: &'a [u8],
+    ) -> Result<(&'a [u8], bool)> {
+        let rc = headers(data);
+        if let Ok((remaining, (headers, eoh))) = rc {
+            for h in headers {
+                let mut flags = Flags::empty();
+                let name_flags = &h.name.flags;
+                let value_flags = &h.value.flags;
+                if value_flags.contains(HeaderFlags::DEFORMED_EOL)
+                    || name_flags.contains(HeaderFlags::DEFORMED_EOL)
                 {
-                    // Only once per transaction.
-                    self.out_tx_mut_ok()?.flags |= Flags::FIELD_UNPARSEABLE;
-                    self.out_tx_mut_ok()?.flags |= Flags::FIELD_INVALID;
                     htp_warn!(
                         self,
-                        HtpLogCode::RESPONSE_FIELD_MISSING_COLON,
-                        "Response field invalid: missing colon."
+                        HtpLogCode::DEFORMED_EOL,
+                        "Weird response end of lines mix"
                     );
                 }
-                value = data;
+                // Ignore LWS after field-name.
+                if name_flags.contains(HeaderFlags::NAME_TRAILING_WHITESPACE) {
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
+                        "Request field invalid: LWS after name",
+                        self.out_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_INVALID
+                    );
+                }
+                //If there was leading whitespace, probably was invalid folding.
+                if name_flags.contains(HeaderFlags::NAME_LEADING_WHITESPACE) {
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
+                        "Invalid response field folding",
+                        self.out_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::INVALID_FOLDING
+                    );
+                    flags |= Flags::FIELD_INVALID;
+                }
+                // Check that field-name is a token
+                if name_flags.contains(HeaderFlags::NAME_NON_TOKEN_CHARS) {
+                    // Incorrectly formed header name.
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::RESPONSE_HEADER_NAME_NOT_TOKEN,
+                        "Response header name is not a token",
+                        self.out_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_INVALID
+                    );
+                }
+                // No colon?
+                if name_flags.contains(HeaderFlags::MISSING_COLON) {
+                    // We handle this case as a header with an empty name, with the value equal
+                    // to the entire input string.
+                    // TODO Apache will respond to this problem with a 400.
+                    // Now extract the name and the value
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::RESPONSE_FIELD_MISSING_COLON,
+                        "Response field invalid: colon missing",
+                        self.out_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_UNPARSEABLE
+                    );
+                    flags |= Flags::FIELD_INVALID;
+                } else if name_flags.contains(HeaderFlags::NAME_EMPTY) {
+                    // Empty header name.
+                    htp_warn_once!(
+                        self,
+                        HtpLogCode::RESPONSE_INVALID_EMPTY_NAME,
+                        "Response field invalid: empty name",
+                        self.out_tx_mut_ok()?.flags,
+                        flags,
+                        Flags::FIELD_INVALID
+                    );
+                }
+                self.process_response_header_generic(Header::new_with_flags(
+                    h.name.name.into(),
+                    h.value.value.into(),
+                    flags,
+                ))?;
             }
-            _ => (),
+            Ok((remaining, eoh))
+        } else {
+            Ok((data, false))
         }
-
-        // No null char in val
-        if value.contains(&0) {
-            htp_log!(
-                self,
-                HtpLogLevel::WARNING,
-                HtpLogCode::REQUEST_HEADER_INVALID,
-                "Response header value contains null."
-            );
-        }
-
-        Ok(Header::new_with_flags(header.into(), value.into(), flags))
     }
 
     /// Generic response header line(s) processor, which assembles folded lines
     /// into a single buffer before invoking the parsing function.
-    pub fn process_response_header_generic(&mut self, data: &[u8]) -> Result<()> {
-        let header = self.parse_response_header_generic(data)?;
+    fn process_response_header_generic(&mut self, header: Header) -> Result<()> {
         let mut repeated = false;
         let reps = self.out_tx_mut_ok()?.res_header_repetitions;
         let mut update_reps = false;
