@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     error::Result,
-    multipart::{find_boundary, Flags, HtpMultipartType, Parser as MultipartParser},
+    multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
     transaction::{Data, HtpDataSource, HtpParserId, Param, Transaction},
     urlencoded::{
         urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser as UrlEncodedParser,
@@ -159,7 +159,7 @@ pub fn callback_multipart_request_headers(tx: &mut Transaction) -> Result<()> {
         } else {
             return Err(HtpStatus::ERROR);
         };
-        let mut flags = Flags::empty();
+        let mut flags = 0;
         if let Some(boundary) = find_boundary(&(*(*ct).value).as_slice(), &mut flags) {
             // Create a Multipart parser instance.
             tx.request_mpartp = MultipartParser::new(&*tx.cfg, boundary, flags);

@@ -5,7 +5,7 @@ use crate::{
     headers::{headers, Flags as HeaderFlags},
     parsers::{parse_content_length, parse_protocol, parse_status},
     transaction::{Header, HtpProtocol, HtpResponseNumber},
-    util::{take_ascii_whitespace, take_is_space, take_not_is_space, Flags},
+    util::{take_ascii_whitespace, take_is_space, take_not_is_space, FlagOperations, HtpFlags},
     HtpStatus,
 };
 use nom::{error::ErrorKind, sequence::tuple};
@@ -68,11 +68,11 @@ impl ConnectionParser {
         let rc = headers(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
-                let mut flags = Flags::empty();
+                let mut flags = 0;
                 let name_flags = &h.name.flags;
                 let value_flags = &h.value.flags;
-                if value_flags.contains(HeaderFlags::DEFORMED_EOL)
-                    || name_flags.contains(HeaderFlags::DEFORMED_EOL)
+                if value_flags.is_set(HeaderFlags::DEFORMED_EOL)
+                    || name_flags.is_set(HeaderFlags::DEFORMED_EOL)
                 {
                     htp_warn!(
                         self,
@@ -81,30 +81,30 @@ impl ConnectionParser {
                     );
                 }
                 // Ignore LWS after field-name.
-                if name_flags.contains(HeaderFlags::NAME_TRAILING_WHITESPACE) {
+                if name_flags.is_set(HeaderFlags::NAME_TRAILING_WHITESPACE) {
                     htp_warn_once!(
                         self,
                         HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
                         "Request field invalid: LWS after name",
                         self.out_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_INVALID
+                        HtpFlags::FIELD_INVALID
                     );
                 }
                 //If there was leading whitespace, probably was invalid folding.
-                if name_flags.contains(HeaderFlags::NAME_LEADING_WHITESPACE) {
+                if name_flags.is_set(HeaderFlags::NAME_LEADING_WHITESPACE) {
                     htp_warn_once!(
                         self,
                         HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
                         "Invalid response field folding",
                         self.out_tx_mut_ok()?.flags,
                         flags,
-                        Flags::INVALID_FOLDING
+                        HtpFlags::INVALID_FOLDING
                     );
-                    flags |= Flags::FIELD_INVALID;
+                    flags.set(HtpFlags::FIELD_INVALID);
                 }
                 // Check that field-name is a token
-                if name_flags.contains(HeaderFlags::NAME_NON_TOKEN_CHARS) {
+                if name_flags.is_set(HeaderFlags::NAME_NON_TOKEN_CHARS) {
                     // Incorrectly formed header name.
                     htp_warn_once!(
                         self,
@@ -112,11 +112,11 @@ impl ConnectionParser {
                         "Response header name is not a token",
                         self.out_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_INVALID
+                        HtpFlags::FIELD_INVALID
                     );
                 }
                 // No colon?
-                if name_flags.contains(HeaderFlags::MISSING_COLON) {
+                if name_flags.is_set(HeaderFlags::MISSING_COLON) {
                     // We handle this case as a header with an empty name, with the value equal
                     // to the entire input string.
                     // TODO Apache will respond to this problem with a 400.
@@ -127,10 +127,10 @@ impl ConnectionParser {
                         "Response field invalid: colon missing",
                         self.out_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_UNPARSEABLE
+                        HtpFlags::FIELD_UNPARSEABLE
                     );
-                    flags |= Flags::FIELD_INVALID;
-                } else if name_flags.contains(HeaderFlags::NAME_EMPTY) {
+                    flags.set(HtpFlags::FIELD_INVALID);
+                } else if name_flags.is_set(HeaderFlags::NAME_EMPTY) {
                     // Empty header name.
                     htp_warn_once!(
                         self,
@@ -138,7 +138,7 @@ impl ConnectionParser {
                         "Response field invalid: empty name",
                         self.out_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_INVALID
+                        HtpFlags::FIELD_INVALID
                     );
                 }
                 self.process_response_header_generic(Header::new_with_flags(
@@ -166,7 +166,7 @@ impl ConnectionParser {
             .get_nocase_mut(header.name.as_slice())
         {
             // Keep track of repeated same-name headers.
-            if !h_existing.flags.contains(Flags::FIELD_REPEATED) {
+            if !h_existing.flags.is_set(HtpFlags::FIELD_REPEATED) {
                 // This is the second occurence for this header.
                 repeated = true;
             } else if reps < 64 {
@@ -174,7 +174,7 @@ impl ConnectionParser {
             } else {
                 return Ok(());
             }
-            h_existing.flags |= Flags::FIELD_REPEATED;
+            h_existing.flags.set(HtpFlags::FIELD_REPEATED);
             // For simplicity reasons, we count the repetitions of all headers
             // Having multiple C-L headers is against the RFC but many
             // browsers ignore the subsequent headers if the values are the same.

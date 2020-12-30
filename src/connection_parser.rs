@@ -1,11 +1,11 @@
 use crate::{
     bstr::Bstr,
     config::{Config, HtpServerPersonality},
-    connection::Connection,
+    connection::{Connection, Flags},
     error::Result,
     hook::DataHook,
     transaction::Transaction,
-    util::{ConnectionFlags, File},
+    util::{File, FlagOperations},
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
@@ -200,7 +200,7 @@ impl ConnectionParser {
     pub fn create_tx(&mut self) -> Result<usize> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
-            self.conn.flags |= ConnectionFlags::PIPELINED
+            self.conn.flags.set(Flags::PIPELINED)
         }
         let index = self.conn.tx_size();
         let tx = Transaction::new(self, index);

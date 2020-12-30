@@ -7,7 +7,7 @@ use crate::{
     list::List,
     log::{HtpLogCode, Log},
     transaction::{Header, Headers, Transaction},
-    util::{get_version, urldecode_inplace, Flags},
+    util::{get_version, urldecode_inplace},
     HtpStatus,
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -869,10 +869,7 @@ pub unsafe extern "C" fn htp_urldecode_inplace(
     if input.is_null() || flags.is_null() || cfg.is_null() {
         return HtpStatus::ERROR;
     }
-    let mut f = Flags::from_bits_truncate(*flags);
-    let res = urldecode_inplace(&(*cfg).decoder_cfg, &mut *input, &mut f);
-    *flags = f.bits();
-    res.into()
+    urldecode_inplace(&(*cfg).decoder_cfg, &mut *input, &mut *flags).into()
 }
 
 /// Configures whether to normalize URIs into a complete or partial form.

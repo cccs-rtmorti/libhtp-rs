@@ -78,7 +78,7 @@ pub mod hook;
 #[macro_use]
 mod unicode_bestfit_map;
 pub mod config;
-mod connection;
+pub mod connection;
 pub mod connection_parser;
 mod content_handlers;
 pub mod list;

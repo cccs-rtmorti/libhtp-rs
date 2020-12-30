@@ -1,13 +1,15 @@
 use crate::{
     bstr::Bstr,
+    connection::Flags as ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState, State},
     error::Result,
     hook::DataHook,
     parsers::parse_chunked_length,
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
-        chomp, convert_to_method, is_line_ignorable, is_space, nom_take_is_space, take_is_space,
-        take_not_is_space, take_till_lf, take_till_lf_null, ConnectionFlags,
+        chomp, convert_to_method, is_folding_char, is_line_folded, is_line_ignorable,
+        is_line_terminator, is_space, nom_take_is_space, req_sep_by_line_endings, take_is_space,
+        take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations, HtpFlags,
     },
     HtpStatus,
 };
@@ -656,7 +658,7 @@ impl ConnectionParser {
         let bytes_left = self.in_curr_len() - self.in_curr_data.position() as i64;
 
         if bytes_left > 0 {
-            self.conn.flags |= ConnectionFlags::HTTP_0_9_EXTRA
+            self.conn.flags.set(ConnectionFlags::HTTP_0_9_EXTRA)
         }
         self.in_curr_data.seek(SeekFrom::End(0))?;
         Err(HtpStatus::DATA)

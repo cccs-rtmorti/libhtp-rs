@@ -1,4 +1,4 @@
-use crate::util::is_token;
+use crate::util::{is_token, FlagOperations};
 use bitflags;
 use nom::{
     branch::alt,
@@ -11,31 +11,32 @@ use nom::{
     IResult,
 };
 
-bitflags::bitflags! {
-    pub struct Flags: u64 {
-        const FOLDING = 0x0001;
-        const FOLDING_SPECIAL_CASE = (0x0002 | Self::FOLDING.bits);
-        const NAME_EMPTY = 0x0004;
-        const VALUE_EMPTY = 0x0008;
-        const NAME_NON_TOKEN_CHARS = 0x0010;
-        const NAME_TRAILING_WHITESPACE = 0x0020;
-        const NAME_LEADING_WHITESPACE = 0x0040;
-        const NULL_TERMINATED = 0x0080;
-        const MISSING_COLON = (0x0100 | Self::NAME_EMPTY.bits);
-        const DEFORMED_EOL = 0x0200;
-    }
+#[derive(Debug, PartialEq)]
+pub struct Flags;
+
+impl Flags {
+    pub const FOLDING: u64 = 0x0001;
+    pub const FOLDING_SPECIAL_CASE: u64 = (0x0002 | Self::FOLDING);
+    pub const NAME_EMPTY: u64 = 0x0004;
+    pub const VALUE_EMPTY: u64 = 0x0008;
+    pub const NAME_NON_TOKEN_CHARS: u64 = 0x0010;
+    pub const NAME_TRAILING_WHITESPACE: u64 = 0x0020;
+    pub const NAME_LEADING_WHITESPACE: u64 = 0x0040;
+    pub const NULL_TERMINATED: u64 = 0x0080;
+    pub const MISSING_COLON: u64 = (0x0100 | Self::NAME_EMPTY);
+    pub const DEFORMED_EOL: u64 = 0x0200;
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Name {
     pub name: Vec<u8>,
-    pub flags: Flags,
+    pub flags: u64,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Value {
     pub value: Vec<u8>,
-    pub flags: Flags,
+    pub flags: u64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,7 +46,7 @@ pub struct Header {
 }
 
 /// Parse name containing non token characters
-fn non_token_name(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn non_token_name(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     map(
         tuple((
             space0,
@@ -56,18 +57,18 @@ fn non_token_name(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
             let mut flags = Flags::NAME_NON_TOKEN_CHARS;
             if !name.is_empty() {
                 if !leading_spaces.is_empty() {
-                    flags |= Flags::NAME_LEADING_WHITESPACE
+                    flags.set(Flags::NAME_LEADING_WHITESPACE)
                 }
                 while let Some(end) = name.last() {
                     if is_space(*end) {
-                        flags |= Flags::NAME_TRAILING_WHITESPACE;
+                        flags.set(Flags::NAME_TRAILING_WHITESPACE);
                         name = &name[..name.len() - 1];
                     } else {
                         break;
                     }
                 }
             } else {
-                flags |= Flags::NAME_EMPTY
+                flags.set(Flags::NAME_EMPTY)
             }
             (name, flags)
         },
@@ -75,21 +76,21 @@ fn non_token_name(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
 }
 
 /// Parse name containing only token characters
-fn token_name(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn token_name(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     // The name should consist only of token characters (i.e., no spaces, seperators, control characters, etc)
     map(
         tuple((space0, take_while(is_token), space0, peek(tag(":")))),
         |(leading_spaces, name, trailing_spaces, _): (&[u8], &[u8], &[u8], _)| {
-            let mut flags = Flags::empty();
+            let mut flags: u64 = 0;
             if !name.is_empty() {
                 if !leading_spaces.is_empty() {
-                    flags |= Flags::NAME_LEADING_WHITESPACE
+                    flags.set(Flags::NAME_LEADING_WHITESPACE)
                 }
                 if !trailing_spaces.is_empty() {
-                    flags |= Flags::NAME_TRAILING_WHITESPACE
+                    flags.set(Flags::NAME_TRAILING_WHITESPACE)
                 }
             } else {
-                flags |= Flags::NAME_EMPTY
+                flags.set(Flags::NAME_EMPTY)
             }
             (name, flags)
         },
@@ -116,15 +117,15 @@ fn complete_eol_deformed(input: &[u8]) -> IResult<&[u8], &[u8]> {
 }
 
 /// Parse one complete end of line character or character set
-fn complete_eol(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn complete_eol(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     alt((
         map(complete_eol_deformed, |eol| (eol, Flags::DEFORMED_EOL)),
-        map(complete_eol_regular, |eol| (eol, Flags::empty())),
+        map(complete_eol_regular, |eol| (eol, 0)),
     ))(input)
 }
 
 /// Parse one header end of line, and guarantee that it is not folding
-fn eol(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn eol(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     map(tuple((complete_eol, peek(not(folding_lws)))), |(end, _)| {
         end
     })(input)
@@ -136,17 +137,17 @@ fn is_terminator(c: u8) -> bool {
 }
 
 /// Parse one null character and return it and the NULL_TERMINATED flag
-fn null(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn null(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     map(complete_tag("\0"), |null| (null, Flags::NULL_TERMINATED))(input)
 }
 
 /// Parse one null byte or one end of line, and guarantee that it is not folding
-fn null_or_eol(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn null_or_eol(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     alt((null, eol))(input)
 }
 
 /// Parse one null byte or complete end of line
-fn complete_null_or_eol(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn complete_null_or_eol(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     alt((null, complete_eol))(input)
 }
 
@@ -161,7 +162,7 @@ fn folding_lws_special(input: &[u8]) -> IResult<&[u8], &[u8]> {
 }
 
 /// Extracts any folding lws (whitespace or any special cases)
-fn folding_lws(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
+fn folding_lws(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
     alt((
         map(space1, |fold| (fold, Flags::FOLDING)),
         map(folding_lws_special, |fold| {
@@ -171,7 +172,7 @@ fn folding_lws(input: &[u8]) -> IResult<&[u8], (&[u8], Flags)> {
 }
 
 /// Parse header folding bytes (eol + whitespace or eol + special cases)
-fn folding(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8], Flags)> {
+fn folding(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8], u64)> {
     map(
         tuple((complete_eol, folding_lws)),
         |((eol, flags), (folding_lws, other_flags))| (eol, folding_lws, flags | other_flags),
@@ -179,7 +180,7 @@ fn folding(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8], Flags)> {
 }
 
 /// Parse folding bytes or a value terminator (eol or null)
-fn folding_or_terminator(input: &[u8]) -> IResult<&[u8], ((&[u8], Flags), Option<&[u8]>)> {
+fn folding_or_terminator(input: &[u8]) -> IResult<&[u8], ((&[u8], u64), Option<&[u8]>)> {
     if let Ok((rest, (end, fold, flags))) = folding(input) {
         Ok((rest, ((end, flags), Some(fold))))
     } else {
@@ -190,7 +191,7 @@ fn folding_or_terminator(input: &[u8]) -> IResult<&[u8], ((&[u8], Flags), Option
 /// Parse a header value.
 /// Returns the bytes and the value terminator; null, eol or folding
 /// eg. (bytes, (eol_bytes, Option<fold_bytes>))
-fn value_bytes(input: &[u8]) -> IResult<&[u8], (&[u8], ((&[u8], Flags), Option<&[u8]>))> {
+fn value_bytes(input: &[u8]) -> IResult<&[u8], (&[u8], ((&[u8], u64), Option<&[u8]>))> {
     map(
         tuple((take_till(is_terminator), folding_or_terminator)),
         |(mut value, ((mut eol, flags), fold))| {
@@ -213,7 +214,7 @@ fn value(input: &[u8]) -> IResult<&[u8], Value> {
             match value_bytes(i) {
                 Ok((rest, (val_bytes, ((_eol, other_flags), fold)))) => {
                     i = rest;
-                    flags |= other_flags;
+                    flags.set(other_flags);
                     //If the value is empty, the value started with a fold and we don't want to push back a space
                     if !value.is_empty() {
                         value.push(b' ');
@@ -229,7 +230,7 @@ fn value(input: &[u8]) -> IResult<&[u8], Value> {
         }
     } else {
         if value.is_empty() {
-            flags |= Flags::VALUE_EMPTY;
+            flags.set(Flags::VALUE_EMPTY);
         } else {
             remove_trailing_lws(&mut value);
         }
@@ -294,7 +295,7 @@ fn header(input: &[u8]) -> IResult<&[u8], Header> {
 /// Parse multiple headers and indicate if end of headers or null was found
 pub fn headers(input: &[u8]) -> IResult<&[u8], (Vec<Header>, bool)> {
     let (rest, head) = header(input)?;
-    let is_null_terminated = head.value.flags.contains(Flags::NULL_TERMINATED);
+    let is_null_terminated = head.value.flags.is_set(Flags::NULL_TERMINATED);
     let mut out = Vec::with_capacity(16);
     out.push(head);
     if is_null_terminated {
@@ -309,7 +310,7 @@ pub fn headers(input: &[u8]) -> IResult<&[u8], (Vec<Header>, bool)> {
             Ok((rest, head)) => {
                 i = rest;
 
-                let is_null_terminated = head.value.flags.contains(Flags::NULL_TERMINATED);
+                let is_null_terminated = head.value.flags.is_set(Flags::NULL_TERMINATED);
                 out.push(head);
                 if is_null_terminated {
                     return Ok((rest, (out, true)));
@@ -347,11 +348,11 @@ mod test {
                         Header {
                             name: Name {
                                 name: b"k1".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                             value: Value {
                                 value: b"v1".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                         },
                         Header {
@@ -367,11 +368,11 @@ mod test {
                         Header {
                             name: Name {
                                 name: b"k3".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                             value: Value {
                                 value: b"v3".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                         },
                         Header {
@@ -407,11 +408,11 @@ mod test {
                     vec![Header {
                         name: Name {
                             name: b"k1".to_vec(),
-                            flags: Flags::empty()
+                            flags: 0
                         },
                         value: Value {
                             value: b"v1".to_vec(),
-                            flags: Flags::empty()
+                            flags: 0
                         },
                     },],
                     false
@@ -427,17 +428,17 @@ mod test {
                         Header {
                             name: Name {
                                 name: b"k1".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                             value: Value {
                                 value: b"v1".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                         },
                         Header {
                             name: Name {
                                 name: b"k2".to_vec(),
-                                flags: Flags::empty()
+                                flags: 0
                             },
                             value: Value {
                                 value: b"v2".to_vec(),
@@ -457,27 +458,27 @@ mod test {
                     Header {
                         name: Name {
                             name: b"Name1".to_vec(),
-                            flags: Flags::empty(),
+                            flags: 0,
                         },
                         value: Value {
                             value: b"Value1".to_vec(),
-                            flags: Flags::empty(),
+                            flags: 0,
                         },
                     },
                     Header {
                         name: Name {
                             name: b"Name2".to_vec(),
-                            flags: Flags::empty(),
+                            flags: 0,
                         },
                         value: Value {
                             value: b"Value2".to_vec(),
-                            flags: Flags::empty(),
+                            flags: 0,
                         },
                     },
                     Header {
                         name: Name {
                             name: b"Name3".to_vec(),
-                            flags: Flags::empty(),
+                            flags: 0,
                         },
                         value: Value {
                             value: b"Val ue3".to_vec(),
@@ -487,7 +488,7 @@ mod test {
                     Header {
                         name: Name {
                             name: b"Name4".to_vec(),
-                            flags: Flags::empty(),
+                            flags: 0,
                         },
                         value: Value {
                             value: b"Value4 Value4.1 Value4.2".to_vec(),
@@ -574,11 +575,11 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K1".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V1".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -606,7 +607,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"".to_vec(),
@@ -626,7 +627,7 @@ mod test {
                     },
                     value: Value {
                         value: b"V".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -638,7 +639,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"folded V".to_vec(),
@@ -654,11 +655,11 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -670,7 +671,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V before".to_vec(),
@@ -686,7 +687,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V a l u e".to_vec(),
@@ -708,11 +709,11 @@ mod test {
                 Header {
                     name: Name {
                         name: b"Host".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"www.google.com\rName: Value".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -756,11 +757,11 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K1".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V1".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -788,7 +789,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"".to_vec(),
@@ -808,7 +809,7 @@ mod test {
                     },
                     value: Value {
                         value: b"V".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -820,7 +821,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"folded V".to_vec(),
@@ -836,11 +837,11 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                 }
             ))
@@ -852,7 +853,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V before".to_vec(),
@@ -868,7 +869,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V a l u e".to_vec(),
@@ -884,7 +885,7 @@ mod test {
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
-                        flags: Flags::empty()
+                        flags: 0
                     },
                     value: Value {
                         value: b"V\r a l u e".to_vec(),
@@ -914,7 +915,7 @@ mod test {
     fn TokenName() {
         assert_eq!(
             token_name(b"Hello: world"),
-            Ok((b!(": world"), (b!("Hello"), Flags::empty())))
+            Ok((b!(": world"), (b!("Hello"), 0)))
         );
         assert_eq!(
             token_name(b" Hello: world"),
@@ -1012,7 +1013,7 @@ mod test {
                 b!(":www.google.com\rName: Value"),
                 Name {
                     name: b"Host".to_vec(),
-                    flags: Flags::empty()
+                    flags: 0
                 }
             ))
         );
@@ -1103,35 +1104,23 @@ mod test {
         assert!(eol(b"\r\n\t ").is_err());
         assert!(eol(b"\r\r").is_err());
         assert!(eol(b"\ra").is_err());
-        assert_eq!(eol(b"\na"), Ok((b!("a"), (b!("\n"), Flags::empty()))));
+        assert_eq!(eol(b"\na"), Ok((b!("a"), (b!("\n"), 0))));
         assert_eq!(
             eol(b"\n\r\r\na"),
             Ok((b!("a"), (b!("\n\r\r\n"), Flags::DEFORMED_EOL)))
         );
-        assert_eq!(
-            eol(b"\r\n\r\na"),
-            Ok((b!("\r\na"), (b!("\r\n"), Flags::empty())))
-        );
+        assert_eq!(eol(b"\r\n\r\na"), Ok((b!("\r\na"), (b!("\r\n"), 0))));
 
         assert!(complete_eol(b"test").is_err());
         assert!(complete_eol(b"\r\n").is_ok());
         assert!(complete_eol(b"\n").is_ok());
-        assert_eq!(
-            complete_eol(b"\r\n"),
-            Ok((b!(""), (b!("\r\n"), Flags::empty())))
-        );
-        assert_eq!(
-            complete_eol(b"\n"),
-            Ok((b!(""), (b!("\n"), Flags::empty())))
-        );
+        assert_eq!(complete_eol(b"\r\n"), Ok((b!(""), (b!("\r\n"), 0))));
+        assert_eq!(complete_eol(b"\n"), Ok((b!(""), (b!("\n"), 0))));
         assert_eq!(
             complete_eol(b"\n\r\r\n"),
             Ok((b!(""), (b!("\n\r\r\n"), Flags::DEFORMED_EOL)))
         );
-        assert_eq!(
-            complete_eol(b"\r\n\r\n"),
-            Ok((b!("\r\n"), (b!("\r\n"), Flags::empty())))
-        );
+        assert_eq!(complete_eol(b"\r\n\r\n"), Ok((b!("\r\n"), (b!("\r\n"), 0))));
     }
 
     #[test]
@@ -1149,22 +1138,16 @@ mod test {
             null_or_eol(b"\0a"),
             Ok((b!("a"), (b!("\0"), Flags::NULL_TERMINATED)))
         );
-        assert_eq!(
-            null_or_eol(b"\na"),
-            Ok((b!("a"), (b!("\n"), Flags::empty())))
-        );
+        assert_eq!(null_or_eol(b"\na"), Ok((b!("a"), (b!("\n"), 0))));
         assert_eq!(
             null_or_eol(b"\n\r\r\na"),
             Ok((b!("a"), (b!("\n\r\r\n"), Flags::DEFORMED_EOL)))
         );
         assert_eq!(
             null_or_eol(b"\r\n\r\na"),
-            Ok((b!("\r\na"), (b!("\r\n"), Flags::empty())))
+            Ok((b!("\r\na"), (b!("\r\n"), 0)))
         );
-        assert_eq!(
-            null_or_eol(b"\r\n\r\n"),
-            Ok((b!("\r\n"), (b!("\r\n"), Flags::empty())))
-        );
+        assert_eq!(null_or_eol(b"\r\n\r\n"), Ok((b!("\r\n"), (b!("\r\n"), 0))));
     }
 
     #[test]
@@ -1312,15 +1295,15 @@ mod test {
         );
         assert_eq!(
             folding_or_terminator(b"\r\na"),
-            Ok((b!("a"), ((b!("\r\n"), Flags::empty()), None)))
+            Ok((b!("a"), ((b!("\r\n"), 0), None)))
         );
         assert_eq!(
             folding_or_terminator(b"\n\na"),
-            Ok((b!("\na"), ((b!("\n"), Flags::empty()), None)))
+            Ok((b!("\na"), ((b!("\n"), 0), None)))
         );
         assert_eq!(
             folding_or_terminator(b"\r\n\r\na"),
-            Ok((b!("\r\na"), ((b!("\r\n"), Flags::empty()), None)))
+            Ok((b!("\r\na"), ((b!("\r\n"), 0), None)))
         );
         assert_eq!(
             folding_or_terminator(b"\n\r\r\na"),
@@ -1346,42 +1329,30 @@ mod test {
             value_bytes(b"www.google.com\rName: Value\r\n\r\n"),
             Ok((
                 b!("\r\n"),
-                (
-                    b!("www.google.com\rName: Value"),
-                    ((b!("\r\n"), Flags::empty()), None)
-                )
+                (b!("www.google.com\rName: Value"), ((b!("\r\n"), 0), None))
             ))
         );
         assert_eq!(
             value_bytes(b"www.google.com\rName: Value\n\r\n"),
             Ok((
                 b!("\r\n"),
-                (
-                    b!("www.google.com\rName: Value"),
-                    ((b!("\n"), Flags::empty()), None)
-                )
+                (b!("www.google.com\rName: Value"), ((b!("\n"), 0), None))
             ))
         );
         assert_eq!(
             value_bytes(b"www.google.com\rName: Value\r\n\n"),
             Ok((
                 b!("\n"),
-                (
-                    b!("www.google.com\rName: Value"),
-                    ((b!("\r\n"), Flags::empty()), None)
-                )
+                (b!("www.google.com\rName: Value"), ((b!("\r\n"), 0), None))
             ))
         );
         assert_eq!(
             value_bytes(b"\r\nnext"),
-            Ok((b!("next"), (b!(""), ((b!("\r\n"), Flags::empty()), None))))
+            Ok((b!("next"), (b!(""), ((b!("\r\n"), 0), None))))
         );
         assert_eq!(
             value_bytes(b"value\r\nname2"),
-            Ok((
-                b!("name2"),
-                (b!("value"), ((b!("\r\n"), Flags::empty()), None))
-            ))
+            Ok((b!("name2"), (b!("value"), ((b!("\r\n"), 0), None))))
         );
         assert_eq!(
             value_bytes(b"value\n more"),
@@ -1453,7 +1424,7 @@ mod test {
                 b!("next:"),
                 Value {
                     value: b"value".to_vec(),
-                    flags: Flags::empty()
+                    flags: 0
                 }
             ))
         );

@@ -3,10 +3,17 @@ use crate::{
     list::List,
     log::Logs,
     transaction::{Transaction, Transactions},
-    util::ConnectionFlags,
 };
 use chrono::{DateTime, Utc};
 use std::{cell::RefCell, net::IpAddr, time::SystemTime};
+
+pub struct Flags;
+
+impl Flags {
+    pub const UNKNOWN: u8 = 0x00;
+    pub const PIPELINED: u8 = 0x01;
+    pub const HTTP_0_9_EXTRA: u8 = 0x02;
+}
 
 pub struct Connection {
     /// Client IP address.
@@ -24,8 +31,8 @@ pub struct Connection {
     transactions: Transactions,
     /// Log messages associated with this connection.
     pub messages: RefCell<Logs>,
-    /// Parsing flags: HTP_CONN_PIPELINED.
-    pub flags: ConnectionFlags,
+    /// Parsing flags.
+    pub flags: u8,
     /// When was this connection opened? Can be NULL.
     pub open_timestamp: DateTime<Utc>,
     /// When was this connection closed? Can be NULL.
@@ -45,7 +52,7 @@ impl Connection {
             server_port: None,
             transactions: List::with_capacity(16),
             messages: RefCell::new(List::with_capacity(8)),
-            flags: ConnectionFlags::UNKNOWN,
+            flags: 0,
             open_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             close_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             in_data_counter: 0,

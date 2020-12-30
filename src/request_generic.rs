@@ -9,7 +9,7 @@ use crate::{
     transaction::{Header, HtpProtocol},
     util::{
         convert_to_method, is_space, take_ascii_whitespace, take_is_space, take_not_is_space,
-        take_until_null, Flags,
+        take_until_null, FlagOperations, HtpFlags,
     },
 };
 use nom::{bytes::complete::take_while, error::ErrorKind, sequence::tuple};
@@ -33,7 +33,7 @@ impl ConnectionParser {
         {
             // TODO Do we want to have a list of the headers that are
             //      allowed to be combined in this way?
-            if !h_existing.flags.contains(Flags::FIELD_REPEATED) {
+            if !h_existing.flags.is_set(HtpFlags::FIELD_REPEATED) {
                 // This is the second occurence for this header.
                 repeated = true;
             } else if reps < 64 {
@@ -43,7 +43,7 @@ impl ConnectionParser {
             }
             // For simplicity reasons, we count the repetitions of all headers
             // Keep track of repeated same-name headers.
-            h_existing.flags |= Flags::FIELD_REPEATED;
+            h_existing.flags.set(HtpFlags::FIELD_REPEATED);
             // Having multiple C-L headers is against the RFC but
             // servers may ignore the subsequent headers if the values are the same.
             if header.name.cmp_nocase("Content-Length") == Ordering::Equal {
@@ -91,10 +91,10 @@ impl ConnectionParser {
         let rc = headers(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
-                let mut flags = Flags::empty();
+                let mut flags = 0;
                 let name_flags = h.name.flags;
                 // Ignore LWS after field-name.
-                if name_flags.contains(HeaderFlags::NAME_TRAILING_WHITESPACE) {
+                if name_flags.is_set(HeaderFlags::NAME_TRAILING_WHITESPACE) {
                     // Log only once per transaction.
                     htp_warn_once!(
                         self,
@@ -102,11 +102,11 @@ impl ConnectionParser {
                         "Request field invalid: LWS after name",
                         self.in_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_INVALID
+                        HtpFlags::FIELD_INVALID
                     );
                 }
                 //If name has leading whitespace, probably invalid folding
-                if name_flags.contains(HeaderFlags::NAME_LEADING_WHITESPACE) {
+                if name_flags.is_set(HeaderFlags::NAME_LEADING_WHITESPACE) {
                     // Invalid folding.
                     // Warn only once per transaction.
                     htp_warn_once!(
@@ -115,11 +115,11 @@ impl ConnectionParser {
                         "Invalid request field folding",
                         self.in_tx_mut_ok()?.flags,
                         flags,
-                        Flags::INVALID_FOLDING
+                        HtpFlags::INVALID_FOLDING
                     );
                 }
                 // Check that field-name is a token
-                if name_flags.contains(HeaderFlags::NAME_NON_TOKEN_CHARS) {
+                if name_flags.is_set(HeaderFlags::NAME_NON_TOKEN_CHARS) {
                     // Incorrectly formed header name.
                     // Log only once per transaction.
                     htp_warn_once!(
@@ -128,11 +128,11 @@ impl ConnectionParser {
                         "Request header name is not a token",
                         self.in_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_INVALID
+                        HtpFlags::FIELD_INVALID
                     );
                 }
                 // No colon?
-                if name_flags.contains(HeaderFlags::MISSING_COLON) {
+                if name_flags.is_set(HeaderFlags::MISSING_COLON) {
                     // Log only once per transaction.
                     // We handle this case as a header with an empty name, with the value equal
                     // to the entire input string.
@@ -144,9 +144,9 @@ impl ConnectionParser {
                         "Request field invalid: colon missing",
                         self.in_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_UNPARSEABLE
+                        HtpFlags::FIELD_UNPARSEABLE
                     );
-                } else if name_flags.contains(HeaderFlags::NAME_EMPTY) {
+                } else if name_flags.is_set(HeaderFlags::NAME_EMPTY) {
                     // Empty header name.
                     // Log only once per transaction.
                     htp_warn_once!(
@@ -155,7 +155,7 @@ impl ConnectionParser {
                         "Request field invalid: empty name",
                         self.in_tx_mut_ok()?.flags,
                         flags,
-                        Flags::FIELD_INVALID
+                        HtpFlags::FIELD_INVALID
                     );
                 }
                 self.process_request_header_generic(Header::new_with_flags(

@@ -125,7 +125,7 @@ macro_rules! assert_response_header_flag_contains {
                 column!()
             ).as_ref())
             .1;
-        assert!(header.flags.contains($val));
+        assert!(header.flags.is_set($val));
         }};
     ($tx:expr, $key:expr, $val:expr,) => {{
         assert_response_header_flag_contains!($tx, response_headers, $key, $val);
@@ -150,7 +150,7 @@ macro_rules! assert_response_header_flag_contains {
                 column!()
             ).as_ref());
         assert_eq!(*header.value, $val, $($arg)*);
-        assert!((*header).flags.contains($val), $($arg)*);
+        assert!((*header).flags.is_set($val), $($arg)*);
     }};
 }
 

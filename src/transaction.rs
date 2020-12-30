@@ -15,7 +15,7 @@ use crate::{
     table::Table,
     uri::Uri,
     urlencoded::Parser as UrlEncodedParser,
-    util::{validate_hostname, File, Flags, HtpFileSource},
+    util::{validate_hostname, File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
 use std::cmp::Ordering;
@@ -178,17 +178,17 @@ pub struct Header {
     /// Header value.
     pub value: Bstr,
     /// Parsing flags; a combination of: HTP_FIELD_INVALID, HTP_FIELD_FOLDED, HTP_FIELD_REPEATED.
-    pub flags: Flags,
+    pub flags: u64,
 }
 
 pub type Headers = Table<Header>;
 
 impl Header {
     pub fn new(name: Bstr, value: Bstr) -> Self {
-        Self::new_with_flags(name, value, Flags::empty())
+        Self::new_with_flags(name, value, 0)
     }
 
-    pub fn new_with_flags(name: Bstr, value: Bstr, flags: Flags) -> Self {
+    pub fn new_with_flags(name: Bstr, value: Bstr, flags: u64) -> Self {
         Self { name, value, flags }
     }
 }
@@ -467,7 +467,7 @@ pub struct Transaction {
     // Common fields
     /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
     /// HTP_REQUEST_SMUGGLING, HTP_MULTI_PACKET_HEAD, and HTP_FIELD_UNPARSEABLE.
-    pub flags: Flags,
+    pub flags: u64,
     /// Request progress.
     pub request_progress: HtpRequestProgress,
     /// Response progress.
@@ -536,7 +536,7 @@ impl Transaction {
             response_content_encoding_processing: HtpContentEncoding::NONE,
             response_content_type: None,
             out_decompressor: None,
-            flags: Flags::empty(),
+            flags: 0,
             request_progress: HtpRequestProgress::NOT_STARTED,
             response_progress: HtpResponseProgress::NOT_STARTED,
             index,
@@ -604,8 +604,8 @@ impl Transaction {
             if te.value.cmp_nocase("chunked") != Ordering::Equal {
                 // Invalid T-E header value.
                 self.request_transfer_coding = HtpTransferCoding::INVALID;
-                self.flags |= Flags::REQUEST_INVALID_T_E;
-                self.flags |= Flags::REQUEST_INVALID
+                self.flags.set(HtpFlags::REQUEST_INVALID_T_E);
+                self.flags.set(HtpFlags::REQUEST_INVALID)
             } else {
                 // Chunked encoding is a HTTP/1.1 feature, so check that an earlier protocol
                 // version is not used. The flag will also be set if the protocol could not be parsed.
@@ -614,8 +614,8 @@ impl Transaction {
                 //      it is used with a protocol below HTTP 1.1. This should be a
                 //      personality trait.
                 if self.request_protocol_number < HtpProtocol::V1_1 {
-                    self.flags |= Flags::REQUEST_INVALID_T_E;
-                    self.flags |= Flags::REQUEST_SMUGGLING;
+                    self.flags.set(HtpFlags::REQUEST_INVALID_T_E);
+                    self.flags.set(HtpFlags::REQUEST_SMUGGLING);
                 }
                 // If the T-E header is present we are going to use it.
                 self.request_transfer_coding = HtpTransferCoding::CHUNKED;
@@ -629,17 +629,17 @@ impl Transaction {
                     //  Transfer-Encoding header field and a Content-Length header field,
                     //  the latter MUST be ignored."
                     //
-                    self.flags |= Flags::REQUEST_SMUGGLING
+                    self.flags.set(HtpFlags::REQUEST_SMUGGLING)
                 }
             }
         } else if let Some((_, cl)) = cl_opt {
             // Check for a folded C-L header.
-            if cl.flags.contains(Flags::FIELD_FOLDED) {
-                self.flags |= Flags::REQUEST_SMUGGLING
+            if cl.flags.is_set(HtpFlags::FIELD_FOLDED) {
+                self.flags.set(HtpFlags::REQUEST_SMUGGLING)
             }
             // Check for multiple C-L headers.
-            if cl.flags.contains(Flags::FIELD_REPEATED) {
-                self.flags |= Flags::REQUEST_SMUGGLING
+            if cl.flags.is_set(HtpFlags::FIELD_REPEATED) {
+                self.flags.set(HtpFlags::REQUEST_SMUGGLING)
                 // TODO Personality trait to determine which C-L header to parse.
                 //      At the moment we're parsing the combination of all instances,
                 //      which is bound to fail (because it will contain commas).
@@ -654,8 +654,8 @@ impl Transaction {
             } else {
                 self.request_content_length = -1;
                 self.request_transfer_coding = HtpTransferCoding::INVALID;
-                self.flags |= Flags::REQUEST_INVALID_C_L;
-                self.flags |= Flags::REQUEST_INVALID
+                self.flags.set(HtpFlags::REQUEST_INVALID_C_L);
+                self.flags.set(HtpFlags::REQUEST_INVALID)
             }
         } else {
             // No body.
@@ -665,7 +665,7 @@ impl Transaction {
         // consider the request invalid.
         if self.request_transfer_coding == HtpTransferCoding::UNKNOWN {
             self.request_transfer_coding = HtpTransferCoding::INVALID;
-            self.flags |= Flags::REQUEST_INVALID
+            self.flags.set(HtpFlags::REQUEST_INVALID)
         }
         // Check for PUT requests, which we need to treat as file uploads.
         if self.request_method_number == HtpMethod::PUT && self.req_has_body() {
@@ -686,7 +686,7 @@ impl Transaction {
             // Host information available in the headers.
             if let Ok((_, (hostname, port_nmb, valid))) = parse_hostport(&header.value) {
                 if !valid {
-                    self.flags |= Flags::HOSTH_INVALID
+                    self.flags.set(HtpFlags::HOSTH_INVALID)
                 }
                 // The host information in the headers is valid.
                 // Is there host information in the URI?
@@ -705,27 +705,27 @@ impl Transaction {
                     // Check for different hostnames.
                     if let Some(host) = &self.request_hostname {
                         if host.cmp_nocase(hostname) != Ordering::Equal {
-                            self.flags |= Flags::HOST_AMBIGUOUS
+                            self.flags.set(HtpFlags::HOST_AMBIGUOUS)
                         }
                     }
 
                     if let Some((_, port)) = port_nmb {
                         // Check for different ports.
                         if self.request_port_number.is_some() && self.request_port_number != port {
-                            self.flags |= Flags::HOST_AMBIGUOUS
+                            self.flags.set(HtpFlags::HOST_AMBIGUOUS)
                         }
                     }
                 }
             } else if self.request_hostname.is_some() {
                 // Invalid host information in the headers.
                 // Raise the flag, even though the host information in the headers is invalid.
-                self.flags |= Flags::HOST_AMBIGUOUS
+                self.flags.set(HtpFlags::HOST_AMBIGUOUS)
             }
         } else {
             // No host information in the headers.
             // HTTP/1.1 requires host information in the headers.
             if self.request_protocol_number >= HtpProtocol::V1_1 {
-                self.flags |= Flags::HOST_MISSING
+                self.flags.set(HtpFlags::HOST_MISSING)
             }
         }
         // Determine Content-Type.
@@ -741,7 +741,7 @@ impl Transaction {
             parse_authorization(self).or_else(|rc| {
                 if rc == HtpStatus::DECLINED {
                     // Don't fail the stream if an authorization header is invalid, just set a flag.
-                    self.flags |= Flags::AUTH_INVALID;
+                    self.flags.set(HtpFlags::AUTH_INVALID);
                     Ok(())
                 } else {
                     Err(rc)
@@ -753,7 +753,7 @@ impl Transaction {
         // Run hook REQUEST_HEADERS.
         connp.cfg.hook_request_headers.run_all(connp, self)?;
         // We cannot proceed if the request is invalid.
-        if self.flags.contains(Flags::REQUEST_INVALID) {
+        if self.flags.is_set(HtpFlags::REQUEST_INVALID) {
             return Err(HtpStatus::ERROR);
         }
         Ok(())
@@ -802,16 +802,16 @@ impl Transaction {
                 HtpLogCode::RESPONSE_LINE_INVALID_PROTOCOL,
                 "Invalid response line: invalid protocol"
             );
-            self.flags |= Flags::STATUS_LINE_INVALID
+            self.flags.set(HtpFlags::STATUS_LINE_INVALID)
         }
         if !self.response_status_number.in_range(100, 999) {
             htp_warn!(
                 connp,
                 HtpLogCode::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
-                format!("Invalid response line: invalid response status.",)
+                "Invalid response line: invalid response status."
             );
             self.response_status_number = HtpResponseNumber::INVALID;
-            self.flags |= Flags::STATUS_LINE_INVALID
+            self.flags.set(HtpFlags::STATUS_LINE_INVALID)
         }
         // Run hook HTP_RESPONSE_LINE
         connp.cfg.hook_response_line.run_all(connp, self)
@@ -975,7 +975,7 @@ impl Transaction {
             // Request headers.
             // Did this request arrive in multiple data chunks?
             if connp.in_chunk_count != connp.in_chunk_request_index {
-                self.flags |= Flags::MULTI_PACKET_HEAD
+                self.flags.set(HtpFlags::MULTI_PACKET_HEAD)
             }
             self.process_request_headers(connp)?;
             connp.in_state = State::CONNECT_CHECK;
@@ -1020,7 +1020,7 @@ impl Transaction {
         // Check parsed_uri hostname.
         if let Some(hostname) = self.get_parsed_uri_hostname() {
             if !validate_hostname(hostname.as_slice()) {
-                self.flags |= Flags::HOSTU_INVALID
+                self.flags.set(HtpFlags::HOSTU_INVALID)
             }
         }
         // Run hook REQUEST_URI_NORMALIZE.

@@ -8,7 +8,10 @@ use crate::{
     request::HtpMethod,
     transaction::{Data, HtpProtocol, HtpResponseProgress, HtpTransferCoding},
     uri::Uri,
-    util::{chomp, is_line_ignorable, is_space, take_till_lf, treat_response_line_as_body, Flags},
+    util::{
+        chomp, is_line_ignorable, is_space, take_till_lf, treat_response_line_as_body,
+        FlagOperations, HtpFlags,
+    },
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
@@ -491,7 +494,7 @@ impl ConnectionParser {
                 // We are still going to check for the presence of C-L
                 if cl_opt.is_some() {
                     // This is a violation of the RFC
-                    self.out_tx_mut_ok()?.flags |= Flags::REQUEST_SMUGGLING
+                    self.out_tx_mut_ok()?.flags.set(HtpFlags::REQUEST_SMUGGLING)
                 }
                 self.out_state = State::BODY_CHUNKED_LENGTH;
                 self.out_tx_mut_ok()?.response_progress = HtpResponseProgress::BODY
@@ -500,8 +503,8 @@ impl ConnectionParser {
                 // We know the exact length
                 self.out_tx_mut_ok()?.response_transfer_coding = HtpTransferCoding::IDENTITY;
                 // Check for multiple C-L headers
-                if cl.flags.contains(Flags::FIELD_REPEATED) {
-                    self.out_tx_mut_ok()?.flags |= Flags::REQUEST_SMUGGLING
+                if cl.flags.is_set(HtpFlags::FIELD_REPEATED) {
+                    self.out_tx_mut_ok()?.flags.set(HtpFlags::REQUEST_SMUGGLING)
                 }
                 // Get body length
                 if let Some(content_length) =

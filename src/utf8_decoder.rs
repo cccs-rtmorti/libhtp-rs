@@ -17,7 +17,10 @@
 //
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-use crate::{unicode_bestfit_map::UnicodeBestfitMap, util::Flags};
+use crate::{
+    unicode_bestfit_map::UnicodeBestfitMap,
+    util::{FlagOperations, HtpFlags},
+};
 
 static utf8d: [u8; 400] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -58,7 +61,7 @@ pub struct Utf8Decoder {
     state: u32,
     seq: u32,
     codepoint: u32,
-    pub flags: Flags,
+    pub flags: u64,
     pub seen_valid: bool,
     pub decoded_bytes: Vec<u8>,
 }
@@ -71,7 +74,7 @@ impl Utf8Decoder {
             state: 0,
             seq: 0,
             codepoint: 0,
-            flags: Flags::empty(),
+            flags: 0,
             seen_valid: false,
             decoded_bytes: Vec::new(),
         }
@@ -92,24 +95,24 @@ impl Utf8Decoder {
                     match self.seq {
                         2 => {
                             if self.codepoint < 0x80 {
-                                self.flags |= Flags::PATH_UTF8_OVERLONG
+                                self.flags.set(HtpFlags::PATH_UTF8_OVERLONG)
                             }
                         }
                         3 => {
                             if self.codepoint < 0x800 {
-                                self.flags |= Flags::PATH_UTF8_OVERLONG
+                                self.flags.set(HtpFlags::PATH_UTF8_OVERLONG)
                             }
                         }
                         4 => {
                             if self.codepoint < 0x10000 {
-                                self.flags |= Flags::PATH_UTF8_OVERLONG
+                                self.flags.set(HtpFlags::PATH_UTF8_OVERLONG)
                             }
                         }
                         _ => {}
                     }
                     // Special flag for half-width/full-width evasion.
                     if self.codepoint >= 0xff00 && self.codepoint <= 0xffef {
-                        self.flags |= Flags::PATH_HALF_FULL_RANGE
+                        self.flags.set(HtpFlags::PATH_HALF_FULL_RANGE)
                     }
                     // Use best-fit mapping to convert to a single byte.
                     self.decoded_bytes.push(self.bestfit_codepoint());
@@ -118,7 +121,7 @@ impl Utf8Decoder {
             }
             1 => {
                 // Invalid UTF-8 character.
-                self.flags |= Flags::PATH_UTF8_INVALID;
+                self.flags.set(HtpFlags::PATH_UTF8_INVALID);
                 // Output the replacement byte, replacing one or more invalid bytes.
                 // If the invalid byte was first in a sequence, consume it. Otherwise,
                 // assume it's the starting byte of the next character.
@@ -148,7 +151,7 @@ impl Utf8Decoder {
         self.state = 0;
         self.seq = 0;
         self.codepoint = 0;
-        self.flags = Flags::empty();
+        self.flags = 0;
         self.decoded_bytes.clear();
         self.decoded_bytes.reserve(input.len());
         self.seen_valid = false;
@@ -156,8 +159,8 @@ impl Utf8Decoder {
             self.decode_byte(*byte);
         }
         // Did the input stream seem like a valid UTF-8 string?
-        if self.seen_valid && !self.flags.contains(Flags::PATH_UTF8_INVALID) {
-            self.flags |= Flags::PATH_UTF8_VALID
+        if self.seen_valid && !self.flags.is_set(HtpFlags::PATH_UTF8_INVALID) {
+            self.flags.set(HtpFlags::PATH_UTF8_VALID)
         }
     }
 

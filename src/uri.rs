@@ -4,7 +4,7 @@ use crate::{
     parsers::{credentials, fragment, hostname, parse_hostport, path, port, query, scheme},
     util::{
         convert_port, decode_uri_path_inplace, urldecode_inplace, urldecode_uri_inplace,
-        utf8_decode_and_validate_uri_path_inplace, Flags,
+        utf8_decode_and_validate_uri_path_inplace, FlagOperations, HtpFlags,
     },
 };
 use nom::{combinator::opt, sequence::tuple};
@@ -89,7 +89,7 @@ impl Uri {
     pub fn normalized_username(
         &self,
         decoder_cfg: &DecoderConfig,
-        flags: &mut Flags,
+        flags: &mut u64,
     ) -> Option<Bstr> {
         if let Some(mut username) = self.username.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut username);
@@ -102,7 +102,7 @@ impl Uri {
     pub fn normalized_password(
         &self,
         decoder_cfg: &DecoderConfig,
-        flags: &mut Flags,
+        flags: &mut u64,
     ) -> Option<Bstr> {
         if let Some(mut password) = self.password.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut password);
@@ -115,7 +115,7 @@ impl Uri {
     pub fn normalized_hostname(
         &self,
         decoder_cfg: &DecoderConfig,
-        flags: &mut Flags,
+        flags: &mut u64,
     ) -> Option<Bstr> {
         if let Some(mut hostname) = self.hostname.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut hostname);
@@ -130,13 +130,13 @@ impl Uri {
         }
     }
 
-    pub fn normalized_port(&self, flags: &mut Flags) -> Option<u16> {
+    pub fn normalized_port(&self, flags: &mut u64) -> Option<u16> {
         if let Some(port) = self.port.clone() {
             if let Some(port) = convert_port(&port.as_slice()) {
                 Some(port)
             } else {
                 // Failed to parse the port number.
-                *flags |= Flags::HOSTU_INVALID;
+                flags.set(HtpFlags::HOSTU_INVALID);
                 None
             }
         } else {
@@ -147,7 +147,7 @@ impl Uri {
     pub fn normalized_fragment(
         &self,
         decoder_cfg: &DecoderConfig,
-        flags: &mut Flags,
+        flags: &mut u64,
     ) -> Option<Bstr> {
         if let Some(mut fragment) = self.fragment.clone() {
             let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut fragment);
@@ -160,7 +160,7 @@ impl Uri {
     pub fn normalized_path(
         &self,
         decoder_cfg: &DecoderConfig,
-        flags: &mut Flags,
+        flags: &mut u64,
         status: &mut HtpUnwanted,
     ) -> Option<Bstr> {
         if let Some(mut path) = self.path.clone() {
@@ -222,7 +222,7 @@ impl Uri {
     }
 
     /// Parses hostport provided in the URI.
-    pub fn parse_uri_hostport(&mut self, hostport: &Bstr, flags: &mut Flags) {
+    pub fn parse_uri_hostport(&mut self, hostport: &Bstr, flags: &mut u64) {
         if let Ok((_, (host, port_nmb, mut valid))) = parse_hostport(hostport) {
             let hostname = &host.to_ascii_lowercase();
             self.hostname = Some(Bstr::from(hostname.as_slice()));
@@ -235,7 +235,7 @@ impl Uri {
                 }
             }
             if !valid {
-                *flags |= Flags::HOSTU_INVALID
+                flags.set(HtpFlags::HOSTU_INVALID)
             }
         }
     }
@@ -312,7 +312,7 @@ impl Uri {
             partial_normalized_uri.add(path.as_slice());
         }
         if let Some(mut query) = self.query.clone() {
-            let mut flags = Flags::empty();
+            let mut flags = 0;
             let _ = urldecode_inplace(decoder_cfg, &mut query, &mut flags);
             partial_normalized_uri.add("?");
             partial_normalized_uri.add(query.as_slice());

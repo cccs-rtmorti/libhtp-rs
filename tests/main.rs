@@ -2,6 +2,7 @@
 use chrono::{DateTime, Utc};
 use htp::{
     config::{Config, HtpServerPersonality},
+    connection::Flags as ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState},
     error::Result,
     log::{HtpLogCode, HtpLogLevel},
@@ -9,7 +10,7 @@ use htp::{
         Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
         HtpResponseProgress,
     },
-    util::{ConnectionFlags, Flags, HtpFileSource},
+    util::{FlagOperations, HtpFileSource, HtpFlags},
 };
 use std::{
     convert::TryInto,
@@ -404,7 +405,7 @@ fn PipelinedConn() {
 
     assert_eq!(2, t.connp.conn.tx_size());
 
-    assert!(t.connp.conn.flags.contains(ConnectionFlags::PIPELINED));
+    assert!(t.connp.conn.flags.is_set(ConnectionFlags::PIPELINED));
 
     let _tx = t.connp.conn.tx(0).unwrap();
 }
@@ -416,11 +417,11 @@ fn NotPipelinedConn() {
 
     assert_eq!(2, t.connp.conn.tx_size());
 
-    assert!(!t.connp.conn.flags.contains(ConnectionFlags::PIPELINED));
+    assert!(!t.connp.conn.flags.is_set(ConnectionFlags::PIPELINED));
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(!tx.flags.contains(Flags::MULTI_PACKET_HEAD));
+    assert!(!tx.flags.is_set(HtpFlags::MULTI_PACKET_HEAD));
 }
 
 #[test]
@@ -432,7 +433,7 @@ fn MultiPacketRequest() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::MULTI_PACKET_HEAD));
+    assert!(tx.flags.is_set(HtpFlags::MULTI_PACKET_HEAD));
 }
 
 #[test]
@@ -624,32 +625,32 @@ fn AmbiguousHost() {
     let tx1 = t.connp.conn.tx(0).unwrap();
 
     assert!(tx1.is_complete());
-    assert!(!tx1.flags.contains(Flags::HOST_AMBIGUOUS));
+    assert!(!tx1.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
 
     let tx2 = t.connp.conn.tx(1).unwrap();
 
     assert!(tx2.is_complete());
-    assert!(tx2.flags.contains(Flags::HOST_AMBIGUOUS));
+    assert!(tx2.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx2.request_hostname.as_ref().unwrap().eq("example.com"));
 
     let tx3 = t.connp.conn.tx(2).unwrap();
 
     assert!(tx3.is_complete());
-    assert!(!tx3.flags.contains(Flags::HOST_AMBIGUOUS));
+    assert!(!tx3.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx3.request_hostname.as_ref().unwrap().eq("www.example.com"));
     assert_eq!(Some(8001), tx3.request_port_number);
 
     let tx4 = t.connp.conn.tx(3).unwrap();
 
     assert!(tx4.is_complete());
-    assert!(tx4.flags.contains(Flags::HOST_AMBIGUOUS));
+    assert!(tx4.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx4.request_hostname.as_ref().unwrap().eq("www.example.com"));
     assert_eq!(Some(8002), tx4.request_port_number);
 
     let tx5 = t.connp.conn.tx(4).unwrap();
 
     assert!(tx5.is_complete());
-    assert!(!tx5.flags.contains(Flags::HOST_AMBIGUOUS));
+    assert!(!tx5.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx5.request_hostname.as_ref().unwrap().eq("www.example.com"));
     assert_eq!(Some(80), tx5.request_port_number);
 }
@@ -660,7 +661,7 @@ fn Http_0_9() {
     assert!(t.run("21-http09.t").is_ok());
 
     assert_eq!(1, t.connp.conn.tx_size());
-    assert!(!t.connp.conn.flags.contains(ConnectionFlags::HTTP_0_9_EXTRA));
+    assert!(!t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
 
     let _tx = t.connp.conn.tx(0).unwrap();
 }
@@ -671,7 +672,7 @@ fn Http11HostMissing() {
     assert!(t.run("22-http_1_1-host_missing").is_ok());
     assert_eq!(1, t.connp.conn.tx_size());
     let tx = t.connp.conn.tx(0).unwrap();
-    assert!(tx.flags.contains(Flags::HOST_MISSING));
+    assert!(tx.flags.is_set(HtpFlags::HOST_MISSING));
 }
 
 #[test]
@@ -680,7 +681,7 @@ fn Http_0_9_Multiple() {
     assert!(t.run("23-http09-multiple.t").is_ok());
 
     assert_eq!(1, t.connp.conn.tx_size());
-    assert!(t.connp.conn.flags.contains(ConnectionFlags::HTTP_0_9_EXTRA));
+    assert!(t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
 
     let _tx = t.connp.conn.tx(0).unwrap();
 }
@@ -1016,9 +1017,9 @@ fn InvalidHostname1() {
     assert_eq!(1, t.connp.conn.tx_size());
 
     let tx = t.connp.conn.tx(0).unwrap();
-    assert!(tx.flags.contains(Flags::HOSTH_INVALID));
-    assert!(tx.flags.contains(Flags::HOSTU_INVALID));
-    assert!(tx.flags.contains(Flags::HOST_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOSTH_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOSTU_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOST_INVALID));
 }
 
 #[test]
@@ -1030,9 +1031,9 @@ fn InvalidHostname2() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(!tx.flags.contains(Flags::HOSTH_INVALID));
-    assert!(tx.flags.contains(Flags::HOSTU_INVALID));
-    assert!(tx.flags.intersects(Flags::HOST_INVALID));
+    assert!(!tx.flags.is_set(HtpFlags::HOSTH_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOSTU_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOST_INVALID));
 }
 
 #[test]
@@ -1044,9 +1045,9 @@ fn InvalidHostname3() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::HOSTH_INVALID));
-    assert!(!tx.flags.contains(Flags::HOSTU_INVALID));
-    assert!(tx.flags.intersects(Flags::HOST_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOSTH_INVALID));
+    assert!(!tx.flags.is_set(HtpFlags::HOSTU_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::HOST_INVALID));
 }
 
 #[test]
@@ -1066,8 +1067,8 @@ fn InvalidRequest1() {
 
     assert_eq!(HtpRequestProgress::HEADERS, tx.request_progress);
 
-    assert!(tx.flags.contains(Flags::REQUEST_INVALID));
-    assert!(tx.flags.contains(Flags::REQUEST_INVALID_C_L));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_INVALID_C_L));
 
     assert!(tx.request_hostname.is_some());
 }
@@ -1082,7 +1083,7 @@ fn InvalidRequest2() {
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
-    assert!(tx.flags.contains(Flags::REQUEST_SMUGGLING));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_SMUGGLING));
 
     assert!(tx.request_hostname.is_some());
 }
@@ -1096,8 +1097,8 @@ fn InvalidRequest3() {
 
     assert_eq!(HtpRequestProgress::HEADERS, tx.request_progress);
 
-    assert!(tx.flags.contains(Flags::REQUEST_INVALID));
-    assert!(tx.flags.contains(Flags::REQUEST_INVALID_T_E));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_INVALID_T_E));
 
     assert!(tx.request_hostname.is_some());
 }
@@ -1184,7 +1185,7 @@ fn AuthBasicInvalid() {
 
     assert!(tx.request_auth_password.is_none());
 
-    assert!(tx.flags.contains(Flags::AUTH_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::AUTH_INVALID));
 }
 
 #[test]
@@ -1202,7 +1203,7 @@ fn AuthDigestUnquotedUsername() {
 
     assert!(tx.request_auth_password.is_none());
 
-    assert!(tx.flags.contains(Flags::AUTH_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::AUTH_INVALID));
 }
 
 #[test]
@@ -1220,7 +1221,7 @@ fn AuthDigestInvalidUsername1() {
 
     assert!(tx.request_auth_password.is_none());
 
-    assert!(tx.flags.contains(Flags::AUTH_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::AUTH_INVALID));
 }
 
 #[test]
@@ -1251,14 +1252,14 @@ fn InvalidResponseHeaders1() {
     assert_eq!(8, tx.response_headers.size());
 
     assert_response_header_eq!(tx, "", "No Colon");
-    assert_response_header_flag_contains!(tx, "", Flags::FIELD_INVALID);
-    assert_response_header_flag_contains!(tx, "", Flags::FIELD_UNPARSEABLE);
+    assert_response_header_flag_contains!(tx, "", HtpFlags::FIELD_INVALID);
+    assert_response_header_flag_contains!(tx, "", HtpFlags::FIELD_UNPARSEABLE);
 
     assert_response_header_eq!(tx, "Lws", "After Header Name");
-    assert_response_header_flag_contains!(tx, "Lws", Flags::FIELD_INVALID);
+    assert_response_header_flag_contains!(tx, "Lws", HtpFlags::FIELD_INVALID);
 
     assert_response_header_eq!(tx, "Header@Name", "Not Token");
-    assert_response_header_flag_contains!(tx, "Header@Name", Flags::FIELD_INVALID);
+    assert_response_header_flag_contains!(tx, "Header@Name", HtpFlags::FIELD_INVALID);
 }
 
 #[test]
@@ -1273,7 +1274,7 @@ fn InvalidResponseHeaders2() {
     assert_eq!(6, tx.response_headers.size());
 
     assert_response_header_eq!(tx, "", "Empty Name");
-    assert_response_header_flag_contains!(tx, "", Flags::FIELD_INVALID);
+    assert_response_header_flag_contains!(tx, "", HtpFlags::FIELD_INVALID);
 }
 
 #[test]
@@ -1348,9 +1349,9 @@ fn PathUtf8_None() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(!tx.flags.contains(Flags::PATH_UTF8_VALID));
-    assert!(!tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
-    assert!(!tx.flags.contains(Flags::PATH_HALF_FULL_RANGE));
+    assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
+    assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
+    assert!(!tx.flags.is_set(HtpFlags::PATH_HALF_FULL_RANGE));
 }
 
 #[test]
@@ -1363,7 +1364,7 @@ fn PathUtf8_Valid() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_VALID));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
 }
 
 #[test]
@@ -1376,7 +1377,7 @@ fn PathUtf8_Overlong2() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 }
 
 #[test]
@@ -1389,7 +1390,7 @@ fn PathUtf8_Overlong3() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 }
 
 #[test]
@@ -1402,7 +1403,7 @@ fn PathUtf8_Overlong4() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 }
 
 #[test]
@@ -1415,8 +1416,8 @@ fn PathUtf8_Invalid() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_INVALID));
-    assert!(!tx.flags.contains(Flags::PATH_UTF8_VALID));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_INVALID));
+    assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
 }
 
 #[test]
@@ -1429,7 +1430,7 @@ fn PathUtf8_FullWidth() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_HALF_FULL_RANGE));
+    assert!(tx.flags.is_set(HtpFlags::PATH_HALF_FULL_RANGE));
 }
 
 #[test]
@@ -1463,7 +1464,7 @@ fn PathUtf8_Decode_Overlong2() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 
     assert!(tx
         .parsed_uri
@@ -1486,7 +1487,7 @@ fn PathUtf8_Decode_Overlong3() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 
     assert!(tx
         .parsed_uri
@@ -1509,7 +1510,7 @@ fn PathUtf8_Decode_Overlong4() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_OVERLONG));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
     assert!(tx
         .parsed_uri
         .as_ref()
@@ -1531,8 +1532,8 @@ fn PathUtf8_Decode_Invalid() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_UTF8_INVALID));
-    assert!(!tx.flags.contains(Flags::PATH_UTF8_VALID));
+    assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_INVALID));
+    assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
     assert!(tx
         .parsed_uri
         .as_ref()
@@ -1554,7 +1555,7 @@ fn PathUtf8_Decode_FullWidth() {
 
     let tx = t.connp.conn.tx(0).unwrap();
 
-    assert!(tx.flags.contains(Flags::PATH_HALF_FULL_RANGE));
+    assert!(tx.flags.is_set(HtpFlags::PATH_HALF_FULL_RANGE));
 
     assert!(tx
         .parsed_uri
@@ -1777,7 +1778,7 @@ fn ResponseContainsTeAndCl() {
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    assert!(tx.flags.contains(Flags::REQUEST_SMUGGLING));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_SMUGGLING));
 }
 
 #[test]
@@ -1793,10 +1794,10 @@ fn ResponseMultipleCl() {
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    assert!(tx.flags.contains(Flags::REQUEST_SMUGGLING));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_SMUGGLING));
 
     assert_response_header_eq!(tx, "Content-Length", "12");
-    assert_response_header_flag_contains!(tx, "Content-Length", Flags::FIELD_REPEATED);
+    assert_response_header_flag_contains!(tx, "Content-Length", HtpFlags::FIELD_REPEATED);
 }
 
 #[test]
@@ -1811,10 +1812,10 @@ fn ResponseMultipleClMismatch() {
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    assert!(tx.flags.contains(Flags::REQUEST_SMUGGLING));
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_SMUGGLING));
 
     assert_response_header_eq!(tx, "Content-Length", "12");
-    assert_response_header_flag_contains!(tx, "Content-Length", Flags::FIELD_REPEATED);
+    assert_response_header_flag_contains!(tx, "Content-Length", HtpFlags::FIELD_REPEATED);
 
     assert_eq!(2, t.connp.conn.messages.borrow().len());
     assert_eq!(
@@ -1847,7 +1848,7 @@ fn ResponseInvalidCl() {
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    assert!(!tx.flags.contains(Flags::REQUEST_SMUGGLING));
+    assert!(!tx.flags.is_set(HtpFlags::REQUEST_SMUGGLING));
 }
 
 #[test]
@@ -1962,7 +1963,7 @@ fn AuthDigestInvalidUsername2() {
 
     assert!(tx.request_auth_password.is_none());
 
-    assert!(tx.flags.contains(Flags::AUTH_INVALID));
+    assert!(tx.flags.is_set(HtpFlags::AUTH_INVALID));
 }
 
 #[test]
@@ -2041,7 +2042,7 @@ fn IncorrectHostAmbiguousWarning() {
 
     assert!(tx.request_hostname.as_ref().unwrap().eq("www.example.com"));
 
-    assert!(!tx.flags.contains(Flags::HOST_AMBIGUOUS));
+    assert!(!tx.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
 }
 
 #[test]

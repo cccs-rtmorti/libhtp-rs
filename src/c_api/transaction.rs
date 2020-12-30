@@ -615,7 +615,7 @@ pub unsafe extern "C" fn htp_tx_response_content_type(tx: *const Transaction) ->
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_flags(tx: *const Transaction) -> u64 {
     if let Some(tx) = tx.as_ref() {
-        tx.flags.bits()
+        tx.flags
     } else {
         0
     }

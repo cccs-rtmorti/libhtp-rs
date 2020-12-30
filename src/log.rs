@@ -203,10 +203,10 @@ macro_rules! htp_error {
 macro_rules! htp_warn_once {
     ($connp:expr, $code:expr, $msg:expr, $tx_flags:expr, $flags:expr, $flag:expr) => {
         // Log only once per transaction.
-        if !$tx_flags.contains($flag) {
+        if !$tx_flags.is_set($flag) {
             htp_warn!($connp, $code, $msg);
         }
-        $tx_flags |= $flag;
-        $flags |= $flag;
+        $tx_flags.set($flag);
+        $flags.set($flag);
     };
 }
