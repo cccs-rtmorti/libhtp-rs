@@ -10,7 +10,7 @@ use crate::{
     transaction::{Header, Headers},
     util::{
         is_space, take_ascii_whitespace, take_is_space, take_until_no_case, File, FlagOperations,
-        HtpFileSource, HtpFlags,
+        HtpFileSource,
     },
     HtpStatus,
 };

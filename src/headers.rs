@@ -1,5 +1,4 @@
 use crate::util::{is_token, FlagOperations};
-use bitflags;
 use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,

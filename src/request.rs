@@ -7,9 +7,8 @@ use crate::{
     parsers::parse_chunked_length,
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
-        chomp, convert_to_method, is_folding_char, is_line_folded, is_line_ignorable,
-        is_line_terminator, is_space, nom_take_is_space, req_sep_by_line_endings, take_is_space,
-        take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations, HtpFlags,
+        chomp, convert_to_method, is_line_ignorable, is_space, nom_take_is_space, take_is_space,
+        take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
     },
     HtpStatus,
 };
