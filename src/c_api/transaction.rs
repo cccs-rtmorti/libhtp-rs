@@ -3,7 +3,10 @@ use crate::{
     decompressors::HtpContentEncoding, hook::DataExternalCallbackFn, request::HtpMethod,
     transaction::*, uri::Uri, HtpStatus,
 };
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    rc::Rc,
+};
 
 /// Creates a new transaction.
 #[no_mangle]
@@ -61,11 +64,11 @@ pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction) -> *const B
 ///
 /// Returns a pointer to the configuration or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_cfg(tx: *mut Transaction) -> *mut Config {
+pub unsafe extern "C" fn htp_tx_cfg(tx: *mut Transaction) -> *const Config {
     if let Some(tx) = tx.as_mut() {
-        tx.cfg
+        Rc::as_ptr(&tx.cfg)
     } else {
-        std::ptr::null_mut()
+        std::ptr::null()
     }
 }
 

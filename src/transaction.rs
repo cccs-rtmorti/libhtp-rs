@@ -18,7 +18,8 @@ use crate::{
     util::{validate_hostname, File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
-use std::cmp::Ordering;
+
+use std::{cmp::Ordering, rc::Rc};
 
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
@@ -260,7 +261,7 @@ pub enum HtpProtocol {
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct Transaction {
     /// The configuration structure associated with this transaction.
-    pub cfg: *mut Config,
+    pub cfg: Rc<Config>,
     /// Is the configuration structure shared with other transactions or connections? If
     /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
     pub is_config_shared: bool,
@@ -485,7 +486,7 @@ pub type Transactions = List<Transaction>;
 impl Transaction {
     pub fn new(connp: &mut ConnectionParser, index: usize) -> Self {
         Self {
-            cfg: &mut connp.cfg,
+            cfg: Rc::clone(&connp.cfg),
             is_config_shared: true,
             user_data: std::ptr::null_mut(),
             request_ignored_lines: 0,
@@ -575,7 +576,7 @@ impl Transaction {
     ///
     /// Returns OK on success, ERROR on failure.
     pub fn req_add_param(&mut self, mut param: Param) -> Result<()> {
-        if let Some(parameter_processor_fn) = unsafe { (*self.cfg).parameter_processor } {
+        if let Some(parameter_processor_fn) = self.cfg.parameter_processor {
             parameter_processor_fn(&mut param)?
         }
         self.request_params.add(param.name.clone(), param);
@@ -862,7 +863,7 @@ impl Transaction {
                         .map_err(|_| HtpStatus::ERROR)?;
 
                     if decompressor.time_spent()
-                        > unsafe { (*(*self).cfg).compression_options.get_time_limit() as u64 }
+                        > self.cfg.compression_options.get_time_limit() as u64
                     {
                         htp_log!(
                             connp,
@@ -1029,7 +1030,7 @@ impl Transaction {
         connp.cfg.hook_request_line.run_all(connp, self)?;
         if let Some(parsed_uri) = self.parsed_uri.as_mut() {
             let (partial_normalized_uri, complete_normalized_uri) =
-                parsed_uri.generate_normalized_uri(unsafe { &(*(self.cfg)).decoder_cfg });
+                parsed_uri.generate_normalized_uri(&self.cfg.decoder_cfg);
             self.partial_normalized_uri = partial_normalized_uri;
             self.complete_normalized_uri = complete_normalized_uri;
         }
@@ -1128,32 +1129,28 @@ impl Transaction {
             .res_run_hook_body_data(&mut tx_data)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
 
-        unsafe {
-            if let Some(decompressor) = &mut self.out_decompressor {
-                if decompressor.callback_inc()
-                    % (*self.cfg).compression_options.get_time_test_freq()
-                    == 0
-                {
-                    if let Some(time_spent) = decompressor.timer_reset() {
-                        if time_spent > (*self.cfg).compression_options.get_time_limit() as u64 {
-                            htp_log!(
-                                connp,
-                                HtpLogLevel::ERROR,
-                                HtpLogCode::COMPRESSION_BOMB,
-                                format!("Compression bomb: spent {} us decompressing", time_spent)
-                            );
-                            return Err(std::io::Error::new(
-                                std::io::ErrorKind::Other,
-                                "compression_time_limit reached",
-                            ));
-                        }
+        if let Some(decompressor) = &mut self.out_decompressor {
+            if decompressor.callback_inc() % self.cfg.compression_options.get_time_test_freq() == 0
+            {
+                if let Some(time_spent) = decompressor.timer_reset() {
+                    if time_spent > self.cfg.compression_options.get_time_limit() as u64 {
+                        htp_log!(
+                            connp,
+                            HtpLogLevel::ERROR,
+                            HtpLogCode::COMPRESSION_BOMB,
+                            format!("Compression bomb: spent {} us decompressing", time_spent)
+                        );
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "compression_time_limit reached",
+                        ));
                     }
                 }
             }
         }
 
         // output > ratio * input ?
-        let ratio = unsafe { (*self.cfg).compression_options.get_bomb_ratio() };
+        let ratio = self.cfg.compression_options.get_bomb_ratio();
         let exceeds_ratio = if let Some(ratio) = self.response_message_len.checked_mul(ratio) {
             self.response_entity_len > ratio
         } else {
@@ -1161,7 +1158,7 @@ impl Transaction {
             true
         };
 
-        let bomb_limit = unsafe { (*self.cfg).compression_options.get_bomb_limit() };
+        let bomb_limit = self.cfg.compression_options.get_bomb_limit();
         if self.response_entity_len > bomb_limit as i64 && exceeds_ratio {
             htp_log!(
                 connp,
@@ -1187,10 +1184,8 @@ impl Transaction {
     ) -> Result<()> {
         if encoding != HtpContentEncoding::NONE {
             if let Some(decompressor) = self.out_decompressor.take() {
-                self.out_decompressor.replace(
-                    decompressor
-                        .prepend(encoding, unsafe { (*(*self).cfg).compression_options })?,
-                );
+                self.out_decompressor
+                    .replace(decompressor.prepend(encoding, self.cfg.compression_options)?);
             } else {
                 // The processing encoding will be the first one encountered
                 (*self).response_content_encoding_processing = encoding;
@@ -1208,7 +1203,7 @@ impl Transaction {
                         Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
                             (*tx).decompressor_callback(&mut *connp_ptr, data)
                         }),
-                        (*(*self).cfg).compression_options,
+                        self.cfg.compression_options,
                     )?
                 });
             }
@@ -1251,19 +1246,18 @@ impl Transaction {
         };
 
         // Configure decompression, if enabled in the configuration.
-        self.response_content_encoding_processing =
-            if unsafe { (*self.cfg).response_decompression_enabled } {
-                self.response_content_encoding
-            } else {
-                slow_path = false;
-                HtpContentEncoding::NONE
-            };
-        unsafe {
-            // Finalize sending raw header data.
-            connp.res_receiver_finalize_clear()?;
-            // Run hook RESPONSE_HEADERS.
-            (*self.cfg).hook_response_headers.run_all(connp, self)?;
-        }
+        self.response_content_encoding_processing = if self.cfg.response_decompression_enabled {
+            self.response_content_encoding
+        } else {
+            slow_path = false;
+            HtpContentEncoding::NONE
+        };
+        // Finalize sending raw header data.
+        connp.res_receiver_finalize_clear()?;
+        // Run hook RESPONSE_HEADERS.
+        //TODO: remove clone
+        let hook_response_headers = self.cfg.hook_response_headers.clone();
+        hook_response_headers.run_all(connp, self)?;
 
         // Initialize the decompression engine as necessary. We can deal with three
         // scenarios:
@@ -1286,12 +1280,10 @@ impl Transaction {
                     if let Some(ce) = &ce {
                         let mut layers = 0;
                         // decompression layer depth check (0 means no limit)
-                        let limit = unsafe {
-                            if (*self.cfg).response_decompression_layer_limit > 0 {
-                                (*self.cfg).response_decompression_layer_limit as usize
-                            } else {
-                                std::usize::MAX
-                            }
+                        let limit = if self.cfg.response_decompression_layer_limit > 0 {
+                            self.cfg.response_decompression_layer_limit as usize
+                        } else {
+                            std::usize::MAX
                         };
 
                         for encoding in ce.split(|c| *c == ',' as u8 || *c == ' ' as u8) {
@@ -1424,7 +1416,7 @@ impl Transaction {
     /// Normalize a previously-parsed request URI.
     pub fn normalize_parsed_uri(&mut self) {
         let mut uri = Uri::default();
-        let decoder_cfg = unsafe { &(*(self.cfg)).decoder_cfg };
+        let decoder_cfg = &self.cfg.decoder_cfg;
         if let Some(incomplete) = &self.parsed_uri_raw {
             uri.scheme = incomplete.normalized_scheme();
             uri.username = incomplete.normalized_username(decoder_cfg, &mut self.flags);
@@ -1440,18 +1432,6 @@ impl Transaction {
             );
         }
         self.parsed_uri = Some(uri);
-    }
-}
-
-impl Drop for Transaction {
-    /// Destroys all the fields inside an Transaction.
-    fn drop(&mut self) {
-        unsafe {
-            // If we're using a private configuration structure, destroy it.
-            if !self.is_config_shared {
-                (*self.cfg).destroy();
-            }
-        }
     }
 }
 

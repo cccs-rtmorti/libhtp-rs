@@ -78,23 +78,13 @@ impl ConnectionParser {
             return Ok(());
         }
         if self.out_state == State::HEADERS {
-            unsafe {
-                let header_fn = Some(
-                    (*self.out_tx_mut_ok()?.cfg)
-                        .hook_response_header_data
-                        .clone(),
-                );
-                let trailer_fn = Some(
-                    (*self.out_tx_mut_ok()?.cfg)
-                        .hook_response_trailer_data
-                        .clone(),
-                );
-                match self.out_tx_mut_ok()?.response_progress {
-                    HtpResponseProgress::HEADERS => self.res_receiver_set(header_fn),
-                    HtpResponseProgress::TRAILER => self.res_receiver_set(trailer_fn),
-                    _ => Ok(()),
-                }?;
-            }
+            let header_fn = Some(self.out_tx_mut_ok()?.cfg.hook_response_header_data.clone());
+            let trailer_fn = Some(self.out_tx_mut_ok()?.cfg.hook_response_trailer_data.clone());
+            match self.out_tx_mut_ok()?.response_progress {
+                HtpResponseProgress::HEADERS => self.res_receiver_set(header_fn),
+                HtpResponseProgress::TRAILER => self.res_receiver_set(trailer_fn),
+                _ => Ok(()),
+            }?;
         }
         // Same comment as in htp_req_handle_state_change(). Below is a copy.
         // Initially, I had the finalization of raw data sending here, but that
@@ -122,7 +112,7 @@ impl ConnectionParser {
         if let Some(out_header) = &self.out_header {
             newlen = newlen.wrapping_add(out_header.len())
         }
-        let field_limit = unsafe { (*self.out_tx_mut_ok()?.cfg).field_limit };
+        let field_limit = self.out_tx_mut_ok()?.cfg.field_limit;
         if newlen > field_limit {
             htp_error!(
                 self,

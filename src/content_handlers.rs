@@ -9,6 +9,8 @@ use crate::{
     HtpStatus,
 };
 
+use std::rc::Rc;
+
 /// This callback function feeds request body data to a Urlencoded parser
 /// and, later, feeds the parsed parameters to the correct structures.
 ///
@@ -146,33 +148,31 @@ pub fn callback_multipart_request_body_data(d: &mut Data) -> Result<()> {
 /// Returns OK if a new parser has been setup, DECLINED if the MIME type
 ///         is not appropriate for this parser, and ERROR on failure.
 pub fn callback_multipart_request_headers(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        // The field request_content_type does not contain the entire C-T
-        // value and so we cannot use it to look for a boundary, but we can
-        // use it for a quick check to determine if the C-T header exists.
-        if tx.request_content_type.is_none() {
-            return Err(HtpStatus::DECLINED);
-        }
-        // Look for a boundary.
-        let ct = if let Some((_, ct)) = tx.request_headers.get_nocase_nozero_mut("content-type") {
-            ct
-        } else {
+    // The field request_content_type does not contain the entire C-T
+    // value and so we cannot use it to look for a boundary, but we can
+    // use it for a quick check to determine if the C-T header exists.
+    if tx.request_content_type.is_none() {
+        return Err(HtpStatus::DECLINED);
+    }
+    // Look for a boundary.
+    let ct = if let Some((_, ct)) = tx.request_headers.get_nocase_nozero_mut("content-type") {
+        ct
+    } else {
+        return Err(HtpStatus::ERROR);
+    };
+    let mut flags = 0;
+    if let Some(boundary) = find_boundary(&(*(*ct).value).as_slice(), &mut flags) {
+        // Create a Multipart parser instance.
+        tx.request_mpartp = MultipartParser::new(Rc::clone(&tx.cfg), boundary, flags);
+        if tx.request_mpartp.is_none() {
             return Err(HtpStatus::ERROR);
-        };
-        let mut flags = 0;
-        if let Some(boundary) = find_boundary(&(*(*ct).value).as_slice(), &mut flags) {
-            // Create a Multipart parser instance.
-            tx.request_mpartp = MultipartParser::new(&*tx.cfg, boundary, flags);
-            if tx.request_mpartp.is_none() {
-                return Err(HtpStatus::ERROR);
-            }
-            // Register a request body data callback.
-            tx.hook_request_body_data
-                .register(callback_multipart_request_body_data);
-            Ok(())
-        } else {
-            // No boundary
-            Err(HtpStatus::DECLINED)
         }
+        // Register a request body data callback.
+        tx.hook_request_body_data
+            .register(callback_multipart_request_body_data);
+        Ok(())
+    } else {
+        // No boundary
+        Err(HtpStatus::DECLINED)
     }
 }

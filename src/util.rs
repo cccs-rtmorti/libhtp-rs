@@ -837,8 +837,8 @@ pub fn urldecode_uri_inplace(
 }
 
 pub fn tx_urldecode_params_inplace(tx: &mut Transaction, input: &mut Bstr) -> Result<()> {
-    let decoder_cfg = unsafe { &(*(tx.cfg)).decoder_cfg };
-    if let Ok((_, (consumed, flags, expected_status))) = urldecode_ex(input.as_slice(), decoder_cfg)
+    if let Ok((_, (consumed, flags, expected_status))) =
+        urldecode_ex(input.as_slice(), &tx.cfg.decoder_cfg)
     {
         (*input).clear();
         input.add(consumed.as_slice());

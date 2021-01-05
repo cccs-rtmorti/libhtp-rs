@@ -25,6 +25,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Flags;
@@ -193,7 +194,7 @@ pub struct Parser {
 ///
 /// Returns New parser instance, or None on failure.
 impl Parser {
-    pub fn new(cfg: &Config, boundary: &[u8], flags: u64) -> Option<Self> {
+    pub fn new(cfg: Rc<Config>, boundary: &[u8], flags: u64) -> Option<Self> {
         if boundary.is_empty() {
             return None;
         }

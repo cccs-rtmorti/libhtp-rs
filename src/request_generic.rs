@@ -204,12 +204,14 @@ impl ConnectionParser {
                     "Request line: leading whitespace"
                 );
 
-                if self.cfg.requestline_leading_whitespace_unwanted != HtpUnwanted::IGNORE {
+                let requestline_leading_whitespace_unwanted =
+                    self.cfg.requestline_leading_whitespace_unwanted;
+                if requestline_leading_whitespace_unwanted != HtpUnwanted::IGNORE {
                     // reset mstart so that we copy the whitespace into the method
                     mstart = true;
                     // set expected response code to this anomaly
                     self.in_tx_mut_ok()?.response_status_expected_number =
-                        self.cfg.requestline_leading_whitespace_unwanted
+                        requestline_leading_whitespace_unwanted
                 }
             }
 

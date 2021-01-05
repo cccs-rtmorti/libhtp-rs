@@ -116,20 +116,14 @@ impl ConnectionParser {
             return Ok(());
         }
         if self.in_state == State::HEADERS {
-            unsafe {
-                let header_fn = Some((*self.in_tx_mut_ok()?.cfg).hook_request_header_data.clone());
-                let trailer_fn = Some(
-                    (*self.in_tx_mut_ok()?.cfg)
-                        .hook_request_trailer_data
-                        .clone(),
-                );
+            let header_fn = Some(self.in_tx_mut_ok()?.cfg.hook_request_header_data.clone());
+            let trailer_fn = Some(self.in_tx_mut_ok()?.cfg.hook_request_trailer_data.clone());
 
-                match self.in_tx_mut_ok()?.request_progress {
-                    HtpRequestProgress::HEADERS => self.req_receiver_set(header_fn),
-                    HtpRequestProgress::TRAILER => self.req_receiver_set(trailer_fn),
-                    _ => Ok(()),
-                }?;
-            }
+            match self.in_tx_mut_ok()?.request_progress {
+                HtpRequestProgress::HEADERS => self.req_receiver_set(header_fn),
+                HtpRequestProgress::TRAILER => self.req_receiver_set(trailer_fn),
+                _ => Ok(()),
+            }?;
         }
         // Initially, I had the finalization of raw data sending here, but that
         // caused the last REQUEST_HEADER_DATA hook to be invoked after the
@@ -157,7 +151,7 @@ impl ConnectionParser {
         if let Some(header) = &self.in_header {
             newlen = newlen.wrapping_add(header.len())
         }
-        let field_limit = unsafe { (*self.in_tx_mut_ok()?.cfg).field_limit };
+        let field_limit = self.in_tx_mut_ok()?.cfg.field_limit;
         if newlen > field_limit {
             htp_error!(
                 self,

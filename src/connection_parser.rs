@@ -9,7 +9,7 @@ use crate::{
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
-use std::{io::Cursor, net::IpAddr, time::SystemTime};
+use std::{io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
@@ -53,7 +53,7 @@ pub enum HtpStreamState {
 pub struct ConnectionParser {
     // General fields
     /// Current parser configuration structure.
-    pub cfg: Config,
+    pub cfg: Rc<Config>,
     /// The connection structure associated with this parser.
     pub conn: Connection,
     /// Opaque user data associated with this parser.
@@ -157,7 +157,7 @@ impl std::fmt::Debug for ConnectionParser {
 impl ConnectionParser {
     pub fn new(cfg: Config) -> Self {
         Self {
-            cfg,
+            cfg: Rc::new(cfg),
             conn: Connection::new(),
             user_data: std::ptr::null_mut(),
             in_status: HtpStreamState::NEW,

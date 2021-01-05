@@ -12,10 +12,20 @@ use htp::{
 use std::{
     fs,
     net::{IpAddr, Ipv4Addr},
+    rc::Rc,
 };
 
 // import common testing utilities
 mod common;
+
+fn TestConfig() -> Config {
+    let mut cfg = Config::default();
+    cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+        .unwrap();
+    cfg.register_multipart_parser();
+
+    return cfg;
+}
 
 struct Test {
     connp: *mut ConnectionParser,
@@ -25,12 +35,8 @@ struct Test {
 }
 
 impl Test {
-    fn new() -> Self {
+    fn new(mut cfg: Config) -> Self {
         unsafe {
-            let mut cfg = Config::default();
-            cfg.set_server_personality(HtpServerPersonality::APACHE_2)
-                .unwrap();
-            cfg.register_multipart_parser();
             let connp = htp_connp_create(&mut cfg);
             assert!(!connp.is_null());
             let body = std::ptr::null_mut();
@@ -140,7 +146,7 @@ impl Test {
     }
     fn parseParts(&mut self, parts: &Vec<&str>) {
         unsafe {
-            self.mpartp = Parser::new(&mut (*self.connp).cfg, b"0123456789", 0);
+            self.mpartp = Parser::new(Rc::clone(&(*self.connp).cfg), b"0123456789", 0);
             assert!(!self.mpartp.is_none());
             for part in parts {
                 self.mpartp.as_mut().unwrap().parse(part.as_bytes());
@@ -180,10 +186,10 @@ impl Test {
 
 #[test]
 fn Test1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     unsafe {
         t.mpartp = Parser::new(
-            &mut (*t.connp).cfg,
+            Rc::clone(&(*t.connp).cfg),
             b"---------------------------41184676334",
             0,
         );
@@ -270,9 +276,9 @@ fn Test1() {
 
 #[test]
 fn Test2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     unsafe {
-        t.mpartp = Parser::new(&mut (*t.connp).cfg, b"BBB", 0);
+        t.mpartp = Parser::new(Rc::clone(&(*t.connp).cfg), b"BBB", 0);
 
         let parts = vec![
             "x0000x\n--BBB\n\nx1111x\n--\nx2222x\n--",
@@ -326,7 +332,7 @@ fn Test2() {
 
 #[test]
 fn Test3() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n",
@@ -348,7 +354,7 @@ fn Test3() {
 
 #[test]
 fn BeginsWithoutLine() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -366,7 +372,7 @@ fn BeginsWithoutLine() {
 
 #[test]
 fn BeginsWithCrLf1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "\r\n--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -384,7 +390,7 @@ fn BeginsWithCrLf1() {
 
 #[test]
 fn BeginsWithCrLf2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "\r",
         "\n",
@@ -405,7 +411,7 @@ fn BeginsWithCrLf2() {
 
 #[test]
 fn BeginsWithLf1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "\n--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -423,7 +429,7 @@ fn BeginsWithLf1() {
 
 #[test]
 fn BeginsWithLf2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "\n",
         "--0123456789",
@@ -443,7 +449,7 @@ fn BeginsWithLf2() {
 
 #[test]
 fn CrLfLineEndings() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -467,7 +473,7 @@ fn CrLfLineEndings() {
 
 #[test]
 fn LfLineEndings() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\n\
          Content-Disposition: form-data; name=\"field1\"\n\
@@ -491,7 +497,7 @@ fn LfLineEndings() {
 
 #[test]
 fn CrAndLfLineEndings1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\n\
          Content-Disposition: form-data; name=\"field1\"\n\
@@ -515,7 +521,7 @@ fn CrAndLfLineEndings1() {
 
 #[test]
 fn CrAndLfLineEndings2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\n\
@@ -539,7 +545,7 @@ fn CrAndLfLineEndings2() {
 
 #[test]
 fn CrAndLfLineEndings3() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -563,7 +569,7 @@ fn CrAndLfLineEndings3() {
 
 #[test]
 fn CrAndLfLineEndings4() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -587,7 +593,7 @@ fn CrAndLfLineEndings4() {
 
 #[test]
 fn BoundaryInstanceWithLwsAfter() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -610,7 +616,7 @@ fn BoundaryInstanceWithLwsAfter() {
 
 #[test]
 fn BoundaryInstanceWithNonLwsAfter1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -633,7 +639,7 @@ fn BoundaryInstanceWithNonLwsAfter1() {
 
 #[test]
 fn BoundaryInstanceWithNonLwsAfter2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -656,7 +662,7 @@ fn BoundaryInstanceWithNonLwsAfter2() {
 
 #[test]
 fn BoundaryInstanceWithNonLwsAfter3() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -679,7 +685,7 @@ fn BoundaryInstanceWithNonLwsAfter3() {
 
 #[test]
 fn WithPreamble() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "Preamble\
          \r\n--0123456789\r\n\
@@ -711,7 +717,7 @@ fn WithPreamble() {
 
 #[test]
 fn WithEpilogue1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -745,7 +751,7 @@ fn WithEpilogue1() {
 
 #[test]
 fn WithEpilogue2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -777,7 +783,7 @@ fn WithEpilogue2() {
 
 #[test]
 fn WithEpilogue3() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -810,7 +816,7 @@ fn WithEpilogue3() {
 
 #[test]
 fn WithEpilogue4() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -853,7 +859,7 @@ fn WithEpilogue4() {
 
 #[test]
 fn HasLastBoundary() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -878,7 +884,7 @@ fn HasLastBoundary() {
 
 #[test]
 fn DoesNotHaveLastBoundary() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -900,7 +906,7 @@ fn DoesNotHaveLastBoundary() {
 
 #[test]
 fn PartAfterLastBoundary() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -922,7 +928,7 @@ fn PartAfterLastBoundary() {
 
 #[test]
 fn UnknownPart() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          \r\n\
@@ -945,7 +951,7 @@ fn UnknownPart() {
 
 #[test]
 fn WithFile() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -985,7 +991,9 @@ fn WithFile() {
 #[test]
 fn WithFileExternallyStored() {
     let tmpfile = {
-        let mut t = Test::new();
+        let mut cfg = TestConfig();
+        cfg.multipart_cfg.extract_request_files = true;
+        let mut t = Test::new(cfg);
         let parts = vec![
             "--0123456789\r\n\
              Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -1000,8 +1008,6 @@ fn WithFileExternallyStored() {
         ];
 
         unsafe {
-            (*t.connp).cfg.multipart_cfg.extract_request_files = true;
-
             t.parseParts(&parts);
 
             assert!(!t.body.is_null());
@@ -1044,7 +1050,7 @@ fn WithFileExternallyStored() {
 
 #[test]
 fn PartHeadersEmptyLineBug() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let parts = vec![
         "--0123456789\r\n\
          Content-Disposition: form-data; name=\"field1\"\r\n\
@@ -1063,7 +1069,7 @@ fn PartHeadersEmptyLineBug() {
 
 #[test]
 fn CompleteRequest() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1095,7 +1101,7 @@ fn CompleteRequest() {
 
 #[test]
 fn InvalidHeader1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1132,7 +1138,7 @@ fn InvalidHeader1() {
 
 #[test]
 fn InvalidHeader2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1169,7 +1175,7 @@ fn InvalidHeader2() {
 
 #[test]
 fn InvalidHeader3() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1206,7 +1212,7 @@ fn InvalidHeader3() {
 
 #[test]
 fn InvalidHeader4() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1243,7 +1249,7 @@ fn InvalidHeader4() {
 
 #[test]
 fn InvalidHeader5() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1280,7 +1286,7 @@ fn InvalidHeader5() {
 
 #[test]
 fn InvalidHeader6() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1317,8 +1323,8 @@ fn InvalidHeader6() {
 
 #[test]
 fn NullByte() {
-    let mut t = Test::new();
-    t.mpartp = Parser::new(unsafe { &mut (*t.connp).cfg }, b"0123456789", 0);
+    let mut t = Test::new(TestConfig());
+    t.mpartp = Parser::new(unsafe { Rc::clone(&(*t.connp).cfg) }, b"0123456789", 0);
 
     // NUL byte in the part header.
     let i1 = "--0123456789\r\n\
@@ -1354,7 +1360,7 @@ fn NullByte() {
 
 #[test]
 fn MultipleContentTypeHeadersEvasion() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data\r\n\
@@ -1476,7 +1482,7 @@ fn BoundaryUnusual() {
 
 #[test]
 fn CaseInsensitiveBoundaryMatching() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=grumpyWizards\r\n",
@@ -1509,7 +1515,7 @@ fn CaseInsensitiveBoundaryMatching() {
 
 #[test]
 fn FoldedContentDisposition() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1542,7 +1548,7 @@ fn FoldedContentDisposition() {
 
 #[test]
 fn FoldedContentDisposition2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1575,7 +1581,7 @@ fn FoldedContentDisposition2() {
 
 #[test]
 fn InvalidPartNoData() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1617,7 +1623,7 @@ fn InvalidPartNoData() {
 
 #[test]
 fn InvalidPartNoContentDisposition() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1654,7 +1660,7 @@ fn InvalidPartNoContentDisposition() {
 
 #[test]
 fn InvalidPartMultipleCD() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1692,7 +1698,7 @@ fn InvalidPartMultipleCD() {
 
 #[test]
 fn InvalidPartUnknownHeader() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1728,7 +1734,7 @@ fn InvalidPartUnknownHeader() {
 
 #[test]
 fn InvalidContentDispositionMultipleParams1() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1765,7 +1771,7 @@ fn InvalidContentDispositionMultipleParams1() {
 
 #[test]
 fn InvalidContentDispositionMultipleParams2() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1802,7 +1808,7 @@ fn InvalidContentDispositionMultipleParams2() {
 
 #[test]
 fn InvalidContentDispositionUnknownParam() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1869,9 +1875,9 @@ fn InvalidContentDispositionSyntax() {
         // Incomplete header.
         "form-data; name= ",
     ];
-    let mut cfg = Config::default();
+    let cfg = Rc::new(Config::default());
     for input in inputs {
-        let parser = &mut Parser::new(&mut cfg, b"123", 0).unwrap();
+        let parser = &mut Parser::new(Rc::clone(&cfg), b"123", 0).unwrap();
         parser.multipart.parts.push(Part::default());
         parser.current_part_idx = Some(0);
         let part = parser.get_current_part().unwrap();
@@ -1885,7 +1891,7 @@ fn InvalidContentDispositionSyntax() {
 
 #[test]
 fn ParamValueEscaping() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",
@@ -1925,7 +1931,7 @@ fn ParamValueEscaping() {
 
 #[test]
 fn HeaderValueTrim() {
-    let mut t = Test::new();
+    let mut t = Test::new(TestConfig());
     let headers = vec![
         "POST / HTTP/1.0\r\n\
          Content-Type: multipart/form-data; boundary=0123456789\r\n",

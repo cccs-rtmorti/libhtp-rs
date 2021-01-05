@@ -213,6 +213,32 @@ unsafe fn req_set_line<S: AsRef<[u8]>>(connp: &mut ConnectionParser, line: S) ->
 unsafe fn res_set_status_line<S: AsRef<[u8]>>(connp: &mut ConnectionParser, line: S) -> Result<()> {
     connp.parse_response_line(line.as_ref())
 }
+fn TestConfig() -> Config {
+    let mut cfg = Config::default();
+    cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+        .unwrap();
+    cfg.register_urlencoded_parser();
+    cfg.register_multipart_parser();
+    return cfg;
+}
+
+fn register_user_callbacks(cfg: &mut Config) {
+    // Request callbacks
+    cfg.register_request_start(HybridParsing_Get_Callback_REQUEST_START);
+    cfg.register_request_line(HybridParsing_Get_Callback_REQUEST_LINE);
+    cfg.register_request_headers(HybridParsing_Get_Callback_REQUEST_HEADERS);
+    cfg.register_request_complete(HybridParsing_Get_Callback_REQUEST_COMPLETE);
+
+    // Response callbacks
+    cfg.register_response_start(HybridParsing_Get_Callback_RESPONSE_START);
+    cfg.register_response_line(HybridParsing_Get_Callback_RESPONSE_LINE);
+    cfg.register_response_headers(HybridParsing_Get_Callback_RESPONSE_HEADERS);
+    cfg.register_response_body_data(HybridParsing_Get_Callback_RESPONSE_BODY_DATA);
+    cfg.register_response_complete(HybridParsing_Get_Callback_RESPONSE_COMPLETE);
+
+    // Transaction calllbacks
+    cfg.register_transaction_complete(HybridParsing_Get_Callback_TRANSACTION_COMPLETE);
+}
 
 struct HybridParsingTest {
     connp: *mut ConnectionParser,
@@ -221,13 +247,8 @@ struct HybridParsingTest {
 }
 
 impl HybridParsingTest {
-    fn new() -> Self {
+    fn new(mut cfg: Config) -> Self {
         unsafe {
-            let mut cfg = Config::default();
-            cfg.set_server_personality(HtpServerPersonality::APACHE_2)
-                .unwrap();
-            cfg.register_urlencoded_parser();
-            cfg.register_multipart_parser();
             let connp = htp_connp_create(&mut cfg);
             assert!(!connp.is_null());
             (*connp).open(
@@ -255,46 +276,6 @@ impl HybridParsingTest {
             }
         }
     }
-
-    fn register_user_callbacks(&mut self) {
-        unsafe {
-            // Request callbacks
-            (*self.connp)
-                .cfg
-                .register_request_start(HybridParsing_Get_Callback_REQUEST_START);
-            (*self.connp)
-                .cfg
-                .register_request_line(HybridParsing_Get_Callback_REQUEST_LINE);
-            (*self.connp)
-                .cfg
-                .register_request_headers(HybridParsing_Get_Callback_REQUEST_HEADERS);
-            (*self.connp)
-                .cfg
-                .register_request_complete(HybridParsing_Get_Callback_REQUEST_COMPLETE);
-
-            // Response callbacks
-            (*self.connp)
-                .cfg
-                .register_response_start(HybridParsing_Get_Callback_RESPONSE_START);
-            (*self.connp)
-                .cfg
-                .register_response_line(HybridParsing_Get_Callback_RESPONSE_LINE);
-            (*self.connp)
-                .cfg
-                .register_response_headers(HybridParsing_Get_Callback_RESPONSE_HEADERS);
-            (*self.connp)
-                .cfg
-                .register_response_body_data(HybridParsing_Get_Callback_RESPONSE_BODY_DATA);
-            (*self.connp)
-                .cfg
-                .register_response_complete(HybridParsing_Get_Callback_RESPONSE_COMPLETE);
-
-            // Transaction calllbacks
-            (*self.connp)
-                .cfg
-                .register_transaction_complete(HybridParsing_Get_Callback_TRANSACTION_COMPLETE);
-        }
-    }
 }
 
 impl Drop for HybridParsingTest {
@@ -311,16 +292,16 @@ impl Drop for HybridParsingTest {
 #[test]
 fn GetTest() {
     unsafe {
-        let mut t = HybridParsingTest::new();
+        let mut cfg = TestConfig();
+        // Register callbacks
+        register_user_callbacks(&mut cfg);
+        let mut t = HybridParsingTest::new(cfg);
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Configure user data and callbacks
         (*tx).set_user_data(&mut t.user_data as *mut _ as *mut core::ffi::c_void);
-
-        // Register callbacks
-        t.register_user_callbacks();
 
         // Request begins
         (*tx).state_request_start(&mut *t.connp).unwrap();
@@ -433,7 +414,7 @@ fn GetTest() {
 #[test]
 fn PostUrlecodedTest() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
@@ -530,7 +511,7 @@ extern "C" fn HYBRID_PARSING_COMPRESSED_RESPONSE_Setup(
 #[test]
 fn CompressedResponse() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
@@ -545,7 +526,7 @@ fn CompressedResponse() {
 #[test]
 fn ParamCaseSensitivity() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
@@ -573,7 +554,7 @@ fn ParamCaseSensitivity() {
 #[test]
 fn PostUrlecodedChunked() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction.
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
@@ -619,7 +600,7 @@ fn PostUrlecodedChunked() {
 #[test]
 fn RequestLineParsing1() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
@@ -654,7 +635,7 @@ fn RequestLineParsing1() {
 #[test]
 fn RequestLineParsing2() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
@@ -677,7 +658,7 @@ fn RequestLineParsing2() {
 #[test]
 fn RequestLineParsing3() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
@@ -699,7 +680,7 @@ fn RequestLineParsing3() {
 #[test]
 fn RequestLineParsing4() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
@@ -720,7 +701,7 @@ fn RequestLineParsing4() {
 #[test]
 fn ParsedUriSupplied() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
@@ -755,16 +736,16 @@ fn ParsedUriSupplied() {
 #[test]
 fn TestRepeatCallbacks() {
     unsafe {
-        let mut t = HybridParsingTest::new();
+        let mut cfg = TestConfig();
+        // Request callbacks
+        register_user_callbacks(&mut cfg);
+        let mut t = HybridParsingTest::new(cfg);
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
 
         // Configure user data and callbacks
         (*tx).set_user_data(&mut t.user_data as *mut _ as *mut core::ffi::c_void);
-
-        // Request callbacks
-        t.register_user_callbacks();
 
         // Request begins
         (*tx).state_request_start(&mut *t.connp).unwrap();
@@ -838,7 +819,7 @@ fn TestRepeatCallbacks() {
 #[test]
 fn DeleteTransactionBeforeComplete() {
     unsafe {
-        let mut t = HybridParsingTest::new();
+        let mut t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
         assert!(!tx.is_null());
@@ -860,7 +841,7 @@ fn DeleteTransactionBeforeComplete() {
 #[test]
 fn ResponseLineIncomplete() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
 
@@ -880,7 +861,7 @@ fn ResponseLineIncomplete() {
 #[test]
 fn ResponseLineIncomplete1() {
     unsafe {
-        let t = HybridParsingTest::new();
+        let t = HybridParsingTest::new(TestConfig());
         // Create a new LibHTP transaction
         let tx = htp_connp_tx_create(t.connp) as *mut Transaction;
 
