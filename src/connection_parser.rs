@@ -148,7 +148,7 @@ impl std::fmt::Debug for ConnectionParser {
             .field("in_status", &self.in_status)
             .field("out_status", &self.out_status)
             .field("user_data", &self.user_data)
-            .field("in_tx", &self.out_tx)
+            .field("in_tx", &self.in_tx)
             .field("out_tx", &self.out_tx)
             .finish()
     }
