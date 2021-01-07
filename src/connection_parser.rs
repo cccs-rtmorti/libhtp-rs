@@ -509,6 +509,8 @@ impl ConnectionParser {
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_headers(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
+        // Finalize sending raw header data
+        self.req_receiver_finalize_clear()?;
         if let Some(tx) = self.in_tx_mut() {
             tx.state_request_headers(unsafe { &mut *connp_ptr })
         } else {
@@ -532,9 +534,7 @@ impl ConnectionParser {
         }
     }
 
-    /// Change transaction state to REQUEST and invoke registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
+    /// Advance state after processing request headers.
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -565,14 +565,14 @@ impl ConnectionParser {
         }
     }
 
-    /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
-    ///
-    /// tx: Transaction pointer. Must not be NULL.
+    /// Advance state after processing response headers.
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_response_headers(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
+        // Finalize sending raw header data.
+        self.res_receiver_finalize_clear()?;
         if let Some(tx) = self.out_tx_mut() {
             tx.state_response_headers(unsafe { &mut *connp_ptr })
         } else {

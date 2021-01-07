@@ -749,8 +749,7 @@ impl Transaction {
                 }
             })?;
         }
-        // Finalize sending raw header data.
-        connp.req_receiver_finalize_clear()?;
+
         // Run hook REQUEST_HEADERS.
         connp.cfg.hook_request_headers.run_all(connp, self)?;
         // We cannot proceed if the request is invalid.
@@ -955,8 +954,7 @@ impl Transaction {
         Ok(())
     }
 
-    /// Change transaction state to REQUEST_HEADERS and invoke all
-    /// registered callbacks.
+    /// Advance state after processing request headers.
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -968,8 +966,6 @@ impl Transaction {
             // Request trailers.
             // Run hook HTP_REQUEST_TRAILER.
             connp.cfg.hook_request_trailer.run_all(connp, self)?;
-            // Finalize sending raw header data.
-            connp.req_receiver_finalize_clear()?;
             // Completed parsing this request; finalize it now.
             connp.in_state = State::FINALIZE;
         } else if self.request_progress >= HtpRequestProgress::LINE {
@@ -1211,7 +1207,7 @@ impl Transaction {
         Ok(())
     }
 
-    /// Change transaction state to RESPONSE_HEADERS and invoke registered callbacks.
+    /// Advance state after processing response headers.
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
@@ -1252,8 +1248,7 @@ impl Transaction {
             slow_path = false;
             HtpContentEncoding::NONE
         };
-        // Finalize sending raw header data.
-        connp.res_receiver_finalize_clear()?;
+
         // Run hook RESPONSE_HEADERS.
         //TODO: remove clone
         let hook_response_headers = self.cfg.hook_response_headers.clone();
