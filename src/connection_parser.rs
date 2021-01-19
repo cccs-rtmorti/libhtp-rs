@@ -210,20 +210,6 @@ impl ConnectionParser {
         Ok(index)
     }
 
-    /// Removes references to the supplied transaction.
-    pub fn remove_tx(&mut self, tx: usize) {
-        if let Some(in_tx) = self.in_tx() {
-            if in_tx.index == tx {
-                self.in_tx = None
-            }
-        }
-        if let Some(out_tx) = self.out_tx() {
-            if out_tx.index == tx {
-                self.out_tx = None
-            }
-        }
-    }
-
     /// Get the in_tx or None if not set.
     pub fn in_tx(&self) -> Option<&Transaction> {
         self.in_tx.and_then(|in_tx| self.conn.tx(in_tx))
