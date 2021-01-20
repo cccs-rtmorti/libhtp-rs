@@ -189,7 +189,7 @@ impl ConnectionParser {
                 if !self.out_buf.is_empty() {
                     self.check_out_buffer_limit(line.len())?;
                 }
-                let mut data = take(&mut self.in_buf);
+                let mut data = take(&mut self.out_buf);
                 data.add(line);
                 self.out_tx_mut_ok()?.response_message_len =
                     (self.out_tx_mut_ok()?.response_message_len as u64)
