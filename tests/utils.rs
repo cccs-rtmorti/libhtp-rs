@@ -7,7 +7,6 @@ use htp::{
     bstr::Bstr,
     config::{Config, HtpUrlEncodingHandling},
     connection_parser::ConnectionParser,
-    request::HtpMethod,
     urlencoded::{urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser},
     util::*,
 };
@@ -64,12 +63,6 @@ fn Space() {
     assert_eq!(true, is_space(0x0d)); // carriage return
     assert_eq!(true, is_space(0x09)); // tab
     assert_eq!(true, is_space(0x0b)); // Vertical tab
-}
-
-#[test]
-fn Method() {
-    let method = b"GET";
-    assert_eq!(HtpMethod::GET, convert_to_method(method));
 }
 
 #[test]

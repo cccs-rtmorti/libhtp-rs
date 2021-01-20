@@ -8,8 +8,8 @@ use crate::{
     request::HtpMethod,
     transaction::{Header, HtpProtocol},
     util::{
-        convert_to_method, is_space, take_ascii_whitespace, take_is_space, take_not_is_space,
-        take_until_null, FlagOperations, HtpFlags,
+        is_space, take_ascii_whitespace, take_is_space, take_not_is_space, take_until_null,
+        FlagOperations, HtpFlags,
     },
 };
 use nom::{bytes::complete::take_while, error::ErrorKind, sequence::tuple};
@@ -224,7 +224,7 @@ impl ConnectionParser {
 
             if let Some(request_method) = &self.in_tx_mut_ok()?.request_method {
                 self.in_tx_mut_ok()?.request_method_number =
-                    convert_to_method(request_method.as_slice());
+                    HtpMethod::new(request_method.as_slice());
             }
 
             // Too much performance overhead for fuzzing

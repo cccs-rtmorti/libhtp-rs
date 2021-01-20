@@ -3,7 +3,6 @@ use crate::{
     config::{DecoderConfig, HtpServerPersonality, HtpUnwanted, HtpUrlEncodingHandling},
     error::Result,
     hook::FileDataHook,
-    request::HtpMethod,
     transaction::Transaction,
     utf8_decoder::Utf8Decoder,
     HtpStatus,
@@ -279,41 +278,6 @@ pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
             }
         }
         Ok((b"", input))
-    }
-}
-
-/// Converts request method string into a method type.
-pub fn convert_to_method(method: &[u8]) -> HtpMethod {
-    match method {
-        b"GET" => HtpMethod::GET,
-        b"PUT" => HtpMethod::PUT,
-        b"POST" => HtpMethod::POST,
-        b"DELETE" => HtpMethod::DELETE,
-        b"CONNECT" => HtpMethod::CONNECT,
-        b"OPTIONS" => HtpMethod::OPTIONS,
-        b"TRACE" => HtpMethod::TRACE,
-        b"PATCH" => HtpMethod::PATCH,
-        b"PROPFIND" => HtpMethod::PROPFIND,
-        b"PROPPATCH" => HtpMethod::PROPPATCH,
-        b"MKCOL" => HtpMethod::MKCOL,
-        b"COPY" => HtpMethod::COPY,
-        b"MOVE" => HtpMethod::MOVE,
-        b"LOCK" => HtpMethod::LOCK,
-        b"UNLOCK" => HtpMethod::UNLOCK,
-        b"VERSION-CONTROL" => HtpMethod::VERSION_CONTROL,
-        b"CHECKOUT" => HtpMethod::CHECKOUT,
-        b"UNCHECKOUT" => HtpMethod::UNCHECKOUT,
-        b"CHECKIN" => HtpMethod::CHECKIN,
-        b"UPDATE" => HtpMethod::UPDATE,
-        b"LABEL" => HtpMethod::LABEL,
-        b"REPORT" => HtpMethod::REPORT,
-        b"MKWORKSPACE" => HtpMethod::MKWORKSPACE,
-        b"MKACTIVITY" => HtpMethod::MKACTIVITY,
-        b"BASELINE-CONTROL" => HtpMethod::BASELINE_CONTROL,
-        b"MERGE" => HtpMethod::MERGE,
-        b"INVALID" => HtpMethod::INVALID,
-        b"HEAD" => HtpMethod::HEAD,
-        _ => HtpMethod::UNKNOWN,
     }
 }
 

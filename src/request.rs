@@ -7,8 +7,8 @@ use crate::{
     parsers::parse_chunked_length,
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
-        chomp, convert_to_method, is_line_ignorable, is_space, nom_take_is_space, take_is_space,
-        take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
+        chomp, is_line_ignorable, is_space, nom_take_is_space, take_is_space, take_not_is_space,
+        take_till_lf, take_till_lf_null, FlagOperations,
     },
     HtpStatus,
 };
@@ -61,6 +61,41 @@ pub enum HtpMethod {
     ERROR,
 }
 
+impl HtpMethod {
+    pub fn new(method: &[u8]) -> Self {
+        match method {
+            b"GET" => HtpMethod::GET,
+            b"PUT" => HtpMethod::PUT,
+            b"POST" => HtpMethod::POST,
+            b"DELETE" => HtpMethod::DELETE,
+            b"CONNECT" => HtpMethod::CONNECT,
+            b"OPTIONS" => HtpMethod::OPTIONS,
+            b"TRACE" => HtpMethod::TRACE,
+            b"PATCH" => HtpMethod::PATCH,
+            b"PROPFIND" => HtpMethod::PROPFIND,
+            b"PROPPATCH" => HtpMethod::PROPPATCH,
+            b"MKCOL" => HtpMethod::MKCOL,
+            b"COPY" => HtpMethod::COPY,
+            b"MOVE" => HtpMethod::MOVE,
+            b"LOCK" => HtpMethod::LOCK,
+            b"UNLOCK" => HtpMethod::UNLOCK,
+            b"VERSION-CONTROL" => HtpMethod::VERSION_CONTROL,
+            b"CHECKOUT" => HtpMethod::CHECKOUT,
+            b"UNCHECKOUT" => HtpMethod::UNCHECKOUT,
+            b"CHECKIN" => HtpMethod::CHECKIN,
+            b"UPDATE" => HtpMethod::UPDATE,
+            b"LABEL" => HtpMethod::LABEL,
+            b"REPORT" => HtpMethod::REPORT,
+            b"MKWORKSPACE" => HtpMethod::MKWORKSPACE,
+            b"MKACTIVITY" => HtpMethod::MKACTIVITY,
+            b"BASELINE-CONTROL" => HtpMethod::BASELINE_CONTROL,
+            b"MERGE" => HtpMethod::MERGE,
+            b"INVALID" => HtpMethod::INVALID,
+            b"HEAD" => HtpMethod::HEAD,
+            _ => HtpMethod::UNKNOWN,
+        }
+    }
+}
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     ///
@@ -214,8 +249,7 @@ impl ConnectionParser {
             buffered.as_slice(),
         );
         if let Ok((_, (_, method))) = res {
-            let method_type = convert_to_method(method);
-            if method_type == HtpMethod::UNKNOWN {
+            if HtpMethod::new(method) == HtpMethod::UNKNOWN {
                 self.in_status = HtpStreamState::TUNNEL;
                 self.out_status = HtpStreamState::TUNNEL
             } else {
@@ -613,8 +647,7 @@ impl ConnectionParser {
                 return rc;
             }
 
-            let method_type = convert_to_method(method);
-            if method_type == HtpMethod::UNKNOWN {
+            if HtpMethod::new(method) == HtpMethod::UNKNOWN {
                 if self.in_body_data_left <= 0 {
                     // log only once per transaction
                     htp_warn!(
@@ -850,4 +883,10 @@ impl ConnectionParser {
     pub fn in_curr_len(&self) -> i64 {
         self.in_curr_data.get_ref().len() as i64
     }
+}
+
+#[test]
+fn Method() {
+    let method = b"GET";
+    assert_eq!(HtpMethod::GET, HtpMethod::new(method));
 }
