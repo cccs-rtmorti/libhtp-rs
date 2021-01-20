@@ -18,8 +18,6 @@ use std::cmp::Ordering;
 impl ConnectionParser {
     /// Extract one request header. A header can span multiple lines, in
     /// which case they will be folded into one before parsing is attempted.
-    ///
-    /// Returns OK or ERROR
     fn process_request_header_generic(&mut self, header: Header) -> Result<()> {
         // Try to parse the header.
         let mut repeated = false;
@@ -170,6 +168,7 @@ impl ConnectionParser {
         }
     }
 
+    /// Parses a single request line.
     pub fn parse_request_line_generic_ex(
         &mut self,
         request_line: &[u8],

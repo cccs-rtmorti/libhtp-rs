@@ -1,3 +1,5 @@
+//! Utility functions for http parsing.
+
 use crate::{
     bstr::Bstr,
     config::{DecoderConfig, HtpServerPersonality, HtpUnwanted, HtpUrlEncodingHandling},
@@ -27,95 +29,135 @@ use nom::{
 use std::{io::Write, rc::Rc, sync::Mutex};
 use tempfile::{Builder, NamedTempFile};
 
+/// String for the libhtp version.
 pub const HTP_VERSION_STRING_FULL: &'_ str = concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
 
+/// Trait to allow interacting with flags.
 pub trait FlagOperations<T> {
     /// Inserts the specified flags in-place.
     fn set(&mut self, other: T);
     /// Removes the specified flags in-place.
     fn unset(&mut self, other: T);
-    // Determine if the specified flags are set
+    /// Determine if the specified flags are set
     fn is_set(&self, other: T) -> bool;
 }
 
 impl FlagOperations<u8> for u8 {
+    /// Inserts the specified flags in-place.
     fn set(&mut self, other: u8) {
         *self |= other;
     }
+    /// Removes the specified flags in-place.
     fn unset(&mut self, other: u8) {
         *self &= !other;
     }
+    /// Determine if the specified flags are set
     fn is_set(&self, other: u8) -> bool {
         self & other != 0
     }
 }
 
 impl FlagOperations<u64> for u64 {
+    /// Inserts the specified flags in-place.
     fn set(&mut self, other: u64) {
         *self |= other;
     }
+    /// Removes the specified flags in-place.
     fn unset(&mut self, other: u64) {
         *self &= !other;
     }
+    /// Determine if the specified flags are set
     fn is_set(&self, other: u64) -> bool {
         self & other != 0
     }
 }
 
-// Various flag bits. Even though we have a flag field in several places
-// (header, transaction, connection), these fields are all in the same namespace
-// because we may want to set the same flag in several locations. For example, we
-// may set HTP_FIELD_FOLDED on the actual folded header, but also on the transaction
-// that contains the header. Both uses are useful.
+/// Various flag bits. Even though we have a flag field in several places
+/// (header, transaction, connection), these fields are all in the same namespace
+/// because we may want to set the same flag in several locations. For example, we
+/// may set HTP_FIELD_FOLDED on the actual folded header, but also on the transaction
+/// that contains the header. Both uses are useful.
 pub struct HtpFlags;
 
 impl HtpFlags {
+    /// Field cannot be parsed.
     pub const FIELD_UNPARSEABLE: u64 = 0x0000_0000_0004;
+    /// Field is invalid.
     pub const FIELD_INVALID: u64 = 0x0000_0000_0008;
+    /// Field is folded.
     pub const FIELD_FOLDED: u64 = 0x0000_0000_0010;
+    /// Field has been seen more than once.
     pub const FIELD_REPEATED: u64 = 0x0000_0000_0020;
+    /// Field is too long.
     pub const FIELD_LONG: u64 = 0x0000_0000_0040;
+    /// Field contains raw null byte.
     pub const FIELD_RAW_NUL: u64 = 0x0000_0000_0080;
+    /// Detect HTTP request smuggling.
     pub const REQUEST_SMUGGLING: u64 = 0x0000_0000_0100;
+    /// Invalid header folding.
     pub const INVALID_FOLDING: u64 = 0x0000_0000_0200;
+    /// Invalid request transfer-encoding.
     pub const REQUEST_INVALID_T_E: u64 = 0x0000_0000_0400;
+    /// Multiple chunks.
     pub const MULTI_PACKET_HEAD: u64 = 0x0000_0000_0800;
+    /// No host information in header.
     pub const HOST_MISSING: u64 = 0x0000_0000_1000;
+    /// Inconsistent host or port information.
     pub const HOST_AMBIGUOUS: u64 = 0x0000_0000_2000;
+    /// Encoded path contains null.
     pub const PATH_ENCODED_NUL: u64 = 0x0000_0000_4000;
+    /// Url encoded contains raw null.
     pub const PATH_RAW_NUL: u64 = 0x0000_0000_8000;
+    /// Url encoding is invalid.
     pub const PATH_INVALID_ENCODING: u64 = 0x0000_0001_0000;
+    /// Path is invalid.
     pub const PATH_INVALID: u64 = 0x0000_0002_0000;
+    /// Overlong usage in path.
     pub const PATH_OVERLONG_U: u64 = 0x0000_0004_0000;
+    /// Encoded path separators present.
     pub const PATH_ENCODED_SEPARATOR: u64 = 0x0000_0008_0000;
     /// At least one valid UTF-8 character and no invalid ones.
     pub const PATH_UTF8_VALID: u64 = 0x0000_0010_0000;
+    /// Invalid utf8 in path.
     pub const PATH_UTF8_INVALID: u64 = 0x0000_0020_0000;
+    /// Invalid utf8 overlong character.
     pub const PATH_UTF8_OVERLONG: u64 = 0x0000_0040_0000;
     /// Range U+FF00 - U+FFEF detected.
     pub const PATH_HALF_FULL_RANGE: u64 = 0x0000_0080_0000;
+    /// Status line is invalid.
     pub const STATUS_LINE_INVALID: u64 = 0x0000_0100_0000;
     /// Host in the URI.
     pub const HOSTU_INVALID: u64 = 0x0000_0200_0000;
     /// Host in the Host header.
     pub const HOSTH_INVALID: u64 = 0x0000_0400_0000;
+    /// Uri / host header invalid.
     pub const HOST_INVALID: u64 = (Self::HOSTU_INVALID | Self::HOSTH_INVALID);
+    /// Contains null.
     pub const URLEN_ENCODED_NUL: u64 = 0x0000_0800_0000;
+    /// Invalid encoding.
     pub const URLEN_INVALID_ENCODING: u64 = 0x0000_1000_0000;
+    /// Overlong usage.
     pub const URLEN_OVERLONG_U: u64 = 0x0000_2000_0000;
     /// Range U+FF00 - U+FFEF detected.
     pub const URLEN_HALF_FULL_RANGE: u64 = 0x0000_4000_0000;
+    /// Raw null byte.
     pub const URLEN_RAW_NUL: u64 = 0x0000_8000_0000;
+    /// Request invalid.
     pub const REQUEST_INVALID: u64 = 0x0001_0000_0000;
+    /// Request content-length invalid.
     pub const REQUEST_INVALID_C_L: u64 = 0x0002_0000_0000;
+    /// Authorization is invalid.
     pub const AUTH_INVALID: u64 = 0x0004_0000_0000;
 }
 
+/// Enumerates file sources.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub enum HtpFileSource {
+    /// File from a multipart request.
     MULTIPART = 1,
+    /// File from a PUT request.
     PUT = 2,
 }
 
@@ -136,6 +178,7 @@ pub struct File {
 }
 
 impl File {
+    /// Construct new File.
     pub fn new(source: HtpFileSource, filename: Option<Bstr>) -> File {
         File {
             source,
@@ -145,7 +188,7 @@ impl File {
         }
     }
 
-    /// Create new tempfile
+    /// Set new tmpfile.
     pub fn create(&mut self, tmpfile: &str) -> Result<()> {
         self.tmpfile = Some(Rc::new(Mutex::new(
             Builder::new()
@@ -156,7 +199,7 @@ impl File {
         Ok(())
     }
 
-    /// Write data to tempfile
+    /// Write data to tmpfile.
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
         if let Some(mutex) = &self.tmpfile {
             if let Ok(mut tmpfile) = mutex.lock() {
@@ -166,7 +209,7 @@ impl File {
         Ok(())
     }
 
-    /// Update file length and invoke any file data callbacks on the provided cfg
+    /// Update file length and invoke any file data callbacks on the provided cfg.
     pub fn handle_file_data(
         &mut self,
         hook: FileDataHook,
@@ -192,19 +235,18 @@ pub struct FileData<'a> {
 }
 
 impl FileData<'_> {
+    /// Construct new FileData.
     pub fn new(file: &File, data: *const u8, len: usize) -> FileData {
         FileData { file, data, len }
     }
 }
 
-/// Is character a separator character?
-///
-/// Returns true or false
+/// Determines if character in a seperator.
+/// separators = "(" | ")" | "<" | ">" | "@"
+/// | "," | ";" | ":" | "\" | <">
+/// | "/" | "[" | "]" | "?" | "="
+/// | "{" | "}" | SP | HT
 pub fn is_separator(c: u8) -> bool {
-    // separators = "(" | ")" | "<" | ">" | "@"
-    // | "," | ";" | ":" | "\" | <">
-    // | "/" | "[" | "]" | "?" | "="
-    // | "{" | "}" | SP | HT
     match c as char {
         '(' | ')' | '<' | '>' | '@' | ',' | ';' | ':' | '\\' | '"' | '/' | '[' | ']' | '?'
         | '=' | '{' | '}' | ' ' | '\t' => true,
@@ -212,23 +254,20 @@ pub fn is_separator(c: u8) -> bool {
     }
 }
 
-/// Is character a token character?
-///
-/// Returns true or false
+/// Determines if character is a token.
+/// token = 1*<any CHAR except CTLs or separators>
+/// CHAR  = <any US-ASCII character (octets 0 - 127)>
 pub fn is_token(c: u8) -> bool {
-    // token = 1*<any CHAR except CTLs or separators>
-    // CHAR  = <any US-ASCII character (octets 0 - 127)>
     !(c < 32 || c > 126 || is_separator(c))
 }
 
+/// This parser takes leading whitespace as defined by is_ascii_whitespace.
 pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| take_while(|c: u8| c.is_ascii_whitespace())(input)
 }
 
 /// Remove all line terminators (LF, CR or CRLF) from
 /// the end of the line provided as input.
-///
-/// Returns a slice with all line terminators removed
 pub fn chomp(mut data: &[u8]) -> &[u8] {
     loop {
         let last_char = data.last();
@@ -241,9 +280,8 @@ pub fn chomp(mut data: &[u8]) -> &[u8] {
     data
 }
 
-/// Is character a white space character?
-///
-/// Returns true or false
+/// Determines if character is a whitespace character.
+/// whitespace = ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c'
 pub fn is_space(c: u8) -> bool {
     match c as char {
         ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c' => true,
@@ -291,9 +329,8 @@ pub fn is_line_empty(data: &[u8]) -> bool {
     }
 }
 
-/// Does line consist entirely of whitespace characters?
-///
-/// Returns bool
+/// Determine if entire line is whitespace as defined by
+/// util::is_space.
 pub fn is_line_whitespace(data: &[u8]) -> bool {
     !data.iter().any(|c| !is_space(*c))
 }
@@ -334,8 +371,6 @@ pub fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 }
 
 /// Determines if the given line is a continuation (of some previous line).
-///
-/// Returns false or true, respectively.
 pub fn is_line_folded(data: &[u8]) -> bool {
     if data.is_empty() {
         return false;
@@ -343,13 +378,13 @@ pub fn is_line_folded(data: &[u8]) -> bool {
     is_folding_char(data[0])
 }
 
+/// Determines if given character is folding.
+/// folding characters = /t, ' ', '\0'
 pub fn is_folding_char(c: u8) -> bool {
     nom_is_space(c) || c == 0
 }
 
 /// Determines if the given line is a request terminator.
-///
-/// Returns true or false
 pub fn is_line_terminator(
     server_personality: HtpServerPersonality,
     data: &[u8],
@@ -374,8 +409,6 @@ pub fn is_line_terminator(
 }
 
 /// Determines if the given line can be ignored when it appears before a request.
-///
-/// Returns true or false
 pub fn is_line_ignorable(server_personality: HtpServerPersonality, data: &[u8]) -> bool {
     is_line_terminator(server_personality, data, false)
 }
@@ -446,7 +479,7 @@ pub fn utf8_decode_and_validate_uri_path_inplace(
 
 /// Decode a %u-encoded character, using best-fit mapping as necessary. Path version.
 ///
-/// Returns decoded byte
+/// Sets i to decoded byte
 fn decode_u_encoding_path<'a>(
     i: &'a [u8],
     cfg: &DecoderConfig,
@@ -777,6 +810,8 @@ pub fn decode_uri_path_inplace(
     }
 }
 
+/// Performs decoding of the uri string, according to the configuration specified
+/// by cfg. Various flags might be set.
 pub fn urldecode_uri_inplace(
     decoder_cfg: &DecoderConfig,
     flags: &mut u64,
@@ -800,6 +835,7 @@ pub fn urldecode_uri_inplace(
     }
 }
 
+/// Performs inplace url decoding of the input string and sets appropriate transaction flags.
 pub fn tx_urldecode_params_inplace(tx: &mut Transaction, input: &mut Bstr) -> Result<()> {
     if let Ok((_, (consumed, flags, expected_status))) =
         urldecode_ex(input.as_slice(), &tx.cfg.decoder_cfg)
@@ -1108,23 +1144,24 @@ pub fn get_version() -> *const i8 {
 }
 
 /// Splits by colon and removes leading whitespace from value
+/// Returns header,value pair if succeeds.
 pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
     let (value, (header, _)) = tuple((take_until(":"), char(':')))(data)?;
     let (value, _) = nom_take_is_space(value)?;
     Ok((header, value))
 }
 
-// Removes whitespace as defined by nom (tab and ' ')
+/// Take leading whitespace as defined by nom_is_space.
 pub fn nom_take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(nom_is_space)(data)
 }
 
-/// Returns data before the first null character if it exists
+/// Take data before the first null character if it exists.
 pub fn take_until_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(|c| c != b'\0')(data)
 }
 
-/// Returns data without trailing whitespace
+/// Returns data without trailing whitespace as defined by util::is_space.
 pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
     if let Some(index) = data.iter().rposition(|c| !is_space(*c)) {
         Ok((&data[..(index + 1)], &data[(index + 1)..]))
@@ -1133,12 +1170,12 @@ pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
-/// Take spaces as defined by is_space
+/// Take leading space as defined by util::is_space.
 pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(is_space)(data)
 }
 
-/// Take any non-space character as defined by is_space
+/// Take any non-space character as defined by is_space.
 pub fn take_not_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(|c: u8| !is_space(c))(data)
 }

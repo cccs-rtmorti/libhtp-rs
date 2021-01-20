@@ -135,6 +135,8 @@ impl Default for Options {
     }
 }
 
+/// Describes a decompressor that is able to restart and passthrough data.
+/// Actual decompression is done using the `Write` trait.
 pub trait Decompress: Write {
     /// Restarts the decompressor to try the same one again or a different one.
     fn restart(&mut self) -> std::io::Result<()>;
@@ -148,12 +150,14 @@ pub trait Decompress: Write {
     fn finish(&mut self) -> std::io::Result<()>;
 }
 
+/// Type alias for callback function.
 pub type CallbackFn = Box<dyn FnMut(Option<&[u8]>) -> Result<usize, std::io::Error>>;
 
 /// Simple wrapper around a closure to chain it to the other decompressors
 pub struct CallbackWriter(CallbackFn);
 
 impl CallbackWriter {
+    /// Create a new CallbackWriter.
     pub fn new(cbk: CallbackFn) -> Self {
         CallbackWriter(cbk)
     }
@@ -181,6 +185,8 @@ impl Decompress for CallbackWriter {
         Ok(())
     }
 }
+
+/// Type of compression.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -344,7 +350,9 @@ impl std::fmt::Debug for Decompressor {
 /// Trait that represents the decompression writers (gzip, deflate, etc.) and
 /// methods needed to write to a temporary buffer.
 pub trait BufWriter: Write {
+    /// Get a mutable reference to the buffer.
     fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>>;
+    /// Notify end of data.
     fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>>;
 }
 

@@ -39,6 +39,7 @@ pub struct Uri {
 }
 
 impl Uri {
+    /// Create a new Uri struct from given values.
     pub fn new(
         scheme: Option<Bstr>,
         username: Option<Bstr>,
@@ -63,6 +64,7 @@ impl Uri {
         }
     }
 
+    /// Create an empty Uri struct.
     pub fn default() -> Self {
         Self {
             scheme: None,
@@ -77,6 +79,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri scheme.
     pub fn normalized_scheme(&self) -> Option<Bstr> {
         if let Some(mut scheme) = self.scheme.clone() {
             scheme.make_ascii_lowercase();
@@ -86,6 +89,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri username.
     pub fn normalized_username(
         &self,
         decoder_cfg: &DecoderConfig,
@@ -99,6 +103,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri password.
     pub fn normalized_password(
         &self,
         decoder_cfg: &DecoderConfig,
@@ -112,6 +117,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri hostname.
     pub fn normalized_hostname(
         &self,
         decoder_cfg: &DecoderConfig,
@@ -130,6 +136,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri port.
     pub fn normalized_port(&self, flags: &mut u64) -> Option<u16> {
         if let Some(port) = self.port.clone() {
             if let Some(port) = convert_port(&port.as_slice()) {
@@ -144,6 +151,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri fragment.
     pub fn normalized_fragment(
         &self,
         decoder_cfg: &DecoderConfig,
@@ -157,6 +165,7 @@ impl Uri {
         }
     }
 
+    /// Normalize uri path.
     pub fn normalized_path(
         &self,
         decoder_cfg: &DecoderConfig,
@@ -240,6 +249,7 @@ impl Uri {
         }
     }
 
+    /// Generate a normalized uri string.
     pub fn generate_normalized_uri(
         &self,
         decoder_cfg: &DecoderConfig,
@@ -334,7 +344,7 @@ impl Uri {
     }
 }
 
-/// Normalize URL path in place. This function implements the remove dot segments algorithm
+/// Normalize URI path in place. This function implements the remove dot segments algorithm
 /// specified in RFC 3986, section 5.2.4.
 fn normalize_uri_path_inplace(s: &mut Bstr) {
     let mut out = Vec::<&[u8]>::with_capacity(10);

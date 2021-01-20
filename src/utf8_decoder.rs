@@ -80,6 +80,7 @@ impl Utf8Decoder {
         }
     }
 
+    /// Decode utf8 byte using best-fit map.
     fn decode_byte(&mut self, encoded_byte: u8) {
         self.seq = self.seq.wrapping_add(1);
         self.decode_byte_allow_overlong(encoded_byte as u32);

@@ -48,6 +48,7 @@ pub type LogHook = Hook<LogExternalCallbackFn, LogNativeCallbackFn>;
 /// Callback list
 #[derive(Clone)]
 pub struct Hook<E, N> {
+    /// List of all callbacks.
     pub callbacks: Vec<Callback<E, N>>,
 }
 

@@ -11,10 +11,8 @@ use crate::{
 
 use std::rc::Rc;
 
-/// This callback function feeds request body data to a Urlencoded parser
+/// This callback function feeds request body data to a `UrlEncodedParser`
 /// and, later, feeds the parsed parameters to the correct structures.
-///
-/// Returns OK on success, ERROR on failure.
 pub fn callback_urlencoded_request_body_data(d: &mut Data) -> Result<()> {
     let tx = unsafe { &mut d.tx().as_mut().ok_or(HtpStatus::ERROR)? };
     if !d.data().is_null() {
@@ -50,10 +48,7 @@ pub fn callback_urlencoded_request_body_data(d: &mut Data) -> Result<()> {
 }
 
 /// Determine if the request has a Urlencoded body, and, if it does, create and
-/// attach an instance of the Urlencoded parser to the transaction.
-///
-/// Returns OK if a new parser has been setup, DECLINED if the MIME type
-///         is not appropriate for this parser, and ERROR on failure.
+/// attach an instance of the `UrlEncodedParser` to the transaction.
 pub fn callback_urlencoded_request_headers(tx: &mut Transaction) -> Result<()> {
     // Check the request content type to see if it matches our MIME type.
     if !tx
@@ -111,8 +106,6 @@ pub fn callback_urlencoded_request_line(tx: &mut Transaction) -> Result<()> {
 }
 
 /// Finalize Multipart processing.
-///
-/// Returns OK on success, ERROR on failure.
 pub fn callback_multipart_request_body_data(d: &mut Data) -> Result<()> {
     let tx = unsafe { &mut d.tx().as_mut().ok_or(HtpStatus::ERROR)? };
     if let Some(parser) = &mut tx.request_mpartp {

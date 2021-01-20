@@ -69,7 +69,7 @@ jobs:
     
     #
     # Run the unit tests
-    - script: cargo test
+    - script: cargo test --workspace
       displayName: test
       workingDirectory: $(Agent.BuildDirectory)/libhtp2
     

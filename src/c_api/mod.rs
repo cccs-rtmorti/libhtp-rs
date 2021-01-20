@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 use crate::{
     bstr::Bstr,
     config::{create, Config, HtpServerPersonality, HtpUrlEncodingHandling},
@@ -16,11 +17,16 @@ use std::{
     ffi::{CStr, CString},
 };
 
+/// Type alias for c-style time struct.
 pub type Time = libc::timeval;
 
+/// Functions for working with Bstr.
 pub mod bstr;
+/// Functions for working with lzma decompression.
 pub mod lzma;
+/// Functions for working with transactions.
 pub mod transaction;
+/// Functions for working with request uri.
 pub mod uri;
 
 /// Creates a new configuration structure. Configuration structures created at
@@ -649,7 +655,7 @@ pub unsafe extern "C" fn htp_conn_message_file(
         .unwrap_or(std::ptr::null_mut())
 }
 
-/// Get a log message's code
+/// Get a log message code
 ///
 /// Returns a code or HTP_LOG_CODE_ERROR on error
 #[no_mangle]
@@ -774,7 +780,7 @@ pub unsafe extern "C" fn htp_headers_size(headers: *const Headers) -> isize {
 
 /// Get the name of a header.
 ///
-/// tx: Header pointer.
+/// header: Header pointer.
 ///
 /// Returns the name or NULL on error.
 #[no_mangle]
@@ -788,7 +794,7 @@ pub unsafe extern "C" fn htp_header_name(header: *const Header) -> *const Bstr {
 
 /// Get the name of a header as a ptr.
 ///
-/// tx: Header pointer.
+/// header: Header pointer.
 ///
 /// Returns the pointer or NULL on error.
 #[no_mangle]
@@ -964,9 +970,9 @@ pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const ConnectionPar
     }
 }
 
-// Get the log message
-// returns a pointer to a null-terminated string
-// The caller is responsible for freeing the memory with htp_log_free
+/// Get the log message
+/// returns a pointer to a null-terminated string
+/// The caller is responsible for freeing the memory with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get(
     messages: *mut core::ffi::c_void,
@@ -982,7 +988,7 @@ pub unsafe extern "C" fn htp_log_get(
     std::ptr::null_mut()
 }
 
-// Free the message
+/// Free log message
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) {
     if !msg.is_null() {
@@ -990,7 +996,7 @@ pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) {
     }
 }
 
-// Get the message code
+/// Returns log message code
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get_code(
     messages: *mut core::ffi::c_void,
@@ -1006,9 +1012,10 @@ pub unsafe extern "C" fn htp_log_get_code(
     HtpLogCode::UNKNOWN
 }
 
-// Get the log filename
-// returns a pointer to a null-terminated string
-// The called is responsible for freeing the memory with htp_log_free
+/// Get the log filename.
+///
+/// Returns a pointer to a null-terminated string. The caller
+/// is responsible for freeing the memory with htp_log_free
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_get_file(
     messages: *mut core::ffi::c_void,

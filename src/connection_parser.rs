@@ -11,26 +11,44 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::{io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
 
+/// Enumerates parsing state.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
+    /// Default state.
     NONE,
+    /// State once a transaction is processed or about to be processed.
     IDLE,
+    /// State for request/response line parsing.
     LINE,
+    /// State for header parsing.
     HEADERS,
+    /// State for finalizing chunked body data parsing.
     BODY_CHUNKED_DATA_END,
+    /// State for chunked body data.
     BODY_CHUNKED_DATA,
+    /// Parse the chunked length state.
     BODY_CHUNKED_LENGTH,
+    /// State to determine encoding of body data.
     BODY_DETERMINE,
+    /// State for finalizing transaction side.
     FINALIZE,
     // Used by in_state only
+    /// State for determining the request protocol.
     PROTOCOL,
+    /// State to determine if there is a CONNECT request.
     CONNECT_CHECK,
+    /// State to determine if inbound parsing needs to be suspended.
     CONNECT_PROBE_DATA,
+    /// State to determine if inbound parsing can continue if it was suspended.
     CONNECT_WAIT_RESPONSE,
+    /// State to process request body data.
     BODY_IDENTITY,
+    /// State to consume remaining data in request buffer for the HTTP 0.9 case.
     IGNORE_DATA_AFTER_HTTP_0_9,
     // Used by out_state only
+    /// State to consume response remaining body data when content-length is unknown.
     BODY_IDENTITY_STREAM_CLOSE,
+    /// State to consume response body data when content-length is known.
     BODY_IDENTITY_CL_KNOWN,
 }
 
@@ -40,19 +58,29 @@ pub enum State {
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum HtpStreamState {
+    /// Default stream state.
     NEW,
+    /// State when connection is open.
     OPEN,
+    /// State when connection is closed.
     CLOSED,
+    /// State when stream produces a fatal error.
     ERROR,
+    /// State for a tunnelled stream.
     TUNNEL,
+    /// State when parsing is suspended and not consumed in order. This is to
+    /// allow processing on another stream.
     DATA_OTHER,
+    /// State when we should stop parsing the associated connection.
     STOP,
+    /// State when all current data in the stream has been processed.
     DATA,
 }
 
+/// Stores information about the parsing process and associated transactions.
 pub struct ConnectionParser {
     // General fields
-    /// Current parser configuration structure.
+    /// A reference to the current parser configuration structure.
     pub cfg: Rc<Config>,
     /// The connection structure associated with this parser.
     pub conn: Connection,
@@ -61,20 +89,19 @@ pub struct ConnectionParser {
     // Request parser fields
     /// Parser inbound status. Starts as OK, but may turn into ERROR.
     pub in_status: HtpStreamState,
-    /// Parser output status. Starts as OK, but may turn into ERROR.
+    /// Parser outbound status. Starts as OK, but may turn into ERROR.
     pub out_status: HtpStreamState,
     /// When true, this field indicates that there is unprocessed inbound data, and
     /// that the response parsing code should stop at the end of the current request
     /// in order to allow more requests to be produced.
     pub out_data_other_at_tx_end: bool,
-    /// The time when the last request data chunk was received. Can be NULL if
-    /// the upstream code is not providing the timestamps when calling us.
+    /// The time when the last request data chunk was received.
     pub in_timestamp: DateTime<Utc>,
     /// Pointer to the current request data chunk.
     pub in_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the inbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
-    /// REQUEST_HEADER_DATA).
+    /// request_header_data).
     pub in_current_receiver_offset: u64,
     /// How many data chunks does the inbound connection stream consist of?
     pub in_chunk_count: usize,
@@ -105,17 +132,18 @@ pub struct ConnectionParser {
     /// The hook that should be receiving raw connection data.
     pub in_data_receiver_hook: Option<DataHook>,
 
+    // Response parser fields
     /// Response counter, incremented with every new response. This field is
     /// used to match responses to requests. The expectation is that for every
     /// response there will already be a transaction (request) waiting.
     pub out_next_tx_index: usize,
-    /// The time when the last response data chunk was received. Can be NULL.
+    /// The time when the last response data chunk was received.
     pub out_timestamp: DateTime<Utc>,
     /// Pointer to the current response data chunk.
     pub out_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the outbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
-    /// RESPONSE_HEADER_DATA).
+    /// response_header_data).
     pub out_current_receiver_offset: u64,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
     pub out_buf: Bstr,
@@ -155,6 +183,7 @@ impl std::fmt::Debug for ConnectionParser {
 }
 
 impl ConnectionParser {
+    /// Creates a new ConnectionParser with a preconfigured `Config` struct.
     pub fn new(cfg: Config) -> Self {
         Self {
             cfg: Rc::new(cfg),
@@ -194,9 +223,10 @@ impl ConnectionParser {
         }
     }
 
-    /// Creates a transaction and attaches it to this connection.
+    /// Creates a `Transaction` and attaches it to this connection. Also sets the in_tx to the
+    /// newly created one.
     ///
-    /// Also sets the in_tx to the newly created one.
+    /// Returns the index of the new `Transaction`.
     pub fn create_tx(&mut self) -> Result<usize> {
         // Detect pipelining.
         if self.conn.tx_size() > self.out_next_tx_index {
@@ -356,23 +386,23 @@ impl ConnectionParser {
         }
     }
 
-    /// The function used for response line parsing.
+    /// The function is used for response line parsing.
     pub fn parse_response_line(&mut self, response_line: &[u8]) -> Result<()> {
         self.out_tx_mut_ok()?.response_line = Some(Bstr::from(response_line));
         self.parse_response_line_generic(response_line)
     }
 
+    /// The function is used for request header parsing.
     pub fn process_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
         self.process_request_headers_generic(data)
     }
 
+    /// The function is used for response header parsing.
     pub fn process_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
         self.process_response_headers_generic(data)
     }
 
     /// Closes the connection associated with the supplied parser.
-    ///
-    /// timestamp is optional
     pub fn req_close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Update internal flags
         if self.in_status != HtpStreamState::ERROR {
@@ -384,8 +414,6 @@ impl ConnectionParser {
     }
 
     /// Closes the connection associated with the supplied parser.
-    ///
-    /// timestamp is optional
     pub fn close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Close the underlying connection.
         self.conn.close(timestamp.clone());
@@ -409,25 +437,21 @@ impl ConnectionParser {
         self.in_chunk_request_index = self.in_chunk_count;
     }
 
-    /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
+    /// Returns the number of bytes consumed from the current data chunks so far.
     pub fn req_data_consumed(&self) -> i64 {
         self.in_curr_data.position() as i64
     }
 
     /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
-    /// of htp_connp_res_data() will consume all data from the supplied buffer, but there are circumstances
+    /// of res_data() will consume all data from the supplied buffer, but there are circumstances
     /// where only partial consumption is possible. In such cases DATA_OTHER will be returned.
-    /// Consumed bytes are no longer necessary, but the remainder of the buffer will be need to be saved
+    /// Consumed bytes are no longer necessary, but the remainder of the buffer will be saved
     /// for later.
-    /// Returns the number of bytes consumed from the last data chunk sent for outbound processing.
-    /// or -1 on error.
     pub fn res_data_consumed(&self) -> i64 {
         self.out_curr_data.position() as i64
     }
 
     /// Opens connection.
-    ///
-    /// timestamp is optional
     pub fn open(
         &mut self,
         client_addr: Option<IpAddr>,
@@ -461,6 +485,10 @@ impl ConnectionParser {
         (*self).user_data = user_data;
     }
 
+    /// Consumes request body data.
+    ///
+    /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
+    /// is invalid or request body data hook fails.
     pub fn req_process_body_data_ex(&mut self, data: &[u8]) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
@@ -473,10 +501,8 @@ impl ConnectionParser {
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
     /// and invoke all registered callbacks.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
+    /// callbacks does not want to follow the transaction any more.
     pub fn state_request_start(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
@@ -489,10 +515,8 @@ impl ConnectionParser {
     /// Change transaction state to REQUEST_HEADERS and invoke all
     /// registered callbacks.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
+    /// callbacks does not want to follow the transaction any more.
     pub fn state_request_headers(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         // Finalize sending raw header data
@@ -507,10 +531,8 @@ impl ConnectionParser {
     /// Change transaction state to REQUEST_LINE and invoke all
     /// registered callbacks.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
+    /// callbacks does not want to follow the transaction any more.
     pub fn state_request_line(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
@@ -522,8 +544,8 @@ impl ConnectionParser {
 
     /// Advance state after processing request headers.
     ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
+    /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_request_complete(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.in_tx_mut() {
@@ -533,6 +555,10 @@ impl ConnectionParser {
         }
     }
 
+    /// Consumes response body data.
+    ///
+    /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
+    /// is invalid or response body data hook fails.
     pub fn res_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
@@ -542,6 +568,10 @@ impl ConnectionParser {
         }
     }
 
+    /// Advance state to LINE, or BODY if http version is 0.9.
+    ///
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
+    /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_start(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
@@ -553,8 +583,8 @@ impl ConnectionParser {
 
     /// Advance state after processing response headers.
     ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
+    /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_headers(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         // Finalize sending raw header data.
@@ -566,12 +596,10 @@ impl ConnectionParser {
         }
     }
 
-    /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
+    /// Change transaction state to RESPONSE_LINE and invoke registered callbacks.
     ///
-    /// tx: Transaction pointer. Must not be NULL.
-    ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
+    /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_line(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {
@@ -581,6 +609,10 @@ impl ConnectionParser {
         }
     }
 
+    /// Change transaction state to COMPLETE and invoke registered callbacks.
+    ///
+    /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
+    /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         if let Some(tx) = self.out_tx_mut() {

@@ -31,8 +31,6 @@ fn content_type() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
 
 /// Parses the content type header from the given header value, lowercases it, and stores it in the provided ct bstr.
 /// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
-///
-/// Returns HtpStatus::OK if successful; HtpStatus::ERROR if not
 pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
     if let Ok((_, content_type)) = content_type()(header) {
         let mut ct = Bstr::from(content_type);
@@ -43,10 +41,10 @@ pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
     }
 }
 
-/// Parses Content-Length string (positive decimal number).
-/// White space is allowed before and after the number.
+/// Parses Content-Length string (positive decimal number). White space is
+/// allowed before and after the number.
 ///
-/// Returns Content-Length as a number or None if parsing failed.
+/// Returns content length, or None if input is not valid.
 pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
         if let Some(connp) = connp {
@@ -77,10 +75,8 @@ pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> O
     None
 }
 
-/// Parses chunk length (positive hexadecimal number). White space is allowed before
-/// and after the number.parse_chunked_length
-///
-/// Returns a chunked_length or None if empty.
+/// Parses chunked length (positive hexadecimal number). White space is allowed before
+/// and after the number.
 pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i32>, &'static str> {
     if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
         if trailing_data.is_empty() && chunked_length.is_empty() {
@@ -96,10 +92,17 @@ pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i
 }
 
 /// Attempts to extract the scheme from a given input URI.
-/// e.g. input: http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag
-/// e.g. output: (//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag, http)
+/// # Example
+/// ```
+/// use htp::parsers::scheme;
 ///
-/// Returns a tuple of the unconsumed data and the matched scheme
+/// let data: &[u8] = b"http://www.example.com";
+/// let (left, scheme) = scheme()(data).unwrap();
+/// assert_eq!(left, b"//www.example.com");
+/// assert_eq!(scheme, b"http");
+/// ```
+///
+/// Returns a tuple of the unconsumed data and the matched scheme.
 pub fn scheme<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         // Scheme test: if it doesn't start with a forward slash character (which it must
@@ -112,10 +115,18 @@ pub fn scheme<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 }
 
 /// Attempts to extract the credentials from a given input URI, assuming the scheme has already been extracted.
-/// e.g. input: //user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag
-/// e.g. output: (www.example.com:1234/path1/path2?a=b&c=d#frag, (user, pass))
+/// # Example
+/// ```
+/// use htp::parsers::credentials;
 ///
-/// Returns a tuple of the remaining unconsumed data and a tuple of the matched username and password
+/// let data: &[u8] = b"//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
+/// let (left, (user, pass)) = credentials()(data).unwrap();
+/// assert_eq!(user, b"user");
+/// assert_eq!(pass.unwrap(), b"pass");
+/// assert_eq!(left, b"www.example.com:1234/path1/path2?a=b&c=d#frag");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and a tuple of the matched username and password.
 pub fn credentials<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], Option<&'a [u8]>)> {
     move |input| {
         // Authority test: two forward slash characters and it's an authority.
@@ -134,10 +145,17 @@ pub fn credentials<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], Op
 
 /// Attempts to extract an IPv6 hostname from a given input URI,
 /// assuming any scheme, credentials, hostname, port, and path have been already parsed out.
-/// e.g. input: [:::]/path1?a=b&c=d#frag
-/// e.g. output: ([:::], /path?a=b&c=d#frag)
+/// # Example
+/// ```
+/// use htp::parsers::ipv6;
 ///
-/// Returns a tuple of the remaining unconsumed data and the matched ipv6 hostname
+/// let data: &[u8] = b"[:::]/path1?a=b&c=d#frag";
+/// let (left, ipv6) = ipv6()(data).unwrap();
+/// assert_eq!(ipv6, b"[:::]");
+/// assert_eq!(left, b"/path1?a=b&c=d#frag");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and the matched ipv6 hostname.
 pub fn ipv6<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| -> IResult<&'a [u8], &'a [u8]> {
         let (rest, (_, _, _)) = tuple((tag("["), is_not("/?#]"), opt(tag("]"))))(input)?;
@@ -146,10 +164,17 @@ pub fn ipv6<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 }
 
 /// Attempts to extract the hostname from a given input URI
-/// e.g. input: http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag
-/// e.g. output: (:1234/path1/path2?a=b&c=d#frag, www.example.com)
+/// # Example
+/// ```
+/// use htp::parsers::hostname;
 ///
-/// Returns a tuple of the remaining unconsumed data and the matched hostname
+/// let data: &[u8] = b"www.example.com:8080/path";
+/// let (left, host) = hostname()(data).unwrap();
+/// assert_eq!(host, b"www.example.com");
+/// assert_eq!(left, b":8080/path");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and the matched hostname.
 pub fn hostname<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         let (input, mut hostname) = map(
@@ -171,10 +196,17 @@ pub fn hostname<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 
 /// Attempts to extract the port from a given input URI,
 /// assuming any scheme, credentials, or hostname have been already parsed out.
-/// e.g. input: :1234/path1/path2?a=b&c=d#frag
-/// e.g. output: (/path1/path2?a=b&c=d#frag, 1234)
+/// # Example
+/// ```
+/// use htp::parsers::port;
 ///
-/// Returns a tuple of the remaining unconsumed data and the matched port
+/// let data: &[u8] = b":8080/path";
+/// let (left, port) = port()(data).unwrap();
+/// assert_eq!(port, b"8080");
+/// assert_eq!(left, b"/path");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and the matched port.
 pub fn port<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         // Must start with ":" for there to be a port to parse
@@ -187,20 +219,34 @@ pub fn port<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 
 /// Attempts to extract the path from a given input URI,
 /// assuming any scheme, credentials, hostname, and port have been already parsed out.
-/// e.g. input: /path1/path2?a=b&c=d#frag
-/// e.g. output: (?a=b&c=d#frag, /path1/path2)
+/// # Example
+/// ```
+/// use htp::parsers::path;
 ///
-/// Returns a tuple of the remaining unconsumed data and the matched path
+/// let data: &[u8] = b"/path1/path2?query";
+/// let (left, path) = path()(data).unwrap();
+/// assert_eq!(path, b"/path1/path2");
+/// assert_eq!(left, b"?query");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and the matched path.
 pub fn path<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| is_not("#?")(input)
 }
 
 /// Attempts to extract the query from a given input URI,
 /// assuming any scheme, credentials, hostname, port, and path have been already parsed out.
-/// e.g. input: ?a=b&c=d#frag
-/// e.g. output: (#frag, ?a=b&c=d)
+/// # Example
+/// ```
+/// use htp::parsers::query;
 ///
-/// Returns a tuple of the remaining unconsumed data and the matched query
+/// let data: &[u8] = b"?a=b&c=d#frag";
+/// let (left, query) = query()(data).unwrap();
+/// assert_eq!(query, b"a=b&c=d");
+/// assert_eq!(left, b"#frag");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and the matched query.
 pub fn query<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         // Skip the starting '?'
@@ -209,11 +255,17 @@ pub fn query<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 }
 
 /// Attempts to extract the fragment from a given input URI,
-/// assuming any other components have been parsed out
-/// e.g. input: ?a=b&c=d#frag
-/// e.g. output: ("", #frag)
+/// assuming any other components have been parsed out.
+/// ```
+/// use htp::parsers::fragment;
 ///
-/// Returns a tuple of the remaining unconsumed data and the matched fragment
+/// let data: &[u8] = b"#fragment";
+/// let (left, fragment) = fragment()(data).unwrap();
+/// assert_eq!(fragment, b"fragment");
+/// assert_eq!(left, b"");
+/// ```
+///
+/// Returns a tuple of the remaining unconsumed data and the matched fragment.
 pub fn fragment<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     move |input| {
         // Skip the starting '#'
@@ -224,7 +276,7 @@ pub fn fragment<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// Parses an authority string, which consists of a hostname with an optional port number
 ///
 /// Returns a remaining unparsed data, parsed hostname, parsed port, converted port number,
-/// and a flag indicating whether the parsed data is valid
+/// and a flag indicating whether the parsed data is valid.
 pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], (&[u8], Option<(&[u8], Option<u16>)>, bool)> {
     let (input, host) = hostname()(input)?;
     let mut valid = validate_hostname(host);
@@ -243,7 +295,8 @@ pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], (&[u8], Option<(&[u8], Opt
 
 /// Extracts the version protocol from the input slice.
 ///
-/// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains trailing and/or leading whitespace and/or leading zeros))
+/// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains
+/// trailing and/or leading whitespace and/or leading zeros)).
 pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], bool)> {
     let (remaining, (_, _, leading, _, trailing, version, _)) = tuple((
         take_ascii_whitespace(),
@@ -266,7 +319,7 @@ pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], boo
 /// characters are discovered, however, a warning will be logged.
 ///
 /// Returns HtpProtocol version or invalid.
-pub fn parse_protocol<'a>(input: &'a [u8], connp: &ConnectionParser) -> HtpProtocol {
+pub fn parse_protocol(input: &[u8], connp: &ConnectionParser) -> HtpProtocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
         if !remaining.is_empty() {
             return HtpProtocol::INVALID;
@@ -417,8 +470,6 @@ pub fn single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
 }
 
 /// Parses the Cookie request header in v0 format and places the results into tx->request_cookies.
-///
-/// Returns OK on success, ERROR on error
 pub fn parse_cookies_v0(in_tx: &mut Transaction) -> Result<()> {
     if let Some((_, cookie_header)) = in_tx.request_headers.get_nocase_nozero_mut("cookie") {
         let data: &[u8] = cookie_header.value.as_ref();

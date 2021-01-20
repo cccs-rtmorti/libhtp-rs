@@ -2,10 +2,10 @@
 //!
 //! This container implements a list that can only grow as elements are added and removed.
 //! This is implemented as a Vec<Option<T>> where each element is either present as a Some()
-//! or is not present as a None.  New elements are always pushed to the end of the list and the
-//! capacity grows to accomodate and removed elements are substituted with a `None`; removal or
-//! replace operations will never cause another element to move indices.  This is done to
-//! ensure that Indexes are always valid even after other operations are executed on the list.
+//! or is not present as a None. New elements are always pushed to the end of the list and the
+//! capacity grows to accommodate and removed elements are substituted with a `None`; removal or
+//! replace operations will never cause another element to move indices. This is done to
+//! ensure that indexes are always valid even after other operations are executed on the list.
 
 use crate::HtpStatus;
 use core::{ops::Index, slice::SliceIndex};
@@ -24,7 +24,7 @@ pub struct IntoIter<'a, T> {
 impl<'a, T> Iterator for IntoIter<'a, T> {
     type Item = &'a T;
 
-    /// returns a reference to the next element.
+    /// Returns a reference to the next element.
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(next) = self.inner.next() {
             if let Some(next) = next {

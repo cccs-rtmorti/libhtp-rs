@@ -23,6 +23,7 @@ use std::{
     mem::take,
 };
 
+/// Enumerate HTTP methods.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -30,38 +31,68 @@ pub enum HtpMethod {
     /// Used by default, until the method is determined (e.g., before
     /// the request line is processed.
     UNKNOWN,
+    /// HEAD
     HEAD,
+    /// GET
     GET,
+    /// PUT
     PUT,
+    /// POST
     POST,
+    /// DELETE
     DELETE,
+    /// CONNECT
     CONNECT,
+    /// OPTIONS
     OPTIONS,
+    /// TRACE
     TRACE,
+    /// PATCH
     PATCH,
+    /// PROPFIND
     PROPFIND,
+    /// PROPPATCH
     PROPPATCH,
+    /// MKCOL
     MKCOL,
+    /// COPY
     COPY,
+    /// MOVE
     MOVE,
+    /// LOCK
     LOCK,
+    /// UNLOCK
     UNLOCK,
+    /// VERSION_CONTROL
     VERSION_CONTROL,
+    /// CHECKOUT
     CHECKOUT,
+    /// UNCHECKOUT
     UNCHECKOUT,
+    /// CHECKIN
     CHECKIN,
+    /// UPDATE
     UPDATE,
+    /// LABEL
     LABEL,
+    /// REPORT
     REPORT,
+    /// MKWORKSPACE
     MKWORKSPACE,
+    /// MKACTIVITY
     MKACTIVITY,
+    /// BASELINE_CONTROL
     BASELINE_CONTROL,
+    /// MERGE
     MERGE,
+    /// INVALID
     INVALID,
+    /// ERROR
     ERROR,
 }
 
 impl HtpMethod {
+    /// Creates a new HtpMethod from the slice.
     pub fn new(method: &[u8]) -> Self {
         match method {
             b"GET" => HtpMethod::GET,
@@ -98,8 +129,6 @@ impl HtpMethod {
 }
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
-    ///
-    /// Returns OK, or a value returned from a callback.
     fn req_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
         let mut data = Data::new(
             self.in_tx_mut_ptr(),
@@ -119,8 +148,6 @@ impl ConnectionParser {
     }
 
     /// Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
-    ///
-    /// Returns OK, or a value returned from a callback.
     fn req_receiver_set(&mut self, data_receiver_hook: Option<DataHook>) -> Result<()> {
         // Ignore result.
         let _ = self.req_receiver_finalize_clear();
@@ -131,8 +158,6 @@ impl ConnectionParser {
 
     /// Finalizes an existing data receiver hook by sending any outstanding data to it. The
     /// hook is then removed so that it receives no more data.
-    ///
-    /// Returns OK, or a value returned from a callback.
     pub fn req_receiver_finalize_clear(&mut self) -> Result<()> {
         if self.in_data_receiver_hook.is_none() {
             return Ok(());
@@ -144,8 +169,6 @@ impl ConnectionParser {
 
     /// Handles request parser state changes. At the moment, this function is used only
     /// to configure data receivers, which are sent raw connection data.
-    ///
-    /// Returns OK, or a value returned from a callback.
     fn req_handle_state_change(&mut self) -> Result<()> {
         if self.in_state_previous == self.in_state {
             return Ok(());
@@ -172,9 +195,7 @@ impl ConnectionParser {
 
     /// If there is any data left in the inbound data chunk, this function will preserve
     /// it for later consumption. The maximum amount accepted for buffering is controlled
-    /// by htp_config_t::field_limit.
-    ///
-    /// Returns OK, or ERROR on fatal failure.
+    /// by Config::field_limit.
     fn check_in_buffer_limit(&mut self, len: usize) -> Result<()> {
         if len == 0 {
             return Ok(());
@@ -204,9 +225,9 @@ impl ConnectionParser {
     /// Performs a check for a CONNECT transaction to decide whether inbound
     /// parsing needs to be suspended.
     ///
-    /// Returns OK if the request does not use CONNECT, HTP_DATA_OTHER if
-    ///          inbound parsing needs to be suspended until we hear from the
-    ///          other side
+    /// Returns OK if the request does not use CONNECT, or HtpStatus::DATA_OTHER if
+    /// inbound parsing needs to be suspended until we hear from the
+    /// other side.
     pub fn req_connect_check(&mut self) -> Result<()> {
         // If the request uses the CONNECT method, then there will
         // not be a request body, but first we need to wait to see the
@@ -226,8 +247,8 @@ impl ConnectionParser {
     /// Determines whether inbound parsing needs to continue or stop. In
     /// case the data appears to be plain text HTTP, we try to continue.
     ///
-    /// Returns OK if the parser can resume parsing, HTP_DATA_BUFFER if
-    ///         we need more data.
+    /// Returns OK if the parser can resume parsing, HtpStatus::DATA_BUFFER if
+    /// we need more data.
     pub fn req_connect_probe_data(&mut self, line: &[u8]) -> Result<()> {
         let data = if let Ok((_, data)) = take_till_lf_null(line) {
             data
@@ -263,8 +284,8 @@ impl ConnectionParser {
     /// encountering a CONNECT transaction, can proceed (after receiving
     /// the response).
     ///
-    /// Returns OK if the parser can resume parsing, HTP_DATA_OTHER if
-    ///         it needs to continue waiting.
+    /// Returns OK if the parser can resume parsing, HtpStatus::DATA_OTHER if
+    /// it needs to continue waiting.
     pub fn req_connect_wait_response(&mut self) -> Result<()> {
         // Check that we saw the response line of the current inbound transaction.
         if self.in_tx_mut_ok()?.response_progress <= HtpResponseProgress::LINE {
@@ -291,7 +312,8 @@ impl ConnectionParser {
 
     /// Consumes bytes until the end of the current line.
     ///
-    /// Returns OK on state change, ERROR on error, or DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_body_chunked_data_end(&mut self, data: &[u8]) -> Result<()> {
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
@@ -309,7 +331,8 @@ impl ConnectionParser {
 
     /// Processes a chunk of data.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
         let bytes_to_consume: usize = min(
@@ -341,8 +364,8 @@ impl ConnectionParser {
     }
 
     /// Extracts chunk length.
-    ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_body_chunked_length(&mut self, data: &[u8]) -> Result<()> {
         if let Ok((_, line)) = take_till_lf(data) {
             self.in_curr_data
@@ -393,7 +416,8 @@ impl ConnectionParser {
 
     /// Processes identity request body.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_body_identity(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
         let bytes_to_consume: usize = min(data.len(), self.in_body_data_left as usize);
@@ -422,7 +446,8 @@ impl ConnectionParser {
 
     /// Determines presence (and encoding) of a request body.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_body_determine(&mut self) -> Result<()> {
         // Determine the next state based on the presence of the request
         // body, and the coding used.
@@ -455,8 +480,8 @@ impl ConnectionParser {
     }
 
     /// Parses request headers.
-    ///
-    /// Returns OK on state change, ERROR on error, or DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_headers(&mut self, data: &[u8]) -> Result<()> {
         if self.in_status == HtpStreamState::CLOSED {
             // Parse previous header, if any.
@@ -508,8 +533,8 @@ impl ConnectionParser {
     }
 
     /// Determines request protocol.
-    ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_protocol(&mut self, data: &[u8]) -> Result<()> {
         // Is this a short-style HTTP/0.9 request? If it is,
         // we will not want to parse request headers.
@@ -554,7 +579,8 @@ impl ConnectionParser {
 
     /// Parse the request line.
     ///
-    /// Returns OK on succesful parse, ERROR on error.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_line_complete(&mut self, line: &[u8]) -> Result<()> {
         if !self.in_buf.is_empty() {
             self.check_in_buffer_limit(line.len())?;
@@ -582,7 +608,8 @@ impl ConnectionParser {
 
     /// Parses request line.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_line(&mut self, data: &[u8]) -> Result<()> {
         match take_till_lf(data) {
             Ok((_, read)) => {
@@ -601,6 +628,10 @@ impl ConnectionParser {
         }
     }
 
+    /// Finalizes request.
+    ///
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
     pub fn req_finalize(&mut self, data: &[u8]) -> Result<()> {
         let mut work = data;
         if self.in_status != HtpStreamState::CLOSED {
@@ -679,8 +710,8 @@ impl ConnectionParser {
         self.state_request_complete()
     }
 
+    /// Consumes whatever is left in the buffer after detecting an http/0.9 session.
     pub fn req_ignore_data_after_http_0_9(&mut self) -> Result<()> {
-        // Consume whatever is left in the buffer.
         let bytes_left = self.in_curr_len() - self.in_curr_data.position() as i64;
 
         if bytes_left > 0 {
@@ -712,6 +743,8 @@ impl ConnectionParser {
         Ok(())
     }
 
+    /// Buffer incomplete request data and verify that field_limit
+    /// constraint is met.
     pub fn handle_in_absent_lf(&mut self, data: &[u8]) -> Result<()> {
         self.in_curr_data.seek(SeekFrom::End(0))?;
         self.check_in_buffer_limit(data.len())?;
@@ -739,7 +772,7 @@ impl ConnectionParser {
         Ok(())
     }
 
-    /// Returns HtpStreamState
+    /// Process a chunk of inbound (client or request) data.
     pub fn req_data(
         &mut self,
         timestamp: Option<DateTime<Utc>>,
@@ -879,7 +912,7 @@ impl ConnectionParser {
         }
     }
 
-    // Return total length of current request chunk.
+    /// Return length of the current request chunk.
     pub fn in_curr_len(&self) -> i64 {
         self.in_curr_data.get_ref().len() as i64
     }

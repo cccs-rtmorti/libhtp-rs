@@ -28,6 +28,7 @@ impl UnicodeBestfitMap {
     }
 }
 
+/// Create bestfit key from two 8 bit bytes.
 #[macro_export]
 macro_rules! bestfit_key {
     ($c1:expr, $c2:expr) => {

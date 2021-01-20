@@ -27,6 +27,7 @@ use nom::{
 };
 use std::rc::Rc;
 
+/// Export Multipart flags.
 #[derive(Debug)]
 pub struct Flags;
 
@@ -59,7 +60,7 @@ impl Flags {
     pub const PART_AFTER_LAST_BOUNDARY: u64 = 0x0080;
 
     /// The payloads ends abruptly, without proper termination. Can occur if the client gives up,
-    /// or if the connection is interrupted. When this flag is raised, HTP_MULTIPART_PART_INCOMPLETE
+    /// or if the connection is interrupted. When this flag is raised, PART_INCOMPLETE
     /// will also be raised for the part that was only partially processed. (But the opposite may not
     /// always be the case -- there are other ways in which a part can be left incomplete.)
     pub const INCOMPLETE: u64 = 0x0100;
@@ -96,7 +97,7 @@ impl Flags {
     pub const CD_SYNTAX_INVALID: u64 = 0x10_0000;
 
     /// There is an abruptly terminated part. This can happen when the payload itself is abruptly
-    /// terminated (in which case HTP_MULTIPART_INCOMPLETE) will be raised. However, it can also
+    /// terminated (in which case INCOMPLETE) will be raised. However, it can also
     /// happen when a boundary is seen before any part data.
     pub const PART_INCOMPLETE: u64 = 0x20_0000;
     /// A NUL byte was seen in a part header area.
@@ -131,11 +132,16 @@ impl Flags {
         (Self::UNUSUAL | Self::LF_LINE | Self::BBOUNDARY_LWS_AFTER | Self::HAS_PREAMBLE);
 }
 
+/// Keeps track of multipart parsing.
 #[derive(Clone)]
 pub struct Parser {
+    /// Contains information regarding multipart body.
     pub multipart: Multipart,
+    /// Config structure for multipart parsing.
     pub cfg: MultipartConfig,
+    /// Request file data hook invoked whenever file data is available.
     pub hook: FileDataHook,
+    /// Number of extracted files.
     pub file_count: u32,
     // Internal parsing fields; move into a private structure
     /// Parser state; one of MULTIPART_STATE_* constants.
@@ -166,8 +172,11 @@ pub struct Parser {
     /// discarded. When there is no match, the buffer is processed as data
     /// (belonging to the currently active part).
     pub boundary_candidate: Bstr,
+    ///
     pub part_header: Bstr,
+    ///
     pub pending_header_line: Bstr,
+    ///
     pub to_consume: Bstr,
 
     /// Stores text part pieces until the entire part is seen, at which
@@ -194,6 +203,7 @@ pub struct Parser {
 ///
 /// Returns New parser instance, or None on failure.
 impl Parser {
+    /// Create new Parser with `Config`, boundary data and flags.
     pub fn new(cfg: Rc<Config>, boundary: &[u8], flags: u64) -> Option<Self> {
         if boundary.is_empty() {
             return None;
@@ -227,6 +237,7 @@ impl Parser {
         })
     }
 
+    /// Returns the part currently being processed.
     pub fn get_current_part(&mut self) -> Result<&mut Part> {
         self.current_part_idx
             .and_then(move |idx| self.multipart.parts.get_mut(idx))
@@ -246,8 +257,6 @@ impl Parser {
     }
 
     /// Handles data, creating new parts as necessary.
-    ///
-    /// Returns OK on success, ERROR on failure.
     fn handle_data(&mut self, is_line: bool) -> Result<()> {
         if self.to_consume.is_empty() {
             return Ok(());
@@ -281,9 +290,7 @@ impl Parser {
         rc
     }
 
-    /// Handles part data, updating flags, and creating new headers as necessary
-    ///
-    /// Returns OK on success, ERROR on failure.
+    /// Handles part data, updating flags, and creating new headers as necessary.
     pub fn handle_part_data(&mut self, to_consume: &[u8], is_line: bool) -> Result<()> {
         // End of the line.
         let mut line: Option<Bstr> = None;
@@ -453,8 +460,6 @@ impl Parser {
     }
 
     /// Finalize parsing.
-    ///
-    /// Returns OK on success, ERROR on failure.
     pub fn finalize(&mut self) -> Result<()> {
         if self.current_part_idx.is_some() {
             // Process buffered data, if any.
@@ -471,8 +476,6 @@ impl Parser {
     }
 
     /// Finalizes part processing.
-    ///
-    /// Returns OK on success, ERROR on failure.
     pub fn finalize_part_data(&mut self) -> Result<()> {
         // Determine if this part is the epilogue.
         if self.multipart.flags.is_set(Flags::SEEN_LAST_BOUNDARY) {
@@ -517,12 +520,12 @@ impl Parser {
     }
 
     /// Returns the multipart structure created by the parser.
-    ///
-    /// Returns The main multipart structure.
     pub fn get_multipart(&mut self) -> &mut Multipart {
         &mut self.multipart
     }
 
+    /// Handle part data. This function will also buffer a CR character if
+    /// it is the last byte in the buffer.
     fn parse_state_data<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
         if let Ok((remaining, mut consumed)) = take_till::<_, _, (&[u8], nom::error::ErrorKind)>(
             |c: u8| c == b'\r' || c == b'\n',
@@ -584,6 +587,7 @@ impl Parser {
         }
     }
 
+    /// Handle possible boundary.
     fn parse_state_boundary<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
         if self.multipart.boundary.len() < self.boundary_match_pos {
             // This should never hit
@@ -632,10 +636,11 @@ impl Parser {
         }
     }
 
+    /// Determine if we have another boundary to process or not.
+    /// Examine the first byte after the last boundary character. If it is
+    /// a dash, then we maybe processing the last boundary in the payload. If
+    /// it is not, move to eat all bytes until the end of the line.
     fn parse_state_last1<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        // Examine the first byte after the last boundary character. If it is
-        // a dash, then we maybe processing the last boundary in the payload. If
-        // it is not, move to eat all bytes until the end of the line.
         if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
             // Found one dash, now go to check the next position.
             self.parser_state = HtpMultipartState::BOUNDARY_IS_LAST2;
@@ -649,9 +654,10 @@ impl Parser {
         }
     }
 
+    /// Determine if we have another boundary to process or not.
+    /// Examine the byte after the first dash; expected to be another dash.
+    /// If not, eat all bytes until the end of the line.
     fn parse_state_last2<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        // Examine the byte after the first dash; expected to be another dash.
-        // If not, eat all bytes until the end of the line.
         if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
             // This is indeed the last boundary in the payload.
             self.multipart.flags.set(Flags::SEEN_LAST_BOUNDARY);
@@ -667,6 +673,8 @@ impl Parser {
         }
     }
 
+    /// Determines state of boundary parsing. Advances state if we're done with boundary
+    /// processing.
     fn parse_state_lws<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
         if let Ok((remaining, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(input) {
             // CRLF line ending; we're done with boundary processing; data bytes follow.
@@ -693,8 +701,6 @@ impl Parser {
 
     /// Parses a chunk of multipart/form-data data. This function should be called
     /// as many times as necessary until all data has been consumed.
-    ///
-    /// Returns OK on success, ERROR on failure.
     pub fn parse<'a>(&mut self, mut input: &'a [u8]) -> HtpStatus {
         while !input.is_empty() {
             match self.parser_state {
@@ -720,7 +726,8 @@ impl Parser {
 
     /// Parses one part header.
     ///
-    /// Returns OK on success, DECLINED on parsing error, ERROR on fatal error.
+    /// Returns HtpStatus::OK on success, HtpStatus::DECLINED on parsing error, HtpStatus::ERROR
+    /// on fatal error.
     pub fn parse_header(&mut self) -> Result<()> {
         // We do not allow NUL bytes here.
         if self.pending_header_line.as_slice().contains(&(b'\0')) {
@@ -843,6 +850,7 @@ impl Parser {
         Ok(())
     }
 
+    /// Send file data to request file data callback.
     pub fn run_request_file_data_hook(&mut self, is_end: bool) -> Result<()> {
         //TODO: do without these clones!
         let data = self.to_consume.clone();
@@ -904,6 +912,7 @@ impl Drop for Part {
     }
 }
 
+/// Enumerates the current multipart mode.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -914,6 +923,7 @@ enum HtpMultipartMode {
     DATA,
 }
 
+/// Enumerates the multipart parsing state.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -930,6 +940,7 @@ enum HtpMultipartState {
     BOUNDARY_EAT_LWS,
 }
 
+/// Enumerates the multipart type.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -1089,7 +1100,6 @@ fn validate_boundary(boundary: &[u8], flags: &mut u64) {
 /// Validates the content type by checking if there are multiple boundary occurrences or any occurrence contains uppercase characters
 ///
 /// Returns in flags the appropriate Flags
-
 fn validate_content_type(content_type: &[u8], flags: &mut u64) {
     if let Ok((_, (f, _))) = fold_many1(
         tuple((
@@ -1200,7 +1210,7 @@ fn boundary() -> impl Fn(
 /// Returns boundary if found, None otherwise.
 /// Flags may be set on even without successfully locating the boundary. For
 /// example, if a boundary could not be extracted but there is indication that
-/// one is present, HTP_MULTIPART_HBOUNDARY_INVALID will be set.
+/// one is present, the HBOUNDARY_INVALID flag will be set.
 pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a [u8]> {
     // Our approach is to ignore the MIME type and instead just look for
     // the boundary. This approach is more reliable in the face of various

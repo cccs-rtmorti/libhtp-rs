@@ -21,10 +21,10 @@ use crate::{
 
 use std::{cmp::Ordering, rc::Rc};
 
+/// A collection of possible data sources.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-/// A collection of possible data sources.
 pub enum HtpDataSource {
     /// Embedded in the URL.
     URL,
@@ -36,10 +36,10 @@ pub enum HtpDataSource {
     BODY,
 }
 
+/// A collection of unique parser IDs.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-/// A collection of unique parser IDs.
 pub enum HtpParserId {
     /// application/x-www-form-urlencoded parser.
     URLENCODED,
@@ -91,14 +91,17 @@ pub struct Data<'a> {
 }
 
 impl<'a> Data<'a> {
+    /// Construct a new Data.
     pub fn new(tx: *mut Transaction, data: Option<&'a [u8]>, is_last: bool) -> Self {
         Self { tx, data, is_last }
     }
 
+    /// Returns the transaction associated with the Data.
     pub fn tx(&self) -> *mut Transaction {
         self.tx
     }
 
+    /// Returns a pointer to the raw data associated with Data.
     pub fn data(&self) -> *const u8 {
         self.data
             .as_ref()
@@ -106,28 +109,29 @@ impl<'a> Data<'a> {
             .unwrap_or(std::ptr::null())
     }
 
+    /// Returns the length of the data.
     pub fn len(&self) -> usize {
         self.data.as_ref().map(|data| data.len()).unwrap_or(0)
     }
 
+    /// Return an immutable slice view of the data.
     pub fn as_slice(&self) -> Option<&[u8]> {
         self.data
     }
 
+    /// Determines if this chunk is the last Data in a series.
     pub fn is_last(&self) -> bool {
         self.is_last
     }
 
-    /// Get whether this data is empty.
-    ///
-    /// Returns true if data is NULL or zero-length.
+    /// Determine whether this data is empty or null.
     pub fn is_empty(&self) -> bool {
         self.data().is_null() || self.len() == 0
     }
 }
 
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 /// Enumerates the possible request and response body codings.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum HtpTransferCoding {
@@ -148,12 +152,16 @@ pub enum HtpTransferCoding {
 /// Enumerates the possible server personalities.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum HtpResponseNumber {
+    /// Default
     UNKNOWN,
+    /// Could not resolve response number
     INVALID,
+    /// Valid response number
     VALID(u16),
 }
 
 impl HtpResponseNumber {
+    /// Determine if the response status number is in the given range.
     pub fn in_range(self, min: u16, max: u16) -> bool {
         use HtpResponseNumber::*;
         match self {
@@ -162,6 +170,8 @@ impl HtpResponseNumber {
         }
     }
 
+    /// Determine if the response status number matches the
+    /// given status number.
     pub fn eq(self, num: u16) -> bool {
         use HtpResponseNumber::*;
         match self {
@@ -182,13 +192,16 @@ pub struct Header {
     pub flags: u64,
 }
 
+/// Table of request or response headers.
 pub type Headers = Table<Header>;
 
 impl Header {
+    /// Construct a new header.
     pub fn new(name: Bstr, value: Bstr) -> Self {
         Self::new_with_flags(name, value, 0)
     }
 
+    /// Construct a new header with flags.
     pub fn new_with_flags(name: Bstr, value: Bstr, flags: u64) -> Self {
         Self { name, value, flags }
     }
@@ -202,30 +215,48 @@ impl Header {
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum HtpResponseProgress {
+    /// Default state.
     NOT_STARTED,
+    /// Response Line.
     LINE,
+    /// Response Headers.
     HEADERS,
+    /// Response Body.
     BODY,
+    /// Trailer data.
     TRAILER,
+    /// Response completed.
     COMPLETE,
+    /// Error involving response side of transaction.
     ERROR,
 }
 
+/// Possible states of a progressing transaction. Internally, progress will change
+/// to the next state when the processing activities associated with that state
+/// begin. For example, when we start to process request line bytes, the request
+/// state will change from NOT_STARTED to LINE.*
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum HtpRequestProgress {
+    /// Default state.
     NOT_STARTED,
+    /// In request line state.
     LINE,
+    /// In request headers state.
     HEADERS,
+    /// In request body state.
     BODY,
+    /// Trailer data.
     TRAILER,
+    /// Request is completed.
     COMPLETE,
+    /// Error involving request side of transaction.
     ERROR,
 }
 
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 /// Enumerates the possible values for authentication type.
+/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum HtpAuthType {
@@ -245,16 +276,22 @@ pub enum HtpAuthType {
     ERROR,
 }
 
-/// Protocol version constants
+/// Protocol version constants.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum HtpProtocol {
+    /// Error with the transaction side.
     ERROR = -3,
+    /// Could not resolve protocol version number.
     INVALID = -2,
+    /// Default protocol value.
     UNKNOWN = -1,
+    /// HTTP/0.9 version.
     V0_9 = 9,
+    /// HTTP/1.0 version.
     V1_0 = 100,
+    /// HTTP/1.1 version.
     V1_1 = 101,
 }
 
@@ -481,9 +518,11 @@ pub struct Transaction {
     pub res_header_repetitions: u16,
 }
 
+/// Type alias for list of transactions.
 pub type Transactions = List<Transaction>;
 
 impl Transaction {
+    /// Construct a new transaction.
     pub fn new(connp: &mut ConnectionParser, index: usize) -> Self {
         Self {
             cfg: Rc::clone(&connp.cfg),
@@ -571,10 +610,8 @@ impl Transaction {
         self.user_data = user_data;
     }
 
-    /// Adds one parameter to the request. THis function will take over the
+    /// Adds one parameter to the request. This function will take over the
     /// responsibility for the provided Param structure.
-    ///
-    /// Returns OK on success, ERROR on failure.
     pub fn req_add_param(&mut self, mut param: Param) -> Result<()> {
         if let Some(parameter_processor_fn) = self.cfg.parameter_processor {
             parameter_processor_fn(&mut param)?
@@ -584,13 +621,12 @@ impl Transaction {
     }
 
     /// Determine if the request has a body.
-    ///
-    /// Returns true if there is a body, false otherwise.
     pub fn req_has_body(&self) -> bool {
         self.request_transfer_coding == HtpTransferCoding::IDENTITY
             || self.request_transfer_coding == HtpTransferCoding::CHUNKED
     }
 
+    /// Determine if we have a request body, and how it is packaged.
     pub fn process_request_headers(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Determine if we have a request body, and how it is packaged.
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
@@ -771,8 +807,7 @@ impl Transaction {
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
     ) -> Result<()> {
-        // NULL data is allowed in this private function; it's
-        // used to indicate the end of request body.
+        // None data is used to indicate the end of request body.
         // Keep track of the body length.
         if let Some(data) = data {
             self.request_entity_len =
@@ -790,10 +825,7 @@ impl Transaction {
         })
     }
 
-    /// Change transaction state to HTP_RESPONSE_LINE and invoke registered callbacks.
-    ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
+    /// Change transaction state to RESPONSE_LINE and invoke registered callbacks.
     pub fn state_response_line(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Is the response line valid?
         if self.response_protocol_number == HtpProtocol::INVALID {
@@ -820,8 +852,6 @@ impl Transaction {
     /// Set one response header. This function should be invoked once for
     /// each available header, and in the order in which headers were
     /// seen in the response.
-    ///
-    /// Returns OK on success, ERROR on failure.
     pub fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
         self.response_headers.add(
             name.as_ref().into(),
@@ -840,13 +870,12 @@ impl Transaction {
     /// a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
     /// to COMPRESSION_NONE (to disable compression), or to one of the supported
     /// decompression algorithms.
-    ///
-    /// Returns OK on success, ERROR on failure.
     pub fn res_process_body_data(
         &mut self,
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
     ) -> Result<()> {
+        // None data is used to indicate the end of response body.
         // Keep track of body size before decompression.
         self.response_message_len = (self.response_message_len as u64)
             .wrapping_add(data.map(|data| data.len()).unwrap_or(0) as u64)
@@ -907,6 +936,7 @@ impl Transaction {
         Ok(())
     }
 
+    /// Process any final request body data and complete request.
     pub fn state_request_complete_partial(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Finalize request body.
         if self.req_has_body() {
@@ -942,9 +972,6 @@ impl Transaction {
 
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
     /// and invoke all registered callbacks.
-    ///
-    /// Returns OK on success; ERROR on error, HTP_STOP if one of the
-    ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_start(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Run hook REQUEST_START.
         connp.cfg.hook_request_start.run_all(connp, self)?;
@@ -1043,6 +1070,8 @@ impl Transaction {
         self.state_response_complete_ex(connp, 1)
     }
 
+    /// Determine if the transaction is complete. This may destroy the transaction
+    /// if its completed and tx_auto_destroy is enabled.
     pub fn finalize(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         if !self.is_complete() {
             return Ok(());
@@ -1056,6 +1085,7 @@ impl Transaction {
         Ok(())
     }
 
+    /// Change transaction state to RESPONSE and invoke registered callbacks.
     pub fn state_response_complete_ex(
         &mut self,
         connp: &mut ConnectionParser,
@@ -1382,6 +1412,7 @@ impl Transaction {
         Ok(())
     }
 
+    /// Determines if both request and response are complete.
     pub fn is_complete(&self) -> bool {
         // A transaction is considered complete only when both the request and
         // response are complete. (Sometimes a complete response can be seen
@@ -1390,18 +1421,21 @@ impl Transaction {
             && self.response_progress == HtpResponseProgress::COMPLETE
     }
 
+    /// Return a reference to the parsed request uri.
     pub fn get_parsed_uri_query(&self) -> Option<&Bstr> {
         self.parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.query.as_ref())
     }
 
+    /// Return a reference to the uri hostname.
     pub fn get_parsed_uri_hostname(&self) -> Option<&Bstr> {
         self.parsed_uri
             .as_ref()
             .and_then(|parsed_uri| parsed_uri.hostname.as_ref())
     }
 
+    /// Return a reference to the uri port_number.
     pub fn get_parsed_uri_port_number(&self) -> Option<&u16> {
         self.parsed_uri
             .as_ref()
@@ -1431,6 +1465,7 @@ impl Transaction {
 }
 
 impl PartialEq for Transaction {
+    /// Determines if other references the same transaction.
     fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }

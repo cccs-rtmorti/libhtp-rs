@@ -24,8 +24,6 @@ use std::{
 
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
-    ///
-    /// Returns OK, or a value returned from a callback.
     fn res_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
         let mut data = Data::new(
             self.out_tx_mut_ptr(),
@@ -47,8 +45,6 @@ impl ConnectionParser {
 
     /// Finalizes an existing data receiver hook by sending any outstanding data to it. The
     /// hook is then removed so that it receives no more data.
-    ///
-    /// Returns OK, or a value returned from a callback.
     pub fn res_receiver_finalize_clear(&mut self) -> Result<()> {
         if self.out_data_receiver_hook.is_none() {
             return Ok(());
@@ -59,8 +55,6 @@ impl ConnectionParser {
     }
 
     /// Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
-    ///
-    /// Returns OK, or a value returned from a callback.
     fn res_receiver_set(&mut self, data_receiver_hook: Option<DataHook>) -> Result<()> {
         // Ignore result.
         let _ = self.res_receiver_finalize_clear();
@@ -71,8 +65,6 @@ impl ConnectionParser {
 
     /// Handles request parser state changes. At the moment, this function is used only
     /// to configure data receivers, which are sent raw connection data.
-    ///
-    /// Returns OK, or a value returned from a callback.
     fn res_handle_state_change(&mut self) -> Result<()> {
         if self.out_state_previous == self.out_state {
             return Ok(());
@@ -86,7 +78,7 @@ impl ConnectionParser {
                 _ => Ok(()),
             }?;
         }
-        // Same comment as in htp_req_handle_state_change(). Below is a copy.
+        // Same comment as in req_handle_state_change(). Below is a copy.
         // Initially, I had the finalization of raw data sending here, but that
         // caused the last REQUEST_HEADER_DATA hook to be invoked after the
         // REQUEST_HEADERS hook -- which I thought made no sense. For that reason,
@@ -99,8 +91,6 @@ impl ConnectionParser {
 
     /// The maximum amount accepted for buffering is controlled
     /// by htp_config_t::field_limit.
-    ///
-    /// Returns OK, or ERROR on fatal failure.
     fn check_out_buffer_limit(&mut self, len: usize) -> Result<()> {
         if self.out_curr_len() == 0 || len == 0 {
             return Ok(());
@@ -112,6 +102,7 @@ impl ConnectionParser {
         if let Some(out_header) = &self.out_header {
             newlen = newlen.wrapping_add(out_header.len())
         }
+
         let field_limit = self.out_tx_mut_ok()?.cfg.field_limit;
         if newlen > field_limit {
             htp_error!(
@@ -129,7 +120,8 @@ impl ConnectionParser {
 
     /// Consumes bytes until the end of the current line.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::Error on error, or HtpStatus::DATA
+    /// when more data is needed.
     pub fn res_body_chunked_data_end(&mut self, data: &[u8]) -> Result<()> {
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
@@ -152,7 +144,8 @@ impl ConnectionParser {
 
     /// Processes a chunk of data.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::Error on error, or
+    /// HtpStatus::DATA when more data is needed.
     pub fn res_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
         let bytes_to_consume: usize = std::cmp::min(
             data.len(),
@@ -235,7 +228,8 @@ impl ConnectionParser {
 
     /// Processes an identity response body of known length.
     ///
-    /// Returns HTP_OK on state change, HTP_ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or
+    /// HtpStatus::DATA when more data is needed.
     pub fn res_body_identity_cl_known(&mut self, data: &[u8]) -> Result<()> {
         let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_body_data_left as usize);
         if self.out_status == HtpStreamState::CLOSED {
@@ -265,7 +259,8 @@ impl ConnectionParser {
     /// Processes identity response body of unknown length. In this case, we assume the
     /// response body consumes all data until the end of the stream.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
+    /// when more data is needed.
     pub fn res_body_identity_stream_close(&mut self, data: &[u8]) -> Result<()> {
         // Consume all data from the input buffer.
         if !data.is_empty() {
@@ -282,8 +277,6 @@ impl ConnectionParser {
     }
 
     /// Determines presence (and encoding) of a response body.
-    ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
     pub fn res_body_determine(&mut self) -> Result<()> {
         // If the request uses the CONNECT method, then not only are we
         // to assume there's no body, but we need to ignore all
@@ -550,7 +543,7 @@ impl ConnectionParser {
 
     /// Parses response headers.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA when more data is needed.
     pub fn res_headers(&mut self, data: &[u8]) -> Result<()> {
         if self.out_status == HtpStreamState::CLOSED {
             // Finalize sending raw trailer data.
@@ -616,7 +609,8 @@ impl ConnectionParser {
 
     /// Parses response line.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
+    /// when more data is needed.
     pub fn res_line(&mut self, data: &[u8]) -> Result<()> {
         let line = match take_till_lf(data) {
             Ok((_, line)) => {
@@ -684,6 +678,7 @@ impl ConnectionParser {
         Ok(())
     }
 
+    /// Finalizes response parsing.
     pub fn res_finalize(&mut self, data: &[u8]) -> Result<()> {
         let mut work = data;
         if self.out_status != HtpStreamState::CLOSED {
@@ -743,7 +738,8 @@ impl ConnectionParser {
     /// The response idle state will initialize response processing, as well as
     /// finalize each transactions after we are done with it.
     ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed.
+    /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
+    /// when more data is needed.
     pub fn res_idle(&mut self) -> Result<()> {
         // We want to start parsing the next response (and change
         // the state from IDLE) only if there's at least one
@@ -807,10 +803,6 @@ impl ConnectionParser {
     }
 
     /// Process a chunk of outbound (server or response) data.
-    ///
-    /// timestamp: Optional.
-    ///
-    /// Returns OK on state change, ERROR on error, or HTP_DATA when more data is needed
     pub fn res_data(
         &mut self,
         timestamp: Option<DateTime<Utc>>,
@@ -947,6 +939,8 @@ impl ConnectionParser {
             }
         }
     }
+
+    /// Advance out buffer cursor and buffer data.
     pub fn handle_out_absent_lf(&mut self, data: &[u8]) -> Result<()> {
         self.out_curr_data.seek(SeekFrom::End(0))?;
         self.check_out_buffer_limit(data.len())?;
@@ -954,11 +948,8 @@ impl ConnectionParser {
         Err(HtpStatus::DATA_BUFFER)
     }
 
+    /// Return total length of out buffer data.
     pub fn out_curr_len(&self) -> i64 {
         self.out_curr_data.get_ref().len() as i64
     }
-}
-
-pub fn is_chunked_ctl_char(c: u8) -> bool {
-    c == 0x0d || c == 0x0a || c == 0x20 || c == 0x09 || c == 0x0b || c == 0x0
 }

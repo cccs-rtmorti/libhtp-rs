@@ -29,6 +29,7 @@ pub struct Parser {
 }
 
 impl Parser {
+    /// Construct new Parser with default values.
     pub fn new(tx: *mut Transaction) -> Self {
         Self {
             tx,
@@ -68,6 +69,7 @@ fn urlen_name_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
         |(_, name, _)| name,
     )(input)
 }
+
 /// Parses the provided data chunk, searching for argument seperators and '=' to locate names and values,
 /// keeping state to allow streaming parsing, i.e., the parsing where only partial information is available
 /// at any one time. The method urlenp_finalize() must be invoked at the end to finalize parsing.

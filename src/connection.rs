@@ -7,14 +7,20 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::{cell::RefCell, net::IpAddr, time::SystemTime};
 
+/// Export Connection Flags
 pub struct Flags;
 
+/// `Connection` Flags
 impl Flags {
+    /// Default, no flags raised.
     pub const UNKNOWN: u8 = 0x00;
+    /// Seen pipelined requests.
     pub const PIPELINED: u8 = 0x01;
+    /// Seen extra data after a HTTP 0.9 communication.
     pub const HTTP_0_9_EXTRA: u8 = 0x02;
 }
 
+/// Stores information about the session.
 pub struct Connection {
     /// Client IP address.
     pub client_addr: Option<IpAddr>,
@@ -26,16 +32,15 @@ pub struct Connection {
     pub server_port: Option<u16>,
 
     /// Transactions carried out on this connection. The list may contain
-    /// NULL elements when some of the transactions are deleted (and then
-    /// removed from a connection by calling htp_conn_remove_tx().
+    /// None elements when some of the transactions are deleted.
     transactions: Transactions,
     /// Log messages associated with this connection.
     pub messages: RefCell<Logs>,
     /// Parsing flags.
     pub flags: u8,
-    /// When was this connection opened? Can be NULL.
+    /// When was this connection opened?
     pub open_timestamp: DateTime<Utc>,
-    /// When was this connection closed? Can be NULL.
+    /// When was this connection closed?
     pub close_timestamp: DateTime<Utc>,
     /// Inbound data counter.
     pub in_data_counter: i64,
@@ -44,6 +49,7 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// Returns a new Connection instance with default values.
     pub fn new() -> Self {
         Self {
             client_addr: None,
@@ -112,7 +118,7 @@ impl Connection {
     }
 
     /// Opens a connection. This function will essentially only store the provided data
-    /// for future reference. The timestamp parameter is optional.
+    /// for future reference.
     pub fn open(
         &mut self,
         client_addr: Option<IpAddr>,
@@ -152,6 +158,7 @@ impl Connection {
 }
 
 impl PartialEq for Connection {
+    /// Returns true if connections are the same, false otherwise.
     fn eq(&self, rhs: &Self) -> bool {
         self.client_addr == rhs.client_addr
             && self.client_port == rhs.client_port

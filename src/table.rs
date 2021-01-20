@@ -1,8 +1,10 @@
 use crate::bstr::Bstr;
 use std::{cmp::Ordering, iter::Iterator, ops::Index, slice::SliceIndex};
 
+/// The table structure for key value pairs.
 #[derive(Clone, Debug)]
 pub struct Table<T> {
+    /// Entries in the table.
     pub elements: Vec<(Bstr, T)>,
 }
 
@@ -53,6 +55,7 @@ impl<T> Table<T> {
         self.elements.push((key, item));
     }
 
+    /// Retrieve an element from a specific index.
     pub fn get<I>(&self, index: I) -> Option<&I::Output>
     where
         I: SliceIndex<[(Bstr, T)]>,
@@ -60,6 +63,7 @@ impl<T> Table<T> {
         self.elements.get(index)
     }
 
+    /// Retrieve a mutable reference to an element from a specific index.
     pub fn get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
     where
         I: SliceIndex<[(Bstr, T)]>,
