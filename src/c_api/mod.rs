@@ -5,8 +5,7 @@ use crate::{
     connection::Connection,
     connection_parser::{ConnectionParser, HtpStreamState},
     hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn},
-    list::List,
-    log::{HtpLogCode, Log},
+    log::HtpLogCode,
     transaction::{Header, Headers, Transaction},
     util::{get_version, urldecode_inplace},
     HtpStatus,
@@ -970,66 +969,10 @@ pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const ConnectionPar
     }
 }
 
-/// Get the log message
-/// returns a pointer to a null-terminated string
-/// The caller is responsible for freeing the memory with htp_log_free
-#[no_mangle]
-pub unsafe extern "C" fn htp_log_get(
-    messages: *mut core::ffi::c_void,
-    idx: libc::size_t,
-) -> *mut libc::c_char {
-    let messages = messages as *mut List<*mut core::ffi::c_void>;
-    if let Some(log) = (*messages).get(idx) {
-        let log = *log as *mut Log;
-        if let Ok(msg_cstr) = CString::new((*log).msg.clone()) {
-            return msg_cstr.into_raw();
-        }
-    }
-    std::ptr::null_mut()
-}
-
 /// Free log message
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) {
     if !msg.is_null() {
         CString::from_raw(msg);
-    }
-}
-
-/// Returns log message code
-#[no_mangle]
-pub unsafe extern "C" fn htp_log_get_code(
-    messages: *mut core::ffi::c_void,
-    idx: libc::size_t,
-) -> HtpLogCode {
-    let messages = messages as *mut List<*mut core::ffi::c_void>;
-    if let Some(log) = (*messages).get(idx) {
-        let log = *log as *mut Log;
-        if !log.is_null() {
-            return (*log).code;
-        }
-    }
-    HtpLogCode::UNKNOWN
-}
-
-/// Get the log filename.
-///
-/// Returns a pointer to a null-terminated string. The caller
-/// is responsible for freeing the memory with htp_log_free
-#[no_mangle]
-pub unsafe extern "C" fn htp_log_get_file(
-    messages: *mut core::ffi::c_void,
-    idx: libc::size_t,
-) -> *mut libc::c_char {
-    let messages = messages as *mut List<*mut core::ffi::c_void>;
-    if let Some(log) = (*messages).get(idx) {
-        let log = *log as *mut Log;
-        if let Ok(file_cstr) = CString::new((*log).file.clone()) {
-            file_cstr.into_raw()
-        } else {
-            std::ptr::null_mut()
-        }
-    } else {
-        std::ptr::null_mut()
     }
 }
