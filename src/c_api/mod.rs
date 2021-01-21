@@ -266,7 +266,7 @@ pub unsafe extern "C" fn htp_config_set_convert_lowercase(cfg: *mut Config, enab
 
 /// Configures the maximum size of the buffer LibHTP will use when all data is not available
 /// in the current buffer (e.g., a very long header line that might span several packets). This
-/// limit is controlled by the hard_limit parameter. The soft_limit parameter is not implemented.
+/// limit is controlled by the field_limit parameter.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_field_limit(cfg: *mut Config, field_limit: libc::size_t) {
     if !cfg.is_null() {

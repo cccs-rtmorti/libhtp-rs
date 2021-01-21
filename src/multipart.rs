@@ -172,11 +172,11 @@ pub struct Parser {
     /// discarded. When there is no match, the buffer is processed as data
     /// (belonging to the currently active part).
     pub boundary_candidate: Bstr,
-    ///
+    /// Used for buffering when part header data arrives in pieces.
     pub part_header: Bstr,
-    ///
+    /// Header line to be parsed.
     pub pending_header_line: Bstr,
-    ///
+    /// Working buffer for part header parsing.
     pub to_consume: Bstr,
 
     /// Stores text part pieces until the entire part is seen, at which
