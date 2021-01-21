@@ -621,4 +621,14 @@ impl ConnectionParser {
             Err(HtpStatus::ERROR)
         }
     }
+
+    /// Remove the given transaction from the parser
+    pub fn remove_tx(&mut self, tx_id: usize) -> Result<()> {
+        if let Some(tx) = self.conn.tx(tx_id) {
+            if !tx.is_complete() {
+                return Err(HtpStatus::ERROR);
+            }
+        }
+        self.conn.remove_tx(tx_id)
+    }
 }

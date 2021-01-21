@@ -849,16 +849,6 @@ impl Transaction {
         connp.cfg.hook_response_line.run_all(connp, self)
     }
 
-    /// Set one response header. This function should be invoked once for
-    /// each available header, and in the order in which headers were
-    /// seen in the response.
-    pub fn res_set_header<S: AsRef<[u8]>>(&mut self, name: S, value: S) {
-        self.response_headers.add(
-            name.as_ref().into(),
-            Header::new(name.as_ref().into(), value.as_ref().into()),
-        )
-    }
-
     /// Process a chunk of response body data. This function assumes that
     /// handling of chunked encoding is implemented by the container. When
     /// you're done submitting body data, invoking a state change (to RESPONSE)
@@ -1381,7 +1371,6 @@ impl Transaction {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_response_start(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        connp.set_out_tx(self);
         // Run hook RESPONSE_START.
         connp.cfg.hook_response_start.run_all(connp, self)?;
         // Change state into response line parsing, except if we're following
