@@ -706,15 +706,21 @@ pub unsafe extern "C" fn htp_conn_tx(conn: *mut Connection, tx_id: usize) -> *mu
 /// Returns the in_data_counter
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_in_data_counter(conn: *const Connection) -> i64 {
-    nullcheck!(conn);
-    (*conn).in_data_counter
+    if let Some(conn) = conn.as_ref() {
+        conn.in_data_counter
+    } else {
+        0
+    }
 }
 
 /// Returns the out_data_counter
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const Connection) -> i64 {
-    nullcheck!(conn);
-    (*conn).out_data_counter
+    if let Some(conn) = conn.as_ref() {
+        conn.out_data_counter
+    } else {
+        0
+    }
 }
 
 /// Get the first header value matching the key.
