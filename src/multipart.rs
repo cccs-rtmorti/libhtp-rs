@@ -701,7 +701,7 @@ impl Parser {
 
     /// Parses a chunk of multipart/form-data data. This function should be called
     /// as many times as necessary until all data has been consumed.
-    pub fn parse<'a>(&mut self, mut input: &'a [u8]) -> HtpStatus {
+    pub fn parse(&mut self, mut input: &[u8]) -> HtpStatus {
         while !input.is_empty() {
             match self.parser_state {
                 HtpMultipartState::DATA => {

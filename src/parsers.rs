@@ -77,7 +77,7 @@ pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> O
 
 /// Parses chunked length (positive hexadecimal number). White space is allowed before
 /// and after the number.
-pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i32>, &'static str> {
+pub fn parse_chunked_length(input: &[u8]) -> std::result::Result<Option<i32>, &'static str> {
     if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
         if trailing_data.is_empty() && chunked_length.is_empty() {
             return Ok(None);
@@ -103,7 +103,7 @@ pub fn parse_chunked_length<'a>(input: &'a [u8]) -> std::result::Result<Option<i
 /// ```
 ///
 /// Returns a tuple of the unconsumed data and the matched scheme.
-pub fn scheme<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn scheme() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         // Scheme test: if it doesn't start with a forward slash character (which it must
         // for the contents to be a path or an authority), then it must be the scheme part
@@ -127,7 +127,7 @@ pub fn scheme<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and a tuple of the matched username and password.
-pub fn credentials<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], Option<&'a [u8]>)> {
+pub fn credentials() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Option<&[u8]>)> {
     move |input| {
         // Authority test: two forward slash characters and it's an authority.
         // One, three or more slash characters, and it's a path.
@@ -156,8 +156,8 @@ pub fn credentials<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], Op
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and the matched ipv6 hostname.
-pub fn ipv6<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
-    move |input| -> IResult<&'a [u8], &'a [u8]> {
+pub fn ipv6() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
+    move |input| -> IResult<&[u8], &[u8]> {
         let (rest, (_, _, _)) = tuple((tag("["), is_not("/?#]"), opt(tag("]"))))(input)?;
         Ok((rest, &input[..input.len() - rest.len()]))
     }
@@ -175,7 +175,7 @@ pub fn ipv6<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and the matched hostname.
-pub fn hostname<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn hostname() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         let (input, mut hostname) = map(
             tuple((
@@ -295,9 +295,8 @@ pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], (&[u8], Option<(&[u8], Opt
 
 /// Extracts the version protocol from the input slice.
 ///
-/// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains
-/// trailing and/or leading whitespace and/or leading zeros)).
-pub fn protocol_version<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], bool)> {
+/// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains trailing and/or leading whitespace and/or leading zeros))
+pub fn protocol_version(input: &[u8]) -> IResult<&[u8], (&[u8], bool)> {
     let (remaining, (_, _, leading, _, trailing, version, _)) = tuple((
         take_ascii_whitespace(),
         tag_no_case("HTTP"),
@@ -361,7 +360,7 @@ pub fn parse_status(status: &[u8]) -> HtpResponseNumber {
 }
 
 /// Parses Digest Authorization request header.
-fn parse_authorization_digest<'a>(auth_header_value: &'a [u8]) -> IResult<&'a [u8], Vec<u8>> {
+fn parse_authorization_digest(auth_header_value: &[u8]) -> IResult<&[u8], Vec<u8>> {
     // Extract the username
     let (mut remaining_input, _) = tuple((
         take_until("username="),

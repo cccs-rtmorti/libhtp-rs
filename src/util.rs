@@ -262,7 +262,7 @@ pub fn is_token(c: u8) -> bool {
 }
 
 /// This parser takes leading whitespace as defined by is_ascii_whitespace.
-pub fn take_ascii_whitespace<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn take_ascii_whitespace() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| take_while(|c: u8| c.is_ascii_whitespace())(input)
 }
 
@@ -339,7 +339,7 @@ pub fn is_line_whitespace(data: &[u8]) -> bool {
 /// Parses over leading and trailing LWS characters.
 ///
 /// Returns (any trailing non-LWS characters, (non-LWS leading characters, ascii digits))
-pub fn ascii_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &'a [u8])> {
+pub fn ascii_digits() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     move |input| {
         map(
             tuple((
@@ -357,7 +357,7 @@ pub fn ascii_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (&'a [u8], &
 /// Parses over leading and trailing LWS characters.
 ///
 /// Returns a tuple of any trailing non-LWS characters and the found hex digits
-pub fn hex_digits<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn hex_digits() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         map(
             tuple((
