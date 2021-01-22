@@ -9,10 +9,7 @@ use htp::{
     uri::Uri,
     HtpStatus,
 };
-use std::{
-    ffi::CString,
-    net::{IpAddr, Ipv4Addr},
-};
+use std::net::{IpAddr, Ipv4Addr};
 
 // import common testing utilities
 mod common;
@@ -113,64 +110,46 @@ fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: &mut Transaction) -> Result<(
 }
 
 fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: &mut Data) -> Result<()> {
-    unsafe {
-        let user_data = (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data;
+    let user_data = unsafe { (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data };
+    let mut user_data = unsafe { &mut *user_data };
+    // Don't do anything if in errored state.
+    if user_data.response_body_correctly_received == -1 {
+        return Err(HtpStatus::ERROR);
+    }
 
-        // Don't do anything if in errored state.
-        if (*user_data).response_body_correctly_received == -1 {
-            return Err(HtpStatus::ERROR);
+    let data: &[u8] = unsafe { std::slice::from_raw_parts(d.data(), d.len()) };
+    match user_data.response_body_chunks_seen {
+        0 => {
+            if data == b"<h1>Hello" {
+                user_data.response_body_chunks_seen += 1;
+            } else {
+                eprintln!("Mismatch in 1st chunk");
+                user_data.response_body_correctly_received = -1;
+            }
         }
-
-        match (*user_data).response_body_chunks_seen {
-            0 => {
-                if (*d).len() == 9
-                    && (libc::memcmp(
-                        (*d).data() as *const core::ffi::c_void,
-                        cstr!("<h1>Hello") as *const core::ffi::c_void,
-                        9,
-                    ) == 0)
-                {
-                    (*user_data).response_body_chunks_seen += 1;
-                } else {
-                    eprintln!("Mismatch in 1st chunk");
-                    (*user_data).response_body_correctly_received = -1;
-                }
+        1 => {
+            if data == b" " {
+                user_data.response_body_chunks_seen += 1;
+            } else {
+                eprintln!("Mismatch in 2nd chunk");
+                user_data.response_body_correctly_received = -1;
             }
-            1 => {
-                if (*d).len() == 1
-                    && (libc::memcmp(
-                        (*d).data() as *const core::ffi::c_void,
-                        cstr!(" ") as *const core::ffi::c_void,
-                        1,
-                    ) == 0)
-                {
-                    (*user_data).response_body_chunks_seen += 1;
-                } else {
-                    eprintln!("Mismatch in 2nd chunk");
-                    (*user_data).response_body_correctly_received = -1;
-                }
+        }
+        2 => {
+            if data == b"World!</h1>" {
+                user_data.response_body_chunks_seen += 1;
+                user_data.response_body_correctly_received = 1;
+            } else {
+                eprintln!("Mismatch in 3rd chunk");
+                user_data.response_body_correctly_received = -1;
             }
-            2 => {
-                if (*d).len() == 11
-                    && (libc::memcmp(
-                        (*d).data() as *const core::ffi::c_void,
-                        cstr!("World!</h1>") as *const core::ffi::c_void,
-                        11,
-                    ) == 0)
-                {
-                    (*user_data).response_body_chunks_seen += 1;
-                    (*user_data).response_body_correctly_received = 1;
-                } else {
-                    eprintln!("Mismatch in 3rd chunk");
-                    (*user_data).response_body_correctly_received = -1;
-                }
-            }
-            _ => {
-                eprintln!("Seen more than 3 chunks");
-                (*user_data).response_body_correctly_received = -1;
-            }
+        }
+        _ => {
+            eprintln!("Seen more than 3 chunks");
+            user_data.response_body_correctly_received = -1;
         }
     }
+
     Ok(())
 }
 
