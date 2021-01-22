@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use htp::{
-    c_api::{htp_connp_create, htp_connp_destroy_all},
-    config::{create, Config, HtpServerPersonality},
+    config::{Config, HtpServerPersonality},
     connection_parser::*,
 };
 use std::{
@@ -10,7 +9,6 @@ use std::{
     fmt,
     iter::IntoIterator,
     net::{IpAddr, Ipv4Addr},
-    ops::Drop,
     time::{Duration, SystemTime},
 };
 
@@ -47,136 +45,123 @@ enum TestError {
 }
 
 struct Test {
-    cfg: *mut Config,
-    connp: *mut ConnectionParser,
+    connp: ConnectionParser,
 }
 
 impl Test {
     fn new() -> Self {
-        unsafe {
-            let cfg = create();
-            (*cfg)
-                .set_server_personality(HtpServerPersonality::APACHE_2)
-                .unwrap();
-            (*cfg).register_urlencoded_parser();
-            (*cfg).register_multipart_parser();
-            let connp = htp_connp_create(cfg);
-            assert!(!connp.is_null());
+        let mut cfg = Config::default();
+        cfg.set_server_personality(HtpServerPersonality::APACHE_2)
+            .unwrap();
+        cfg.register_urlencoded_parser();
+        cfg.register_multipart_parser();
+        let connp = ConnectionParser::new(cfg);
 
-            Test { cfg, connp }
-        }
+        Test { connp }
     }
 
     fn run(&mut self, test: TestInput) -> Result<(), TestError> {
-        unsafe {
-            let tv_start = DateTime::<Utc>::from(SystemTime::now());
-            (*self.connp).open(
-                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                Some(10000),
-                Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-                Some(80),
+        let tv_start = DateTime::<Utc>::from(SystemTime::now());
+        self.connp.open(
+            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
+            Some(10000),
+            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
+            Some(80),
+            Some(tv_start),
+        );
+
+        let mut in_buf: Option<Vec<u8>> = None;
+        let mut out_buf: Option<Vec<u8>> = None;
+        for chunk in test {
+            match chunk {
+                Chunk::Client(data) => {
+                    let rc = self.connp.req_data(
+                        Some(tv_start),
+                        data.as_ptr() as *const core::ffi::c_void,
+                        data.len(),
+                    );
+                    if rc == HtpStreamState::ERROR {
+                        return Err(TestError::StreamError);
+                    }
+
+                    if rc == HtpStreamState::DATA_OTHER {
+                        // HTP_STREAM_DATA_OTHER = 5
+                        let consumed = self
+                            .connp
+                            .req_data_consumed()
+                            .try_into()
+                            .expect("Error retrieving number of consumed bytes.");
+                        let mut remaining = Vec::with_capacity(data.len() - consumed);
+                        remaining.extend_from_slice(&data[consumed..]);
+                        in_buf = Some(remaining);
+                    }
+                }
+                Chunk::Server(data) => {
+                    // If we have leftover data from before then use it first
+                    if let Some(out_remaining) = out_buf {
+                        let rc = self.connp.res_data(
+                            Some(tv_start),
+                            out_remaining.as_ptr() as *const core::ffi::c_void,
+                            out_remaining.len(),
+                        );
+                        out_buf = None;
+                        if rc == HtpStreamState::ERROR {
+                            return Err(TestError::StreamError);
+                        }
+                    }
+
+                    // Now use up this data chunk
+                    let rc = self.connp.res_data(
+                        Some(tv_start),
+                        data.as_ptr() as *const core::ffi::c_void,
+                        data.len(),
+                    );
+                    if rc == HtpStreamState::ERROR {
+                        return Err(TestError::StreamError);
+                    }
+
+                    if rc == HtpStreamState::DATA_OTHER {
+                        let consumed = self
+                            .connp
+                            .res_data_consumed()
+                            .try_into()
+                            .expect("Error retrieving number of consumed bytes.");
+                        let mut remaining = Vec::with_capacity(data.len() - consumed);
+                        remaining.extend_from_slice(&data[consumed..]);
+                        out_buf = Some(remaining);
+                    }
+
+                    // And check if we also had some input data buffered
+                    if let Some(in_remaining) = in_buf {
+                        let rc = self.connp.req_data(
+                            Some(tv_start),
+                            in_remaining.as_ptr() as *const core::ffi::c_void,
+                            in_remaining.len(),
+                        );
+                        in_buf = None;
+                        if rc == HtpStreamState::ERROR {
+                            return Err(TestError::StreamError);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clean up any remaining server data
+        if let Some(out_remaining) = out_buf {
+            let rc = self.connp.res_data(
                 Some(tv_start),
+                out_remaining.as_ptr() as *const core::ffi::c_void,
+                out_remaining.len(),
             );
-
-            let mut in_buf: Option<Vec<u8>> = None;
-            let mut out_buf: Option<Vec<u8>> = None;
-            for chunk in test {
-                match chunk {
-                    Chunk::Client(data) => {
-                        let rc = (*self.connp).req_data(
-                            Some(tv_start),
-                            data.as_ptr() as *const core::ffi::c_void,
-                            data.len(),
-                        );
-                        if rc == HtpStreamState::ERROR {
-                            return Err(TestError::StreamError);
-                        }
-
-                        if rc == HtpStreamState::DATA_OTHER {
-                            // HTP_STREAM_DATA_OTHER = 5
-                            let consumed = (*self.connp)
-                                .req_data_consumed()
-                                .try_into()
-                                .expect("Error retrieving number of consumed bytes.");
-                            let mut remaining = Vec::with_capacity(data.len() - consumed);
-                            remaining.extend_from_slice(&data[consumed..]);
-                            in_buf = Some(remaining);
-                        }
-                    }
-                    Chunk::Server(data) => {
-                        // If we have leftover data from before then use it first
-                        if let Some(out_remaining) = out_buf {
-                            let rc = (&mut *self.connp).res_data(
-                                Some(tv_start),
-                                out_remaining.as_ptr() as *const core::ffi::c_void,
-                                out_remaining.len(),
-                            );
-                            out_buf = None;
-                            if rc == HtpStreamState::ERROR {
-                                return Err(TestError::StreamError);
-                            }
-                        }
-
-                        // Now use up this data chunk
-                        let rc = (&mut *self.connp).res_data(
-                            Some(tv_start),
-                            data.as_ptr() as *const core::ffi::c_void,
-                            data.len(),
-                        );
-                        if rc == HtpStreamState::ERROR {
-                            return Err(TestError::StreamError);
-                        }
-
-                        if rc == HtpStreamState::DATA_OTHER {
-                            let consumed = (*self.connp)
-                                .res_data_consumed()
-                                .try_into()
-                                .expect("Error retrieving number of consumed bytes.");
-                            let mut remaining = Vec::with_capacity(data.len() - consumed);
-                            remaining.extend_from_slice(&data[consumed..]);
-                            out_buf = Some(remaining);
-                        }
-
-                        // And check if we also had some input data buffered
-                        if let Some(in_remaining) = in_buf {
-                            let rc = (*self.connp).req_data(
-                                Some(tv_start),
-                                in_remaining.as_ptr() as *const core::ffi::c_void,
-                                in_remaining.len(),
-                            );
-                            in_buf = None;
-                            if rc == HtpStreamState::ERROR {
-                                return Err(TestError::StreamError);
-                            }
-                        }
-                    }
-                }
+            if rc == HtpStreamState::ERROR {
+                return Err(TestError::StreamError);
             }
-
-            // Clean up any remaining server data
-            if let Some(out_remaining) = out_buf {
-                let rc = (&mut *self.connp).res_data(
-                    Some(tv_start),
-                    out_remaining.as_ptr() as *const core::ffi::c_void,
-                    out_remaining.len(),
-                );
-                if rc == HtpStreamState::ERROR {
-                    return Err(TestError::StreamError);
-                }
-            }
-
-            (*self.connp).close(Some(DateTime::<Utc>::from(SystemTime::now())));
         }
+
+        self.connp
+            .close(Some(DateTime::<Utc>::from(SystemTime::now())));
         Ok(())
-    }
-}
-
-impl Drop for Test {
-    fn drop(&mut self) {
-        unsafe {
-            htp_connp_destroy_all(self.connp);
-            (*self.cfg).destroy();
-        }
     }
 }
 

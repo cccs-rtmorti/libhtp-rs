@@ -312,36 +312,7 @@ pub enum HtpUrlEncodingHandling {
     PROCESS_INVALID,
 }
 
-/// Returns a raw pointer to a new `Config`.
-fn config_alloc() -> *mut Config {
-    let cfg: Config = Default::default();
-    let b = Box::new(cfg);
-    Box::into_raw(b)
-}
-
-/// Deallocates a `Config` object.
-fn config_free(cfg: *mut Config) {
-    if !cfg.is_null() {
-        unsafe {
-            let _ = Box::from_raw(cfg);
-        }
-    }
-}
-
-/// Creates a new configuration structure. Configuration structures created at
-/// configuration time must not be changed afterwards in order to support lock-less
-/// copying.
-pub fn create() -> *mut Config {
-    let cfg: *mut Config = config_alloc();
-    cfg
-}
-
 impl Config {
-    /// Destroy a configuration structure.
-    pub fn destroy(&mut self) {
-        config_free(self);
-    }
-
     /// Registers a callback that is invoked every time there is a log message with
     /// severity equal and higher than the configured log level.
     pub fn register_log(&mut self, cbk_fn: LogNativeCallbackFn) {

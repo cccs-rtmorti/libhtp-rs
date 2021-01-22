@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 use crate::{
     bstr::Bstr,
-    config::{create, Config, HtpServerPersonality, HtpUrlEncodingHandling},
+    config::{Config, HtpServerPersonality, HtpUrlEncodingHandling},
     connection::Connection,
     connection_parser::{ConnectionParser, HtpStreamState},
     hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn},
@@ -33,14 +33,16 @@ pub mod uri;
 /// copying.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_create() -> *mut Config {
-    create()
+    let cfg: Config = Default::default();
+    let b = Box::new(cfg);
+    Box::into_raw(b)
 }
 
 /// Destroy a configuration structure.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_destroy(cfg: *mut Config) {
     if !cfg.is_null() {
-        (*cfg).destroy()
+        let _ = Box::from_raw(cfg);
     }
 }
 
