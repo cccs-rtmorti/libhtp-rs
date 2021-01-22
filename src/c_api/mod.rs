@@ -16,9 +16,6 @@ use std::{
     ffi::{CStr, CString},
 };
 
-/// Type alias for c-style time struct.
-pub type Time = libc::timeval;
-
 /// Functions for working with Bstr.
 pub mod bstr;
 /// Functions for working with lzma decompression.
@@ -422,7 +419,10 @@ pub unsafe extern "C" fn htp_config_set_utf8_convert_bestfit(
 ///
 /// timestamp is optional
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_close(connp: *mut ConnectionParser, timestamp: *const Time) {
+pub unsafe extern "C" fn htp_connp_close(
+    connp: *mut ConnectionParser,
+    timestamp: *const libc::timeval,
+) {
     if let Some(connp) = connp.as_mut() {
         connp.close(timestamp.as_ref().map(|val| {
             DateTime::<Utc>::from_utc(
@@ -485,7 +485,7 @@ pub unsafe extern "C" fn htp_connp_open(
     client_port: libc::c_int,
     server_addr: *const libc::c_char,
     server_port: libc::c_int,
-    timestamp: *const Time,
+    timestamp: *const libc::timeval,
 ) {
     let connp = if let Some(connp) = connp.as_mut() {
         connp
@@ -533,7 +533,10 @@ pub unsafe extern "C" fn htp_connp_open(
 ///
 /// timestamp is optional
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_req_close(connp: *mut ConnectionParser, timestamp: *const Time) {
+pub unsafe extern "C" fn htp_connp_req_close(
+    connp: *mut ConnectionParser,
+    timestamp: *const libc::timeval,
+) {
     if let Some(connp) = connp.as_mut() {
         connp.req_close(timestamp.as_ref().map(|val| {
             DateTime::<Utc>::from_utc(
@@ -552,7 +555,7 @@ pub unsafe extern "C" fn htp_connp_req_close(connp: *mut ConnectionParser, times
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_req_data(
     connp: *mut ConnectionParser,
-    timestamp: *const Time,
+    timestamp: *const libc::timeval,
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> HtpStreamState {
@@ -579,7 +582,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_res_data(
     connp: *mut ConnectionParser,
-    timestamp: *const Time,
+    timestamp: *const libc::timeval,
     data: *const libc::c_void,
     len: libc::size_t,
 ) -> HtpStreamState {
