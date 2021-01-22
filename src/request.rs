@@ -736,7 +736,7 @@ impl ConnectionParser {
         }
         let tx_id = self.create_tx()?;
         self.set_in_tx_id(Some(tx_id));
-
+        self.in_reset();
         // Change state to TRANSACTION_START
         // Ignore the result.
         let _ = self.state_request_start();

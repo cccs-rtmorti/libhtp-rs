@@ -767,6 +767,8 @@ impl ConnectionParser {
                 let _ = self.state_request_complete();
             }
             let tx_id = self.create_tx()?;
+            self.set_in_tx_id(Some(tx_id));
+            self.in_reset();
             self.set_out_tx_id(Some(tx_id));
             let out_tx = self.out_tx_mut_ok()?;
 

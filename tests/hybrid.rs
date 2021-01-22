@@ -255,6 +255,7 @@ fn GetTest() {
     let mut t = HybridParsingTest::new(cfg);
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
     t.connp.set_out_tx_id(Some(tx_id));
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
 
@@ -366,6 +367,7 @@ fn PostUrlecodedTest() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
 
     // Request begins
     t.connp.state_request_start().unwrap();
@@ -418,6 +420,7 @@ fn CompressedResponse() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
     t.connp.set_out_tx_id(Some(tx_id));
 
     t.connp.state_request_start().unwrap();
@@ -461,6 +464,7 @@ fn ParamCaseSensitivity() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
 
     // Request begins
     t.connp.state_request_start().unwrap();
@@ -488,7 +492,7 @@ fn PostUrlecodedChunked() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction.
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Request begins.
     t.connp.state_request_start().unwrap();
 
@@ -527,7 +531,7 @@ fn RequestLineParsing1() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Request begins
     t.connp.state_request_start().unwrap();
 
@@ -555,7 +559,7 @@ fn RequestLineParsing1() {
 fn RequestLineParsing2() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Feed data to the parser.
 
     t.connp.state_request_start().unwrap();
@@ -576,7 +580,7 @@ fn RequestLineParsing2() {
 fn RequestLineParsing3() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Feed data to the parser.
 
     t.connp.state_request_start().unwrap();
@@ -596,7 +600,7 @@ fn RequestLineParsing3() {
 fn RequestLineParsing4() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Feed data to the parser.
 
     t.connp.state_request_start().unwrap();
@@ -615,7 +619,7 @@ fn RequestLineParsing4() {
 fn ParsedUriSupplied() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Feed data to the parser.
 
     t.connp.state_request_start().unwrap();
@@ -649,6 +653,7 @@ fn TestRepeatCallbacks() {
     let mut t = HybridParsingTest::new(cfg);
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
     t.connp.set_out_tx_id(Some(tx_id));
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
 
@@ -720,7 +725,7 @@ fn DeleteTransactionBeforeComplete() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
-
+    t.connp.set_in_tx_id(Some(tx_id));
     // Request begins
     t.connp.state_request_start().unwrap();
 
@@ -736,6 +741,7 @@ fn ResponseLineIncomplete() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
     t.connp.set_out_tx_id(Some(tx_id));
 
     t.connp.state_response_start().unwrap();
@@ -755,6 +761,7 @@ fn ResponseLineIncomplete1() {
     let mut t = HybridParsingTest::new(TestConfig());
     // Create a new LibHTP transaction
     let tx_id = t.connp.create_tx().unwrap();
+    t.connp.set_in_tx_id(Some(tx_id));
     t.connp.set_out_tx_id(Some(tx_id));
 
     t.connp.state_response_start().unwrap();

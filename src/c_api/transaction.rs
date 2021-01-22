@@ -13,6 +13,8 @@ use std::{
 pub unsafe extern "C" fn htp_tx_create(connp: *mut ConnectionParser) -> *mut Transaction {
     if let Some(connp) = connp.as_mut() {
         if let Ok(tx_id) = connp.create_tx() {
+            (*connp).set_in_tx_id(Some(tx_id));
+            (*connp).in_reset();
             connp.conn.tx_mut_ptr(tx_id)
         } else {
             std::ptr::null_mut()

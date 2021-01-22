@@ -174,7 +174,8 @@ impl Test {
             Some(80),
             None,
         );
-        connp.create_tx().unwrap();
+        let tx_id = connp.create_tx().unwrap();
+        connp.set_in_tx_id(Some(tx_id));
         Self { connp }
     }
 }

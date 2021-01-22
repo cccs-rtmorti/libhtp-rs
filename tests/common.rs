@@ -1,15 +1,5 @@
 use htp::{connection_parser::ConnectionParser, transaction::Transaction};
 
-// TODO: this function is only used for testing, remove when we are ready to do so.
-#[allow(dead_code)]
-pub unsafe fn htp_connp_tx_create(connp: *mut ConnectionParser) -> *mut Transaction {
-    if let Ok(tx_id) = (*connp).create_tx() {
-        (*connp).conn.tx_mut_ptr(tx_id)
-    } else {
-        std::ptr::null_mut()
-    }
-}
-
 #[macro_export]
 macro_rules! cstr {
     ( $x:expr ) => {{

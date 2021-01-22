@@ -223,8 +223,7 @@ impl ConnectionParser {
         }
     }
 
-    /// Creates a `Transaction` and attaches it to this connection. Also sets the in_tx to the
-    /// newly created one.
+    /// Creates a `Transaction` and attaches it to this connection.
     ///
     /// Returns the index of the new `Transaction`.
     pub fn create_tx(&mut self) -> Result<usize> {
@@ -235,8 +234,6 @@ impl ConnectionParser {
         let index = self.conn.tx_size();
         let tx = Transaction::new(self, index);
         self.conn.push_tx(tx);
-        self.in_tx = Some(index);
-        self.in_reset();
         Ok(index)
     }
 
