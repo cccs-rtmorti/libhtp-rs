@@ -36,17 +36,6 @@ pub enum HtpDataSource {
     BODY,
 }
 
-/// A collection of unique parser IDs.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum HtpParserId {
-    /// application/x-www-form-urlencoded parser.
-    URLENCODED,
-    /// multipart/form-data parser.
-    MULTIPART,
-}
-
 /// Represents a single request parameter.
 #[derive(Clone, Debug)]
 pub struct Param {
@@ -56,22 +45,15 @@ pub struct Param {
     pub value: Bstr,
     /// Source of the parameter, for example QUERY_STRING.
     pub source: HtpDataSource,
-    /// Type of the data structure referenced below.
-    pub parser_id: HtpParserId,
-    /// Pointer to the parser data structure that contains
-    /// complete information about the parameter. Can be NULL.
-    pub parser_data: *mut core::ffi::c_void,
 }
 
 impl Param {
     /// Make a new owned Param
-    pub fn new(name: Bstr, value: Bstr, source: HtpDataSource, parser_id: HtpParserId) -> Self {
+    pub fn new(name: Bstr, value: Bstr, source: HtpDataSource) -> Self {
         Param {
             name,
             value,
             source,
-            parser_id,
-            parser_data: std::ptr::null_mut(),
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     bstr::Bstr,
     error::Result,
     multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
-    transaction::{Data, HtpDataSource, HtpParserId, Param, Transaction},
+    transaction::{Data, HtpDataSource, Param, Transaction},
     urlencoded::{
         urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser as UrlEncodedParser,
     },
@@ -33,7 +33,6 @@ pub fn callback_urlencoded_request_body_data(d: &mut Data) -> Result<()> {
                     Bstr::from((*name).as_slice()),
                     Bstr::from((*value).as_slice()),
                     HtpDataSource::BODY,
-                    HtpParserId::URLENCODED,
                 );
                 tx.req_add_param(param)?;
             }
@@ -98,7 +97,6 @@ pub fn callback_urlencoded_request_line(tx: &mut Transaction) -> Result<()> {
             Bstr::from(name.as_slice()),
             Bstr::from(value.as_slice()),
             HtpDataSource::QUERY_STRING,
-            HtpParserId::URLENCODED,
         );
         tx.req_add_param(param)?;
     }
@@ -125,7 +123,6 @@ pub fn callback_multipart_request_body_data(d: &mut Data) -> Result<()> {
                         Bstr::from((*part.name).as_slice()),
                         Bstr::from((*part.value).as_slice()),
                         HtpDataSource::BODY,
-                        HtpParserId::MULTIPART,
                     );
                     tx.req_add_param(param)?;
                 }
