@@ -9,7 +9,7 @@ use crate::{
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
-use std::{io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
+use std::{any::Any, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
 
 /// Enumerates parsing state.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -85,7 +85,7 @@ pub struct ConnectionParser {
     /// The connection structure associated with this parser.
     pub conn: Connection,
     /// Opaque user data associated with this parser.
-    pub user_data: *mut core::ffi::c_void,
+    pub user_data: Option<Box<dyn Any>>,
     // Request parser fields
     /// Parser inbound status. Starts as OK, but may turn into ERROR.
     pub in_status: HtpStreamState,
@@ -175,7 +175,6 @@ impl std::fmt::Debug for ConnectionParser {
         f.debug_struct("ConnectionParser")
             .field("in_status", &self.in_status)
             .field("out_status", &self.out_status)
-            .field("user_data", &self.user_data)
             .field("in_tx", &self.in_tx)
             .field("out_tx", &self.out_tx)
             .finish()
@@ -188,7 +187,7 @@ impl ConnectionParser {
         Self {
             cfg: Rc::new(cfg),
             conn: Connection::new(),
-            user_data: std::ptr::null_mut(),
+            user_data: None,
             in_status: HtpStreamState::NEW,
             out_status: HtpStreamState::NEW,
             out_data_other_at_tx_end: false,
@@ -477,9 +476,23 @@ impl ConnectionParser {
         self.out_status = HtpStreamState::OPEN;
     }
 
-    /// Associate user data with the supplied parser.
-    pub fn set_user_data(&mut self, user_data: *mut core::ffi::c_void) {
-        (*self).user_data = user_data;
+    /// Set the user data.
+    pub fn set_user_data(&mut self, data: Box<dyn Any + 'static>) {
+        self.user_data = Some(data);
+    }
+
+    /// Get a reference to the user data.
+    pub fn user_data<T: 'static>(&self) -> Option<&T> {
+        self.user_data
+            .as_ref()
+            .and_then(|ud| ud.downcast_ref::<T>())
+    }
+
+    /// Get a mutable reference to the user data.
+    pub fn user_data_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.user_data
+            .as_mut()
+            .and_then(|ud| ud.downcast_mut::<T>())
     }
 
     /// Consumes request body data.

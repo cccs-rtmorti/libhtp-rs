@@ -54,64 +54,66 @@ impl HybridParsing_Get_User_Data {
 }
 
 fn HybridParsing_Get_Callback_REQUEST_START(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_REQUEST_START_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_REQUEST_START_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_REQUEST_LINE(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_REQUEST_LINE_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_REQUEST_LINE_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_REQUEST_HEADERS(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_REQUEST_HEADERS_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_REQUEST_HEADERS_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_REQUEST_COMPLETE(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_REQUEST_COMPLETE_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_REQUEST_COMPLETE_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_RESPONSE_START(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_RESPONSE_START_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_RESPONSE_START_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_RESPONSE_LINE(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_RESPONSE_LINE_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_RESPONSE_LINE_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_RESPONSE_HEADERS(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_RESPONSE_HEADERS_invoked += 1;
-    }
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_RESPONSE_HEADERS_invoked += 1;
+    Ok(())
+}
+
+fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: &mut Transaction) -> Result<()> {
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_RESPONSE_COMPLETE_invoked += 1;
+    Ok(())
+}
+
+fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: &mut Transaction) -> Result<()> {
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
+    user_data.callback_TRANSACTION_COMPLETE_invoked += 1;
     Ok(())
 }
 
 fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: &mut Data) -> Result<()> {
-    let user_data = unsafe { (*(*d).tx()).user_data() as *mut HybridParsing_Get_User_Data };
-    let mut user_data = unsafe { &mut *user_data };
+    let user_data = unsafe {
+        (*d.tx())
+            .user_data_mut::<HybridParsing_Get_User_Data>()
+            .unwrap()
+    };
+
     // Don't do anything if in errored state.
     if user_data.response_body_correctly_received == -1 {
         return Err(HtpStatus::ERROR);
@@ -149,23 +151,6 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: &mut Data) -> Result<()> {
             user_data.response_body_correctly_received = -1;
         }
     }
-
-    Ok(())
-}
-
-fn HybridParsing_Get_Callback_RESPONSE_COMPLETE(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_RESPONSE_COMPLETE_invoked += 1;
-    }
-    Ok(())
-}
-
-fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: &mut Transaction) -> Result<()> {
-    unsafe {
-        let user_data = tx.user_data() as *mut HybridParsing_Get_User_Data;
-        (*user_data).callback_TRANSACTION_COMPLETE_invoked += 1;
-    }
     Ok(())
 }
 
@@ -199,13 +184,12 @@ fn register_user_callbacks(cfg: &mut Config) {
     cfg.register_response_body_data(HybridParsing_Get_Callback_RESPONSE_BODY_DATA);
     cfg.register_response_complete(HybridParsing_Get_Callback_RESPONSE_COMPLETE);
 
-    // Transaction calllbacks
+    // Transaction callbacks
     cfg.register_transaction_complete(HybridParsing_Get_Callback_TRANSACTION_COMPLETE);
 }
 
 struct HybridParsingTest {
     connp: ConnectionParser,
-    user_data: HybridParsing_Get_User_Data,
 }
 
 impl HybridParsingTest {
@@ -219,8 +203,7 @@ impl HybridParsingTest {
             None,
         );
 
-        let user_data = HybridParsing_Get_User_Data::new();
-        HybridParsingTest { connp, user_data }
+        HybridParsingTest { connp }
     }
 }
 
@@ -239,11 +222,13 @@ fn GetTest() {
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
 
     // Configure user data and callbacks
-    tx.set_user_data(&mut t.user_data as *mut _ as *mut core::ffi::c_void);
+    tx.set_user_data(Box::new(HybridParsing_Get_User_Data::new()));
 
     // Request begins
     t.connp.state_request_start().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_START_invoked);
 
     // Request line data
     t.connp
@@ -252,7 +237,9 @@ fn GetTest() {
 
     // Request line complete
     t.connp.state_request_line().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_LINE_invoked);
 
     // Check request line data
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
@@ -276,7 +263,9 @@ fn GetTest() {
     t.connp.state_request_headers().unwrap();
 
     // Check headers
-    assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_HEADERS_invoked);
 
     let tx = t.connp.conn.tx(tx_id).unwrap();
     assert_request_header_eq!(tx, "host", "www.example.com");
@@ -285,11 +274,15 @@ fn GetTest() {
 
     // Request complete
     t.connp.state_request_complete().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_COMPLETE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
 
     // Response begins
     t.connp.state_response_start().unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_START_invoked);
 
     // Response line data
     t.connp.parse_response_line(b"HTTP/1.1 200 OK").unwrap();
@@ -302,7 +295,9 @@ fn GetTest() {
 
     // Response line complete
     t.connp.state_response_line().unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
 
     // Response header data
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
@@ -311,7 +306,9 @@ fn GetTest() {
 
     // Response headers complete
     t.connp.state_response_headers().unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
 
     // Check response headers
     let tx = t.connp.conn.tx(tx_id).unwrap();
@@ -326,7 +323,9 @@ fn GetTest() {
     t.connp
         .res_process_body_data_ex(Some(b"World!</h1>"))
         .unwrap();
-    assert_eq!(1, t.user_data.response_body_correctly_received);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.response_body_correctly_received);
 
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.response_headers, "Content-Type", "text/html");
@@ -337,7 +336,9 @@ fn GetTest() {
     assert_response_header_eq!(tx, "server", "Apache");
 
     t.connp.state_response_complete_ex(1).unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_COMPLETE_invoked);
 }
 
 /// Use a POST request in order to test request body processing and parameter parsing.
@@ -594,6 +595,7 @@ fn RequestLineParsing4() {
     assert!(tx.request_protocol.as_ref().unwrap().eq("HTTP  / 01.10"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/"));
 }
+
 #[test]
 fn ParsedUriSupplied() {
     let mut t = HybridParsingTest::new(TestConfig());
@@ -637,18 +639,22 @@ fn TestRepeatCallbacks() {
     let tx = t.connp.conn.tx_mut(tx_id).unwrap();
 
     // Configure user data and callbacks
-    tx.set_user_data(&mut t.user_data as *mut _ as *mut core::ffi::c_void);
+    tx.set_user_data(Box::new(HybridParsing_Get_User_Data::new()));
 
     // Request begins
     t.connp.state_request_start().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_START_invoked);
 
     // Request line data
     t.connp.parse_request_line(b"GET / HTTP/1.0").unwrap();
 
     // Request line complete
     t.connp.state_request_line().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_LINE_invoked);
 
     let tx = t.connp.conn.tx(tx_id).unwrap();
     // Check request line data
@@ -660,42 +666,52 @@ fn TestRepeatCallbacks() {
 
     // Request headers complete
     t.connp.state_request_headers().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_HEADERS_invoked);
 
     // Request complete
     t.connp.state_request_complete().unwrap();
-    assert_eq!(1, t.user_data.callback_REQUEST_COMPLETE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
 
     // Response begins
     t.connp.state_response_start().unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_START_invoked);
 
     // Response line data
     t.connp.parse_response_line(b"HTTP/1.1 200 OK\r\n").unwrap();
 
     // Response line complete
     t.connp.state_response_line().unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
 
     // Response headers complete
     t.connp.state_response_headers().unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
 
     // Response complete
     t.connp.state_response_complete_ex(1).unwrap();
-    assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
+    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+    assert_eq!(1, user_data.callback_REQUEST_START_invoked);
+    assert_eq!(1, user_data.callback_REQUEST_LINE_invoked);
+    assert_eq!(1, user_data.callback_REQUEST_HEADERS_invoked);
+    assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
+    assert_eq!(1, user_data.callback_RESPONSE_START_invoked);
+    assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
+    assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
+    assert_eq!(1, user_data.callback_RESPONSE_COMPLETE_invoked);
+    assert_eq!(1, user_data.callback_TRANSACTION_COMPLETE_invoked);
 
     t.connp.remove_tx(tx_id).unwrap();
-
-    assert_eq!(1, t.user_data.callback_REQUEST_START_invoked);
-    assert_eq!(1, t.user_data.callback_REQUEST_LINE_invoked);
-    assert_eq!(1, t.user_data.callback_REQUEST_HEADERS_invoked);
-    assert_eq!(1, t.user_data.callback_REQUEST_COMPLETE_invoked);
-    assert_eq!(1, t.user_data.callback_RESPONSE_START_invoked);
-    assert_eq!(1, t.user_data.callback_RESPONSE_LINE_invoked);
-    assert_eq!(1, t.user_data.callback_RESPONSE_HEADERS_invoked);
-    assert_eq!(1, t.user_data.callback_RESPONSE_COMPLETE_invoked);
-    assert_eq!(1, t.user_data.callback_TRANSACTION_COMPLETE_invoked);
 }
 
 /// Try to delete a transaction before it is complete.

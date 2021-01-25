@@ -1,5 +1,3 @@
-use htp::{connection_parser::ConnectionParser, transaction::Transaction};
-
 #[macro_export]
 macro_rules! cstr {
     ( $x:expr ) => {{

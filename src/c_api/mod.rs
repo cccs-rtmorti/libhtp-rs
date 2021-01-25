@@ -471,8 +471,20 @@ pub unsafe extern "C" fn htp_connp_connection(connp: *mut ConnectionParser) -> *
 pub unsafe extern "C" fn htp_connp_user_data(connp: *const ConnectionParser) -> *mut libc::c_void {
     connp
         .as_ref()
-        .map(|val| val.user_data)
+        .and_then(|val| val.user_data::<*mut libc::c_void>())
+        .map(|val| *val)
         .unwrap_or(std::ptr::null_mut())
+}
+
+/// Associate user data with the supplied parser.
+#[no_mangle]
+pub unsafe extern "C" fn htp_connp_set_user_data(
+    connp: *mut ConnectionParser,
+    user_data: *mut libc::c_void,
+) {
+    if let Some(connp) = connp.as_mut() {
+        connp.set_user_data(Box::new(user_data));
+    }
 }
 
 /// Opens connection.
@@ -599,17 +611,6 @@ pub unsafe extern "C" fn htp_connp_res_data(
         )
     } else {
         HtpStreamState::ERROR
-    }
-}
-
-/// Associate user data with the supplied parser.
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_set_user_data(
-    connp: *mut ConnectionParser,
-    user_data: *mut libc::c_void,
-) {
-    if let Some(connp) = connp.as_mut() {
-        connp.user_data = user_data;
     }
 }
 

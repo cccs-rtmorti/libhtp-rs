@@ -19,7 +19,7 @@ use crate::{
     HtpStatus,
 };
 
-use std::{cmp::Ordering, rc::Rc};
+use std::{any::Any, cmp::Ordering, rc::Rc};
 
 /// A collection of possible data sources.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
@@ -285,8 +285,7 @@ pub struct Transaction {
     /// this field is set to HTP_CONFIG_PRIVATE, the transaction owns the configuration.
     pub is_config_shared: bool,
     /// The user data associated with this transaction.
-    pub user_data: *mut core::ffi::c_void,
-
+    pub user_data: Option<Box<dyn Any>>,
     // Request fields
     /// Contains a count of how many empty lines were skipped before the request line.
     pub request_ignored_lines: u32,
@@ -509,7 +508,7 @@ impl Transaction {
         Self {
             cfg: Rc::clone(&connp.cfg),
             is_config_shared: true,
-            user_data: std::ptr::null_mut(),
+            user_data: None,
             request_ignored_lines: 0,
             request_line: None,
             request_method: None,
@@ -582,14 +581,23 @@ impl Transaction {
         Ok(())
     }
 
-    /// Returns the user data associated with this transaction.
-    pub fn user_data(&self) -> *mut core::ffi::c_void {
-        self.user_data
+    /// Set the user data.
+    pub fn set_user_data(&mut self, data: Box<dyn Any + 'static>) {
+        self.user_data = Some(data);
     }
 
-    /// Associates user data with this transaction.
-    pub fn set_user_data(&mut self, user_data: *mut core::ffi::c_void) {
-        self.user_data = user_data;
+    /// Get a reference to the user data.
+    pub fn user_data<T: 'static>(&self) -> Option<&T> {
+        self.user_data
+            .as_ref()
+            .and_then(|ud| ud.downcast_ref::<T>())
+    }
+
+    /// Get a mutable reference to the user data.
+    pub fn user_data_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.user_data
+            .as_mut()
+            .and_then(|ud| ud.downcast_mut::<T>())
     }
 
     /// Adds one parameter to the request. This function will take over the

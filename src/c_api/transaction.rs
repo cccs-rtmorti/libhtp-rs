@@ -77,18 +77,17 @@ pub unsafe extern "C" fn htp_tx_cfg(tx: *mut Transaction) -> *const Config {
 /// Returns the user data associated with this transaction or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_user_data(tx: *const Transaction) -> *mut libc::c_void {
-    if let Some(tx) = tx.as_ref() {
-        tx.user_data()
-    } else {
-        std::ptr::null_mut()
-    }
+    tx.as_ref()
+        .and_then(|val| val.user_data::<*mut libc::c_void>())
+        .map(|val| *val)
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// Associates user data with this transaction.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_set_user_data(tx: *mut Transaction, user_data: *mut libc::c_void) {
     if let Some(tx) = tx.as_mut() {
-        tx.set_user_data(user_data)
+        tx.set_user_data(Box::new(user_data));
     }
 }
 

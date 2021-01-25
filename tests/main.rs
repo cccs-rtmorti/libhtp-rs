@@ -750,9 +750,7 @@ fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: &mut Data) -> Resu
             COUNTER += 1;
         }
 
-        let counter_ptr: *mut i32 = &mut COUNTER;
-        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
-
+        (*d.tx()).set_user_data(Box::new(COUNTER));
         Ok(())
     }
 }
@@ -764,11 +762,7 @@ fn RequestHeaderData() {
     let mut t = Test::new(cfg);
     assert!(t.run("26-request-headers-raw.t").is_ok());
     let tx = t.connp.conn.tx(0).unwrap();
-    unsafe {
-        let counter: *mut i32 = tx.user_data() as *mut i32;
-        assert!(!counter.is_null());
-        assert_eq!(4, *counter);
-    }
+    assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
 fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: &mut Data) -> Result<()> {
@@ -801,9 +795,7 @@ fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: &mut Data) -> Re
             COUNTER += 1;
         }
 
-        let counter_ptr: *mut i32 = &mut COUNTER;
-        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
-
+        (*d.tx()).set_user_data(Box::new(COUNTER));
         Ok(())
     }
 }
@@ -815,12 +807,7 @@ fn RequestTrailerData() {
     let mut t = Test::new(cfg);
     assert!(t.run("27-request-trailer-raw.t").is_ok());
     let tx = t.connp.conn.tx(0).unwrap();
-
-    unsafe {
-        let counter: *mut i32 = tx.user_data() as *mut i32;
-        assert!(!counter.is_null());
-        assert_eq!(2, *counter);
-    }
+    assert_eq!(2, *tx.user_data::<i32>().unwrap());
 }
 
 fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: &mut Data) -> Result<()> {
@@ -829,44 +816,43 @@ fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: &mut Data) -> Re
         let len = d.len();
         let data: &[u8] = slice::from_raw_parts(d.data(), len);
         match COUNTER {
-        0 => {
-            if !((len == 5) && (data == b"Date:")) {
-                eprintln!("Mismatch in chunk 0");
-                COUNTER = -1;
+            0 => {
+                if !((len == 5) && (data == b"Date:")) {
+                    eprintln!("Mismatch in chunk 0");
+                    COUNTER = -1;
+                }
+            }
+            1 => {
+                if !((len == 5) && (data == b" Mon,")) {
+                    eprintln!("Mismatch in chunk 1");
+                    COUNTER = -2;
+                }
+            }
+            2 => {
+                if !((len == 34) && (data == " 31 Aug 2009 20:25:50 GMT\r\nServer:".as_bytes())) {
+                    eprintln!("Mismatch in chunk 2");
+                    COUNTER = -3;
+                }
+            }
+            3 => {
+                if !((len == 83) && (data == " Apache\r\nConnection: close\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n".as_bytes())) {
+                    eprintln!("Mismatch in chunk 3");
+                    COUNTER = -4;
+                }
+            }
+            _ => {
+                if COUNTER >= 0 {
+                    eprintln!("Seen more than 4 chunks");
+                    COUNTER = -5;
+                }
             }
         }
-        1 => {
-            if !((len == 5) && (data == b" Mon,")) {
-                eprintln!("Mismatch in chunk 1");
-                COUNTER = -2;
-            }
-        }
-        2 => {
-            if !((len == 34) && (data == " 31 Aug 2009 20:25:50 GMT\r\nServer:".as_bytes())) {
-                eprintln!("Mismatch in chunk 2");
-                COUNTER = -3;
-            }
-        }
-        3 => {
-            if !((len == 83) && (data == " Apache\r\nConnection: close\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n".as_bytes())) {
-                eprintln!("Mismatch in chunk 3");
-                COUNTER = -4;
-            }
-        }
-        _ => {
-            if COUNTER >= 0 {
-                eprintln!("Seen more than 4 chunks");
-                COUNTER = -5;
-            }
-        }
-    }
 
         if COUNTER >= 0 {
             COUNTER += 1;
         }
 
-        let counter_ptr: *mut i32 = &mut COUNTER;
-        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
+        (*d.tx()).set_user_data(Box::new(COUNTER));
 
         Ok(())
     }
@@ -880,12 +866,7 @@ fn ResponseHeaderData() {
     assert!(t.run("28-response-headers-raw.t").is_ok());
 
     let tx = t.connp.conn.tx(0).unwrap();
-
-    unsafe {
-        let counter: *mut i32 = tx.user_data() as *mut i32;
-        assert!(!counter.is_null());
-        assert_eq!(4, *counter);
-    }
+    assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
 fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: &mut Data) -> Result<()> {
@@ -934,9 +915,7 @@ fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: &mut Data) -> 
             COUNTER += 1;
         }
 
-        let counter_ptr: *mut i32 = &mut COUNTER;
-        (*(*d).tx()).set_user_data(counter_ptr as *mut core::ffi::c_void);
-
+        (*d.tx()).set_user_data(Box::new(COUNTER));
         Ok(())
     }
 }
@@ -949,12 +928,7 @@ fn ResponseTrailerData() {
     assert!(t.run("29-response-trailer-raw.t").is_ok());
 
     let tx = t.connp.conn.tx(0).unwrap();
-
-    unsafe {
-        let counter: *mut i32 = tx.user_data() as *mut i32;
-        assert!(!counter.is_null());
-        assert_eq!(4, *counter);
-    }
+    assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
 #[test]

@@ -12,18 +12,9 @@ use std::{env, path::PathBuf};
 // import common testing utilities
 mod common;
 
-fn GUnzip_decompressor_callback(d: &mut Data) -> HtpStatus {
-    unsafe {
-        let output_ptr: *mut Bstr = (*d.tx()).user_data() as *mut Bstr;
-        (*output_ptr).add(d.as_slice().unwrap());
-    }
-    HtpStatus::OK
-}
-
 #[derive(Debug)]
 struct Test {
     connp: ConnectionParser,
-    output: Bstr,
     expected: Bstr,
     decompressor: Decompressor,
 }
@@ -31,6 +22,11 @@ struct Test {
 enum TestError {
     Io(std::io::Error),
     Htp(HtpStatus),
+}
+
+fn GUnzip_decompressor_callback(d: &mut Data) -> HtpStatus {
+    unsafe { (*d.tx()).set_user_data(Box::new(Bstr::from(d.as_slice().unwrap()))) };
+    HtpStatus::OK
 }
 
 impl Test {
@@ -44,12 +40,10 @@ impl Test {
         let tx_id = connp.create_tx().unwrap();
         connp.set_in_tx_id(Some(tx_id));
 
-        let output = Bstr::new();
         let expected = Bstr::from("The five boxing wizards jump quickly.");
         let tx = connp.in_tx_mut_ok().unwrap() as *mut Transaction;
         Test {
             connp,
-            output,
             expected,
             decompressor: Decompressor::new_with_callback(
                 HtpContentEncoding::GZIP,
@@ -78,11 +72,6 @@ impl Test {
         filepath.push(filename);
 
         let data = std::fs::read(filepath).map_err(TestError::Io)?;
-        self.connp
-            .in_tx_mut_ok()
-            .unwrap()
-            .set_user_data(&mut self.output as *mut Bstr as *mut core::ffi::c_void);
-
         self.decompressor
             .decompress(&data)
             .map(|_| ())
@@ -94,49 +83,63 @@ impl Test {
 fn GUnzip_Minimal() {
     let mut t = Test::new();
     assert!(t.run("gztest-01-minimal.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 #[test]
 fn GUnzip_FNAME() {
     let mut t = Test::new();
     assert!(t.run("gztest-02-fname.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 #[test]
 fn GUnzip_FEXTRA() {
     let mut t = Test::new();
     assert!(t.run("gztest-05-fextra.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 #[test]
 fn GUnzip_FTEXT() {
     let mut t = Test::new();
     assert!(t.run("gztest-06-ftext.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 #[test]
 fn GUnzip_Multipart() {
     let mut t = Test::new();
     assert!(t.run("gztest-10-multipart.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidExtraFlags() {
     let mut t = Test::new();
     assert!(t.run("gztest-14-invalid-xfl.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 #[test]
 fn GUnzip_InvalidHeaderCrc() {
     let mut t = Test::new();
     assert!(t.run("gztest-15-invalid-fhcrc.gz").is_ok());
-    assert_eq!(t.output, t.expected);
+    let in_tx = t.connp.in_tx().unwrap();
+    let output = in_tx.user_data::<Bstr>().unwrap();
+    assert_eq!(*output, t.expected);
 }
 
 /*
