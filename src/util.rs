@@ -246,18 +246,34 @@ impl FileData<'_> {
 /// | "/" | "[" | "]" | "?" | "="
 /// | "{" | "}" | SP | HT
 pub fn is_separator(c: u8) -> bool {
-    match c as char {
-        '(' | ')' | '<' | '>' | '@' | ',' | ';' | ':' | '\\' | '"' | '/' | '[' | ']' | '?'
-        | '=' | '{' | '}' | ' ' | '\t' => true,
-        _ => false,
-    }
+    matches!(
+        c as char,
+        '(' | ')'
+            | '<'
+            | '>'
+            | '@'
+            | ','
+            | ';'
+            | ':'
+            | '\\'
+            | '"'
+            | '/'
+            | '['
+            | ']'
+            | '?'
+            | '='
+            | '{'
+            | '}'
+            | ' '
+            | '\t'
+    )
 }
 
 /// Determines if character is a token.
 /// token = 1*<any CHAR except CTLs or separators>
 /// CHAR  = <any US-ASCII character (octets 0 - 127)>
 pub fn is_token(c: u8) -> bool {
-    !(c < 32 || c > 126 || is_separator(c))
+    (32..=126).contains(&c) && !is_separator(c)
 }
 
 /// This parser takes leading whitespace as defined by is_ascii_whitespace.
@@ -282,10 +298,7 @@ pub fn chomp(mut data: &[u8]) -> &[u8] {
 /// Determines if character is a whitespace character.
 /// whitespace = ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c'
 pub fn is_space(c: u8) -> bool {
-    match c as char {
-        ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c' => true,
-        _ => false,
-    }
+    matches!(c as char, ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c')
 }
 
 /// Helper function that mimics the functionality of bytes::complete::take_until, ignoring tag case
@@ -322,10 +335,7 @@ pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 ///
 /// Returns true or false
 pub fn is_line_empty(data: &[u8]) -> bool {
-    match data {
-        b"\x0d" | b"\x0a" | b"\x0d\x0a" => true,
-        _ => false,
-    }
+    matches!(data, b"\x0d" | b"\x0a" | b"\x0d\x0a")
 }
 
 /// Determine if entire line is whitespace as defined by
@@ -1354,25 +1364,25 @@ mod test {
 
     #[test]
     fn Separator() {
-        assert_eq!(false, is_separator('a' as u8));
-        assert_eq!(false, is_separator('^' as u8));
-        assert_eq!(false, is_separator('-' as u8));
-        assert_eq!(false, is_separator('_' as u8));
-        assert_eq!(false, is_separator('&' as u8));
-        assert_eq!(true, is_separator('(' as u8));
-        assert_eq!(true, is_separator('\\' as u8));
-        assert_eq!(true, is_separator('/' as u8));
-        assert_eq!(true, is_separator('=' as u8));
-        assert_eq!(true, is_separator('\t' as u8));
+        assert_eq!(false, is_separator(b'a'));
+        assert_eq!(false, is_separator(b'^'));
+        assert_eq!(false, is_separator(b'-'));
+        assert_eq!(false, is_separator(b'_'));
+        assert_eq!(false, is_separator(b'&'));
+        assert_eq!(true, is_separator(b'('));
+        assert_eq!(true, is_separator(b'\\'));
+        assert_eq!(true, is_separator(b'/'));
+        assert_eq!(true, is_separator(b'='));
+        assert_eq!(true, is_separator(b'\t'));
     }
 
     #[test]
     fn Token() {
-        assert_eq!(true, is_token('a' as u8));
-        assert_eq!(true, is_token('&' as u8));
-        assert_eq!(true, is_token('+' as u8));
-        assert_eq!(false, is_token('\t' as u8));
-        assert_eq!(false, is_token('\n' as u8));
+        assert_eq!(true, is_token(b'a'));
+        assert_eq!(true, is_token(b'&'));
+        assert_eq!(true, is_token(b'+'));
+        assert_eq!(false, is_token(b'\t'));
+        assert_eq!(false, is_token(b'\n'));
     }
 
     #[test]
