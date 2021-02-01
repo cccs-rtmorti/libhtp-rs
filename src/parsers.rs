@@ -546,9 +546,9 @@ fn AuthDigest() {
 }
 #[test]
 fn ParseStatus() {
-    assert!(parse_status(&Bstr::from("   200    ")).eq(200u16));
-    assert!(parse_status(&Bstr::from("  \t 404    ")).eq(404u16));
-    assert!(parse_status(&Bstr::from("123")).eq(123u16));
+    assert!(parse_status(&Bstr::from("   200    ")).eq_num(200u16));
+    assert!(parse_status(&Bstr::from("  \t 404    ")).eq_num(404u16));
+    assert!(parse_status(&Bstr::from("123")).eq_num(123u16));
     assert_eq!(parse_status(&Bstr::from("99")), HtpResponseNumber::INVALID);
     assert_eq!(
         parse_status(&Bstr::from("1000")),

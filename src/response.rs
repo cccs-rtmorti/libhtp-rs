@@ -295,7 +295,7 @@ impl ConnectionParser {
                 self.out_state = State::FINALIZE;
                 // we may have response headers
                 return self.state_response_headers();
-            } else if self.out_tx_mut_ok()?.response_status_number.eq(407) {
+            } else if self.out_tx_mut_ok()?.response_status_number.eq_num(407) {
                 // proxy telling us to auth
                 if self.in_status != HtpStreamState::ERROR {
                     self.in_status = HtpStreamState::DATA
@@ -328,7 +328,7 @@ impl ConnectionParser {
         // Unlike CONNECT, however, upgrades from HTTP to HTTP seem
         // rather unlikely, so don't try to probe tunnel for nested HTTP,
         // and switch to tunnel mode right away.
-        if self.out_tx_mut_ok()?.response_status_number.eq(101) {
+        if self.out_tx_mut_ok()?.response_status_number.eq_num(101) {
             if te_opt.is_none() && cl_opt.is_none() {
                 self.out_state = State::FINALIZE;
                 if self.in_status != HtpStreamState::ERROR {
@@ -346,7 +346,7 @@ impl ConnectionParser {
             }
         }
         // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
-        if self.out_tx_mut_ok()?.response_status_number.eq(100)
+        if self.out_tx_mut_ok()?.response_status_number.eq_num(100)
             && te_opt.is_none()
             && cl_opt.is_none()
         {
@@ -397,8 +397,8 @@ impl ConnectionParser {
             .out_tx_mut_ok()?
             .response_status_number
             .in_range(100, 199)
-            || self.out_tx_mut_ok()?.response_status_number.eq(204)
-            || self.out_tx_mut_ok()?.response_status_number.eq(304)
+            || self.out_tx_mut_ok()?.response_status_number.eq_num(204)
+            || self.out_tx_mut_ok()?.response_status_number.eq_num(304)
         {
             // There should be no response body
             // but browsers interpret content sent by the server as such

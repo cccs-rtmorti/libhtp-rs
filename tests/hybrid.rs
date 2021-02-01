@@ -290,7 +290,7 @@ fn GetTest() {
     assert!(tx.response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.as_ref().unwrap().eq("200"));
-    assert!(tx.response_status_number.eq(200));
+    assert!(tx.response_status_number.eq_num(200));
     assert!(tx.response_message.as_ref().unwrap().eq("OK"));
 
     // Response line complete
@@ -765,7 +765,7 @@ fn ResponseLineIncomplete1() {
     assert!(tx.response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.as_ref().unwrap().eq("200"));
-    assert!(tx.response_status_number.eq(200));
+    assert!(tx.response_status_number.eq_num(200));
     assert!(tx.response_message.is_none());
     t.connp.state_response_complete_ex(1).unwrap();
 }

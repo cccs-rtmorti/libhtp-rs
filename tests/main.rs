@@ -497,7 +497,7 @@ fn FailedConnectRequest() {
         .as_ref()
         .unwrap()
         .eq("Method Not Allowed"));
-    assert!(tx.response_status_number.eq(405));
+    assert!(tx.response_status_number.eq_num(405));
 }
 
 #[test]
@@ -550,7 +550,7 @@ fn SuccessfulConnectRequest() {
 
     assert!(tx.request_method.as_ref().unwrap().eq("CONNECT"));
 
-    assert!(tx.response_status_number.eq(200));
+    assert!(tx.response_status_number.eq_num(200));
 }
 
 #[test]
@@ -2285,14 +2285,14 @@ fn ResponsesCut() {
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
-    assert!(tx.response_status_number.eq(200));
+    assert!(tx.response_status_number.eq_num(200));
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
     tx = t.connp.conn.tx(1).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
-    assert!(tx.response_status_number.eq(200));
+    assert!(tx.response_status_number.eq_num(200));
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
 
@@ -2425,14 +2425,14 @@ fn Expect100() {
 
     assert!(tx.request_method.as_ref().unwrap().eq("PUT"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
-    assert!(tx.response_status_number.eq(401));
+    assert!(tx.response_status_number.eq_num(401));
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
     let tx = t.connp.conn.tx(1).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("POST"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
-    assert!(tx.response_status_number.eq(200));
+    assert!(tx.response_status_number.eq_num(200));
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
 

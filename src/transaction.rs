@@ -157,7 +157,7 @@ impl HtpResponseNumber {
 
     /// Determine if the response status number matches the
     /// given status number.
-    pub fn eq(self, num: u16) -> bool {
+    pub fn eq_num(self, num: u16) -> bool {
         use HtpResponseNumber::*;
         match self {
             UNKNOWN | INVALID => false,
