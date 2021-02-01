@@ -1284,23 +1284,20 @@ impl Transaction {
                 if slow_path {
                     if let Some(ce) = &ce {
                         let mut layers = 0;
-                        // decompression layer depth check (0 means no limit)
-                        let limit = if self.cfg.response_decompression_layer_limit > 0 {
-                            self.cfg.response_decompression_layer_limit as usize
-                        } else {
-                            std::usize::MAX
-                        };
 
-                        for encoding in ce.split(|c| *c == ',' as u8 || *c == ' ' as u8) {
+                        for encoding in ce.split(|c| *c == b',' || *c == b' ') {
                             layers += 1;
 
-                            if layers > limit {
-                                htp_warn!(
-                                    connp,
-                                    HtpLogCode::TOO_MANY_ENCODING_LAYERS,
-                                    "Too many response content encoding layers"
-                                );
-                                break;
+                            if let Some(limit) = self.cfg.compression_options.get_layer_limit() {
+                                // decompression layer depth check
+                                if layers > limit {
+                                    htp_warn!(
+                                        connp,
+                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
+                                        "Too many response content encoding layers"
+                                    );
+                                    break;
+                                }
                             }
 
                             let encoding = Bstr::from(encoding);

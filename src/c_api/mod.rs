@@ -366,7 +366,11 @@ pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
     limit: libc::c_int,
 ) {
     if !cfg.is_null() {
-        (*cfg).set_response_decompression_layer_limit(limit)
+        if limit <= 0 {
+            (*cfg).set_response_decompression_layer_limit(None)
+        } else {
+            (*cfg).set_response_decompression_layer_limit(Some(limit as usize))
+        }
     }
 }
 

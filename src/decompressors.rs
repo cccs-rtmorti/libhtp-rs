@@ -18,6 +18,8 @@ const DEFAULT_BOMB_RATIO: i64 = 2048;
 const DEFAULT_TIME_LIMIT: u32 = 100_000;
 /// Default number of iterations before checking the time limit.
 const DEFAULT_TIME_FREQ_TEST: u32 = 256;
+/// Default number of layers that will be decompressed
+const DEFAULT_LAYER_LIMIT: usize = 2;
 
 #[derive(Copy, Clone)]
 /// Decompression options
@@ -35,6 +37,8 @@ pub struct Options {
     time_limit: u32,
     /// number of iterations to before checking the time_limit.
     time_test_freq: u32,
+    /// number of layers of compression we will decompress
+    layer_limit: Option<usize>,
 }
 
 impl Options {
@@ -117,6 +121,16 @@ impl Options {
     pub fn set_time_test_freq(&mut self, time_test_freq: u32) {
         self.time_test_freq = time_test_freq;
     }
+
+    /// Get the decompression layer limit.
+    pub fn get_layer_limit(&self) -> Option<usize> {
+        self.layer_limit
+    }
+
+    /// Set the decompression layer limit.
+    pub fn set_layer_limit(&mut self, layer_limit: Option<usize>) {
+        self.layer_limit = layer_limit;
+    }
 }
 
 impl Default for Options {
@@ -131,6 +145,7 @@ impl Default for Options {
             bomb_ratio: DEFAULT_BOMB_RATIO,
             time_limit: DEFAULT_TIME_LIMIT,
             time_test_freq: DEFAULT_TIME_FREQ_TEST,
+            layer_limit: Some(DEFAULT_LAYER_LIMIT),
         }
     }
 }

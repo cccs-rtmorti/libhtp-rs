@@ -109,14 +109,8 @@ pub struct Config {
     pub hook_transaction_complete: TxHook,
     /// Log hook, invoked every time the library wants to log.
     pub hook_log: LogHook,
-    // Request Line parsing options.
-
-    // TODO this was added here to maintain a stable ABI, once we can break that
-    // we may want to move this into DecoderConfig (VJ)
     /// Reaction to leading whitespace on the request line
     pub requestline_leading_whitespace_unwanted: HtpUnwanted,
-    /// How many layers of compression we will decompress (0 => no limit).
-    pub response_decompression_layer_limit: i32,
     /// Configuration options for decompression.
     pub compression_options: Options,
     /// Multipart configurations for file extraction.
@@ -156,7 +150,6 @@ impl Default for Config {
             hook_transaction_complete: TxHook::default(),
             hook_log: LogHook::default(),
             requestline_leading_whitespace_unwanted: HtpUnwanted::IGNORE,
-            response_decompression_layer_limit: 2,
             compression_options: Options::default(),
             multipart_cfg: Default::default(),
         }
@@ -632,8 +625,7 @@ impl Config {
     }
 
     /// Configures many layers of compression we try to decompress.
-    /// limit: 0 disables limit
-    pub fn set_response_decompression_layer_limit(&mut self, limit: i32) {
-        self.response_decompression_layer_limit = limit;
+    pub fn set_response_decompression_layer_limit(&mut self, limit: Option<usize>) {
+        self.compression_options.set_layer_limit(limit);
     }
 }
