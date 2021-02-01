@@ -1,11 +1,16 @@
 use crate::{
     error::Result,
     list::List,
-    log::Logs,
+    log::{Log, Message},
     transaction::{Transaction, Transactions},
 };
 use chrono::{DateTime, Utc};
-use std::{cell::RefCell, net::IpAddr, time::SystemTime};
+use std::{
+    cell::RefCell,
+    net::IpAddr,
+    sync::mpsc::{channel, Receiver, Sender},
+    time::SystemTime,
+};
 
 /// Export Connection Flags
 pub struct Flags;
@@ -34,8 +39,11 @@ pub struct Connection {
     /// Transactions carried out on this connection. The list may contain
     /// None elements when some of the transactions are deleted.
     transactions: Transactions,
-    /// Log messages associated with this connection.
-    pub messages: RefCell<Logs>,
+    /// Messages channel associated with this connection.
+    log_channel: (Sender<Message>, Receiver<Message>),
+    /// Log Messages associated with this connection. This is popualted by draining the
+    /// receiver of the log_channel by calling get_messages
+    messages: RefCell<Vec<Log>>,
     /// Parsing flags.
     pub flags: u8,
     /// When was this connection opened?
@@ -57,7 +65,8 @@ impl Connection {
             server_addr: None,
             server_port: None,
             transactions: List::with_capacity(16),
-            messages: RefCell::new(List::with_capacity(8)),
+            log_channel: channel(),
+            messages: RefCell::new(Vec::with_capacity(8)),
             flags: 0,
             open_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             close_timestamp: DateTime::<Utc>::from(SystemTime::now()),
@@ -154,6 +163,19 @@ impl Connection {
     /// Keeps track of outbound packets and data.
     pub fn track_outbound_data(&mut self, len: usize) {
         self.out_data_counter = (self.out_data_counter as u64).wrapping_add(len as u64) as i64;
+    }
+
+    /// Return the log channel sender
+    pub fn get_sender(&self) -> &Sender<Message> {
+        &self.log_channel.0
+    }
+
+    /// Returns all logged messages
+    pub fn get_messages(&self) -> &RefCell<Vec<Log>> {
+        while let Ok(message) = self.log_channel.1.try_recv() {
+            self.messages.borrow_mut().push(Log::new(self, message))
+        }
+        &self.messages
     }
 }
 

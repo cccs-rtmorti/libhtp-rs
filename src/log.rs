@@ -1,5 +1,5 @@
-use crate::{connection_parser::ConnectionParser, list::List};
-use std::net::IpAddr;
+use crate::connection::Connection;
+use std::{net::IpAddr, sync::mpsc::Sender};
 
 /// Different codes used for logging.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
@@ -178,6 +178,73 @@ pub enum HtpLogLevel {
     /// Designated very low priority, often extremely verbose, information.
     DEBUG2,
 }
+#[derive(Clone)]
+/// Logger struct
+pub struct Logger {
+    /// The sender half of a logging channel
+    pub sender: Sender<Message>,
+    /// Log level used when deciding whether to store or
+    /// ignore the messages issued by the parser.
+    pub level: HtpLogLevel,
+}
+
+impl Logger {
+    /// Returns a new logger instance
+    pub fn new(sender: &Sender<Message>, level: HtpLogLevel) -> Logger {
+        Self {
+            sender: sender.clone(),
+            level,
+        }
+    }
+    /// Logs a message to the logger channel.
+    pub fn log(
+        &mut self,
+        file: &str,
+        line: u32,
+        level: HtpLogLevel,
+        code: HtpLogCode,
+        msg: String,
+    ) {
+        // Ignore messages below our log level.
+        if level <= self.level {
+            let _ = self.sender.send(Message::new(file, line, level, code, msg));
+        }
+    }
+}
+
+#[derive(Clone)]
+/// Represents a single Message entry for a log
+pub struct Message {
+    /// Log message string.
+    pub msg: String,
+    /// Message level.
+    pub level: HtpLogLevel,
+    /// Message code.
+    pub code: HtpLogCode,
+    /// File in which the code that emitted the message resides.
+    pub file: String,
+    /// Line number on which the code that emitted the message resides.
+    pub line: u32,
+}
+
+impl Message {
+    /// Returns a new Message instance
+    pub fn new(
+        file: &str,
+        line: u32,
+        level: HtpLogLevel,
+        code: HtpLogCode,
+        msg: String,
+    ) -> Message {
+        Self {
+            file: file.to_string(),
+            line,
+            level,
+            code,
+            msg,
+        }
+    }
+}
 
 /// Represents a single log entry.
 #[derive(Clone)]
@@ -192,110 +259,70 @@ pub struct Log {
     pub server_port: Option<u16>,
 
     /// Log message.
-    pub msg: String,
-    /// Message level.
-    pub level: HtpLogLevel,
-    /// Message code.
-    pub code: HtpLogCode,
-    /// File in which the code that emitted the message resides.
-    pub file: String,
-    /// Line number on which the code that emitted the message resides.
-    pub line: u32,
+    pub msg: Message,
 }
-
-/// Alias for a `List` of logs.
-pub type Logs = List<Log>;
 
 impl Log {
     /// Returns a new Log instance.
-    pub fn new(
-        connp: &ConnectionParser,
-        file: &str,
-        line: u32,
-        level: HtpLogLevel,
-        code: HtpLogCode,
-        msg: String,
-    ) -> Log {
+    pub fn new(conn: &Connection, msg: Message) -> Log {
         Self {
-            client_addr: (*connp).conn.client_addr,
-            client_port: (*connp).conn.client_port,
-            server_addr: (*connp).conn.server_addr,
-            server_port: (*connp).conn.server_port,
-            file: file.to_string(),
-            line,
-            level,
-            code,
+            client_addr: conn.client_addr,
+            client_port: conn.client_port,
+            server_addr: conn.server_addr,
+            server_port: conn.server_port,
             msg,
         }
-    }
-}
-
-/// Adds a `Log` to the `ConnectionParser` messages list.
-pub fn log(
-    connp: &ConnectionParser,
-    file: &str,
-    line: u32,
-    level: HtpLogLevel,
-    code: HtpLogCode,
-    msg: String,
-) {
-    // Ignore messages below our log level.
-    if level <= connp.cfg.log_level {
-        let mut log = Log::new(connp, file, line, level, code, msg);
-        // Ignore if the hooks fail to run
-        let _ = connp.cfg.hook_log.run_all(&mut log);
-        connp.conn.messages.borrow_mut().push(log);
     }
 }
 
 /// Logs a message at the given level.
 #[macro_export]
 macro_rules! htp_log {
-    ($connp:expr, $level:expr, $code:expr, $msg:expr) => {{
-        use $crate::log::{log, HtpLogCode, HtpLogLevel};
-        log($connp, file!(), line!(), $level, $code, $msg.to_string());
+    ($logger:expr, $level:expr, $code:expr, $msg:expr) => {{
+        use $crate::log::{HtpLogCode, HtpLogLevel};
+        $logger.log(file!(), line!(), $level, $code, $msg.to_string());
     }};
 }
 
 /// Logs a message at the info level.
 #[macro_export]
 macro_rules! htp_info {
-    ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, HtpLogLevel::INFO, $code, $msg);
+    ($logger:expr, $code:expr, $msg:expr) => {
+        htp_log!($logger, HtpLogLevel::INFO, $code, $msg);
     };
 }
 
 /// Logs a message at the debug level.
 #[macro_export]
 macro_rules! htp_debug {
-    ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, HtpLogLevel::DEBUG, $code, $msg);
+    ($logger:expr, $code:expr, $msg:expr) => {
+        htp_log!($logger, HtpLogLevel::DEBUG, $code, $msg);
     };
 }
 
 /// Logs a message at the warning level.
 #[macro_export]
 macro_rules! htp_warn {
-    ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, HtpLogLevel::WARNING, $code, $msg);
+    ($logger:expr, $code:expr, $msg:expr) => {
+        htp_log!($logger, HtpLogLevel::WARNING, $code, $msg);
     };
 }
 
 /// Logs a message at the error level.
 #[macro_export]
 macro_rules! htp_error {
-    ($connp:expr, $code:expr, $msg:expr) => {
-        htp_log!($connp, HtpLogLevel::ERROR, $code, $msg);
+    ($logger:expr, $code:expr, $msg:expr) => {
+        htp_log!($logger, HtpLogLevel::ERROR, $code, $msg);
     };
 }
 
 /// Logs a message at the warning level, ensuring that it ones logs the message once.
 #[macro_export]
 macro_rules! htp_warn_once {
-    ($connp:expr, $code:expr, $msg:expr, $tx_flags:expr, $flags:expr, $flag:expr) => {
+    ($logger:expr, $code:expr, $msg:expr, $tx_flags:expr, $flags:expr, $flag:expr) => {
         // Log only once per transaction.
         if !$tx_flags.is_set($flag) {
-            htp_warn!($connp, $code, $msg);
+            htp_warn!($logger, $code, $msg);
         }
         $tx_flags.set($flag);
         $flags.set($flag);

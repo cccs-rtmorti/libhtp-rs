@@ -106,7 +106,7 @@ impl ConnectionParser {
         let field_limit = self.out_tx_mut_ok()?.cfg.field_limit;
         if newlen > field_limit {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::RESPONSE_FIELD_TOO_LONG,
                 format!(
                     "Response the buffer limit: size {} limit {}.",
@@ -213,7 +213,7 @@ impl ConnectionParser {
                         self.out_tx_mut_ok()?.response_transfer_coding =
                             HtpTransferCoding::IDENTITY;
                         htp_error!(
-                            self,
+                            self.logger,
                             HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
                             "Response chunk encoding: Invalid chunk length"
                         );
@@ -339,7 +339,7 @@ impl ConnectionParser {
                 return self.state_response_headers();
             } else {
                 htp_warn!(
-                    self,
+                    self.logger,
                     HtpLogCode::SWITCHING_PROTO_WITH_CONTENT_LENGTH,
                     "Switching Protocol with Content-Length"
                 );
@@ -352,7 +352,7 @@ impl ConnectionParser {
         {
             if self.out_tx_mut_ok()?.seen_100continue {
                 htp_error!(
-                    self,
+                    self.logger,
                     HtpLogCode::CONTINUE_ALREADY_SEEN,
                     "Already seen 100-Continue."
                 );
@@ -407,7 +407,7 @@ impl ConnectionParser {
                 self.out_state = State::FINALIZE
             } else {
                 htp_warn!(
-                    self,
+                    self.logger,
                     HtpLogCode::RESPONSE_BODY_UNEXPECTED,
                     "Unexpected Response body"
                 );
@@ -457,7 +457,7 @@ impl ConnectionParser {
             {
                 if te.value.cmp_nocase("chunked") != Ordering::Equal {
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_ABNORMAL_TRANSFER_ENCODING,
                         "Transfer-encoding has abnormal chunked value"
                     );
@@ -467,7 +467,7 @@ impl ConnectionParser {
                 // with 1.0 as well
                 if self.out_tx_mut_ok()?.response_protocol_number < HtpProtocol::V1_1 {
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_CHUNKED_OLD_PROTO,
                         "Chunked transfer-encoding on HTTP/0.9 or HTTP/1.0"
                     );
@@ -491,7 +491,7 @@ impl ConnectionParser {
                 }
                 // Get body length
                 if let Some(content_length) =
-                    parse_content_length((*cl.value).as_slice(), Some(self))
+                    parse_content_length((*cl.value).as_slice(), Some(&mut self.logger))
                 {
                     self.out_tx_mut_ok()?.response_content_length = content_length;
                     self.out_content_length = self.out_tx_mut_ok()?.response_content_length;
@@ -505,7 +505,7 @@ impl ConnectionParser {
                 } else {
                     let response_content_length = self.out_tx_mut_ok()?.response_content_length;
                     htp_error!(
-                        self,
+                        self.logger,
                         HtpLogCode::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                         format!("Invalid C-L field in response: {}", response_content_length)
                     );
@@ -521,7 +521,7 @@ impl ConnectionParser {
                 // TODO Handle multipart/byteranges
                 if multipart_byteranges {
                     htp_error!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_MULTIPART_BYTERANGES,
                         "C-T multipart/byteranges in responses not supported"
                     );
@@ -717,7 +717,7 @@ impl ConnectionParser {
         if treat_response_line_as_body(&data) {
             // Interpret remaining bytes as body data
             htp_warn!(
-                self,
+                self.logger,
                 HtpLogCode::RESPONSE_BODY_UNEXPECTED,
                 "Unexpected response body"
             );
@@ -754,10 +754,9 @@ impl ConnectionParser {
         // If there is none, we just create one so that responses without
         // request can still be processed.
         self.set_out_tx_id(self.conn.tx(self.out_next_tx_index).map(|tx| tx.index));
-
         if self.out_tx().is_none() {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::UNABLE_TO_MATCH_RESPONSE_TO_REQUEST,
                 "Unable to match response to request"
             );
@@ -814,7 +813,7 @@ impl ConnectionParser {
         // Return if the connection is in stop state
         if self.out_status == HtpStreamState::STOP {
             htp_info!(
-                self,
+                self.logger,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Outbound parser is in HTP_STREAM_STATE_STOP"
             );
@@ -823,7 +822,7 @@ impl ConnectionParser {
         // Return if the connection has had a fatal error
         if self.out_status == HtpStreamState::ERROR {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Outbound parser is in HTP_STREAM_STATE_ERROR"
             );
@@ -833,7 +832,7 @@ impl ConnectionParser {
         if self.out_tx().is_none() && self.out_state != State::IDLE {
             self.out_status = HtpStreamState::ERROR;
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::MISSING_OUTBOUND_TRANSACTION_DATA,
                 "Missing outbound transaction data"
             );
@@ -845,7 +844,7 @@ impl ConnectionParser {
         // to finalize parsing.
         if (data.is_null() || len == 0) && self.out_status != HtpStreamState::CLOSED {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
                 "Zero-length data chunks are not allowed"
             );
@@ -887,7 +886,7 @@ impl ConnectionParser {
                     }
                     _ => {
                         htp_error!(
-                            self,
+                            self.logger,
                             HtpLogCode::INVALID_GAP,
                             "Gaps are not allowed during this state"
                         );

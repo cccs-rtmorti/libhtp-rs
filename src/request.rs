@@ -210,7 +210,7 @@ impl ConnectionParser {
         let field_limit = self.in_tx_mut_ok()?.cfg.field_limit;
         if newlen > field_limit {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::REQUEST_FIELD_TOO_LONG,
                 format!(
                     "Request buffer over the limit: size {} limit {}.",
@@ -400,7 +400,7 @@ impl ConnectionParser {
                     } else {
                         // Invalid chunk length
                         htp_error!(
-                            self,
+                            self.logger,
                             HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
                             "Request chunk encoding: Invalid chunk length"
                         );
@@ -558,7 +558,7 @@ impl ConnectionParser {
                         }
                     }
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_LINE_NO_PROTOCOL,
                         "Request line: missing protocol"
                     );
@@ -677,12 +677,11 @@ impl ConnectionParser {
                 self.in_buf.clear();
                 return rc;
             }
-
             if HtpMethod::new(method) == HtpMethod::UNKNOWN {
                 if self.in_body_data_left <= 0 {
                     // log only once per transaction
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_BODY_UNEXPECTED,
                         "Unexpected request body"
                     );
@@ -782,7 +781,7 @@ impl ConnectionParser {
         // Return if the connection is in stop state.
         if self.in_status == HtpStreamState::STOP {
             htp_info!(
-                self,
+                self.logger,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Inbound parser is in STOP state"
             );
@@ -791,7 +790,7 @@ impl ConnectionParser {
         // Return if the connection had a fatal error earlier
         if self.in_status == HtpStreamState::ERROR {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::PARSER_STATE_ERROR,
                 "Inbound parser is in ERROR state"
             );
@@ -801,7 +800,7 @@ impl ConnectionParser {
         if self.in_tx().is_none() && self.in_state != State::IDLE {
             self.in_status = HtpStreamState::ERROR;
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::MISSING_INBOUND_TRANSACTION_DATA,
                 "Missing inbound transaction data"
             );
@@ -813,7 +812,7 @@ impl ConnectionParser {
         // to finalize parsing.
         if len == 0 && self.in_status != HtpStreamState::CLOSED {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
                 "Zero-length data chunks are not allowed"
             );
@@ -858,7 +857,7 @@ impl ConnectionParser {
                     _ => {
                         // go to req_connect_probe_data ?
                         htp_error!(
-                            self,
+                            self.logger,
                             HtpLogCode::INVALID_GAP,
                             "Gaps are not allowed during this state"
                         );

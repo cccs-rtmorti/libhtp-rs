@@ -4,6 +4,7 @@ use crate::{
     connection::{Connection, Flags},
     error::Result,
     hook::DataHook,
+    log::Logger,
     transaction::Transaction,
     util::{File, FlagOperations},
     HtpStatus,
@@ -80,6 +81,8 @@ pub enum HtpStreamState {
 /// Stores information about the parsing process and associated transactions.
 pub struct ConnectionParser {
     // General fields
+    /// The logger structure associated with this parser
+    pub logger: Logger,
     /// A reference to the current parser configuration structure.
     pub cfg: Rc<Config>,
     /// The connection structure associated with this parser.
@@ -184,9 +187,11 @@ impl std::fmt::Debug for ConnectionParser {
 impl ConnectionParser {
     /// Creates a new ConnectionParser with a preconfigured `Config` struct.
     pub fn new(cfg: Config) -> Self {
+        let conn = Connection::new();
         Self {
+            logger: Logger::new(conn.get_sender(), cfg.log_level),
             cfg: Rc::new(cfg),
-            conn: Connection::new(),
+            conn,
             user_data: None,
             in_status: HtpStreamState::NEW,
             out_status: HtpStreamState::NEW,
@@ -459,7 +464,7 @@ impl ConnectionParser {
         // Check connection parser state first.
         if self.in_status != HtpStreamState::NEW || self.out_status != HtpStreamState::NEW {
             htp_error!(
-                self,
+                self.logger,
                 HtpLogCode::CONNECTION_ALREADY_OPEN,
                 "Connection is already open"
             );

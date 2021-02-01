@@ -52,7 +52,7 @@ impl ConnectionParser {
                 // Ambiguous response C-L value.
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::DUPLICATE_CONTENT_LENGTH_FIELD_IN_REQUEST,
                         "Ambiguous request C-L value"
                     );
@@ -73,7 +73,7 @@ impl ConnectionParser {
         }
         if repeated {
             htp_warn!(
-                self,
+                self.logger,
                 HtpLogCode::REQUEST_HEADER_REPETITION,
                 "Repetition for header"
             );
@@ -95,7 +95,7 @@ impl ConnectionParser {
                 if name_flags.is_set(HeaderFlags::NAME_TRAILING_WHITESPACE) {
                     // Log only once per transaction.
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
                         "Request field invalid: LWS after name",
                         self.in_tx_mut_ok()?.flags,
@@ -108,7 +108,7 @@ impl ConnectionParser {
                     // Invalid folding.
                     // Warn only once per transaction.
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
                         "Invalid request field folding",
                         self.in_tx_mut_ok()?.flags,
@@ -121,7 +121,7 @@ impl ConnectionParser {
                     // Incorrectly formed header name.
                     // Log only once per transaction.
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_HEADER_INVALID,
                         "Request header name is not a token",
                         self.in_tx_mut_ok()?.flags,
@@ -137,7 +137,7 @@ impl ConnectionParser {
                     // TODO Apache will respond to this problem with a 400.
                     // Now extract the name and the value
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_FIELD_MISSING_COLON,
                         "Request field invalid: colon missing",
                         self.in_tx_mut_ok()?.flags,
@@ -148,7 +148,7 @@ impl ConnectionParser {
                     // Empty header name.
                     // Log only once per transaction.
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
                         "Request field invalid: empty name",
                         self.in_tx_mut_ok()?.flags,
@@ -181,7 +181,6 @@ impl ConnectionParser {
                 data = before_null
             }
         }
-
         // The request method starts at the beginning of the
         // line and ends with the first whitespace character.
         let method_parser = tuple::<_, _, (_, ErrorKind), _>
@@ -198,7 +197,7 @@ impl ConnectionParser {
         if let Ok((remaining, (ls, method, ws))) = method_parser(data) {
             if !ls.is_empty() {
                 htp_warn!(
-                    self,
+                    self.logger,
                     HtpLogCode::REQUEST_LINE_LEADING_WHITESPACE,
                     "Request line: leading whitespace"
                 );
@@ -229,7 +228,7 @@ impl ConnectionParser {
             // Too much performance overhead for fuzzing
             if ws.iter().any(|&c| c != 0x20) {
                 htp_warn!(
-                    self,
+                    self.logger,
                     HtpLogCode::METHOD_DELIM_NON_COMPLIANT,
                     "Request line: non-compliant delimiter between Method and URI"
                 );
@@ -241,7 +240,7 @@ impl ConnectionParser {
                 self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
                 if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN {
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD,
                         "Request line: unknown method only"
                     );
@@ -260,7 +259,7 @@ impl ConnectionParser {
                 if uri.len() == remaining.len() && uri.iter().any(|&c| is_space(c)) {
                     // warn regardless if we've seen non-compliant chars
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::URI_DELIM_NON_COMPLIANT,
                         "Request line: URI contains non-compliant delimiter"
                     );
@@ -280,7 +279,7 @@ impl ConnectionParser {
                     self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
                     if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN {
                         htp_warn!(
-                            self,
+                            self.logger,
                             HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
                             "Request line: unknown method and no protocol"
                         );
@@ -289,12 +288,13 @@ impl ConnectionParser {
                 }
                 // The protocol information continues until the end of the line.
                 self.in_tx_mut_ok()?.request_protocol = Some(Bstr::from(protocol));
-                self.in_tx_mut_ok()?.request_protocol_number = parse_protocol(protocol, self);
+                self.in_tx_mut_ok()?.request_protocol_number =
+                    parse_protocol(protocol, &mut self.logger);
                 if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN
                     && self.in_tx_mut_ok()?.request_protocol_number == HtpProtocol::INVALID
                 {
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
                         "Request line: unknown method and invalid protocol"
                     );

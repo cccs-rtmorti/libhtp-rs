@@ -635,10 +635,10 @@ pub unsafe extern "C" fn htp_conn_message_log(
 ) -> *mut std::os::raw::c_char {
     conn.as_ref()
         .and_then(|conn| {
-            conn.messages
+            conn.get_messages()
                 .borrow()
                 .get(msg_id)
-                .and_then(|msg| CString::new(msg.msg.clone()).ok())
+                .and_then(|log| CString::new(log.msg.msg.clone()).ok())
         })
         .map(|msg| msg.into_raw())
         .unwrap_or(std::ptr::null_mut())
@@ -655,10 +655,10 @@ pub unsafe extern "C" fn htp_conn_message_file(
 ) -> *mut std::os::raw::c_char {
     conn.as_ref()
         .and_then(|conn| {
-            conn.messages
+            conn.get_messages()
                 .borrow()
                 .get(msg_id)
-                .and_then(|msg| CString::new(msg.file.clone()).ok())
+                .and_then(|log| CString::new(log.msg.file.clone()).ok())
         })
         .map(|msg| msg.into_raw())
         .unwrap_or(std::ptr::null_mut())
@@ -673,7 +673,12 @@ pub unsafe extern "C" fn htp_conn_message_code(
     msg_id: usize,
 ) -> HtpLogCode {
     conn.as_ref()
-        .and_then(|conn| conn.messages.borrow().get(msg_id).map(|msg| msg.code))
+        .and_then(|conn| {
+            conn.get_messages()
+                .borrow()
+                .get(msg_id)
+                .map(|log| log.msg.code)
+        })
         .unwrap_or(HtpLogCode::ERROR)
 }
 
@@ -683,7 +688,7 @@ pub unsafe extern "C" fn htp_conn_message_code(
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_message_size(conn: *const Connection) -> isize {
     if let Some(conn) = conn.as_ref() {
-        isize::try_from(conn.messages.borrow().len()).unwrap_or(-1)
+        isize::try_from(conn.get_messages().borrow().len()).unwrap_or(-1)
     } else {
         -1
     }

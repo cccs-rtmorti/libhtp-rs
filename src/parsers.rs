@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
-    connection_parser::ConnectionParser,
     error::Result,
+    log::Logger,
     table::Table,
     transaction::{Header, HtpAuthType, HtpProtocol, HtpResponseNumber, Transaction},
     util::{ascii_digits, convert_port, hex_digits, take_ascii_whitespace, validate_hostname},
@@ -45,13 +45,13 @@ pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
 /// allowed before and after the number.
 ///
 /// Returns content length, or None if input is not valid.
-pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> Option<i64> {
+pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option<i64> {
     if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
-        if let Some(connp) = connp {
+        if let Some(logger) = logger {
             if !leading_data.is_empty() {
                 // Contains invalid characters! But still attempt to process
                 htp_warn!(
-                    connp,
+                    logger,
                     HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_START,
                     "C-L value with extra data in the beginning"
                 );
@@ -60,7 +60,7 @@ pub fn parse_content_length(input: &[u8], connp: Option<&ConnectionParser>) -> O
             if !trailing_data.is_empty() {
                 // Ok to have junk afterwards
                 htp_warn!(
-                    connp,
+                    logger,
                     HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_END,
                     "C-L value with extra data in the end"
                 );
@@ -318,14 +318,14 @@ pub fn protocol_version(input: &[u8]) -> IResult<&[u8], (&[u8], bool)> {
 /// characters are discovered, however, a warning will be logged.
 ///
 /// Returns HtpProtocol version or invalid.
-pub fn parse_protocol(input: &[u8], connp: &ConnectionParser) -> HtpProtocol {
+pub fn parse_protocol(input: &[u8], logger: &mut Logger) -> HtpProtocol {
     if let Ok((remaining, (version, contains_trailing))) = protocol_version(input) {
         if !remaining.is_empty() {
             return HtpProtocol::INVALID;
         }
         if contains_trailing {
             htp_warn!(
-                    connp,
+                    logger,
                     HtpLogCode::PROTOCOL_CONTAINS_EXTRA_DATA,
                     "HtpProtocol version contains leading and/or trailing whitespace and/or leading zeros"
                 )

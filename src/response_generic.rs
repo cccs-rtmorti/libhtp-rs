@@ -37,7 +37,7 @@ impl ConnectionParser {
 
             out_tx.response_protocol = Some(Bstr::from(response_protocol));
             self.out_tx_mut_ok()?.response_protocol_number =
-                parse_protocol(response_protocol, self);
+                parse_protocol(response_protocol, &mut self.logger);
 
             if ws1.is_empty() || status_code.is_empty() {
                 return Ok(());
@@ -75,7 +75,7 @@ impl ConnectionParser {
                     || name_flags.is_set(HeaderFlags::DEFORMED_EOL)
                 {
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::DEFORMED_EOL,
                         "Weird response end of lines mix"
                     );
@@ -83,7 +83,7 @@ impl ConnectionParser {
                 // Ignore LWS after field-name.
                 if name_flags.is_set(HeaderFlags::NAME_TRAILING_WHITESPACE) {
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
                         "Request field invalid: LWS after name",
                         self.out_tx_mut_ok()?.flags,
@@ -94,7 +94,7 @@ impl ConnectionParser {
                 //If there was leading whitespace, probably was invalid folding.
                 if name_flags.is_set(HeaderFlags::NAME_LEADING_WHITESPACE) {
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
                         "Invalid response field folding",
                         self.out_tx_mut_ok()?.flags,
@@ -107,7 +107,7 @@ impl ConnectionParser {
                 if name_flags.is_set(HeaderFlags::NAME_NON_TOKEN_CHARS) {
                     // Incorrectly formed header name.
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_HEADER_NAME_NOT_TOKEN,
                         "Response header name is not a token",
                         self.out_tx_mut_ok()?.flags,
@@ -122,7 +122,7 @@ impl ConnectionParser {
                     // TODO Apache will respond to this problem with a 400.
                     // Now extract the name and the value
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_FIELD_MISSING_COLON,
                         "Response field invalid: colon missing",
                         self.out_tx_mut_ok()?.flags,
@@ -133,7 +133,7 @@ impl ConnectionParser {
                 } else if name_flags.is_set(HeaderFlags::NAME_EMPTY) {
                     // Empty header name.
                     htp_warn_once!(
-                        self,
+                        self.logger,
                         HtpLogCode::RESPONSE_INVALID_EMPTY_NAME,
                         "Response field invalid: empty name",
                         self.out_tx_mut_ok()?.flags,
@@ -186,7 +186,7 @@ impl ConnectionParser {
                 if existing_cl.is_none() || new_cl.is_none() || existing_cl != new_cl {
                     // Ambiguous response C-L value.
                     htp_warn!(
-                        self,
+                        self.logger,
                         HtpLogCode::DUPLICATE_CONTENT_LENGTH_FIELD_IN_RESPONSE,
                         "Ambiguous response C-L value"
                     );
@@ -207,7 +207,7 @@ impl ConnectionParser {
         }
         if repeated {
             htp_warn!(
-                self,
+                self.logger,
                 HtpLogCode::RESPONSE_HEADER_REPETITION,
                 "Repetition for header"
             );

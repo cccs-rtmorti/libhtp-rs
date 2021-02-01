@@ -6,6 +6,7 @@ use crate::{
     error::Result,
     hook::{DataHook, DataNativeCallbackFn},
     list::List,
+    log::Logger,
     multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
     parsers::{
         parse_authorization, parse_content_length, parse_content_type, parse_cookies_v0,
@@ -281,6 +282,8 @@ pub enum HtpProtocol {
 
 /// Represents a single HTTP transaction, which is a combination of a request and a response.
 pub struct Transaction {
+    /// The logger structure associated with this transaction
+    pub logger: Logger,
     /// The configuration structure associated with this transaction.
     pub cfg: Rc<Config>,
     /// Is the configuration structure shared with other transactions or connections? If
@@ -508,6 +511,7 @@ impl Transaction {
     /// Construct a new transaction.
     pub fn new(connp: &mut ConnectionParser, index: usize) -> Self {
         Self {
+            logger: connp.logger.clone(),
             cfg: Rc::clone(&connp.cfg),
             is_config_shared: true,
             user_data: None,
@@ -675,7 +679,7 @@ impl Transaction {
             }
             // Get the body length.
             if let Some(content_length) =
-                parse_content_length((*(*cl).value).as_slice(), Some(connp))
+                parse_content_length((*(*cl).value).as_slice(), Some(&mut self.logger))
             {
                 // We have a request body of known length.
                 self.request_content_length = content_length;
@@ -891,7 +895,7 @@ impl Transaction {
         let mut data = Data::new(self, data, false);
         connp.req_run_hook_body_data(&mut data).map_err(|e| {
             htp_error!(
-                connp,
+                self.logger,
                 HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
                 format!("Request body data callback returned error ({:?})", e)
             );
@@ -904,7 +908,7 @@ impl Transaction {
         // Is the response line valid?
         if self.response_protocol_number == HtpProtocol::INVALID {
             htp_warn!(
-                connp,
+                self.logger,
                 HtpLogCode::RESPONSE_LINE_INVALID_PROTOCOL,
                 "Invalid response line: invalid protocol"
             );
@@ -912,7 +916,7 @@ impl Transaction {
         }
         if !self.response_status_number.in_range(100, 999) {
             htp_warn!(
-                connp,
+                self.logger,
                 HtpLogCode::RESPONSE_LINE_INVALID_RESPONSE_STATUS,
                 "Invalid response line: invalid response status."
             );
@@ -958,7 +962,7 @@ impl Transaction {
                         > self.cfg.compression_options.get_time_limit() as u64
                     {
                         htp_log!(
-                            connp,
+                            self.logger,
                             HtpLogLevel::ERROR,
                             HtpLogCode::COMPRESSION_BOMB,
                             format!(
@@ -990,7 +994,7 @@ impl Transaction {
             }
             HtpContentEncoding::ERROR => {
                 htp_error!(
-                    connp,
+                    self.logger,
                     HtpLogCode::INVALID_CONTENT_ENCODING,
                     "Expected a valid content encoding"
                 );
@@ -1069,7 +1073,7 @@ impl Transaction {
             connp.in_state = State::CONNECT_CHECK;
         } else {
             htp_warn!(
-                connp,
+                self.logger,
                 HtpLogCode::RESPONSE_BODY_INTERNAL_ERROR,
                 format!(
                     "[Internal Error] Invalid tx progress: {:?}",
@@ -1247,7 +1251,7 @@ impl Transaction {
                 if let Some(time_spent) = decompressor.timer_reset() {
                     if time_spent > self.cfg.compression_options.get_time_limit() as u64 {
                         htp_log!(
-                            connp,
+                            self.logger,
                             HtpLogLevel::ERROR,
                             HtpLogCode::COMPRESSION_BOMB,
                             format!("Compression bomb: spent {} us decompressing", time_spent)
@@ -1273,7 +1277,7 @@ impl Transaction {
         let bomb_limit = self.cfg.compression_options.get_bomb_limit();
         if self.response_entity_len > bomb_limit as i64 && exceeds_ratio {
             htp_log!(
-                connp,
+                self.logger,
                 HtpLogLevel::ERROR,
                 HtpLogCode::COMPRESSION_BOMB,
                 format!(
@@ -1398,7 +1402,7 @@ impl Transaction {
                                 // decompression layer depth check
                                 if layers > limit {
                                     htp_warn!(
-                                        connp,
+                                        self.logger,
                                         HtpLogCode::TOO_MANY_ENCODING_LAYERS,
                                         "Too many response content encoding layers"
                                     );
@@ -1412,7 +1416,7 @@ impl Transaction {
                                     || encoding.cmp(b"x-gzip") == Ordering::Equal)
                                 {
                                     htp_warn!(
-                                        connp,
+                                        self.logger,
                                         HtpLogCode::ABNORMAL_CE_HEADER,
                                         "C-E gzip has abnormal value"
                                     );
@@ -1423,7 +1427,7 @@ impl Transaction {
                                     || encoding.cmp(b"x-deflate") == Ordering::Equal)
                                 {
                                     htp_warn!(
-                                        connp,
+                                        self.logger,
                                         HtpLogCode::ABNORMAL_CE_HEADER,
                                         "C-E deflate has abnormal value"
                                     );
@@ -1435,7 +1439,7 @@ impl Transaction {
                                 HtpContentEncoding::NONE
                             } else {
                                 htp_warn!(
-                                    connp,
+                                    self.logger,
                                     HtpLogCode::ABNORMAL_CE_HEADER,
                                     "C-E unknown setting"
                                 );
@@ -1450,7 +1454,7 @@ impl Transaction {
             }
             HtpContentEncoding::ERROR => {
                 htp_error!(
-                    connp,
+                    self.logger,
                     HtpLogCode::INVALID_CONTENT_ENCODING,
                     "Expected a valid content encoding"
                 );
@@ -1486,7 +1490,7 @@ impl Transaction {
             && connp.in_state == State::LINE
         {
             htp_warn!(
-                connp,
+                self.logger,
                 HtpLogCode::REQUEST_LINE_INCOMPLETE,
                 "Request line incomplete"
             );
