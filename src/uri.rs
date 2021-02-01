@@ -13,8 +13,10 @@ use nom::{combinator::opt, sequence::tuple};
 /// URI element. Where an element is not present in a URI, the
 /// corresponding field will be set to NULL or -1, depending on the
 /// field type.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Uri {
+    /// Decoder configuration
+    pub cfg: DecoderConfig,
     /// Scheme, e.g., "http".
     pub scheme: Option<Bstr>,
     /// Username.
@@ -38,7 +40,38 @@ pub struct Uri {
     pub fragment: Option<Bstr>,
 }
 
+impl std::fmt::Debug for Uri {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("Uri")
+            .field("scheme", &self.scheme)
+            .field("username", &self.username)
+            .field("password", &self.password)
+            .field("hostname", &self.hostname)
+            .field("port", &self.port)
+            .field("port_number", &self.port_number)
+            .field("path", &self.path)
+            .field("query", &self.query)
+            .field("fragment", &self.fragment)
+            .finish()
+    }
+}
+
 impl Uri {
+    /// Create an empty Uri struct but with the given DecoderCfg
+    pub fn with_config(cfg: DecoderConfig) -> Self {
+        Self {
+            cfg,
+            scheme: None,
+            username: None,
+            password: None,
+            hostname: None,
+            port: None,
+            port_number: None,
+            path: None,
+            query: None,
+            fragment: None,
+        }
+    }
     /// Create a new Uri struct from given values.
     pub fn new(
         scheme: Option<Bstr>,
@@ -52,6 +85,7 @@ impl Uri {
         fragment: Option<Bstr>,
     ) -> Self {
         Self {
+            cfg: DecoderConfig::default(),
             scheme,
             username,
             password,
@@ -67,6 +101,7 @@ impl Uri {
     /// Create an empty Uri struct.
     pub fn default() -> Self {
         Self {
+            cfg: DecoderConfig::default(),
             scheme: None,
             username: None,
             password: None,
@@ -90,13 +125,9 @@ impl Uri {
     }
 
     /// Normalize uri username.
-    pub fn normalized_username(
-        &self,
-        decoder_cfg: &DecoderConfig,
-        flags: &mut u64,
-    ) -> Option<Bstr> {
+    pub fn normalized_username(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(mut username) = self.username.clone() {
-            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut username);
+            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut username);
             Some(username)
         } else {
             None
@@ -104,13 +135,9 @@ impl Uri {
     }
 
     /// Normalize uri password.
-    pub fn normalized_password(
-        &self,
-        decoder_cfg: &DecoderConfig,
-        flags: &mut u64,
-    ) -> Option<Bstr> {
+    pub fn normalized_password(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(mut password) = self.password.clone() {
-            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut password);
+            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut password);
             Some(password)
         } else {
             None
@@ -118,13 +145,9 @@ impl Uri {
     }
 
     /// Normalize uri hostname.
-    pub fn normalized_hostname(
-        &self,
-        decoder_cfg: &DecoderConfig,
-        flags: &mut u64,
-    ) -> Option<Bstr> {
+    pub fn normalized_hostname(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(mut hostname) = self.hostname.clone() {
-            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut hostname);
+            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut hostname);
             hostname.make_ascii_lowercase();
             // Remove dots from the end of the string.
             while hostname.last() == Some(&(b'.')) {
@@ -152,13 +175,9 @@ impl Uri {
     }
 
     /// Normalize uri fragment.
-    pub fn normalized_fragment(
-        &self,
-        decoder_cfg: &DecoderConfig,
-        flags: &mut u64,
-    ) -> Option<Bstr> {
+    pub fn normalized_fragment(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(mut fragment) = self.fragment.clone() {
-            let _ = urldecode_uri_inplace(decoder_cfg, flags, &mut fragment);
+            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut fragment);
             Some(fragment)
         } else {
             None
@@ -166,19 +185,14 @@ impl Uri {
     }
 
     /// Normalize uri path.
-    pub fn normalized_path(
-        &self,
-        decoder_cfg: &DecoderConfig,
-        flags: &mut u64,
-        status: &mut HtpUnwanted,
-    ) -> Option<Bstr> {
+    pub fn normalized_path(&self, flags: &mut u64, status: &mut HtpUnwanted) -> Option<Bstr> {
         if let Some(mut path) = self.path.clone() {
             // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
             // compress separators and convert backslashes.
             // Ignore result.
-            decode_uri_path_inplace(decoder_cfg, flags, status, &mut path);
+            decode_uri_path_inplace(&self.cfg, flags, status, &mut path);
             // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
-            utf8_decode_and_validate_uri_path_inplace(&decoder_cfg, flags, status, &mut path);
+            utf8_decode_and_validate_uri_path_inplace(&self.cfg, flags, status, &mut path);
             // RFC normalization.
             normalize_uri_path_inplace(&mut path);
             Some(path)
@@ -250,10 +264,7 @@ impl Uri {
     }
 
     /// Generate a normalized uri string.
-    pub fn generate_normalized_uri(
-        &self,
-        decoder_cfg: &DecoderConfig,
-    ) -> (Option<Bstr>, Option<Bstr>) {
+    pub fn generate_normalized_uri(&self) -> (Option<Bstr>, Option<Bstr>) {
         // On the first pass determine the length of the final bstrs
         let mut partial_len = 0usize;
         let mut complete_len = 0usize;
@@ -323,7 +334,7 @@ impl Uri {
         }
         if let Some(mut query) = self.query.clone() {
             let mut flags = 0;
-            let _ = urldecode_inplace(decoder_cfg, &mut query, &mut flags);
+            let _ = urldecode_inplace(&self.cfg, &mut query, &mut flags);
             partial_normalized_uri.add("?");
             partial_normalized_uri.add(query.as_slice());
         }
@@ -497,7 +508,6 @@ fn ParseUri() {
 
 #[test]
 fn GenerateNormalizedUri1() {
-    let cfg = DecoderConfig::default();
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.username = Some(Bstr::from("user"));
@@ -508,7 +518,7 @@ fn GenerateNormalizedUri1() {
     uri.query = Some(Bstr::from("a=b&c=d"));
     uri.fragment = Some(Bstr::from("frag"));
 
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(
         partial_normalized_uri,
         Some(Bstr::from("/path1/path2?a=b&c=d#frag"))
@@ -523,76 +533,68 @@ fn GenerateNormalizedUri1() {
 
 #[test]
 fn GenerateNormalizedUri2() {
-    let cfg = DecoderConfig::default();
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.hostname = Some(Bstr::from("host.com"));
     uri.path = Some(Bstr::from("/path"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, Some(Bstr::from("/path")));
     assert_eq!(normalized_uri, Some(Bstr::from("http://host.com/path")));
 }
 
 #[test]
 fn GenerateNormalizedUri3() {
-    let cfg = DecoderConfig::default();
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.hostname = Some(Bstr::from("host.com"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, Some(Bstr::from("http://host.com")));
 }
 
 #[test]
 fn GenerateNormalizedUri4() {
-    let cfg = DecoderConfig::default();
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.path = Some(Bstr::from("//"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, Some(Bstr::from("//")));
     assert_eq!(normalized_uri, Some(Bstr::from("http:////")));
 }
 
 #[test]
 fn GenerateNormalizedUri5() {
-    let cfg = DecoderConfig::default();
     let mut uri = Uri::default();
     uri.path = Some(Bstr::from("/path"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, Some(Bstr::from("/path")));
     assert_eq!(normalized_uri, Some(Bstr::from("/path")));
 }
 
 #[test]
 fn GenerateNormalizedUri6() {
-    let cfg = DecoderConfig::default();
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from(""));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, Some(Bstr::from("://")));
 }
 
 #[test]
 fn GenerateNormalizedUri7() {
-    let cfg = DecoderConfig::default();
     let uri = Uri::default();
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, None);
 }
 
 #[test]
 fn GenerateNormalizedUri8() {
-    let cfg = DecoderConfig::default();
-
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.username = Some(Bstr::from("user"));
     uri.hostname = Some(Bstr::from("host.com"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(&cfg);
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, Some(Bstr::from("http://user:@host.com")));
 }

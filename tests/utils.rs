@@ -1,13 +1,8 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
-
-use std::net::{IpAddr, Ipv4Addr};
-
 use htp::{
     bstr::Bstr,
-    config::{Config, HtpUrlEncodingHandling},
-    connection_parser::ConnectionParser,
-    urlencoded::{urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser},
+    config::{Config, DecoderConfig, HtpUnwanted, HtpUrlEncodingHandling},
     util::*,
 };
 use nom::{
@@ -160,257 +155,198 @@ fn ValidateHostname_13() {
     assert!(!validate_hostname(b"[:::?]"));
 }
 
-struct Test {
-    connp: ConnectionParser,
-}
-
-impl Test {
-    fn new(cfg: Config) -> Self {
-        let mut connp = ConnectionParser::new(cfg);
-        connp.open(
-            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-            Some(32768),
-            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-            Some(80),
-            None,
-        );
-        let tx_id = connp.create_tx().unwrap();
-        connp.set_in_tx_id(Some(tx_id));
-        Self { connp }
-    }
+#[test]
+fn DecodeUrlencodedEx1_Identity() {
+    let i = Bstr::from("/dest");
+    let e = "/dest".as_bytes();
+    let cfg = DecoderConfig::default();
+    assert_eq!(e, urldecode_ex(&i, &cfg).unwrap().1 .0);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace1_Identity() {
-    let mut i = Bstr::from("/dest");
-    let e = Bstr::from("/dest");
-    let mut test = Test::new(Config::default());
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+fn DecodeUrlencodedEx2_Urlencoded() {
+    let i = Bstr::from("/%64est");
+    let e = "/dest".as_bytes();
+    let cfg = DecoderConfig::default();
+    assert_eq!(e, urldecode_ex(&i, &cfg).unwrap().1 .0);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace2_Urlencoded() {
-    let mut i = Bstr::from("/%64est");
-    let e = Bstr::from("/dest");
-    let mut test = Test::new(Config::default());
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
-}
-
-#[test]
-fn DecodingTest_DecodeUrlencodedInplace3_UrlencodedInvalidPreserve() {
+fn DecodeUrlencodedEx3_UrlencodedInvalidPreserve() {
     let mut cfg = Config::default();
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-    let mut i = Bstr::from("/%xxest");
-    let e = Bstr::from("/%xxest");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%xxest");
+    let e = "/%xxest".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace4_UrlencodedInvalidRemove() {
+fn DecodeUrlencodedEx4_UrlencodedInvalidRemove() {
     let mut cfg = Config::default();
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-    let mut i = Bstr::from("/%xxest");
-    let e = Bstr::from("/xxest");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%xxest");
+    let e = "/xxest".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace5_UrlencodedInvalidDecode() {
+fn DecodeUrlencodedEx5_UrlencodedInvalidDecode() {
     let mut cfg = Config::default();
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-    let mut i = Bstr::from("/%}9est");
-    let e = Bstr::from("/iest");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%}9est");
+    let e = "/iest".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace6_UrlencodedInvalidNotEnoughBytes() {
-    let mut i = Bstr::from("/%a");
-    let e = Bstr::from("/%a");
-    let mut test = Test::new(Config::default());
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+fn DecodeUrlencodedEx6_UrlencodedInvalidNotEnoughBytes() {
+    let cfg = DecoderConfig::default();
+    let i = Bstr::from("/%a");
+    let e = "/%a".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace7_UrlencodedInvalidNotEnoughBytes() {
-    let mut i = Bstr::from("/%");
-    let e = Bstr::from("/%");
-    let mut test = Test::new(Config::default());
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+fn DecodeUrlencodedEx7_UrlencodedInvalidNotEnoughBytes() {
+    let cfg = DecoderConfig::default();
+    let i = Bstr::from("/%");
+    let e = "/%".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace8_Uencoded() {
+fn DecodeUrlencodedEx8_Uencoded() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
-    let mut i = Bstr::from("/%u0064");
-    let e = Bstr::from("/d");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u0064");
+    let e = "/d".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace9_UencodedDoNotDecode() {
+fn DecodeUrlencodedEx9_UencodedDoNotDecode() {
     let mut cfg = Config::default();
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
     cfg.set_u_encoding_decode(false);
-    let mut i = Bstr::from("/%u0064");
-    let e = Bstr::from("/%u0064");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u0064");
+    let e = "/%u0064".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace10_UencodedInvalidNotEnoughBytes() {
+fn DecodeUrlencodedEx10_UencodedInvalidNotEnoughBytes() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-    let mut i = Bstr::from("/%u006");
-    let e = Bstr::from("/%u006");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u006");
+    let e = "/%u006".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace11_UencodedInvalidPreserve() {
+fn DecodeUrlencodedEx11_UencodedInvalidPreserve() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-    let mut i = Bstr::from("/%u006");
-    let e = Bstr::from("/%u006");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u006");
+    let e = "/%u006".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace12_UencodedInvalidRemove() {
+fn DecodeUrlencodedEx12_UencodedInvalidRemove() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-    let mut i = Bstr::from("/%uXXXX");
-    let e = Bstr::from("/uXXXX");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%uXXXX");
+    let e = "/uXXXX".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace13_UencodedInvalidDecode() {
+fn DecodeUrlencodedEx13_UencodedInvalidDecode() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-    let mut i = Bstr::from("/%u00}9");
-    let e = Bstr::from("/i");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u00}9");
+    let e = "/i".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace14_UencodedInvalidPreserve() {
+fn DecodeUrlencodedEx14_UencodedInvalidPreserve() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-    let mut i = Bstr::from("/%u00");
-    let e = Bstr::from("/%u00");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u00");
+    let e = "/%u00".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace15_UencodedInvalidPreserve() {
+fn DecodeUrlencodedEx15_UencodedInvalidPreserve() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-    let mut i = Bstr::from("/%u0");
-    let e = Bstr::from("/%u0");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u0");
+    let e = "/%u0".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace16_UencodedInvalidPreserve() {
+fn DecodeUrlencodedEx16_UencodedInvalidPreserve() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-    let mut i = Bstr::from("/%u");
-    let e = Bstr::from("/%u");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u");
+    let e = "/%u".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace17_UrlencodedNul() {
-    let mut i = Bstr::from("/%00");
-    let e = Bstr::from("/\0");
-    let mut test = Test::new(Config::default());
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+fn DecodeUrlencodedEx17_UrlencodedNul() {
+    let cfg = DecoderConfig::default();
+    let i = Bstr::from("/%00");
+    let e = "/\0".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace18_UrlencodedNulTerminates() {
+fn DecodeUrlencodedEx18_UrlencodedNulTerminates() {
     let mut cfg = Config::default();
     cfg.set_nul_encoded_terminates(true);
-    let mut i = Bstr::from("/%00ABC");
-    let e = Bstr::from("/");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%00ABC");
+    let e = "/".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace19_RawNulTerminates() {
+fn DecodeUrlencodedEx19_RawNulTerminates() {
     let mut cfg = Config::default();
     cfg.set_nul_raw_terminates(true);
-    let mut i = Bstr::from("/\0ABC");
-    let e = Bstr::from("/");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/\0ABC");
+    let e = "/".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace20_UencodedBestFit() {
+fn DecodeUrlencodedEx20_UencodedBestFit() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
-    let mut i = Bstr::from("/%u0107");
-    let e = Bstr::from("/c");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i).unwrap();
-    assert_eq!(i, e);
+    let i = Bstr::from("/%u0107");
+    let e = "/c".as_bytes();
+    assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
-fn DecodingTest_DecodeUrlencodedInplace21_UencodedCaseInsensitive() {
+fn DecodeUrlencodedEx21_UencodedCaseInsensitive() {
     let mut cfg = Config::default();
     cfg.set_u_encoding_decode(true);
-    let mut i_lower = Bstr::from("/%u0064");
-    let mut i_upper = Bstr::from("/%U0064");
-    let e = Bstr::from("/d");
-    let mut test = Test::new(cfg);
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i_lower).unwrap();
-    tx_urldecode_params_inplace(test.connp.in_tx_mut().unwrap(), &mut i_upper).unwrap();
-    assert_eq!(i_upper, e);
-    assert_eq!(i_lower, e);
+    let i_lower = Bstr::from("/%u0064");
+    let i_upper = Bstr::from("/%U0064");
+    let e = "/d".as_bytes();
+    assert_eq!(urldecode_ex(&i_upper, &cfg.decoder_cfg).unwrap().1 .0, e);
+    assert_eq!(urldecode_ex(&i_lower, &cfg.decoder_cfg).unwrap().1 .0, e);
 }
 
 #[test]
@@ -419,16 +355,15 @@ fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
     let mut i = Bstr::from("/%a");
     let e = Bstr::from("/%a");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -439,16 +374,15 @@ fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%uX");
     let e = Bstr::from("/%uX");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -459,13 +393,12 @@ fn DecodingTest_DecodePathInplace3_UencodedValid() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%u0107");
     let e = Bstr::from("/c");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert_eq!(i, e);
@@ -478,16 +411,15 @@ fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%uXXXX");
     let e = Bstr::from("/uXXXX");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -498,16 +430,15 @@ fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%uXXXX");
     let e = Bstr::from("/%uXXXX");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -518,16 +449,15 @@ fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%u00}9");
     let e = Bstr::from("/i");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -538,16 +468,15 @@ fn DecodingTest_DecodePathInplace7_UencodedNul() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%u0000");
     let e = Bstr::from("/\0");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_ENCODED_NUL));
+    assert!(flags.is_set(HtpFlags::PATH_ENCODED_NUL));
     assert_eq!(i, e);
 }
 
@@ -558,16 +487,15 @@ fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%uXXX");
     let e = Bstr::from("/uXXX");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -578,16 +506,15 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
     cfg.set_u_encoding_decode(true);
     let mut i = Bstr::from("/%uXXX");
     let e = Bstr::from("/%uXXX");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -595,16 +522,16 @@ fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
 fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
     let mut i = Bstr::from("/%00123");
     let e = Bstr::from("/\x00123");
-    let mut test = Test::new(Config::default());
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let cfg = DecoderConfig::default();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_ENCODED_NUL));
+    assert!(flags.is_set(HtpFlags::PATH_ENCODED_NUL));
     assert_eq!(i, e);
 }
 
@@ -614,16 +541,15 @@ fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
     cfg.set_nul_encoded_terminates(true);
     let mut i = Bstr::from("/%00123");
     let e = Bstr::from("/");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_ENCODED_NUL));
+    assert!(flags.is_set(HtpFlags::PATH_ENCODED_NUL));
     assert_eq!(i, e);
 }
 
@@ -633,16 +559,15 @@ fn DecodingTest_DecodePathInplace12_EncodedSlash() {
     cfg.set_path_separators_decode(false);
     let mut i = Bstr::from("/one%2ftwo");
     let e = Bstr::from("/one%2ftwo");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_ENCODED_SEPARATOR));
+    assert!(flags.is_set(HtpFlags::PATH_ENCODED_SEPARATOR));
     assert_eq!(i, e);
 }
 
@@ -652,16 +577,15 @@ fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
     cfg.set_path_separators_decode(true);
     let mut i = Bstr::from("/one%2ftwo");
     let e = Bstr::from("/one/two");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_ENCODED_SEPARATOR));
+    assert!(flags.is_set(HtpFlags::PATH_ENCODED_SEPARATOR));
     assert_eq!(i, e);
 }
 
@@ -671,16 +595,15 @@ fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
     let mut i = Bstr::from("/%HH");
     let e = Bstr::from("/%HH");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -690,16 +613,15 @@ fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
     let mut i = Bstr::from("/%HH");
     let e = Bstr::from("/HH");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -709,16 +631,15 @@ fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
     let mut i = Bstr::from("/%}9");
     let e = Bstr::from("/i");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -728,16 +649,15 @@ fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
     let mut i = Bstr::from("/%H");
     let e = Bstr::from("/H");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -747,16 +667,15 @@ fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
     let mut i = Bstr::from("/%H");
     let e = Bstr::from("/%H");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -766,16 +685,15 @@ fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
     cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
     let mut i = Bstr::from("/%H");
     let e = Bstr::from("/%H");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
-    assert!(tx.flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
+    assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
     assert_eq!(i, e);
 }
 
@@ -785,13 +703,12 @@ fn DecodingTest_DecodePathInplace20_RawNul1() {
     cfg.set_nul_raw_terminates(true);
     let mut i = Bstr::from("/\x00123");
     let e = Bstr::from("/");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert_eq!(i, e);
@@ -803,13 +720,12 @@ fn DecodingTest_DecodePathInplace21_RawNul1() {
     cfg.set_nul_raw_terminates(false);
     let mut i = Bstr::from("/\x00123");
     let e = Bstr::from("/\x00123");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert_eq!(i, e);
@@ -821,13 +737,12 @@ fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
     cfg.set_backslash_convert_slashes(true);
     let mut i = Bstr::from("/one\\two");
     let e = Bstr::from("/one/two");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert_eq!(i, e);
@@ -839,13 +754,12 @@ fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
     cfg.set_backslash_convert_slashes(false);
     let mut i = Bstr::from("/one\\two");
     let e = Bstr::from("/one\\two");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert_eq!(i, e);
@@ -857,13 +771,12 @@ fn DecodingTest_DecodePathInplace24_CompressSeparators() {
     cfg.set_path_separators_compress(true);
     let mut i = Bstr::from("/one//two");
     let e = Bstr::from("/one/two");
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     decode_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert_eq!(i, e);
@@ -874,255 +787,15 @@ fn DecodingTest_InvalidUtf8() {
     let mut cfg = Config::default();
     cfg.set_utf8_convert_bestfit(true);
     let mut i = Bstr::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec());
-    let mut test = Test::new(cfg);
-    let decoder_cfg = test.connp.cfg.decoder_cfg;
-    let tx = test.connp.in_tx_mut().unwrap();
+    let mut flags = 0;
+    let mut response_status_expected_number = HtpUnwanted::IGNORE;
     utf8_decode_and_validate_uri_path_inplace(
-        &decoder_cfg,
-        &mut tx.flags,
-        &mut tx.response_status_expected_number,
+        &cfg.decoder_cfg,
+        &mut flags,
+        &mut response_status_expected_number,
         &mut i,
     );
     assert!(i.eq("?.?}abcd"));
-}
-
-// Start of Url Parser tests.
-#[test]
-fn UrlencodedParser_Empty() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"");
-
-    assert_eq!(0, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_EmptyKey1() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_EmptyKey2() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"=&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_EmptyKey3() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"=1&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq("1"));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_EmptyKey4() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"&=");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_EmptyKey5() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"&&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_EmptyKeyAndValue() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"=");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_OnePairEmptyValue() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p=");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_OnePairEmptyKey() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"=p");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq("p"));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_OnePair() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p=1");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_TwoPairs() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p=1&q=2");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
-    assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_KeyNoValue1() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_KeyNoValue2() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p&");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_KeyNoValue3() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p&q");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq(""));
-    assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_KeyNoValue4() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_complete(&mut urlenp, b"p&q=2");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
-    assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_Partial1() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_finalize(&mut urlenp);
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_Partial2() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"x");
-    urlenp_finalize(&mut urlenp);
-
-    assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_Partial3() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"x&");
-    urlenp_finalize(&mut urlenp);
-
-    assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_Partial4() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"=");
-    urlenp_finalize(&mut urlenp);
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_Partial5() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_finalize(&mut urlenp);
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn UrlencodedParser_Partial6() {
-    let mut test = Test::new(Config::default());
-    let mut urlenp = Parser::new(test.connp.in_tx_mut().unwrap());
-    urlenp_parse_partial(&mut urlenp, b"px");
-    urlenp_parse_partial(&mut urlenp, b"n");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"=");
-    urlenp_parse_partial(&mut urlenp, b"1");
-    urlenp_parse_partial(&mut urlenp, b"2");
-    urlenp_parse_partial(&mut urlenp, b"&");
-    urlenp_parse_partial(&mut urlenp, b"qz");
-    urlenp_parse_partial(&mut urlenp, b"n");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"=");
-    urlenp_parse_partial(&mut urlenp, b"2");
-    urlenp_parse_partial(&mut urlenp, b"3");
-    urlenp_parse_partial(&mut urlenp, b"&");
-    urlenp_finalize(&mut urlenp);
-
-    assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq("12"));
-    assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq("23"));
-    assert_eq!(2, urlenp.params.size());
 }
 
 #[test]

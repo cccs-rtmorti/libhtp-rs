@@ -5,7 +5,6 @@ use crate::{
     config::{DecoderConfig, HtpServerPersonality, HtpUnwanted, HtpUrlEncodingHandling},
     error::Result,
     hook::FileDataHook,
-    transaction::Transaction,
     utf8_decoder::Utf8Decoder,
     HtpStatus,
 };
@@ -209,7 +208,7 @@ impl File {
         Ok(())
     }
 
-    /// Update file length and invoke any file data callbacks on the provided cfg.
+    /// Update file length and invoke any file data callbacks on the provided cfg
     pub fn handle_file_data(
         &mut self,
         hook: FileDataHook,
@@ -764,7 +763,7 @@ fn path_decode_control(mut byte: u8, cfg: &DecoderConfig) -> (u8, HtpUnwanted) {
 /// provided configuration structure.
 fn path_decode<'a>(
     input: &'a [u8],
-    cfg: &'a DecoderConfig,
+    cfg: &DecoderConfig,
 ) -> IResult<&'a [u8], (Vec<u8>, u64, HtpUnwanted)> {
     fold_many0(
         alt((path_decode_percent(cfg), path_parse_other(cfg))),
@@ -829,21 +828,6 @@ pub fn urldecode_uri_inplace(
         if f.is_set(HtpFlags::URLEN_RAW_NUL) {
             flags.set(HtpFlags::PATH_RAW_NUL);
         }
-        Ok(())
-    } else {
-        Err(HtpStatus::ERROR)
-    }
-}
-
-/// Performs inplace url decoding of the input string and sets appropriate transaction flags.
-pub fn tx_urldecode_params_inplace(tx: &mut Transaction, input: &mut Bstr) -> Result<()> {
-    if let Ok((_, (consumed, flags, expected_status))) =
-        urldecode_ex(input.as_slice(), &tx.cfg.decoder_cfg)
-    {
-        (*input).clear();
-        input.add(consumed.as_slice());
-        tx.flags.set(flags);
-        tx.response_status_expected_number = expected_status;
         Ok(())
     } else {
         Err(HtpStatus::ERROR)
@@ -1063,9 +1047,9 @@ fn url_parse_unencoded_byte(
 /// code will be set.
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be consumed or output.
-fn urldecode_ex<'a>(
+pub fn urldecode_ex<'a>(
     input: &'a [u8],
-    cfg: &'a DecoderConfig,
+    cfg: &DecoderConfig,
 ) -> IResult<&'a [u8], (Vec<u8>, u64, HtpUnwanted)> {
     fold_many0(
         alt((

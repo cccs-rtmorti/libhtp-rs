@@ -770,7 +770,7 @@ impl Transaction {
                 && ct.value.starts_with("application/x-www-form-urlencoded")
             {
                 // Create parser instance.
-                self.request_urlenp_body = Some(UrlEncodedParser::new(self));
+                self.request_urlenp_body = Some(UrlEncodedParser::new(self.cfg.decoder_cfg));
             } else if self.cfg.parse_multipart {
                 if let Some(boundary) = find_boundary(ct.value.as_slice(), &mut flags) {
                     if !boundary.is_empty() {
@@ -1092,7 +1092,7 @@ impl Transaction {
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_line(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Determine how to process the request URI.
-        let mut parsed_uri = Uri::default();
+        let mut parsed_uri = Uri::with_config(connp.cfg.decoder_cfg);
         if self.request_method_number == HtpMethod::CONNECT {
             // When CONNECT is used, the request URI contains an authority string.
             parsed_uri.parse_uri_hostport(
@@ -1116,7 +1116,7 @@ impl Transaction {
                 .and_then(|parsed_uri| parsed_uri.query.clone())
             {
                 // We have a non-zero length query string.
-                let mut urlenp = UrlEncodedParser::new(self);
+                let mut urlenp = UrlEncodedParser::new(self.cfg.decoder_cfg);
                 urlenp_parse_complete(&mut urlenp, query.as_slice());
 
                 // Add all parameters to the transaction.
@@ -1143,7 +1143,7 @@ impl Transaction {
         connp.cfg.hook_request_line.run_all(connp, self)?;
         if let Some(parsed_uri) = self.parsed_uri.as_mut() {
             let (partial_normalized_uri, complete_normalized_uri) =
-                parsed_uri.generate_normalized_uri(&self.cfg.decoder_cfg);
+                parsed_uri.generate_normalized_uri();
             self.partial_normalized_uri = partial_normalized_uri;
             self.complete_normalized_uri = complete_normalized_uri;
         }
@@ -1530,21 +1530,17 @@ impl Transaction {
 
     /// Normalize a previously-parsed request URI.
     pub fn normalize_parsed_uri(&mut self) {
-        let mut uri = Uri::default();
-        let decoder_cfg = &self.cfg.decoder_cfg;
+        let mut uri = Uri::with_config(self.cfg.decoder_cfg);
         if let Some(incomplete) = &self.parsed_uri_raw {
             uri.scheme = incomplete.normalized_scheme();
-            uri.username = incomplete.normalized_username(decoder_cfg, &mut self.flags);
-            uri.password = incomplete.normalized_password(decoder_cfg, &mut self.flags);
-            uri.hostname = incomplete.normalized_hostname(decoder_cfg, &mut self.flags);
+            uri.username = incomplete.normalized_username(&mut self.flags);
+            uri.password = incomplete.normalized_password(&mut self.flags);
+            uri.hostname = incomplete.normalized_hostname(&mut self.flags);
             uri.port_number = incomplete.normalized_port(&mut self.flags);
             uri.query = incomplete.query.clone();
-            uri.fragment = incomplete.normalized_fragment(decoder_cfg, &mut self.flags);
-            uri.path = incomplete.normalized_path(
-                decoder_cfg,
-                &mut self.flags,
-                &mut self.response_status_expected_number,
-            );
+            uri.fragment = incomplete.normalized_fragment(&mut self.flags);
+            uri.path = incomplete
+                .normalized_path(&mut self.flags, &mut self.response_status_expected_number);
         }
         self.parsed_uri = Some(uri);
     }
