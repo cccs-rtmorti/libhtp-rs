@@ -198,17 +198,14 @@ pub struct Parser {
     pub cr_aside: bool,
 }
 
-/// Creates a new multipart/form-data parser. On a successful invocation,
-/// the ownership of the boundary parameter is transferred to the parser.
+/// Creates a new multipart/form-data parser.
+/// The ownership of the boundary parameter is transferred to the parser.
 ///
-/// Returns New parser instance, or None on failure.
+/// Returns New parser instance
 impl Parser {
     /// Create new Parser with `Config`, boundary data and flags.
-    pub fn new(cfg: Rc<Config>, boundary: &[u8], flags: u64) -> Option<Self> {
-        if boundary.is_empty() {
-            return None;
-        }
-        Some(Self {
+    pub fn new(cfg: &Rc<Config>, boundary: &[u8], flags: u64) -> Self {
+        Self {
             multipart: Multipart {
                 boundary_len: boundary.len() + 2,
                 boundary: Bstr::from([b"--", boundary].concat()),
@@ -234,7 +231,7 @@ impl Parser {
             part_data_pieces: Bstr::with_capacity(64),
             boundary_candidate_pos: 0,
             cr_aside: false,
-        })
+        }
     }
 
     /// Returns the part currently being processed.

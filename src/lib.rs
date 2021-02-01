@@ -66,8 +66,6 @@ pub mod config;
 pub mod connection;
 /// Module for connection parser.
 pub mod connection_parser;
-/// Module for content handlers.
-mod content_handlers;
 /// Module for custom list.
 pub mod list;
 /// Module for multipart parsing.

@@ -109,8 +109,8 @@ fn TestConfig() -> Config {
         .unwrap();
     // The default bomb limit may be slow in some development environments causing tests to fail.
     cfg.compression_options.set_time_limit(std::u32::MAX);
-    cfg.register_urlencoded_parser();
-    cfg.register_multipart_parser();
+    cfg.set_parse_urlencoded(true);
+    cfg.set_parse_multipart(true);
 
     return cfg;
 }

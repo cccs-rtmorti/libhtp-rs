@@ -53,8 +53,8 @@ impl Test {
         let mut cfg = Config::default();
         cfg.set_server_personality(HtpServerPersonality::APACHE_2)
             .unwrap();
-        cfg.register_urlencoded_parser();
-        cfg.register_multipart_parser();
+        cfg.set_parse_urlencoded(true);
+        cfg.set_parse_multipart(true);
         let connp = ConnectionParser::new(cfg);
 
         Test { connp }

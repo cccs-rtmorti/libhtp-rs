@@ -22,7 +22,7 @@ fn TestConfig() -> Config {
     let mut cfg = Config::default();
     cfg.set_server_personality(HtpServerPersonality::APACHE_2)
         .unwrap();
-    cfg.register_multipart_parser();
+    cfg.set_parse_multipart(true);
 
     return cfg;
 }
@@ -146,8 +146,7 @@ impl Test {
     }
     fn parseParts(&mut self, parts: &Vec<&str>) {
         unsafe {
-            self.mpartp = Parser::new(Rc::clone(&(*self.connp).cfg), b"0123456789", 0);
-            assert!(!self.mpartp.is_none());
+            self.mpartp = Some(Parser::new(&(*self.connp).cfg, b"0123456789", 0));
             for part in parts {
                 self.mpartp.as_mut().unwrap().parse(part.as_bytes());
             }
@@ -188,11 +187,11 @@ impl Test {
 fn Test1() {
     let mut t = Test::new(TestConfig());
     unsafe {
-        t.mpartp = Parser::new(
-            Rc::clone(&(*t.connp).cfg),
+        t.mpartp = Some(Parser::new(
+            &(*t.connp).cfg,
             b"---------------------------41184676334",
             0,
-        );
+        ));
 
         let parts = vec![
             "-----------------------------41184676334\r\n",
@@ -278,7 +277,7 @@ fn Test1() {
 fn Test2() {
     let mut t = Test::new(TestConfig());
     unsafe {
-        t.mpartp = Parser::new(Rc::clone(&(*t.connp).cfg), b"BBB", 0);
+        t.mpartp = Some(Parser::new(&(*t.connp).cfg, b"BBB", 0));
 
         let parts = vec![
             "x0000x\n--BBB\n\nx1111x\n--\nx2222x\n--",
@@ -1324,7 +1323,7 @@ fn InvalidHeader6() {
 #[test]
 fn NullByte() {
     let mut t = Test::new(TestConfig());
-    t.mpartp = Parser::new(unsafe { Rc::clone(&(*t.connp).cfg) }, b"0123456789", 0);
+    t.mpartp = Some(Parser::new(unsafe { &(*t.connp).cfg }, b"0123456789", 0));
 
     // NUL byte in the part header.
     let i1 = "--0123456789\r\n\
@@ -1877,7 +1876,7 @@ fn InvalidContentDispositionSyntax() {
     ];
     let cfg = Rc::new(Config::default());
     for input in inputs {
-        let parser = &mut Parser::new(Rc::clone(&cfg), b"123", 0).unwrap();
+        let parser = &mut Parser::new(&cfg, b"123", 0);
         parser.multipart.parts.push(Part::default());
         parser.current_part_idx = Some(0);
         let part = parser.get_current_part().unwrap();

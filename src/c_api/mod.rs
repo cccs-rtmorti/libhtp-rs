@@ -924,12 +924,27 @@ pub unsafe extern "C" fn htp_config_register_log(cfg: *mut Config, cbk_fn: LogEx
     }
 }
 
-/// Adds the built-in Multipart parser to the configuration. This parser will extract information
-/// stored in request bodies, when they are in multipart/form-data format.
+/// Enable or Disable the built-in Multipart parser to the configuration. Disabled by default.
+/// This parser will extract information stored in request bodies, when they are in multipart/form-data format.
 #[no_mangle]
-pub unsafe extern "C" fn htp_config_register_multipart_parser(cfg: *mut Config) {
+pub unsafe extern "C" fn htp_config_set_parse_multipart(
+    cfg: *mut Config,
+    parse_multipart: libc::c_int,
+) {
     if !cfg.is_null() {
-        (*cfg).register_multipart_parser()
+        (*cfg).set_parse_multipart(parse_multipart == 1)
+    }
+}
+
+/// Enable or disable the built-in Urlencoded parser. Disabled by default.
+/// The parser will parse query strings and request bodies with the appropriate MIME type.
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_parse_urlencoded(
+    cfg: *mut Config,
+    parse_urlencoded: libc::c_int,
+) {
+    if !cfg.is_null() {
+        (*cfg).set_parse_urlencoded(parse_urlencoded == 1)
     }
 }
 

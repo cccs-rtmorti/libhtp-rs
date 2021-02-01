@@ -1,9 +1,5 @@
 use crate::decompressors::Options;
 use crate::{
-    content_handlers::{
-        callback_multipart_request_headers, callback_urlencoded_request_headers,
-        callback_urlencoded_request_line,
-    },
     error::Result,
     hook::{
         DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
@@ -36,6 +32,10 @@ pub struct Config {
     pub decoder_cfg: DecoderConfig,
     /// Whether to decompress compressed response bodies.
     pub response_decompression_enabled: bool,
+    /// Whether to parse multipart data.
+    pub parse_multipart: bool,
+    /// Whether to parse urlencoded data.
+    pub parse_urlencoded: bool,
     /// Whether to parse request cookies.
     pub parse_request_cookies: bool,
     /// Whether to parse HTTP Authentication headers.
@@ -127,6 +127,8 @@ impl Default for Config {
             parameter_processor: None,
             decoder_cfg: Default::default(),
             response_decompression_enabled: true,
+            parse_multipart: false,
+            parse_urlencoded: false,
             parse_request_cookies: true,
             parse_request_auth: true,
             hook_request_start: TxHook::default(),
@@ -312,13 +314,6 @@ impl Config {
         self.hook_log.register(cbk_fn);
     }
 
-    /// Adds the built-in Multipart parser to the configuration. This parser will extract information
-    /// stored in request bodies, when they are in multipart/form-data format.
-    pub fn register_multipart_parser(&mut self) {
-        self.hook_request_headers
-            .register(callback_multipart_request_headers)
-    }
-
     /// Registers a request_complete callback, which is invoked when we see the
     /// first bytes of data from a request.
     pub fn register_request_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
@@ -427,14 +422,16 @@ impl Config {
         self.hook_transaction_complete.register(cbk_fn);
     }
 
-    /// Adds the built-in Urlencoded parser to the configuration. The parser will
-    /// parse query strings and request bodies with the appropriate MIME type.
-    #[allow(dead_code)]
-    pub fn register_urlencoded_parser(&mut self) {
-        self.hook_request_line
-            .register(callback_urlencoded_request_line);
-        self.hook_request_headers
-            .register(callback_urlencoded_request_headers)
+    /// Enable or disable the built-in Urlencoded parser. Disabled by default.
+    /// The parser will parse query strings and request bodies with the appropriate MIME type.
+    pub fn set_parse_urlencoded(&mut self, parse_urlencoded: bool) {
+        self.parse_urlencoded = parse_urlencoded;
+    }
+
+    /// Enable or disable the built-in Multipart parser. Disabled by default.
+    /// This parser will extract information stored in request bodies, when they are in multipart/form-data format.
+    pub fn set_parse_multipart(&mut self, parse_multipart: bool) {
+        self.parse_multipart = parse_multipart;
     }
 
     /// Configures the maximum size of the buffer LibHTP will use when all data is not available

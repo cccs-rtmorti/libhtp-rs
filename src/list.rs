@@ -75,6 +75,14 @@ impl<T, I: SliceIndex<[Option<T>]>> Index<I> for List<T> {
     }
 }
 
+impl<T> Default for List<T> {
+    fn default() -> List<T> {
+        Self {
+            elements: Vec::with_capacity(32),
+        }
+    }
+}
+
 impl<T> List<T> {
     /// Create a new list with specified capacity.
     pub fn with_capacity(size: usize) -> Self {

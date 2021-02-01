@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     hook::{DataHook, DataNativeCallbackFn},
     list::List,
-    multipart::Parser as MultipartParser,
+    multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
     parsers::{
         parse_authorization, parse_content_length, parse_content_type, parse_cookies_v0,
         parse_hostport,
@@ -14,12 +14,14 @@ use crate::{
     request::HtpMethod,
     table::Table,
     uri::Uri,
-    urlencoded::Parser as UrlEncodedParser,
+    urlencoded::{
+        urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser as UrlEncodedParser,
+    },
     util::{validate_hostname, File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
 
-use std::{any::Any, cmp::Ordering, rc::Rc};
+use std::{any::Any, cmp::Ordering, mem::take, rc::Rc};
 
 /// A collection of possible data sources.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
@@ -758,6 +760,22 @@ impl Transaction {
         // Determine Content-Type.
         if let Some((_, ct)) = self.request_headers.get_nocase_nozero("content-type") {
             self.request_content_type = Some(parse_content_type(ct.value.as_slice())?);
+            let mut flags = 0;
+            // Check the request content type for urlencoded or see if it matches our MIME type
+            if self.cfg.parse_urlencoded
+                && ct.value.starts_with("application/x-www-form-urlencoded")
+            {
+                // Create parser instance.
+                self.request_urlenp_body = Some(UrlEncodedParser::new(self));
+            } else if self.cfg.parse_multipart {
+                if let Some(boundary) = find_boundary(ct.value.as_slice(), &mut flags) {
+                    if !boundary.is_empty() {
+                        // Create a Multipart parser instance.
+                        self.request_mpartp =
+                            Some(MultipartParser::new(&self.cfg, boundary, flags));
+                    }
+                }
+            }
         }
         // Parse cookies.
         if connp.cfg.parse_request_cookies {
@@ -785,6 +803,70 @@ impl Transaction {
         Ok(())
     }
 
+    /// Process the provided data as Urlencoded Data
+    ///
+    /// Returns HtpStatus::DECLINED if the provided data is not urlencoded (i.e. no urlencoded parser was ever created)
+    fn req_process_urlencoded_data(&mut self, data: Option<&[u8]>) -> Result<()> {
+        let urlenp = self
+            .request_urlenp_body
+            .as_mut()
+            .ok_or(HtpStatus::DECLINED)?;
+        if let Some(data) = data {
+            // Process one chunk of data.
+            urlenp_parse_partial(urlenp, data);
+        } else {
+            // Finalize parsing.
+            urlenp_finalize(urlenp);
+            let elements = take(&mut urlenp.params.elements);
+            // Add all parameters to the transaction.
+            for (name, value) in elements.iter() {
+                let param = Param::new(
+                    Bstr::from((*name).as_slice()),
+                    Bstr::from((*value).as_slice()),
+                    HtpDataSource::BODY,
+                );
+                self.req_add_param(param)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Process the provided data as Multipart Data
+    ///
+    /// Returns HtpStatus::DECLINED if the provided data is not multipart (i.e. no multipart parser was ever created)
+    fn req_process_multipart_data(&mut self, data: Option<&[u8]>) -> Result<()> {
+        let mpartp = self.request_mpartp.as_mut().ok_or(HtpStatus::DECLINED)?;
+
+        if let Some(data) = data {
+            // Process one chunk of data.
+            mpartp.parse(data);
+        } else {
+            // Finalize parsing.
+            // Ignore result.
+            let _ = mpartp.finalize();
+
+            // take ownership of the parts to iterate over
+            let parts = take(&mut mpartp.get_multipart().parts);
+            for part in &parts {
+                // Use text parameters.
+                if part.type_0 == HtpMultipartType::TEXT {
+                    let param = Param::new(
+                        Bstr::from((*part.name).as_slice()),
+                        Bstr::from((*part.value).as_slice()),
+                        HtpDataSource::BODY,
+                    );
+                    self.req_add_param(param)?;
+                }
+            }
+            // Put the parts back
+            self.request_mpartp
+                .as_mut()
+                .ok_or(HtpStatus::DECLINED)?
+                .get_multipart()
+                .parts = parts;
+        }
+        Ok(())
+    }
     /// Process a chunk of request body data. This function assumes that
     /// handling of chunked encoding is implemented by the container. When
     /// you're done submitting body data, invoke a state change (to REQUEST)
@@ -803,6 +885,8 @@ impl Transaction {
             self.request_entity_len =
                 (self.request_entity_len as u64).wrapping_add(data.len() as u64) as i64;
         }
+        let _ = self.req_process_multipart_data(data);
+        let _ = self.req_process_urlencoded_data(data);
         // Send data to the callbacks.
         let mut data = Data::new(self, data, false);
         connp.req_run_hook_body_data(&mut data).map_err(|e| {
@@ -1021,6 +1105,28 @@ impl Transaction {
             // Keep the original URI components, but create a copy which we can normalize and use internally.
             self.normalize_parsed_uri();
         }
+        if self.cfg.parse_urlencoded {
+            if let Some(query) = self
+                .parsed_uri
+                .as_ref()
+                .and_then(|parsed_uri| parsed_uri.query.clone())
+            {
+                // We have a non-zero length query string.
+                let mut urlenp = UrlEncodedParser::new(self);
+                urlenp_parse_complete(&mut urlenp, query.as_slice());
+
+                // Add all parameters to the transaction.
+                for (name, value) in urlenp.params.elements.iter() {
+                    let param = Param::new(
+                        Bstr::from(name.as_slice()),
+                        Bstr::from(value.as_slice()),
+                        HtpDataSource::QUERY_STRING,
+                    );
+                    self.req_add_param(param)?;
+                }
+            }
+        }
+
         // Check parsed_uri hostname.
         if let Some(hostname) = self.get_parsed_uri_hostname() {
             if !validate_hostname(hostname.as_slice()) {
