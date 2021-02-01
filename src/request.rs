@@ -659,7 +659,6 @@ impl ConnectionParser {
         }
         self.in_buf.add(work);
         let mut data = take(&mut self.in_buf);
-
         if data.is_empty() {
             return self.state_request_complete();
         }

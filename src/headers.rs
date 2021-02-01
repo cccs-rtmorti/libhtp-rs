@@ -1,4 +1,4 @@
-use crate::util::{is_token, FlagOperations};
+use crate::util::{is_token, take_until_null, FlagOperations};
 use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,
@@ -94,6 +94,11 @@ fn token_name(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
             (name, flags)
         },
     )(input)
+}
+
+/// Returns true if c is a line feed character
+fn is_eol(c: u8) -> bool {
+    c == b'\n'
 }
 
 /// Parse one header name up to the :
@@ -192,7 +197,7 @@ fn folding_or_terminator(input: &[u8]) -> IResult<&[u8], ((&[u8], u64), Option<&
 /// eg. (bytes, (eol_bytes, Option<fold_bytes>))
 fn value_bytes(input: &[u8]) -> IResult<&[u8], (&[u8], ((&[u8], u64), Option<&[u8]>))> {
     map(
-        tuple((take_till(is_terminator), folding_or_terminator)),
+        tuple((take_till(is_eol), folding_or_terminator)),
         |(mut value, ((mut eol, flags), fold))| {
             if value.last() == Some(&b'\r') {
                 value = &value[..value.len() - 1];
@@ -237,8 +242,13 @@ fn value(input: &[u8]) -> IResult<&[u8], Value> {
     }
 }
 
-/// Removes trailing lws from input
+/// Removes trailing lws from input before null character
+/// if it exists
 fn remove_trailing_lws(input: &mut Vec<u8>) {
+    if let Ok((_, data)) = take_until_null(&input) {
+        *input = data.to_vec()
+    }
+
     while let Some(end) = input.last() {
         if is_space(*end) {
             input.pop();
@@ -308,7 +318,6 @@ pub fn headers(input: &[u8]) -> IResult<&[u8], (Vec<Header>, bool)> {
         match header(i) {
             Ok((rest, head)) => {
                 i = rest;
-
                 let is_null_terminated = head.value.flags.is_set(Flags::NULL_TERMINATED);
                 out.push(head);
                 if is_null_terminated {
@@ -319,7 +328,7 @@ pub fn headers(input: &[u8]) -> IResult<&[u8], (Vec<Header>, bool)> {
                 }
             }
             Err(nom::Err::Incomplete(_)) => {
-                return Ok((rest, (out, false)));
+                return Ok((i, (out, false)));
             }
             Err(e) => return Err(e),
         }
@@ -421,7 +430,7 @@ mod test {
         assert_eq!(
             headers(b"k1:v1\nk2:v2\0v2\r\nk3:v3\r"),
             Ok((
-                b!("v2\r\nk3:v3\r"),
+                b!("k3:v3\r"),
                 (
                     vec![
                         Header {
@@ -441,11 +450,11 @@ mod test {
                             },
                             value: Value {
                                 value: b"v2".to_vec(),
-                                flags: Flags::NULL_TERMINATED
+                                flags: 0
                             },
                         },
                     ],
-                    true
+                    false
                 ),
             ))
         );
@@ -666,7 +675,7 @@ mod test {
         assert_eq!(
             header_with_colon(b"K: V before\0 V after\r\n\r\n"),
             Ok((
-                b!(" V after\r\n\r\n"),
+                b!("\r\n"),
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
@@ -674,7 +683,7 @@ mod test {
                     },
                     value: Value {
                         value: b"V before".to_vec(),
-                        flags: Flags::NULL_TERMINATED
+                        flags: 0
                     },
                 }
             ))
@@ -848,7 +857,7 @@ mod test {
         assert_eq!(
             header(b"K: V before\0 V after\r\n\r\n"),
             Ok((
-                b!(" V after\r\n\r\n"),
+                b!("\r\n"),
                 Header {
                     name: Name {
                         name: b"K".to_vec(),
@@ -856,7 +865,7 @@ mod test {
                     },
                     value: Value {
                         value: b"V before".to_vec(),
-                        flags: Flags::NULL_TERMINATED
+                        flags: 0
                     },
                 }
             ))
