@@ -218,10 +218,8 @@ mod test {
         unsafe {
             let s = Bstr::from(b"ABCDEFGHIJKL\x00NOPQRST" as &[u8]);
             let c = bstr_util_strdup_to_c(&s);
-            assert_eq!(
-                0,
-                libc::strcmp(CString::new("ABCDEFGHIJKL\\0NOPQRST").unwrap().as_ptr(), c)
-            );
+            let e = CString::new("ABCDEFGHIJKL\\0NOPQRST").unwrap();
+            assert_eq!(0, libc::strcmp(e.as_ptr(), c));
 
             libc::free(c as *mut core::ffi::c_void);
         }
