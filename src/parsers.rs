@@ -350,7 +350,7 @@ pub fn parse_status(status: &[u8]) -> HtpResponseNumber {
         }
         if let Ok(status_code) = std::str::from_utf8(status_code) {
             if let Ok(status_code) = u16::from_str_radix(status_code, 10) {
-                if status_code >= 100 && status_code <= 999 {
+                if (100..=999).contains(&status_code) {
                     return HtpResponseNumber::VALID(status_code);
                 }
             }

@@ -147,10 +147,8 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on state change, HtpStatus::Error on error, or
     /// HtpStatus::DATA when more data is needed.
     pub fn res_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
-        let bytes_to_consume: usize = std::cmp::min(
-            data.len(),
-            self.out_chunked_length.map(|len| len).unwrap_or(0) as usize,
-        );
+        let bytes_to_consume: usize =
+            std::cmp::min(data.len(), self.out_chunked_length.unwrap_or(0) as usize);
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }

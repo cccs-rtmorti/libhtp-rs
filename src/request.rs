@@ -335,10 +335,7 @@ impl ConnectionParser {
     /// when more data is needed.
     pub fn req_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
         // Determine how many bytes we can consume.
-        let bytes_to_consume: usize = min(
-            data.len(),
-            self.in_chunked_length.map(|len| len).unwrap_or(0) as usize,
-        );
+        let bytes_to_consume: usize = min(data.len(), self.in_chunked_length.unwrap_or(0) as usize);
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);

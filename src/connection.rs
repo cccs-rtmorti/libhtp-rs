@@ -56,9 +56,9 @@ pub struct Connection {
     pub out_data_counter: i64,
 }
 
-impl Connection {
+impl Default for Connection {
     /// Returns a new Connection instance with default values.
-    pub fn new() -> Self {
+    fn default() -> Self {
         Self {
             client_addr: None,
             client_port: None,
@@ -74,7 +74,8 @@ impl Connection {
             out_data_counter: 0,
         }
     }
-
+}
+impl Connection {
     /// Push a transaction to this connection's tx list.
     pub fn push_tx(&mut self, tx: Transaction) {
         self.transactions.push(tx)

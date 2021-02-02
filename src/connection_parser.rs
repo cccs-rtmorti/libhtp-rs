@@ -187,7 +187,7 @@ impl std::fmt::Debug for ConnectionParser {
 impl ConnectionParser {
     /// Creates a new ConnectionParser with a preconfigured `Config` struct.
     pub fn new(cfg: Config) -> Self {
-        let conn = Connection::new();
+        let conn = Connection::default();
         Self {
             logger: Logger::new(conn.get_sender(), cfg.log_level),
             cfg: Rc::new(cfg),
@@ -411,13 +411,13 @@ impl ConnectionParser {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.req_data(timestamp, 0 as *const core::ffi::c_void, 0);
+        self.req_data(timestamp, std::ptr::null(), 0);
     }
 
     /// Closes the connection associated with the supplied parser.
     pub fn close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Close the underlying connection.
-        self.conn.close(timestamp.clone());
+        self.conn.close(timestamp);
         // Update internal flags
         if self.in_status != HtpStreamState::ERROR {
             self.in_status = HtpStreamState::CLOSED
@@ -427,8 +427,8 @@ impl ConnectionParser {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.req_data(timestamp.clone(), 0 as *const core::ffi::c_void, 0);
-        self.res_data(timestamp, 0 as *const core::ffi::c_void, 0);
+        self.req_data(timestamp, std::ptr::null(), 0);
+        self.res_data(timestamp, std::ptr::null(), 0);
     }
 
     /// This function is most likely not used and/or not needed.
