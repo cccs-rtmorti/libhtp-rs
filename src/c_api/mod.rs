@@ -5,7 +5,6 @@ use crate::{
     connection::Connection,
     connection_parser::{ConnectionParser, HtpStreamState},
     hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn},
-    log::HtpLogCode,
     transaction::{Header, Headers, Transaction},
     util::{get_version, urldecode_inplace},
     HtpStatus,
@@ -18,6 +17,10 @@ use std::{
 
 /// Functions for working with Bstr.
 pub mod bstr;
+/// Functions for working with connection.
+pub mod connection;
+/// Functions for working with logs.
+pub mod log;
 /// Functions for working with lzma decompression.
 pub mod lzma;
 /// Functions for working with transactions.
@@ -624,120 +627,6 @@ pub unsafe extern "C" fn htp_get_version() -> *const libc::c_char {
     get_version()
 }
 
-/// Get a log message's log message
-///
-/// Returns the log message as a cstring or NULL on error
-/// The caller must free this result with htp_log_free
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_message_log(
-    conn: *const Connection,
-    msg_id: usize,
-) -> *mut std::os::raw::c_char {
-    conn.as_ref()
-        .and_then(|conn| {
-            conn.get_messages()
-                .borrow()
-                .get(msg_id)
-                .and_then(|log| CString::new(log.msg.msg.clone()).ok())
-        })
-        .map(|msg| msg.into_raw())
-        .unwrap_or(std::ptr::null_mut())
-}
-
-/// Get a log message's file
-///
-/// Returns the file as a cstring or NULL on error
-/// The caller must free this result with htp_log_free
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_message_file(
-    conn: *const Connection,
-    msg_id: usize,
-) -> *mut std::os::raw::c_char {
-    conn.as_ref()
-        .and_then(|conn| {
-            conn.get_messages()
-                .borrow()
-                .get(msg_id)
-                .and_then(|log| CString::new(log.msg.file.clone()).ok())
-        })
-        .map(|msg| msg.into_raw())
-        .unwrap_or(std::ptr::null_mut())
-}
-
-/// Get a log message code
-///
-/// Returns a code or HTP_LOG_CODE_ERROR on error
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_message_code(
-    conn: *const Connection,
-    msg_id: usize,
-) -> HtpLogCode {
-    conn.as_ref()
-        .and_then(|conn| {
-            conn.get_messages()
-                .borrow()
-                .get(msg_id)
-                .map(|log| log.msg.code)
-        })
-        .unwrap_or(HtpLogCode::ERROR)
-}
-
-/// Get the number of messages in a connection.
-///
-/// Returns the number of messages or -1 on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_message_size(conn: *const Connection) -> isize {
-    if let Some(conn) = conn.as_ref() {
-        isize::try_from(conn.get_messages().borrow().len()).unwrap_or(-1)
-    } else {
-        -1
-    }
-}
-
-/// Get the number of transactions in a connection
-///
-/// Returns the number of transactions or -1 on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_tx_size(conn: *const Connection) -> isize {
-    if let Some(conn) = conn.as_ref() {
-        isize::try_from(conn.tx_size()).unwrap_or(-1)
-    } else {
-        -1
-    }
-}
-
-/// Get a transaction in a connection.
-///
-/// Returns the transaction or NULL on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_tx(conn: *mut Connection, tx_id: usize) -> *mut Transaction {
-    if let Some(conn) = conn.as_mut() {
-        conn.tx_mut_ptr(tx_id)
-    } else {
-        std::ptr::null_mut()
-    }
-}
-
-/// Returns the in_data_counter
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_in_data_counter(conn: *const Connection) -> i64 {
-    if let Some(conn) = conn.as_ref() {
-        conn.in_data_counter
-    } else {
-        0
-    }
-}
-
-/// Returns the out_data_counter
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const Connection) -> i64 {
-    if let Some(conn) = conn.as_ref() {
-        conn.out_data_counter
-    } else {
-        0
-    }
-}
-
 /// Get the first header value matching the key.
 ///
 /// headers: Header table.
@@ -1005,10 +894,10 @@ pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const ConnectionPar
     }
 }
 
-/// Free log message
+/// Free rust allocated cstring
 #[no_mangle]
-pub unsafe extern "C" fn htp_log_free(msg: *mut libc::c_char) {
-    if !msg.is_null() {
-        CString::from_raw(msg);
+pub unsafe extern "C" fn htp_free_cstring(input: *mut libc::c_char) {
+    if !input.is_null() {
+        CString::from_raw(input);
     }
 }

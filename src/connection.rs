@@ -6,7 +6,6 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use std::{
-    cell::RefCell,
     net::IpAddr,
     sync::mpsc::{channel, Receiver, Sender},
     time::SystemTime,
@@ -41,9 +40,6 @@ pub struct Connection {
     transactions: Transactions,
     /// Messages channel associated with this connection.
     log_channel: (Sender<Message>, Receiver<Message>),
-    /// Log Messages associated with this connection. This is popualted by draining the
-    /// receiver of the log_channel by calling get_messages
-    messages: RefCell<Vec<Log>>,
     /// Parsing flags.
     pub flags: u8,
     /// When was this connection opened?
@@ -66,7 +62,6 @@ impl Default for Connection {
             server_port: None,
             transactions: List::with_capacity(16),
             log_channel: channel(),
-            messages: RefCell::new(Vec::with_capacity(8)),
             flags: 0,
             open_timestamp: DateTime::<Utc>::from(SystemTime::now()),
             close_timestamp: DateTime::<Utc>::from(SystemTime::now()),
@@ -171,12 +166,22 @@ impl Connection {
         &self.log_channel.0
     }
 
-    /// Returns all logged messages
-    pub fn get_messages(&self) -> &RefCell<Vec<Log>> {
+    /// Drains and returns a vector of all current logs received by the log channel
+    pub fn get_logs(&self) -> Vec<Log> {
+        let mut logs = Vec::with_capacity(8);
         while let Ok(message) = self.log_channel.1.try_recv() {
-            self.messages.borrow_mut().push(Log::new(self, message))
+            logs.push(Log::new(self, message))
         }
-        &self.messages
+        logs
+    }
+
+    /// Returns the next logged message received by the log channel
+    pub fn get_next_log(&self) -> Option<Log> {
+        self.log_channel
+            .1
+            .try_recv()
+            .map(|message| Log::new(self, message))
+            .ok()
     }
 }
 

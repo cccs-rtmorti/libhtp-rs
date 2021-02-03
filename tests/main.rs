@@ -1257,13 +1257,9 @@ fn Util() {
     cfg.log_level = HtpLogLevel::NONE;
     let mut t = Test::new(cfg);
     assert!(t.run("50-util.t").is_ok());
-    let log_message_count = t.connp.conn.get_messages().borrow().len();
     // Explicitly add a log message to verify it is not logged
     htp_error!(&mut t.connp.logger, HtpLogCode::UNKNOWN, "Log message");
-    assert_eq!(
-        log_message_count,
-        t.connp.conn.get_messages().borrow().len()
-    );
+    assert_eq!(0, t.connp.conn.get_logs().len());
 }
 
 #[test]
@@ -1797,37 +1793,12 @@ fn ResponseMultipleClMismatch() {
     assert_response_header_eq!(tx, "Content-Length", "12");
     assert_response_header_flag_contains!(tx, "Content-Length", HtpFlags::FIELD_REPEATED);
 
-    assert_eq!(2, t.connp.conn.get_messages().borrow().len());
-    assert_eq!(
-        t.connp.conn.get_messages().borrow().get(0).unwrap().msg.msg,
-        "Ambiguous response C-L value"
-    );
-    assert_eq!(
-        HtpLogLevel::WARNING,
-        t.connp
-            .conn
-            .get_messages()
-            .borrow()
-            .get(0)
-            .unwrap()
-            .msg
-            .level
-    );
-    assert_eq!(
-        t.connp.conn.get_messages().borrow().get(1).unwrap().msg.msg,
-        "Repetition for header"
-    );
-    assert_eq!(
-        HtpLogLevel::WARNING,
-        t.connp
-            .conn
-            .get_messages()
-            .borrow()
-            .get(1)
-            .unwrap()
-            .msg
-            .level
-    );
+    let logs = t.connp.conn.get_logs();
+    assert_eq!(2, logs.len());
+    assert_eq!(logs.get(0).unwrap().msg.msg, "Ambiguous response C-L value");
+    assert_eq!(HtpLogLevel::WARNING, logs.get(0).unwrap().msg.level);
+    assert_eq!(logs.get(1).unwrap().msg.msg, "Repetition for header");
+    assert_eq!(HtpLogLevel::WARNING, logs.get(1).unwrap().msg.level);
 }
 
 #[test]
@@ -2467,7 +2438,7 @@ fn ResponseHeaderDeformedEOL() {
     // Check response headers
     assert_response_header_eq!(tx, "content-type", "text/html");
     assert_response_header_eq!(tx, "content-length", "6");
-    let logs = t.connp.conn.get_messages().borrow();
+    let logs = t.connp.conn.get_logs();
     let log_message_count = logs.len();
     assert_eq!(log_message_count, 1);
     assert_eq!(logs.get(0).unwrap().msg.code, HtpLogCode::DEFORMED_EOL);
