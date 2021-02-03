@@ -1,9 +1,4 @@
-use crate::{
-    error::Result,
-    list::List,
-    log::{Log, Message},
-    transaction::{Transaction, Transactions},
-};
+use crate::log::{Log, Message};
 use chrono::{DateTime, Utc};
 use std::{
     net::IpAddr,
@@ -35,11 +30,9 @@ pub struct Connection {
     /// Server port.
     pub server_port: Option<u16>,
 
-    /// Transactions carried out on this connection. The list may contain
-    /// None elements when some of the transactions are deleted.
-    transactions: Transactions,
     /// Messages channel associated with this connection.
     log_channel: (Sender<Message>, Receiver<Message>),
+
     /// Parsing flags.
     pub flags: u8,
     /// When was this connection opened?
@@ -60,7 +53,6 @@ impl Default for Connection {
             client_port: None,
             server_addr: None,
             server_port: None,
-            transactions: List::with_capacity(16),
             log_channel: channel(),
             flags: 0,
             open_timestamp: DateTime::<Utc>::from(SystemTime::now()),
@@ -70,58 +62,8 @@ impl Default for Connection {
         }
     }
 }
+
 impl Connection {
-    /// Push a transaction to this connection's tx list.
-    pub fn push_tx(&mut self, tx: Transaction) {
-        self.transactions.push(tx)
-    }
-
-    /// Remove a transaction from this connection's tx list.
-    pub fn remove_tx(&mut self, tx_id: usize) -> Result<()> {
-        self.transactions.remove(tx_id)
-    }
-
-    /// Get the transactions for this connection.
-    pub fn txs(&self) -> &Transactions {
-        &self.transactions
-    }
-
-    /// Get the transactions for this connection as a mutable reference.
-    pub fn txs_mut(&mut self) -> &mut Transactions {
-        &mut self.transactions
-    }
-
-    /// Get the number of transactions in this connection.
-    pub fn tx_size(&self) -> usize {
-        self.transactions.len()
-    }
-
-    /// Get a transaction by tx_id from this connection.
-    pub fn tx(&self, tx_id: usize) -> Option<&Transaction> {
-        self.transactions.get(tx_id)
-    }
-
-    /// Get a transaction by tx_id from this connection as a pointer.
-    pub fn tx_ptr(&self, tx_id: usize) -> *const Transaction {
-        self.transactions
-            .get(tx_id)
-            .map(|tx| tx as *const Transaction)
-            .unwrap_or(std::ptr::null())
-    }
-
-    /// Get a transaction by tx_id from this connection as a mutable reference.
-    pub fn tx_mut(&mut self, tx_id: usize) -> Option<&mut Transaction> {
-        self.transactions.get_mut(tx_id)
-    }
-
-    /// Get a transaction by tx_id from this connection as a mutable pointer.
-    pub fn tx_mut_ptr(&mut self, tx_id: usize) -> *mut Transaction {
-        self.transactions
-            .get_mut(tx_id)
-            .map(|tx| tx as *mut Transaction)
-            .unwrap_or(std::ptr::null_mut())
-    }
-
     /// Opens a connection. This function will essentially only store the provided data
     /// for future reference.
     pub fn open(

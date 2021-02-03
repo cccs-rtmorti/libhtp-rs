@@ -1,26 +1,5 @@
 #![deny(missing_docs)]
-use crate::{connection::Connection, log::Log, transaction::Transaction};
-use std::convert::TryFrom;
-
-/// Get the number of transactions in a connection
-///
-/// Returns the number of transactions or -1 on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_tx_size(conn: *const Connection) -> isize {
-    conn.as_ref()
-        .and_then(|conn| isize::try_from(conn.tx_size()).ok())
-        .unwrap_or(-1)
-}
-
-/// Get a transaction in a connection.
-///
-/// Returns the transaction or NULL on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_conn_tx(conn: *mut Connection, tx_id: usize) -> *mut Transaction {
-    conn.as_mut()
-        .map(|conn| conn.tx_mut_ptr(tx_id))
-        .unwrap_or(std::ptr::null_mut())
-}
+use crate::{connection::Connection, log::Log};
 
 /// Returns the in_data_counter
 #[no_mangle]

@@ -507,10 +507,10 @@ pub type Transactions = List<Transaction>;
 
 impl Transaction {
     /// Construct a new transaction.
-    pub fn new(connp: &mut ConnectionParser, index: usize) -> Self {
+    pub fn new(cfg: &Rc<Config>, logger: &Logger, index: usize) -> Self {
         Self {
-            logger: connp.logger.clone(),
-            cfg: Rc::clone(&connp.cfg),
+            logger: logger.clone(),
+            cfg: Rc::clone(&cfg),
             is_config_shared: true,
             user_data: None,
             request_ignored_lines: 0,
@@ -575,14 +575,10 @@ impl Transaction {
         self.hook_request_body_data.register(cbk_fn)
     }
 
-    /// Destroys the supplied transaction.
-    pub fn destroy(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        if !self.is_complete() {
-            return Err(HtpStatus::ERROR);
-        }
-        // remove the tx from the connection so it will be dropped
-        let _ = connp.conn.remove_tx(self.index);
-        Ok(())
+    /// Has this transaction started?
+    pub fn is_started(&self) -> bool {
+        !(self.request_progress == HtpRequestProgress::NOT_STARTED
+            && self.response_progress == HtpResponseProgress::NOT_STARTED)
     }
 
     /// Set the user data.
@@ -1028,11 +1024,8 @@ impl Transaction {
         } else {
             connp.in_state = State::IDLE;
         }
-        // Check if the entire transaction is complete. This call may
-        // destroy the transaction, if auto-destroy is enabled.
+        // Check if the entire transaction is complete.
         let _ = self.finalize(connp);
-        // At this point, tx may no longer be valid.
-        connp.clear_in_tx();
         Ok(())
     }
 
@@ -1166,10 +1159,6 @@ impl Transaction {
         }
         // Run hook TRANSACTION_COMPLETE.
         connp.cfg.hook_transaction_complete.run_all(connp, self)?;
-        // In streaming processing, we destroy the transaction because it will not be needed any more.
-        if connp.cfg.tx_auto_destroy {
-            self.destroy(connp)?;
-        }
         Ok(())
     }
 
@@ -1202,7 +1191,9 @@ impl Transaction {
             // It is not enough to check only in_status here. Because of pipelining, it's possible
             // that many inbound transactions have been processed, and that the parser is
             // waiting on a response that we have not seen yet.
-            if connp.in_status == HtpStreamState::DATA_OTHER && connp.in_tx() == connp.out_tx() {
+            if connp.in_status == HtpStreamState::DATA_OTHER
+                && connp.request_index() == connp.response_index()
+            {
                 return Err(HtpStatus::DATA_OTHER);
             }
             // Do we have a signal to yield to inbound processing at
@@ -1214,9 +1205,6 @@ impl Transaction {
             }
         }
         self.finalize(connp)?;
-        // Disconnect transaction from the parser.
-        connp.clear_out_tx();
-        connp.out_state = State::IDLE;
         Ok(())
     }
 

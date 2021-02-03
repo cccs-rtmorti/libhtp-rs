@@ -14,7 +14,7 @@ use std::cmp::Ordering;
 impl ConnectionParser {
     /// Generic response line parser.
     pub fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
-        let out_tx = self.out_tx_mut_ok()?;
+        let out_tx = self.response_mut();
         out_tx.response_protocol_number = HtpProtocol::INVALID;
         out_tx.response_status = None;
         out_tx.response_status_number = HtpResponseNumber::INVALID;
@@ -36,14 +36,14 @@ impl ConnectionParser {
             }
 
             out_tx.response_protocol = Some(Bstr::from(response_protocol));
-            self.out_tx_mut_ok()?.response_protocol_number =
+            self.response_mut().response_protocol_number =
                 parse_protocol(response_protocol, &mut self.logger);
 
             if ws1.is_empty() || status_code.is_empty() {
                 return Ok(());
             }
 
-            let out_tx = self.out_tx_mut_ok()?;
+            let out_tx = self.response_mut();
             out_tx.response_status = Some(Bstr::from(status_code));
             out_tx.response_status_number = parse_status(status_code);
 
@@ -86,7 +86,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::RESPONSE_INVALID_LWS_AFTER_NAME,
                         "Request field invalid: LWS after name",
-                        self.out_tx_mut_ok()?.flags,
+                        self.response_mut().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -97,7 +97,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::INVALID_RESPONSE_FIELD_FOLDING,
                         "Invalid response field folding",
-                        self.out_tx_mut_ok()?.flags,
+                        self.response_mut().flags,
                         flags,
                         HtpFlags::INVALID_FOLDING
                     );
@@ -110,7 +110,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::RESPONSE_HEADER_NAME_NOT_TOKEN,
                         "Response header name is not a token",
-                        self.out_tx_mut_ok()?.flags,
+                        self.response_mut().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -125,7 +125,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::RESPONSE_FIELD_MISSING_COLON,
                         "Response field invalid: colon missing",
-                        self.out_tx_mut_ok()?.flags,
+                        self.response_mut().flags,
                         flags,
                         HtpFlags::FIELD_UNPARSEABLE
                     );
@@ -136,7 +136,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::RESPONSE_INVALID_EMPTY_NAME,
                         "Response field invalid: empty name",
-                        self.out_tx_mut_ok()?.flags,
+                        self.response_mut().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -157,11 +157,11 @@ impl ConnectionParser {
     /// into a single buffer before invoking the parsing function.
     fn process_response_header_generic(&mut self, header: Header) -> Result<()> {
         let mut repeated = false;
-        let reps = self.out_tx_mut_ok()?.res_header_repetitions;
+        let reps = self.response().res_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
         if let Some((_, h_existing)) = self
-            .out_tx_mut_ok()?
+            .response_mut()
             .response_headers
             .get_nocase_mut(header.name.as_slice())
         {
@@ -197,13 +197,13 @@ impl ConnectionParser {
                 h_existing.value.extend_from_slice(header.value.as_slice());
             }
         } else {
-            self.out_tx_mut_ok()?
+            self.response_mut()
                 .response_headers
                 .add(header.name.clone(), header);
         }
         if update_reps {
-            self.out_tx_mut_ok()?.res_header_repetitions =
-                self.out_tx_mut_ok()?.res_header_repetitions.wrapping_add(1)
+            self.response_mut().res_header_repetitions =
+                self.response().res_header_repetitions.wrapping_add(1)
         }
         if repeated {
             htp_warn!(

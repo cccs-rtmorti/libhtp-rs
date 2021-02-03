@@ -84,6 +84,8 @@ mod response_generic;
 pub mod table;
 /// Module for transaction parsing.
 pub mod transaction;
+/// Module to track multiple transactions
+pub mod transactions;
 /// Module for uri parsing.
 pub mod uri;
 /// Module for url parsing.

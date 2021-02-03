@@ -215,18 +215,16 @@ fn GetTest() {
     // Register callbacks
     register_user_callbacks(&mut cfg);
     let mut t = HybridParsingTest::new(cfg);
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    t.connp.set_out_tx_id(Some(tx_id));
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.request_mut();
 
     // Configure user data and callbacks
     tx.set_user_data(Box::new(HybridParsing_Get_User_Data::new()));
+    // We should be operating on the same transaction throughout
+    let tx_id = tx.index;
 
     // Request begins
     t.connp.state_request_start().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_START_invoked);
 
@@ -237,12 +235,12 @@ fn GetTest() {
 
     // Request line complete
     t.connp.state_request_line().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_LINE_invoked);
 
     // Check request line data
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
     assert!(tx.request_protocol.as_ref().unwrap().eq("HTTP/1.1"));
@@ -263,30 +261,30 @@ fn GetTest() {
     t.connp.state_request_headers().unwrap();
 
     // Check headers
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_HEADERS_invoked);
 
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert_request_header_eq!(tx, "host", "www.example.com");
     assert_request_header_eq!(tx, "connection", "keep-alive");
     assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
     // Request complete
     t.connp.state_request_complete().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
 
     // Response begins
     t.connp.state_response_start().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_START_invoked);
 
     // Response line data
     t.connp.parse_response_line(b"HTTP/1.1 200 OK").unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert!(tx.response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.as_ref().unwrap().eq("200"));
@@ -295,23 +293,23 @@ fn GetTest() {
 
     // Response line complete
     t.connp.state_response_line().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
 
     // Response header data
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.response_headers, "Content-Type", "text/html");
     tx_set_header!(tx.response_headers, "Server", "Apache");
 
     // Response headers complete
     t.connp.state_response_headers().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
 
     // Check response headers
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert_response_header_eq!(tx, "content-type", "text/html");
     assert_response_header_eq!(tx, "server", "Apache");
 
@@ -323,11 +321,11 @@ fn GetTest() {
     t.connp
         .res_process_body_data_ex(Some(b"World!</h1>"))
         .unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.response_body_correctly_received);
 
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.response_headers, "Content-Type", "text/html");
     tx_set_header!(tx.response_headers, "Server", "Apache");
 
@@ -336,7 +334,7 @@ fn GetTest() {
     assert_response_header_eq!(tx, "server", "Apache");
 
     t.connp.state_response_complete_ex(1).unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_COMPLETE_invoked);
 }
@@ -345,9 +343,7 @@ fn GetTest() {
 #[test]
 fn PostUrlecodedTest() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
+    let tx_id = t.connp.request().index;
 
     // Request begins
     t.connp.state_request_start().unwrap();
@@ -359,7 +355,7 @@ fn PostUrlecodedTest() {
     t.connp.state_request_line().unwrap();
 
     // Configure headers to trigger the URLENCODED parser
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(
         tx.request_headers,
         "Content-Type",
@@ -376,7 +372,7 @@ fn PostUrlecodedTest() {
     t.connp.req_process_body_data_ex(b"&").unwrap();
     t.connp.req_process_body_data_ex(b"q=2").unwrap();
 
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.request_headers, "Host", "www.example.com");
     tx_set_header!(tx.request_headers, "Connection", "keep-alive");
     tx_set_header!(tx.request_headers, "User-Agent", "Mozilla/5.0");
@@ -388,7 +384,7 @@ fn PostUrlecodedTest() {
     // Request complete
     t.connp.state_request_complete().unwrap();
 
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     // Check parameters
     assert_contains_param!(&tx.request_params, "p", "1");
     assert_contains_param!(&tx.request_params, "q", "2");
@@ -398,10 +394,7 @@ fn PostUrlecodedTest() {
 #[test]
 fn CompressedResponse() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    t.connp.set_out_tx_id(Some(tx_id));
+    let tx_id = t.connp.request().index;
 
     t.connp.state_request_start().unwrap();
 
@@ -414,7 +407,7 @@ fn CompressedResponse() {
     t.connp.state_response_start().unwrap();
 
     t.connp.parse_response_line(b"HTTP/1.1 200 OK").unwrap();
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.response_headers, "Content-Encoding", "gzip");
     tx_set_header!(tx.response_headers, "Content-Length", "187");
 
@@ -434,7 +427,7 @@ fn CompressedResponse() {
 
     t.connp.state_response_complete_ex(1).unwrap();
 
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert_eq!(187, tx.response_message_len);
     assert_eq!(225, tx.response_entity_len);
 }
@@ -442,9 +435,7 @@ fn CompressedResponse() {
 #[test]
 fn ParamCaseSensitivity() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
+    let tx_id = t.connp.request().index;
 
     // Request begins
     t.connp.state_request_start().unwrap();
@@ -458,7 +449,7 @@ fn ParamCaseSensitivity() {
     t.connp.state_request_line().unwrap();
 
     // Check the parameters.
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert_contains_param!(&tx.request_params, "p", "1");
     assert_contains_param!(&tx.request_params, "q", "2");
     assert_contains_param_source!(&tx.request_params, HtpDataSource::QUERY_STRING, "q", "2");
@@ -470,9 +461,8 @@ fn ParamCaseSensitivity() {
 #[test]
 fn PostUrlecodedChunked() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction.
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
+    let tx_id = t.connp.request().index;
+
     // Request begins.
     t.connp.state_request_start().unwrap();
 
@@ -481,7 +471,7 @@ fn PostUrlecodedChunked() {
     t.connp.state_request_line().unwrap();
 
     // Configure headers to trigger the URLENCODED parser.
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(
         tx.request_headers,
         "Content-Type",
@@ -501,7 +491,7 @@ fn PostUrlecodedChunked() {
     t.connp.state_request_complete().unwrap();
 
     // Check the parameters.
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert_contains_param!(&tx.request_params, "p", "1");
     assert_contains_param!(&tx.request_params, "q", "2");
 }
@@ -509,9 +499,8 @@ fn PostUrlecodedChunked() {
 #[test]
 fn RequestLineParsing1() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
+    let tx_id = t.connp.request().index;
+
     // Request begins
     t.connp.state_request_start().unwrap();
 
@@ -523,7 +512,7 @@ fn RequestLineParsing1() {
     // Request line complete
     t.connp.state_request_line().unwrap();
 
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
     assert!(tx.request_protocol.as_ref().unwrap().eq("HTTP/1.0"));
@@ -538,17 +527,15 @@ fn RequestLineParsing1() {
 #[test]
 fn RequestLineParsing2() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    // Feed data to the parser.
+    let tx_id = t.connp.request().index;
 
+    // Feed data to the parser.
     t.connp.state_request_start().unwrap();
     t.connp.parse_request_line(b"GET /").unwrap();
     t.connp.state_request_line().unwrap();
 
     // Check the results now.
-
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.is_protocol_0_9);
     assert_eq!(HtpProtocol::V0_9, tx.request_protocol_number);
@@ -559,17 +546,15 @@ fn RequestLineParsing2() {
 #[test]
 fn RequestLineParsing3() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    // Feed data to the parser.
+    let tx_id = t.connp.request().index;
 
+    // Feed data to the parser.
     t.connp.state_request_start().unwrap();
     t.connp.parse_request_line(b"GET / HTTP  / 01.1").unwrap();
     t.connp.state_request_line().unwrap();
 
     // Check the results now.
-
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
     assert!(tx.request_protocol.as_ref().unwrap().eq("HTTP  / 01.1"));
@@ -579,17 +564,15 @@ fn RequestLineParsing3() {
 #[test]
 fn RequestLineParsing4() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    // Feed data to the parser.
+    let tx_id = t.connp.request().index;
 
+    // Feed data to the parser.
     t.connp.state_request_start().unwrap();
     t.connp.parse_request_line(b"GET / HTTP  / 01.10").unwrap();
     t.connp.state_request_line().unwrap();
 
     // Check the results now.
-
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpProtocol::INVALID, tx.request_protocol_number);
     assert!(tx.request_protocol.as_ref().unwrap().eq("HTTP  / 01.10"));
@@ -599,24 +582,22 @@ fn RequestLineParsing4() {
 #[test]
 fn ParsedUriSupplied() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    // Feed data to the parser.
+    let tx_id = t.connp.request().index;
 
+    // Feed data to the parser.
     t.connp.state_request_start().unwrap();
     t.connp
         .parse_request_line(b"GET /?p=1&q=2 HTTP/1.0")
         .unwrap();
 
-    let mut tx = t.connp.conn.tx_mut(tx_id).unwrap();
+    let mut tx = t.connp.tx_mut(tx_id).unwrap();
     let mut u = Uri::default();
     u.path = Some(Bstr::from("/123"));
     tx.parsed_uri = Some(u);
     t.connp.state_request_line().unwrap();
 
     // Check the results now.
-
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpProtocol::V1_0, tx.request_protocol_number);
     assert!(tx.request_uri.as_ref().unwrap().eq("/?p=1&q=2"));
@@ -632,18 +613,16 @@ fn TestRepeatCallbacks() {
     // Request callbacks
     register_user_callbacks(&mut cfg);
     let mut t = HybridParsingTest::new(cfg);
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    t.connp.set_out_tx_id(Some(tx_id));
-    let tx = t.connp.conn.tx_mut(tx_id).unwrap();
+
+    let tx_id = t.connp.request().index;
 
     // Configure user data and callbacks
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     tx.set_user_data(Box::new(HybridParsing_Get_User_Data::new()));
 
     // Request begins
     t.connp.state_request_start().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_START_invoked);
 
@@ -652,11 +631,11 @@ fn TestRepeatCallbacks() {
 
     // Request line complete
     t.connp.state_request_line().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_LINE_invoked);
 
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     // Check request line data
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/"));
@@ -666,19 +645,19 @@ fn TestRepeatCallbacks() {
 
     // Request headers complete
     t.connp.state_request_headers().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_HEADERS_invoked);
 
     // Request complete
     t.connp.state_request_complete().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
 
     // Response begins
     t.connp.state_response_start().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_START_invoked);
 
@@ -687,19 +666,19 @@ fn TestRepeatCallbacks() {
 
     // Response line complete
     t.connp.state_response_line().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
 
     // Response headers complete
     t.connp.state_response_headers().unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
 
     // Response complete
     t.connp.state_response_complete_ex(1).unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_START_invoked);
     assert_eq!(1, user_data.callback_REQUEST_LINE_invoked);
@@ -718,30 +697,23 @@ fn TestRepeatCallbacks() {
 #[test]
 fn DeleteTransactionBeforeComplete() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
     // Request begins
     t.connp.state_request_start().unwrap();
 
     // Request line data
     t.connp.parse_request_line(b"GET / HTTP/1.0").unwrap();
 
-    assert_err!(t.connp.remove_tx(tx_id), HtpStatus::ERROR);
+    assert_err!(t.connp.remove_tx(t.connp.request_index()), HtpStatus::ERROR);
 }
 
 /// Try response line with missing response code and message
 #[test]
 fn ResponseLineIncomplete() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    t.connp.set_out_tx_id(Some(tx_id));
 
     t.connp.state_response_start().unwrap();
     t.connp.parse_response_line(b"HTTP/1.1").unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.response();
     assert!(tx.response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.is_none());
@@ -754,14 +726,10 @@ fn ResponseLineIncomplete() {
 #[test]
 fn ResponseLineIncomplete1() {
     let mut t = HybridParsingTest::new(TestConfig());
-    // Create a new LibHTP transaction
-    let tx_id = t.connp.create_tx().unwrap();
-    t.connp.set_in_tx_id(Some(tx_id));
-    t.connp.set_out_tx_id(Some(tx_id));
 
     t.connp.state_response_start().unwrap();
     t.connp.parse_response_line(b"HTTP/1.1 200").unwrap();
-    let tx = t.connp.conn.tx(tx_id).unwrap();
+    let tx = t.connp.response();
     assert!(tx.response_protocol.as_ref().unwrap().eq("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.as_ref().unwrap().eq("200"));

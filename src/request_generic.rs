@@ -21,11 +21,11 @@ impl ConnectionParser {
     fn process_request_header_generic(&mut self, header: Header) -> Result<()> {
         // Try to parse the header.
         let mut repeated = false;
-        let reps = self.in_tx_mut_ok()?.req_header_repetitions;
+        let reps = self.request().req_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
         if let Some((_, h_existing)) = self
-            .in_tx_mut_ok()?
+            .request_mut()
             .request_headers
             .get_nocase_mut(header.name.as_slice())
         {
@@ -63,13 +63,13 @@ impl ConnectionParser {
                 h_existing.value.extend_from_slice(header.value.as_slice());
             }
         } else {
-            self.in_tx_mut_ok()?
+            self.request_mut()
                 .request_headers
                 .add(header.name.clone(), header);
         }
         if update_reps {
-            self.in_tx_mut_ok()?.req_header_repetitions =
-                self.in_tx_mut_ok()?.req_header_repetitions.wrapping_add(1)
+            self.request_mut().req_header_repetitions =
+                self.request().req_header_repetitions.wrapping_add(1)
         }
         if repeated {
             htp_warn!(
@@ -98,7 +98,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
                         "Request field invalid: LWS after name",
-                        self.in_tx_mut_ok()?.flags,
+                        self.request_mut().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -111,7 +111,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
                         "Invalid request field folding",
-                        self.in_tx_mut_ok()?.flags,
+                        self.request_mut().flags,
                         flags,
                         HtpFlags::INVALID_FOLDING
                     );
@@ -124,7 +124,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_HEADER_INVALID,
                         "Request header name is not a token",
-                        self.in_tx_mut_ok()?.flags,
+                        self.request_mut().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -140,7 +140,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_FIELD_MISSING_COLON,
                         "Request field invalid: colon missing",
-                        self.in_tx_mut_ok()?.flags,
+                        self.request_mut().flags,
                         flags,
                         HtpFlags::FIELD_UNPARSEABLE
                     );
@@ -151,7 +151,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
                         "Request field invalid: empty name",
-                        self.in_tx_mut_ok()?.flags,
+                        self.request_mut().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -208,20 +208,20 @@ impl ConnectionParser {
                     // reset mstart so that we copy the whitespace into the method
                     mstart = true;
                     // set expected response code to this anomaly
-                    self.in_tx_mut_ok()?.response_status_expected_number =
+                    self.request_mut().response_status_expected_number =
                         requestline_leading_whitespace_unwanted
                 }
             }
 
             if mstart {
-                self.in_tx_mut_ok()?.request_method =
+                self.request_mut().request_method =
                     Some(Bstr::from([&ls[..], &method[..]].concat()));
             } else {
-                self.in_tx_mut_ok()?.request_method = Some(Bstr::from(method));
+                self.request_mut().request_method = Some(Bstr::from(method));
             }
 
-            if let Some(request_method) = &self.in_tx_mut_ok()?.request_method {
-                self.in_tx_mut_ok()?.request_method_number =
+            if let Some(request_method) = &self.request().request_method {
+                self.request_mut().request_method_number =
                     HtpMethod::new(request_method.as_slice());
             }
 
@@ -236,9 +236,9 @@ impl ConnectionParser {
 
             if remaining.is_empty() {
                 // No, this looks like a HTTP/0.9 request.
-                self.in_tx_mut_ok()?.is_protocol_0_9 = true;
-                self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
-                if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN {
+                self.request_mut().is_protocol_0_9 = true;
+                self.request_mut().request_protocol_number = HtpProtocol::V0_9;
+                if self.request().request_method_number == HtpMethod::UNKNOWN {
                     htp_warn!(
                         self.logger,
                         HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD,
@@ -271,13 +271,13 @@ impl ConnectionParser {
                         protocol = protocol2;
                     }
                 }
-                self.in_tx_mut_ok()?.request_uri = Some(Bstr::from(uri));
+                self.request_mut().request_uri = Some(Bstr::from(uri));
                 // Is there protocol information available?
                 if protocol.is_empty() {
                     // No, this looks like a HTTP/0.9 request.
-                    self.in_tx_mut_ok()?.is_protocol_0_9 = true;
-                    self.in_tx_mut_ok()?.request_protocol_number = HtpProtocol::V0_9;
-                    if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN {
+                    self.request_mut().is_protocol_0_9 = true;
+                    self.request_mut().request_protocol_number = HtpProtocol::V0_9;
+                    if self.request().request_method_number == HtpMethod::UNKNOWN {
                         htp_warn!(
                             self.logger,
                             HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
@@ -287,11 +287,11 @@ impl ConnectionParser {
                     return Ok(());
                 }
                 // The protocol information continues until the end of the line.
-                self.in_tx_mut_ok()?.request_protocol = Some(Bstr::from(protocol));
-                self.in_tx_mut_ok()?.request_protocol_number =
+                self.request_mut().request_protocol = Some(Bstr::from(protocol));
+                self.request_mut().request_protocol_number =
                     parse_protocol(protocol, &mut self.logger);
-                if self.in_tx_mut_ok()?.request_method_number == HtpMethod::UNKNOWN
-                    && self.in_tx_mut_ok()?.request_protocol_number == HtpProtocol::INVALID
+                if self.request().request_method_number == HtpMethod::UNKNOWN
+                    && self.request().request_protocol_number == HtpProtocol::INVALID
                 {
                     htp_warn!(
                         self.logger,

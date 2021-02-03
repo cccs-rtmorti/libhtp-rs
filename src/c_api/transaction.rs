@@ -8,32 +8,15 @@ use std::{
     rc::Rc,
 };
 
-/// Creates a new transaction.
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_create(connp: *mut ConnectionParser) -> *mut Transaction {
-    if let Some(connp) = connp.as_mut() {
-        if let Ok(tx_id) = connp.create_tx() {
-            (*connp).set_in_tx_id(Some(tx_id));
-            (*connp).in_reset();
-            connp.conn.tx_mut_ptr(tx_id)
-        } else {
-            std::ptr::null_mut()
-        }
-    } else {
-        std::ptr::null_mut()
-    }
-}
-
 /// Destroys the supplied transaction.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_destroy(
     connp: *mut ConnectionParser,
     tx: *mut Transaction,
 ) -> HtpStatus {
-    if let Some(tx) = tx.as_mut() {
-        tx.destroy(&mut *connp).into()
-    } else {
-        HtpStatus::ERROR
+    match (connp.as_mut(), tx.as_mut()) {
+        (Some(connp), Some(tx)) => connp.remove_tx(tx.index).into(),
+        _ => HtpStatus::ERROR,
     }
 }
 

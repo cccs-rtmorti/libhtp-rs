@@ -95,9 +95,9 @@ impl Test {
                 );
             }
 
-            assert_eq!(1, (*self.connp).conn.tx_size());
+            assert_eq!(1, (*self.connp).tx_size());
 
-            self.tx = (*self.connp).conn.tx_mut_ptr(0);
+            self.tx = (*self.connp).tx_mut(0).unwrap() as *mut Transaction;
 
             assert!(!self.tx.is_null());
             assert!(!(*self.tx).request_mpartp.is_none());

@@ -842,30 +842,78 @@ pub unsafe extern "C" fn htp_config_set_parse_urlencoded(
     }
 }
 
-/// Retrieves the pointer to the active outbound transaction. In connection
+/// Get the number of transactions processed on this connection.
+///
+/// Returns the number of transactions or -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_connp_tx_size(connp: *const ConnectionParser) -> isize {
+    if let Some(connp) = connp.as_ref() {
+        isize::try_from(connp.tx_size()).unwrap_or(-1)
+    } else {
+        -1
+    }
+}
+
+/// Get a transaction.
+///
+/// Returns the transaction or NULL on error.
+#[no_mangle]
+pub unsafe extern "C" fn htp_connp_tx(
+    connp: *mut ConnectionParser,
+    tx_id: usize,
+) -> *mut Transaction {
+    if let Some(connp) = connp.as_mut() {
+        if let Some(tx) = connp.tx_mut(tx_id) {
+            tx as *mut Transaction
+        } else {
+            std::ptr::null_mut()
+        }
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+/// Retrieves the pointer to the active response transaction. In connection
 /// parsing mode there can be many open transactions, and up to 2 active
 /// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
-///
-/// Returns active outbound transaction, or NULL if there isn't one.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_out_tx(connp: *mut ConnectionParser) -> *mut Transaction {
+pub unsafe extern "C" fn htp_connp_get_response_tx(
+    connp: *mut ConnectionParser,
+) -> *mut Transaction {
     connp
         .as_mut()
-        .map(|connp| connp.out_tx_mut_ptr())
+        .map(|connp| connp.response_mut() as *mut Transaction)
         .unwrap_or(std::ptr::null_mut())
 }
 
-/// Retrieves the pointer to the active inbound transaction. In connection
+/// Retrieves the pointer to the active request transaction. In connection
 /// parsing mode there can be many open transactions, and up to 2 active
-/// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
-///
-/// Returns active inbound transaction, or NULL if there isn't one.
+/// transactions at any one time. This is due to HTTP pipelining. Call be NULL.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_get_in_tx(connp: *mut ConnectionParser) -> *mut Transaction {
+pub unsafe extern "C" fn htp_connp_get_request_tx(
+    connp: *mut ConnectionParser,
+) -> *mut Transaction {
     connp
         .as_mut()
-        .map(|connp| connp.in_tx_mut_ptr())
+        .map(|connp| connp.request_mut() as *mut Transaction)
         .unwrap_or(std::ptr::null_mut())
+}
+
+/// Invoke the transaction complete callback for each incomplete transaction.
+/// The transactions passed to the callback will not have their request and
+/// response state set to complete - they will simply be passed with the state
+/// they have within the parser at the time of the call.
+///
+/// This function is intended to be used when a connection is closing and we want
+/// to process any incomplete transactions that were in flight, or which never
+/// completed due to packet loss or parsing errors.
+///
+/// This function will also cause these transactions to be removed from the parser.
+#[no_mangle]
+pub unsafe extern "C" fn htp_connp_flush_incomplete_transactions(connp: *mut ConnectionParser) {
+    connp
+        .as_mut()
+        .map(|connp| connp.flush_incomplete_transactions());
 }
 
 /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.

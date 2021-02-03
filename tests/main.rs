@@ -250,9 +250,9 @@ fn Get() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("01-get.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/?p=%20"));
@@ -274,9 +274,9 @@ fn GetEncodedRelPath() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("99-get.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.request_hostname.as_ref().unwrap().eq("www.example.com"));
@@ -296,7 +296,7 @@ fn ApacheHeaderParsing() {
 
     assert!(t.run("02-header-test-apache2.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).expect("expected tx to exist");
+    let tx = t.connp.tx(0).expect("expected tx to exist");
 
     let actual: Vec<(&[u8], &[u8])> = (&tx.request_headers)
         .into_iter()
@@ -345,10 +345,10 @@ fn PostUrlencoded() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("03-post-urlencoded.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
     // Transaction 1
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_contains_param!(&tx.request_params, "p", "0123456789");
 
@@ -358,7 +358,7 @@ fn PostUrlencoded() {
     assert_response_header_eq!(tx, "Server", "Apache");
 
     // Transaction 2
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert_eq!(tx2.request_progress, HtpRequestProgress::COMPLETE);
     assert_eq!(tx2.response_progress, HtpResponseProgress::COMPLETE);
@@ -371,9 +371,9 @@ fn PostUrlencodedChunked() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("04-post-urlencoded-chunked.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_contains_param!(&tx.request_params, "p", "0123456789");
     assert_eq!(25, tx.request_message_len);
@@ -385,9 +385,9 @@ fn Expect() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("05-expect.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     // The interim header from the 100 response should not be among the final headers.
     assert!(tx.request_headers.get_nocase_nozero("Header1").is_none());
@@ -398,9 +398,9 @@ fn UriNormal() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("06-uri-normal.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let _tx = t.connp.conn.tx(0).unwrap();
+    let _tx = t.connp.tx(0).unwrap();
 }
 
 #[test]
@@ -408,11 +408,11 @@ fn PipelinedConn() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("07-pipelined-connection.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
     assert!(t.connp.conn.flags.is_set(ConnectionFlags::PIPELINED));
 
-    let _tx = t.connp.conn.tx(0).unwrap();
+    let _tx = t.connp.tx(0).unwrap();
 }
 
 #[test]
@@ -420,11 +420,11 @@ fn NotPipelinedConn() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("08-not-pipelined-connection.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
     assert!(!t.connp.conn.flags.is_set(ConnectionFlags::PIPELINED));
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(!tx.flags.is_set(HtpFlags::MULTI_PACKET_HEAD));
 }
@@ -434,9 +434,9 @@ fn MultiPacketRequest() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("09-multi-packet-request-head.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::MULTI_PACKET_HEAD));
 }
@@ -445,13 +445,13 @@ fn MultiPacketRequest() {
 fn HeaderHostParsing() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("10-host-in-headers.t").is_ok());
-    assert_eq!(4, t.connp.conn.tx_size());
+    assert_eq!(4, t.connp.tx_size());
 
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert!(tx1.request_hostname.as_ref().unwrap().eq("www.example.com"));
 
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert!(tx2
         .request_hostname
@@ -459,11 +459,11 @@ fn HeaderHostParsing() {
         .unwrap()
         .eq("www.example.com."));
 
-    let tx3 = t.connp.conn.tx(2).unwrap();
+    let tx3 = t.connp.tx(2).unwrap();
 
     assert!(tx3.request_hostname.as_ref().unwrap().eq("www.example.com"));
 
-    let tx4 = t.connp.conn.tx(3).unwrap();
+    let tx4 = t.connp.tx(3).unwrap();
 
     assert!(tx4.request_hostname.as_ref().unwrap().eq("www.example.com"));
 }
@@ -473,9 +473,9 @@ fn ResponseWithoutContentLength() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("11-response-stream-closure.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 }
@@ -485,9 +485,9 @@ fn FailedConnectRequest() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("12-connect-request.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
     assert!(tx.request_method.as_ref().unwrap().eq("CONNECT"));
@@ -505,9 +505,9 @@ fn CompressedResponseContentType() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("13-compressed-response-gzip-ct.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(187, tx.response_message_len);
     assert_eq!(225, tx.response_entity_len);
     assert!(tx
@@ -522,9 +522,9 @@ fn CompressedResponseChunked() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -538,9 +538,9 @@ fn SuccessfulConnectRequest() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("15-connect-complete.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     // TODO: Update the test_run() function to provide better
     //       simulation of real traffic. At the moment, it does not
@@ -558,14 +558,14 @@ fn ConnectRequestWithExtraData() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("16-connect-extra.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert!(tx1.is_complete());
     assert!(tx1.response_content_type.as_ref().unwrap().eq("text/html"));
 
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert!(tx2.is_complete());
 }
@@ -575,9 +575,9 @@ fn Multipart() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("17-multipart-1.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -590,9 +590,9 @@ fn CompressedResponseDeflate() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("18-compressed-response-deflate.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -606,9 +606,9 @@ fn UrlEncoded() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("19-urlencoded-test.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -625,34 +625,34 @@ fn AmbiguousHost() {
 
     assert!(t.run("20-ambiguous-host.t").is_ok());
 
-    assert_eq!(5, t.connp.conn.tx_size());
+    assert_eq!(5, t.connp.tx_size());
 
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert!(tx1.is_complete());
     assert!(!tx1.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
 
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert!(tx2.is_complete());
     assert!(tx2.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx2.request_hostname.as_ref().unwrap().eq("example.com"));
 
-    let tx3 = t.connp.conn.tx(2).unwrap();
+    let tx3 = t.connp.tx(2).unwrap();
 
     assert!(tx3.is_complete());
     assert!(!tx3.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx3.request_hostname.as_ref().unwrap().eq("www.example.com"));
     assert_eq!(Some(8001), tx3.request_port_number);
 
-    let tx4 = t.connp.conn.tx(3).unwrap();
+    let tx4 = t.connp.tx(3).unwrap();
 
     assert!(tx4.is_complete());
     assert!(tx4.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
     assert!(tx4.request_hostname.as_ref().unwrap().eq("www.example.com"));
     assert_eq!(Some(8002), tx4.request_port_number);
 
-    let tx5 = t.connp.conn.tx(4).unwrap();
+    let tx5 = t.connp.tx(4).unwrap();
 
     assert!(tx5.is_complete());
     assert!(!tx5.flags.is_set(HtpFlags::HOST_AMBIGUOUS));
@@ -665,18 +665,18 @@ fn Http_0_9() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("21-http09.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
     assert!(!t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
 
-    let _tx = t.connp.conn.tx(0).unwrap();
+    let _tx = t.connp.tx(0).unwrap();
 }
 
 #[test]
 fn Http11HostMissing() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("22-http_1_1-host_missing").is_ok());
-    assert_eq!(1, t.connp.conn.tx_size());
-    let tx = t.connp.conn.tx(0).unwrap();
+    assert_eq!(1, t.connp.tx_size());
+    let tx = t.connp.tx(0).unwrap();
     assert!(tx.flags.is_set(HtpFlags::HOST_MISSING));
 }
 
@@ -685,10 +685,10 @@ fn Http_0_9_Multiple() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("23-http09-multiple.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
     assert!(t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
 
-    let _tx = t.connp.conn.tx(0).unwrap();
+    let _tx = t.connp.tx(0).unwrap();
 }
 
 #[test]
@@ -696,9 +696,9 @@ fn Http_0_9_Explicit() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("24-http09-explicit.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(!tx.is_protocol_0_9);
 }
 
@@ -761,7 +761,7 @@ fn RequestHeaderData() {
     cfg.register_request_header_data(ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA);
     let mut t = Test::new(cfg);
     assert!(t.run("26-request-headers-raw.t").is_ok());
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
@@ -806,7 +806,7 @@ fn RequestTrailerData() {
     cfg.register_request_trailer_data(ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA);
     let mut t = Test::new(cfg);
     assert!(t.run("27-request-trailer-raw.t").is_ok());
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(2, *tx.user_data::<i32>().unwrap());
 }
 
@@ -865,7 +865,7 @@ fn ResponseHeaderData() {
     let mut t = Test::new(cfg);
     assert!(t.run("28-response-headers-raw.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
@@ -927,7 +927,7 @@ fn ResponseTrailerData() {
     let mut t = Test::new(cfg);
     assert!(t.run("29-response-trailer-raw.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
@@ -936,9 +936,9 @@ fn GetIPv6() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("30-get-ipv6.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
 
@@ -974,9 +974,9 @@ fn GetRequestLineNul() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("31-get-request-line-nul.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_uri.as_ref().unwrap().eq("/?p=%20"));
 }
@@ -986,9 +986,9 @@ fn InvalidHostname1() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("32-invalid-hostname.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(tx.flags.is_set(HtpFlags::HOSTH_INVALID));
     assert!(tx.flags.is_set(HtpFlags::HOSTU_INVALID));
     assert!(tx.flags.is_set(HtpFlags::HOST_INVALID));
@@ -999,9 +999,9 @@ fn InvalidHostname2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("33-invalid-hostname.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(!tx.flags.is_set(HtpFlags::HOSTH_INVALID));
     assert!(tx.flags.is_set(HtpFlags::HOSTU_INVALID));
@@ -1013,9 +1013,9 @@ fn InvalidHostname3() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("34-invalid-hostname.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::HOSTH_INVALID));
     assert!(!tx.flags.is_set(HtpFlags::HOSTU_INVALID));
@@ -1026,7 +1026,7 @@ fn InvalidHostname3() {
 fn EarlyResponse() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("35-early-response.t").is_ok());
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(tx.is_complete());
 }
 
@@ -1035,7 +1035,7 @@ fn InvalidRequest1() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("36-invalid-request-1-invalid-c-l.t").is_err());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::HEADERS, tx.request_progress);
 
@@ -1051,7 +1051,7 @@ fn InvalidRequest2() {
     assert!(t.run("37-invalid-request-2-t-e-and-c-l.t").is_ok());
     // No error, flags only.
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1065,7 +1065,7 @@ fn InvalidRequest3() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("38-invalid-request-3-invalid-t-e.t").is_err());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::HEADERS, tx.request_progress);
 
@@ -1082,7 +1082,7 @@ fn AutoDestroyCrash() {
     let mut t = Test::new(cfg);
     assert!(t.run("39-auto-destroy-crash.t").is_ok());
 
-    assert_eq!(4, t.connp.conn.tx_size());
+    assert_eq!(4, t.connp.tx_size());
 }
 
 #[test]
@@ -1090,7 +1090,7 @@ fn AuthBasic() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("40-auth-basic.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpAuthType::BASIC, tx.request_auth_type);
@@ -1104,7 +1104,7 @@ fn AuthDigest() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("41-auth-digest.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1120,7 +1120,7 @@ fn Unknown_MethodOnly() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("42-unknown-method_only.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1136,7 +1136,7 @@ fn InvalidHtpProtocol() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("43-invalid-protocol.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1148,7 +1148,7 @@ fn AuthBasicInvalid() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("44-auth-basic-invalid.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1166,7 +1166,7 @@ fn AuthDigestUnquotedUsername() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("45-auth-digest-unquoted-username.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1184,7 +1184,7 @@ fn AuthDigestInvalidUsername1() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("46-auth-digest-invalid-username.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1202,7 +1202,7 @@ fn AuthUnrecognized() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("47-auth-unrecognized.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1218,7 +1218,7 @@ fn InvalidResponseHeaders1() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("48-invalid-response-headers-1.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
@@ -1240,7 +1240,7 @@ fn InvalidResponseHeaders2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("49-invalid-response-headers-2.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
@@ -1267,9 +1267,9 @@ fn GetIPv6Invalid() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("51-get-ipv6-invalid.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
 
@@ -1293,9 +1293,9 @@ fn InvalidPath() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("52-invalid-path.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
 
@@ -1316,9 +1316,9 @@ fn PathUtf8_None() {
 
     assert!(t.run("53-path-utf8-none.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
     assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
@@ -1331,9 +1331,9 @@ fn PathUtf8_Valid() {
 
     assert!(t.run("54-path-utf8-valid.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
 }
@@ -1344,9 +1344,9 @@ fn PathUtf8_Overlong2() {
 
     assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 }
@@ -1357,9 +1357,9 @@ fn PathUtf8_Overlong3() {
 
     assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 }
@@ -1370,9 +1370,9 @@ fn PathUtf8_Overlong4() {
 
     assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 }
@@ -1383,9 +1383,9 @@ fn PathUtf8_Invalid() {
 
     assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_INVALID));
     assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
@@ -1397,9 +1397,9 @@ fn PathUtf8_FullWidth() {
 
     assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_HALF_FULL_RANGE));
 }
@@ -1412,9 +1412,9 @@ fn PathUtf8_Decode_Valid() {
 
     assert!(t.run("54-path-utf8-valid.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(tx
         .parsed_uri
         .as_ref()
@@ -1432,9 +1432,9 @@ fn PathUtf8_Decode_Overlong2() {
     let mut t = Test::new(cfg);
     assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 
@@ -1456,9 +1456,9 @@ fn PathUtf8_Decode_Overlong3() {
 
     assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
 
@@ -1480,9 +1480,9 @@ fn PathUtf8_Decode_Overlong4() {
 
     assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_OVERLONG));
     assert!(tx
@@ -1502,9 +1502,9 @@ fn PathUtf8_Decode_Invalid() {
     let mut t = Test::new(cfg);
     assert!(t.run("58-path-utf8-invalid.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_UTF8_INVALID));
     assert!(!tx.flags.is_set(HtpFlags::PATH_UTF8_VALID));
@@ -1526,9 +1526,9 @@ fn PathUtf8_Decode_FullWidth() {
 
     assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.flags.is_set(HtpFlags::PATH_HALF_FULL_RANGE));
 
@@ -1548,9 +1548,9 @@ fn RequestCookies1() {
 
     assert!(t.run("60-request-cookies-1.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(3, tx.request_cookies.size());
 
@@ -1573,9 +1573,9 @@ fn EmptyLineBetweenRequests() {
 
     assert!(t.run("61-empty-line-between-requests.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
-    let _tx = t.connp.conn.tx(1).unwrap();
+    let _tx = t.connp.tx(1).unwrap();
 
     /*part of previous request body assert_eq!(1, tx.request_ignored_lines);*/
 }
@@ -1586,15 +1586,15 @@ fn PostNoBody() {
 
     assert!(t.run("62-post-no-body.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx1.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx1.response_progress);
     assert!(tx1.response_content_type.as_ref().unwrap().eq("text/html"));
 
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx2.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx2.response_progress);
@@ -1625,9 +1625,9 @@ fn PostChunkedSplitChunk() {
 
     assert!(t.run("66-post-chunked-split-chunk.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_contains_param!(&tx.request_params, "p", "0123456789");
 }
@@ -1638,9 +1638,9 @@ fn LongRequestLine1() {
 
     assert!(t.run("67-long-request-line.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx
         .request_uri
@@ -1657,7 +1657,7 @@ fn LongRequestLine2() {
 
     assert!(t.run("67-long-request-line.t").is_err());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::LINE, tx.request_progress);
 }
@@ -1668,13 +1668,9 @@ fn InvalidRequestHeader() {
 
     assert!(t.run("68-invalid-request-header.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t
-        .connp
-        .conn
-        .tx(0)
-        .expect("expected at least one transaction");
+    let tx = t.connp.tx(0).expect("expected at least one transaction");
 
     assert_request_header_eq!(tx, "Header-With-NUL", "BEFORE");
 }
@@ -1688,9 +1684,9 @@ fn TestGenericPersonality() {
 
     assert!(t.run("02-header-test-apache2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let _tx = t.connp.conn.tx(0).unwrap();
+    let _tx = t.connp.tx(0).unwrap();
 }
 
 #[test]
@@ -1701,7 +1697,7 @@ fn LongResponseHeader() {
 
     assert!(t.run("69-long-response-header.t").is_err());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     //error first assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::HEADERS, tx.response_progress);
@@ -1719,9 +1715,9 @@ fn ResponseSplitChunk() {
 
     assert!(t.run("71-response-split-chunk.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1733,9 +1729,9 @@ fn ResponseBody() {
 
     assert!(t.run("72-response-split-body.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1747,9 +1743,9 @@ fn ResponseContainsTeAndCl() {
 
     assert!(t.run("73-response-te-and-cl.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1763,9 +1759,9 @@ fn ResponseMultipleCl() {
 
     assert!(t.run("74-response-multiple-cl.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1781,9 +1777,9 @@ fn ResponseMultipleClMismatch() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("88-response-multiple-cl-mismatch.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1806,9 +1802,9 @@ fn ResponseInvalidCl() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("75-response-invalid-cl.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1821,16 +1817,16 @@ fn ResponseNoBody() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("76-response-no-body.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx1.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx1.response_progress);
 
     assert_response_header_eq!(tx1, "Server", "Apache");
 
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx2.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx2.response_progress);
@@ -1843,16 +1839,16 @@ fn ResponseFoldedHeaders() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("77-response-folded-headers.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx1.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx1.response_progress);
 
     assert_response_header_eq!(tx1, "Server", "Apache Server");
 
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx2.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx2.response_progress);
@@ -1863,9 +1859,9 @@ fn ResponseNoStatusHeaders() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("78-response-no-status-headers.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1876,7 +1872,7 @@ fn ConnectInvalidHostport() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("79-connect-invalid-hostport.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 }
 
 #[test]
@@ -1884,7 +1880,7 @@ fn HostnameInvalid1() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("80-hostname-invalid-1.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 }
 
 #[test]
@@ -1892,7 +1888,7 @@ fn HostnameInvalid2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("81-hostname-invalid-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 }
 
 #[test]
@@ -1900,9 +1896,9 @@ fn Put() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("82-put.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     let file = t.connp.put_file.as_ref().unwrap();
     assert_eq!(file.len, 12);
@@ -1918,7 +1914,7 @@ fn AuthDigestInvalidUsername2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("83-auth-digest-invalid-username-2.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -1936,9 +1932,9 @@ fn ResponseNoStatusHeaders2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("84-response-no-status-headers-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1951,7 +1947,7 @@ fn ResponseNoStatusHeaders2() {
 //unsafe {
 //    assert!(t.run("85-zero-byte-request-timeout.t").is_ok());
 //
-//    assert_eq!(1, t.connp.conn.tx_size());
+//    assert_eq!(1, t.connp.tx_size());
 //
 //    let tx = t.connp.conn.get_tx(0);
 //    assert!(!tx.is_null());
@@ -1965,9 +1961,9 @@ fn PartialRequestTimeout() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("86-partial-request-timeout.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -1980,9 +1976,9 @@ fn IncorrectHostAmbiguousWarning() {
         .run("87-issue-55-incorrect-host-ambiguous-warning.t")
         .is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx
         .parsed_uri_raw
@@ -2016,9 +2012,9 @@ fn GetWhitespace() {
 
     assert!(t.run("89-get-whitespace.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq(" GET"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/?p=%20"));
@@ -2039,9 +2035,9 @@ fn RequestUriTooLarge() {
 
     assert!(t.run("90-request-uri-too-large.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -2053,15 +2049,15 @@ fn RequestInvalid() {
 
     assert!(t.run("91-request-unexpected-body.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
+    assert_eq!(2, t.connp.tx_size());
 
-    let mut tx = t.connp.conn.tx(0).unwrap();
+    let mut tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("POST"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    tx = t.connp.conn.tx(1).unwrap();
+    tx = t.connp.tx(1).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
@@ -2073,7 +2069,7 @@ fn Http_0_9_MethodOnly() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("92-http_0_9-method_only.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -2088,9 +2084,9 @@ fn CompressedResponseDeflateAsGzip() {
 
     assert!(t.run("93-compressed-response-deflateasgzip.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -2104,9 +2100,9 @@ fn CompressedResponseMultiple() {
 
     assert!(t.run("94-compressed-response-multiple.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -2122,9 +2118,9 @@ fn CompressedResponseBombLimitOkay() {
 
     assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -2141,9 +2137,9 @@ fn CompressedResponseBombLimitExceeded() {
 
     assert!(t.run("14-compressed-response-gzip-chunked.t").is_err());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(!tx.is_complete());
 
     assert_eq!(1208, tx.response_message_len);
@@ -2158,9 +2154,9 @@ fn CompressedResponseTimeLimitExceeded() {
 
     assert!(t.run("14-compressed-response-gzip-chunked.t").is_err());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(!tx.is_complete());
 
     assert_eq!(1208, tx.response_message_len);
@@ -2172,9 +2168,9 @@ fn CompressedResponseGzipAsDeflate() {
     let mut t = Test::new(TestConfig());
 
     assert!(t.run("95-compressed-response-gzipasdeflate.t").is_ok());
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -2187,9 +2183,9 @@ fn CompressedResponseLzma() {
     let mut t = Test::new(TestConfig());
 
     assert!(t.run("96-compressed-response-lzma.t").is_ok());
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
 
@@ -2204,9 +2200,9 @@ fn CompressedResponseLzmaDisabled() {
     let mut t = Test::new(cfg);
 
     assert!(t.run("96-compressed-response-lzma.t").is_ok());
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert!(tx.is_complete());
 
     assert_eq!(90, tx.response_message_len);
@@ -2220,8 +2216,8 @@ fn CompressedResponseLzmaMemlimit() {
     let mut t = Test::new(cfg);
 
     assert!(t.run("96-compressed-response-lzma.t").is_ok());
-    assert_eq!(1, t.connp.conn.tx_size());
-    let tx = t.connp.conn.tx(0).unwrap();
+    assert_eq!(1, t.connp.tx_size());
+    let tx = t.connp.tx(0).unwrap();
     assert!(tx.is_complete());
     assert_eq!(90, tx.response_message_len);
     assert_eq!(54, tx.response_entity_len);
@@ -2234,12 +2230,12 @@ fn RequestsCut() {
 
     assert!(t.run("97-requests-cut.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
-    let mut tx = t.connp.conn.tx(0).unwrap();
+    assert_eq!(2, t.connp.tx_size());
+    let mut tx = t.connp.tx(0).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
-    tx = t.connp.conn.tx(1).unwrap();
+    tx = t.connp.tx(1).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
@@ -2251,15 +2247,15 @@ fn ResponsesCut() {
 
     assert!(t.run("98-responses-cut.t").is_ok());
 
-    assert_eq!(2, t.connp.conn.tx_size());
-    let mut tx = t.connp.conn.tx(0).unwrap();
+    assert_eq!(2, t.connp.tx_size());
+    let mut tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert!(tx.response_status_number.eq_num(200));
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    tx = t.connp.conn.tx(1).unwrap();
+    tx = t.connp.tx(1).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
@@ -2273,7 +2269,7 @@ fn AuthDigest_EscapedQuote() {
 
     assert!(t.run("100-auth-digest-escaped-quote.t").is_ok());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
 
@@ -2290,9 +2286,9 @@ fn RequestCookies2() {
 
     assert!(t.run("101-request-cookies-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(3, tx.request_cookies.size());
 
@@ -2315,9 +2311,9 @@ fn RequestCookies3() {
 
     assert!(t.run("102-request-cookies-3.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(3, tx.request_cookies.size());
 
@@ -2340,9 +2336,9 @@ fn RequestCookies4() {
 
     assert!(t.run("103-request-cookies-4.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(3, tx.request_cookies.size());
 
@@ -2365,9 +2361,9 @@ fn RequestCookies5() {
     // Empty cookie
     assert!(t.run("104-request-cookies-5.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(0, tx.request_cookies.size());
 }
@@ -2377,11 +2373,11 @@ fn Tunnelled1() {
     let mut t = Test::new(TestConfig());
 
     assert!(t.run("106-tunnelled-1.t").is_ok());
-    assert_eq!(2, t.connp.conn.tx_size());
-    let tx1 = t.connp.conn.tx(0).unwrap();
+    assert_eq!(2, t.connp.tx_size());
+    let tx1 = t.connp.tx(0).unwrap();
 
     assert!(tx1.request_method.as_ref().unwrap().eq("CONNECT"));
-    let tx2 = t.connp.conn.tx(1).unwrap();
+    let tx2 = t.connp.tx(1).unwrap();
 
     assert!(tx2.request_method.as_ref().unwrap().eq("GET"));
 }
@@ -2391,15 +2387,15 @@ fn Expect100() {
     let mut t = Test::new(TestConfig());
 
     assert!(t.run("105-expect-100.t").is_ok());
-    assert_eq!(2, t.connp.conn.tx_size());
-    let tx = t.connp.conn.tx(0).unwrap();
+    assert_eq!(2, t.connp.tx_size());
+    let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("PUT"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert!(tx.response_status_number.eq_num(401));
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 
-    let tx = t.connp.conn.tx(1).unwrap();
+    let tx = t.connp.tx(1).unwrap();
 
     assert!(tx.request_method.as_ref().unwrap().eq("POST"));
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
@@ -2411,8 +2407,8 @@ fn Expect100() {
 fn UnknownStatusNumber() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("107-response_unknown_status.t").is_ok());
-    assert_eq!(1, t.connp.conn.tx_size());
-    let tx = t.connp.conn.tx(0).unwrap();
+    assert_eq!(1, t.connp.tx_size());
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(tx.response_status_number, HtpResponseNumber::UNKNOWN);
 }
@@ -2422,7 +2418,7 @@ fn ResponseHeaderCrOnly() {
     // Content-Length terminated with \r only.
     let mut t = Test::new(TestConfig());
     assert!(t.run("108-response-headers-cr-only.t").is_ok());
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(1, tx.response_headers.size());
     // Check response headers
     assert_response_header_eq!(tx, "content-type", "text/html\rContent-Length: 7");
@@ -2433,7 +2429,7 @@ fn ResponseHeaderDeformedEOL() {
     // Content-Length terminated with \n\r\r\n\r\n only.
     let mut t = Test::new(TestConfig());
     assert!(t.run("109-response-headers-deformed-eol.t").is_ok());
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
     assert_eq!(2, tx.response_headers.size());
     // Check response headers
     assert_response_header_eq!(tx, "content-type", "text/html");
@@ -2450,9 +2446,9 @@ fn ResponseFoldedHeaders2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("110-response-folded-headers-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -2466,9 +2462,9 @@ fn ResponseHeadersChunked() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("111-response-headers-chunked.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
@@ -2484,9 +2480,9 @@ fn ResponseHeadersChunked2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("112-response-headers-chunked-2.t").is_ok());
 
-    assert_eq!(1, t.connp.conn.tx_size());
+    assert_eq!(1, t.connp.tx_size());
 
-    let tx = t.connp.conn.tx(0).unwrap();
+    let tx = t.connp.tx(0).unwrap();
 
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
