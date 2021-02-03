@@ -51,6 +51,87 @@ impl Parser {
             field: Bstr::with_capacity(64),
         }
     }
+
+    /// Finalizes parsing, forcing the parser to convert any outstanding
+    /// data into parameters. This method should be invoked at the end
+    /// of a parsing operation that used urlenp_parse_partial().
+    pub fn finalize(&mut self) {
+        self.complete = true;
+        self.parse_partial(b"")
+    }
+
+    /// Parses the provided data chunk under the assumption
+    /// that it contains all the data that will be parsed. When this
+    /// method is used for parsing the finalization method should not
+    /// be invoked.
+    pub fn parse_complete(&mut self, data: &[u8]) {
+        self.parse_partial(data);
+        self.finalize()
+    }
+
+    /// Parses the provided data chunk, searching for argument seperators and '=' to locate names and values,
+    /// keeping state to allow streaming parsing, i.e., the parsing where only partial information is available
+    /// at any one time. The method urlenp_finalize() must be invoked at the end to finalize parsing.
+    pub fn parse_partial(&mut self, data: &[u8]) {
+        self.field.add(data);
+        let input = self.field.clone();
+        let mut input = input.as_slice();
+        if input.is_empty() {
+            if self.complete && self.params.size() == 0 && self.saw_data {
+                self.params.add(Bstr::new(), Bstr::new());
+            }
+            return;
+        }
+        let mut remaining: &[u8] = b"";
+        let sep = self.argument_separator;
+        self.saw_data = true;
+        if !self.complete {
+            let data: Vec<&[u8]> = input.rsplitn(2, |c| *c == sep).collect();
+            if data.len() == 2 {
+                input = data[1];
+                remaining = data[0];
+            } else {
+                return;
+            }
+        }
+        input.split(|c| *c == sep).for_each(|segment| {
+            if let Ok((value, name)) = name_value(segment) {
+                let mut name = Bstr::from(name);
+                let mut value = Bstr::from(value);
+                if self.decode_url_encoding {
+                    if let Ok((_, (consumed, flags, expected_status))) =
+                        urldecode_ex(name.as_slice(), &self.cfg)
+                    {
+                        self.flags.set(flags);
+                        self.response_status_expected_number = expected_status;
+                        name.clear();
+                        name.add(consumed);
+                    }
+                    if let Ok((_, (consumed, flags, expected_status))) =
+                        urldecode_ex(value.as_slice(), &self.cfg)
+                    {
+                        self.flags.set(flags);
+                        self.response_status_expected_number = expected_status;
+                        value.clear();
+                        value.add(consumed);
+                    }
+                }
+                self.params.add(name, value);
+            }
+        });
+        self.field.clear();
+        self.field.add(remaining);
+    }
+}
+
+/// Extracts names and values from the url parameters
+///
+/// Returns a name value pair, separated by an '='
+fn name_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    map(
+        tuple((peek(take(1usize)), take_till(|c| c == b'='), opt(char('=')))),
+        |(_, name, _)| name,
+    )(input)
 }
 
 impl Default for Parser {
@@ -69,92 +150,12 @@ impl Default for Parser {
         }
     }
 }
-/// Finalizes parsing, forcing the parser to convert any outstanding
-/// data into parameters. This method should be invoked at the end
-/// of a parsing operation that used urlenp_parse_partial().
-pub fn urlenp_finalize(urlenp: &mut Parser) {
-    urlenp.complete = true;
-    urlenp_parse_partial(urlenp, b"")
-}
-
-/// Parses the provided data chunk under the assumption
-/// that it contains all the data that will be parsed. When this
-/// method is used for parsing the finalization method should not
-/// be invoked.
-pub fn urlenp_parse_complete(urlenp: &mut Parser, data: &[u8]) {
-    urlenp_parse_partial(urlenp, data);
-    urlenp_finalize(urlenp)
-}
-
-/// Extracts names and values from the url parameters
-///
-/// Returns a name value pair, separated by an '='
-fn urlen_name_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    map(
-        tuple((peek(take(1usize)), take_till(|c| c == b'='), opt(char('=')))),
-        |(_, name, _)| name,
-    )(input)
-}
-
-/// Parses the provided data chunk, searching for argument seperators and '=' to locate names and values,
-/// keeping state to allow streaming parsing, i.e., the parsing where only partial information is available
-/// at any one time. The method urlenp_finalize() must be invoked at the end to finalize parsing.
-pub fn urlenp_parse_partial(urlenp: &mut Parser, data: &[u8]) {
-    urlenp.field.add(data);
-    let input = urlenp.field.clone();
-    let mut input = input.as_slice();
-    if input.is_empty() {
-        if urlenp.complete && urlenp.params.size() == 0 && urlenp.saw_data {
-            urlenp.params.add(Bstr::new(), Bstr::new());
-        }
-        return;
-    }
-    let mut remaining: &[u8] = b"";
-    let sep = urlenp.argument_separator;
-    urlenp.saw_data = true;
-    if !urlenp.complete {
-        let data: Vec<&[u8]> = input.rsplitn(2, |c| *c == sep).collect();
-        if data.len() == 2 {
-            input = data[1];
-            remaining = data[0];
-        } else {
-            return;
-        }
-    }
-    input.split(|c| *c == sep).for_each(|segment| {
-        if let Ok((value, name)) = urlen_name_value(segment) {
-            let mut name = Bstr::from(name);
-            let mut value = Bstr::from(value);
-            if (*urlenp).decode_url_encoding {
-                if let Ok((_, (consumed, flags, expected_status))) =
-                    urldecode_ex(name.as_slice(), &urlenp.cfg)
-                {
-                    urlenp.flags.set(flags);
-                    urlenp.response_status_expected_number = expected_status;
-                    name.clear();
-                    name.add(consumed);
-                }
-                if let Ok((_, (consumed, flags, expected_status))) =
-                    urldecode_ex(value.as_slice(), &urlenp.cfg)
-                {
-                    urlenp.flags.set(flags);
-                    urlenp.response_status_expected_number = expected_status;
-                    value.clear();
-                    value.add(consumed);
-                }
-            }
-            urlenp.params.add(name, value);
-        }
-    });
-    urlenp.field.clear();
-    urlenp.field.add(remaining);
-}
 
 // Tests
 #[test]
 fn Empty() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"");
+    urlenp.parse_complete(b"");
 
     assert_eq!(0, urlenp.params.size());
 }
@@ -162,7 +163,7 @@ fn Empty() {
 #[test]
 fn EmptyKey1() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"&");
+    urlenp.parse_complete(b"&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -171,7 +172,7 @@ fn EmptyKey1() {
 #[test]
 fn EmptyKey2() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"=&");
+    urlenp.parse_complete(b"=&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -180,7 +181,7 @@ fn EmptyKey2() {
 #[test]
 fn EmptyKey3() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"=1&");
+    urlenp.parse_complete(b"=1&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq("1"));
     assert_eq!(1, urlenp.params.size());
@@ -189,7 +190,7 @@ fn EmptyKey3() {
 #[test]
 fn EmptyKey4() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"&=");
+    urlenp.parse_complete(b"&=");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -198,7 +199,7 @@ fn EmptyKey4() {
 #[test]
 fn EmptyKey5() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"&&");
+    urlenp.parse_complete(b"&&");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -207,7 +208,7 @@ fn EmptyKey5() {
 #[test]
 fn EmptyKeyAndValue() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"=");
+    urlenp.parse_complete(b"=");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -216,7 +217,7 @@ fn EmptyKeyAndValue() {
 #[test]
 fn OnePairEmptyValue() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p=");
+    urlenp.parse_complete(b"p=");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -225,7 +226,7 @@ fn OnePairEmptyValue() {
 #[test]
 fn OnePairEmptyKey() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"=p");
+    urlenp.parse_complete(b"=p");
 
     assert!(urlenp.params.get_nocase("").unwrap().1.eq("p"));
     assert_eq!(1, urlenp.params.size());
@@ -234,7 +235,7 @@ fn OnePairEmptyKey() {
 #[test]
 fn OnePair() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p=1");
+    urlenp.parse_complete(b"p=1");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
     assert_eq!(1, urlenp.params.size());
@@ -243,7 +244,7 @@ fn OnePair() {
 #[test]
 fn TwoPairs() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p=1&q=2");
+    urlenp.parse_complete(b"p=1&q=2");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
     assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
@@ -253,7 +254,7 @@ fn TwoPairs() {
 #[test]
 fn KeyNoValue1() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p");
+    urlenp.parse_complete(b"p");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -262,7 +263,7 @@ fn KeyNoValue1() {
 #[test]
 fn KeyNoValue2() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p&");
+    urlenp.parse_complete(b"p&");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -271,7 +272,7 @@ fn KeyNoValue2() {
 #[test]
 fn KeyNoValue3() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p&q");
+    urlenp.parse_complete(b"p&q");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert!(urlenp.params.get_nocase("q").unwrap().1.eq(""));
@@ -281,7 +282,7 @@ fn KeyNoValue3() {
 #[test]
 fn KeyNoValue4() {
     let mut urlenp = Parser::default();
-    urlenp_parse_complete(&mut urlenp, b"p&q=2");
+    urlenp.parse_complete(b"p&q=2");
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
@@ -291,8 +292,8 @@ fn KeyNoValue4() {
 #[test]
 fn Partial1() {
     let mut urlenp = Parser::default();
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_finalize(&mut urlenp);
+    urlenp.parse_partial(b"p");
+    urlenp.finalize();
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -301,9 +302,9 @@ fn Partial1() {
 #[test]
 fn Partial2() {
     let mut urlenp = Parser::default();
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"x");
-    urlenp_finalize(&mut urlenp);
+    urlenp.parse_partial(b"p");
+    urlenp.parse_partial(b"x");
+    urlenp.finalize();
 
     assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -312,9 +313,9 @@ fn Partial2() {
 #[test]
 fn Partial3() {
     let mut urlenp = Parser::default();
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"x&");
-    urlenp_finalize(&mut urlenp);
+    urlenp.parse_partial(b"p");
+    urlenp.parse_partial(b"x&");
+    urlenp.finalize();
 
     assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -323,9 +324,9 @@ fn Partial3() {
 #[test]
 fn Partial4() {
     let mut urlenp = Parser::default();
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"=");
-    urlenp_finalize(&mut urlenp);
+    urlenp.parse_partial(b"p");
+    urlenp.parse_partial(b"=");
+    urlenp.finalize();
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -334,11 +335,11 @@ fn Partial4() {
 #[test]
 fn Partial5() {
     let mut urlenp = Parser::default();
-    urlenp_parse_partial(&mut urlenp, b"p");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_finalize(&mut urlenp);
+    urlenp.parse_partial(b"p");
+    urlenp.parse_partial(b"");
+    urlenp.parse_partial(b"");
+    urlenp.parse_partial(b"");
+    urlenp.finalize();
 
     assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
     assert_eq!(1, urlenp.params.size());
@@ -347,21 +348,21 @@ fn Partial5() {
 #[test]
 fn Partial6() {
     let mut urlenp = Parser::default();
-    urlenp_parse_partial(&mut urlenp, b"px");
-    urlenp_parse_partial(&mut urlenp, b"n");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"=");
-    urlenp_parse_partial(&mut urlenp, b"1");
-    urlenp_parse_partial(&mut urlenp, b"2");
-    urlenp_parse_partial(&mut urlenp, b"&");
-    urlenp_parse_partial(&mut urlenp, b"qz");
-    urlenp_parse_partial(&mut urlenp, b"n");
-    urlenp_parse_partial(&mut urlenp, b"");
-    urlenp_parse_partial(&mut urlenp, b"=");
-    urlenp_parse_partial(&mut urlenp, b"2");
-    urlenp_parse_partial(&mut urlenp, b"3");
-    urlenp_parse_partial(&mut urlenp, b"&");
-    urlenp_finalize(&mut urlenp);
+    urlenp.parse_partial(b"px");
+    urlenp.parse_partial(b"n");
+    urlenp.parse_partial(b"");
+    urlenp.parse_partial(b"=");
+    urlenp.parse_partial(b"1");
+    urlenp.parse_partial(b"2");
+    urlenp.parse_partial(b"&");
+    urlenp.parse_partial(b"qz");
+    urlenp.parse_partial(b"n");
+    urlenp.parse_partial(b"");
+    urlenp.parse_partial(b"=");
+    urlenp.parse_partial(b"2");
+    urlenp.parse_partial(b"3");
+    urlenp.parse_partial(b"&");
+    urlenp.finalize();
 
     assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq("12"));
     assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq("23"));

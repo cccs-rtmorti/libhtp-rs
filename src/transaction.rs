@@ -15,9 +15,7 @@ use crate::{
     request::HtpMethod,
     table::Table,
     uri::Uri,
-    urlencoded::{
-        urlenp_finalize, urlenp_parse_complete, urlenp_parse_partial, Parser as UrlEncodedParser,
-    },
+    urlencoded::Parser as UrlEncodedParser,
     util::{validate_hostname, File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
@@ -817,10 +815,10 @@ impl Transaction {
             .ok_or(HtpStatus::DECLINED)?;
         if let Some(data) = data {
             // Process one chunk of data.
-            urlenp_parse_partial(urlenp, data);
+            urlenp.parse_partial(data);
         } else {
             // Finalize parsing.
-            urlenp_finalize(urlenp);
+            urlenp.finalize();
             let elements = take(&mut urlenp.params.elements);
             // Add all parameters to the transaction.
             for (name, value) in elements.iter() {
@@ -1117,7 +1115,7 @@ impl Transaction {
             {
                 // We have a non-zero length query string.
                 let mut urlenp = UrlEncodedParser::new(self.cfg.decoder_cfg);
-                urlenp_parse_complete(&mut urlenp, query.as_slice());
+                urlenp.parse_complete(query.as_slice());
 
                 // Add all parameters to the transaction.
                 for (name, value) in urlenp.params.elements.iter() {
