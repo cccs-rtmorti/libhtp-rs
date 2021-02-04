@@ -10,13 +10,10 @@ use std::{
 
 /// Destroys the supplied transaction.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy(
-    connp: *mut ConnectionParser,
-    tx: *mut Transaction,
-) -> HtpStatus {
+pub unsafe extern "C" fn htp_tx_destroy(connp: *mut ConnectionParser, tx: *mut Transaction) {
     match (connp.as_mut(), tx.as_mut()) {
-        (Some(connp), Some(tx)) => connp.remove_tx(tx.index).into(),
-        _ => HtpStatus::ERROR,
+        (Some(connp), Some(tx)) => connp.remove_tx(tx.index),
+        _ => {}
     }
 }
 

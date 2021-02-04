@@ -564,14 +564,8 @@ impl ConnectionParser {
     }
 
     /// Remove the given transaction from the parser
-    pub fn remove_tx(&mut self, tx_id: usize) -> Result<()> {
-        if let Some(tx) = self.transactions.get(tx_id) {
-            if !tx.is_complete() {
-                return Err(HtpStatus::ERROR);
-            }
-        }
+    pub fn remove_tx(&mut self, tx_id: usize) {
         self.transactions.remove(tx_id);
-        Ok(())
     }
 
     /// For each transaction that is started but not completed, invoke the

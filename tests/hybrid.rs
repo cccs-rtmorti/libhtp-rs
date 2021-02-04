@@ -736,21 +736,6 @@ fn TestRepeatCallbacks() {
     assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
     assert_eq!(1, user_data.callback_RESPONSE_COMPLETE_invoked);
     assert_eq!(1, user_data.callback_TRANSACTION_COMPLETE_invoked);
-
-    t.connp.remove_tx(tx_id).unwrap();
-}
-
-/// Try to delete a transaction before it is complete.
-#[test]
-fn DeleteTransactionBeforeComplete() {
-    let mut t = HybridParsingTest::new(TestConfig());
-    // Request begins
-    t.connp.state_request_start().unwrap();
-
-    // Request line data
-    t.connp.parse_request_line(b"GET / HTTP/1.0").unwrap();
-
-    assert_err!(t.connp.remove_tx(t.connp.request_index()), HtpStatus::ERROR);
 }
 
 /// Try response line with missing response code and message
