@@ -605,6 +605,53 @@ fn ParsedUriSupplied() {
     assert!(parsed_uri.path.as_ref().unwrap().eq("/123"));
 }
 
+#[test]
+fn DoubleEncodedUriPath() {
+    let mut cfg = TestConfig();
+    cfg.set_double_decode_normalized_path(true);
+    let mut t = HybridParsingTest::new(cfg);
+    // Feed data to the parser.
+
+    t.connp.state_request_start().unwrap();
+    t.connp.parse_request_line(b"GET /%2500 HTTP/1.0").unwrap();
+    t.connp.state_request_line().unwrap();
+
+    // Check the results now.
+
+    let tx = t.connp.request();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert_eq!(HtpProtocol::V1_0, tx.request_protocol_number);
+    assert!(tx.request_uri.as_ref().unwrap().eq("/%2500"));
+    let parsed_uri = tx.parsed_uri.as_ref().unwrap();
+    assert!(parsed_uri.path.as_ref().unwrap().eq("/%00"));
+    assert!(tx.complete_normalized_uri.as_ref().unwrap().eq("/\0"));
+}
+
+#[test]
+fn DoubleEncodedUriQuery() {
+    let mut cfg = TestConfig();
+    cfg.set_double_decode_normalized_query(true);
+    let mut t = HybridParsingTest::new(cfg);
+    // Feed data to the parser.
+
+    t.connp.state_request_start().unwrap();
+    t.connp
+        .parse_request_line(b"GET /?a=%2500 HTTP/1.0")
+        .unwrap();
+    t.connp.state_request_line().unwrap();
+
+    // Check the results now.
+
+    let tx = t.connp.request();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert_eq!(HtpProtocol::V1_0, tx.request_protocol_number);
+    assert!(tx.request_uri.as_ref().unwrap().eq("/?a=%2500"));
+    let parsed_uri = tx.parsed_uri.as_ref().unwrap();
+    assert!(parsed_uri.path.as_ref().unwrap().eq("/"));
+    assert!(parsed_uri.query.as_ref().unwrap().eq("a=%2500"));
+    assert!(tx.complete_normalized_uri.as_ref().unwrap().eq("/?a=\0"));
+}
+
 /// Test hybrid mode with one complete GET transaction; request then response
 /// with no body. Used to crash in htp_connp_close().
 #[test]

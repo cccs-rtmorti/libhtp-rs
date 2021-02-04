@@ -161,6 +161,10 @@ impl Default for Config {
 /// Configuration options for decoding.
 #[derive(Copy, Clone)]
 pub struct DecoderConfig {
+    ///Whether to double decode the path in normalized uri
+    pub double_decode_normalized_path: bool,
+    /// Whether to double decode the query in the normalized uri
+    pub double_decode_normalized_query: bool,
     // Path-specific decoding options.
     /// Convert backslash characters to slashes.
     pub backslash_convert_slashes: bool,
@@ -209,6 +213,8 @@ pub struct DecoderConfig {
 impl Default for DecoderConfig {
     fn default() -> Self {
         Self {
+            double_decode_normalized_path: false,
+            double_decode_normalized_query: false,
             backslash_convert_slashes: false,
             convert_lowercase: false,
             path_separators_compress: false,
@@ -420,6 +426,16 @@ impl Config {
     /// are both complete.
     pub fn register_transaction_complete(&mut self, cbk_fn: TxNativeCallbackFn) {
         self.hook_transaction_complete.register(cbk_fn);
+    }
+
+    /// Enable or disable the double decoding of the path in the normalized uri
+    pub fn set_double_decode_normalized_path(&mut self, double_decode_normalized_path: bool) {
+        self.decoder_cfg.double_decode_normalized_path = double_decode_normalized_path;
+    }
+
+    /// Enable or disable the double decoding of the query in the normalized uri
+    pub fn set_double_decode_normalized_query(&mut self, double_decode_normalized_query: bool) {
+        self.decoder_cfg.double_decode_normalized_query = double_decode_normalized_query;
     }
 
     /// Enable or disable the built-in Urlencoded parser. Disabled by default.

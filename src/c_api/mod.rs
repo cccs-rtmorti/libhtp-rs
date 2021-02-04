@@ -6,7 +6,7 @@ use crate::{
     connection_parser::{ConnectionParser, HtpStreamState},
     hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn},
     transaction::{Header, Headers, Transaction},
-    util::{get_version, urldecode_inplace},
+    util::get_version,
     HtpStatus,
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -771,20 +771,23 @@ pub unsafe extern "C" fn htp_header_value_len(header: *const Header) -> isize {
     }
 }
 
-/// Performs in-place decoding of the input string, according to the configuration specified
-/// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
-///
-/// Returns HTP_STATUS_OK on success, HTP_STATUS_ERROR on failure.
+/// Configures whether to attempt to decode a double encoded query in the normalized uri
 #[no_mangle]
-pub unsafe extern "C" fn htp_urldecode_inplace(
+pub unsafe extern "C" fn htp_config_set_double_decode_normalized_query(
     cfg: *mut Config,
-    input: *mut Bstr,
-    flags: *mut u64,
-) -> HtpStatus {
-    if input.is_null() || flags.is_null() || cfg.is_null() {
-        return HtpStatus::ERROR;
+    set: bool,
+) {
+    if !cfg.is_null() {
+        (*cfg).set_double_decode_normalized_query(set);
     }
-    urldecode_inplace(&(*cfg).decoder_cfg, &mut *input, &mut *flags).into()
+}
+
+/// Configures whether to attempt to decode a double encoded path in the normalized uri
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_double_decode_normalized_path(cfg: *mut Config, set: bool) {
+    if !cfg.is_null() {
+        (*cfg).set_double_decode_normalized_path(set);
+    }
 }
 
 /// Configures whether to normalize URIs into a complete or partial form.

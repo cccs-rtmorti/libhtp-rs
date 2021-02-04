@@ -844,15 +844,13 @@ pub fn urldecode_uri_inplace(
     }
 }
 
-/// Performs in-place decoding of the input string, according to the configuration specified
-/// by cfg and ctx. On output, various flags (HTP_URLEN_*) might be set.
+/// Performs in-place decoding of the input string, according to the configuration specified by cfg and ctx.
 ///
 /// Returns OK on success, ERROR on failure.
-pub fn urldecode_inplace(cfg: &DecoderConfig, input: &mut Bstr, flags: &mut u64) -> Result<()> {
-    if let Ok((_, (consumed, flag, _))) = urldecode_ex(input.as_slice(), cfg) {
+pub fn urldecode_inplace(cfg: &DecoderConfig, input: &mut Bstr) -> Result<()> {
+    if let Ok((_, (consumed, _, _))) = urldecode_ex(input.as_slice(), cfg) {
         (*input).clear();
         input.add(consumed.as_slice());
-        flags.set(flag);
         Ok(())
     } else {
         Err(HtpStatus::ERROR)
@@ -1056,7 +1054,7 @@ fn url_parse_unencoded_byte(
 /// cause a particular server to respond with an error, the appropriate status
 /// code will be set.
 ///
-/// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be consumed or output.
+/// Returns decoded bytes, flags set during decoding, and corresponding status code
 pub fn urldecode_ex<'a>(
     input: &'a [u8],
     cfg: &DecoderConfig,
@@ -2244,38 +2242,37 @@ mod test {
         let mut cfg = Config::default();
         cfg.set_u_encoding_decode(true);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let mut flags: u64 = 0;
         let mut s = Bstr::from("/one/tw%u006f/three/%u123");
         let mut e = Bstr::from("/one/two/three/%u123");
 
-        urldecode_inplace(&cfg.decoder_cfg, &mut s, &mut flags).unwrap();
+        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%uXXXX");
         e = Bstr::from("/one/two/three/%uXXXX");
         cfg.set_u_encoding_decode(true);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s, &mut flags).unwrap();
+        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%u123");
         e = Bstr::from("/one/two/three/u123");
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s, &mut flags).unwrap();
+        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%3");
         e = Bstr::from("/one/two/three/3");
         cfg.set_u_encoding_decode(true);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s, &mut flags).unwrap();
+        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
         assert_eq!(e, s);
 
         s = Bstr::from("/one/tw%u006f/three/%3");
         e = Bstr::from("/one/two/three/%3");
         cfg.set_u_encoding_decode(true);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s, &mut flags).unwrap();
+        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
         assert_eq!(e, s);
     }
 }

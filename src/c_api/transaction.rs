@@ -29,14 +29,12 @@ pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction) -> *const B
         if let Some(uri) = tx
             .as_ref()
             .and_then(|tx| tx.complete_normalized_uri.as_ref())
-            .map(|uri| uri)
         {
             return uri;
         }
     } else if let Some(uri) = tx
         .as_ref()
         .and_then(|tx| tx.partial_normalized_uri.as_ref())
-        .map(|uri| uri)
     {
         return uri;
     }

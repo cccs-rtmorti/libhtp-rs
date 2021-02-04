@@ -1134,7 +1134,7 @@ impl Transaction {
         connp.cfg.hook_request_line.run_all(connp, self)?;
         if let Some(parsed_uri) = self.parsed_uri.as_mut() {
             let (partial_normalized_uri, complete_normalized_uri) =
-                parsed_uri.generate_normalized_uri();
+                parsed_uri.generate_normalized_uri(Some(self.logger.clone()));
             self.partial_normalized_uri = partial_normalized_uri;
             self.complete_normalized_uri = complete_normalized_uri;
         }

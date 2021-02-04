@@ -1,6 +1,7 @@
 use crate::{
     bstr::Bstr,
     config::{DecoderConfig, HtpUnwanted},
+    log::Logger,
     parsers::{credentials, fragment, hostname, parse_hostport, path, port, query, scheme},
     util::{
         convert_port, decode_uri_path_inplace, urldecode_inplace, urldecode_uri_inplace,
@@ -264,7 +265,10 @@ impl Uri {
     }
 
     /// Generate a normalized uri string.
-    pub fn generate_normalized_uri(&self) -> (Option<Bstr>, Option<Bstr>) {
+    pub fn generate_normalized_uri(
+        &self,
+        mut logger: Option<Logger>,
+    ) -> (Option<Bstr>, Option<Bstr>) {
         // On the first pass determine the length of the final bstrs
         let mut partial_len = 0usize;
         let mut complete_len = 0usize;
@@ -329,12 +333,38 @@ impl Uri {
             normalized_uri.add(":");
             normalized_uri.add(port.as_slice());
         }
-        if let Some(path) = self.path.as_ref() {
+        if let Some(mut path) = self.path.clone() {
+            // Path is already decoded when we parsed the uri in transaction, only decode once more
+            if self.cfg.double_decode_normalized_path {
+                let path_len = path.len();
+                let _ = urldecode_inplace(&self.cfg, &mut path);
+                if path_len > path.len() {
+                    if let Some(logger) = logger.as_mut() {
+                        htp_warn!(
+                            logger,
+                            HtpLogCode::DOUBLE_ENCODED_URI,
+                            "URI path is double encoded"
+                        );
+                    }
+                }
+            }
             partial_normalized_uri.add(path.as_slice());
         }
         if let Some(mut query) = self.query.clone() {
-            let mut flags = 0;
-            let _ = urldecode_inplace(&self.cfg, &mut query, &mut flags);
+            let _ = urldecode_inplace(&self.cfg, &mut query);
+            if self.cfg.double_decode_normalized_query {
+                let query_len = query.len();
+                let _ = urldecode_inplace(&self.cfg, &mut query);
+                if query_len > query.len() {
+                    if let Some(logger) = logger.as_mut() {
+                        htp_warn!(
+                            logger,
+                            HtpLogCode::DOUBLE_ENCODED_URI,
+                            "URI query is double encoded"
+                        );
+                    }
+                }
+            }
             partial_normalized_uri.add("?");
             partial_normalized_uri.add(query.as_slice());
         }
@@ -518,7 +548,7 @@ fn GenerateNormalizedUri1() {
     uri.query = Some(Bstr::from("a=b&c=d"));
     uri.fragment = Some(Bstr::from("frag"));
 
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(
         partial_normalized_uri,
         Some(Bstr::from("/path1/path2?a=b&c=d#frag"))
@@ -537,7 +567,7 @@ fn GenerateNormalizedUri2() {
     uri.scheme = Some(Bstr::from("http"));
     uri.hostname = Some(Bstr::from("host.com"));
     uri.path = Some(Bstr::from("/path"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, Some(Bstr::from("/path")));
     assert_eq!(normalized_uri, Some(Bstr::from("http://host.com/path")));
 }
@@ -547,7 +577,7 @@ fn GenerateNormalizedUri3() {
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.hostname = Some(Bstr::from("host.com"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, Some(Bstr::from("http://host.com")));
 }
@@ -557,7 +587,7 @@ fn GenerateNormalizedUri4() {
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from("http"));
     uri.path = Some(Bstr::from("//"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, Some(Bstr::from("//")));
     assert_eq!(normalized_uri, Some(Bstr::from("http:////")));
 }
@@ -566,7 +596,7 @@ fn GenerateNormalizedUri4() {
 fn GenerateNormalizedUri5() {
     let mut uri = Uri::default();
     uri.path = Some(Bstr::from("/path"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, Some(Bstr::from("/path")));
     assert_eq!(normalized_uri, Some(Bstr::from("/path")));
 }
@@ -575,7 +605,7 @@ fn GenerateNormalizedUri5() {
 fn GenerateNormalizedUri6() {
     let mut uri = Uri::default();
     uri.scheme = Some(Bstr::from(""));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, Some(Bstr::from("://")));
 }
@@ -583,7 +613,7 @@ fn GenerateNormalizedUri6() {
 #[test]
 fn GenerateNormalizedUri7() {
     let uri = Uri::default();
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, None);
 }
@@ -594,7 +624,7 @@ fn GenerateNormalizedUri8() {
     uri.scheme = Some(Bstr::from("http"));
     uri.username = Some(Bstr::from("user"));
     uri.hostname = Some(Bstr::from("host.com"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri();
+    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
     assert_eq!(partial_normalized_uri, None);
     assert_eq!(normalized_uri, Some(Bstr::from("http://user:@host.com")));
 }
