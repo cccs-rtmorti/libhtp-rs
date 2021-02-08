@@ -431,6 +431,8 @@ pub struct Transaction {
     pub seen_100continue: bool,
     /// Parsed response headers. Contains instances of Header.
     pub response_headers: Headers,
+    /// Is this a response a HTTP/2.0 upgrade?
+    pub is_http_2_upgrade: bool,
 
     /// HTTP 1.1 RFC
     ///
@@ -553,6 +555,7 @@ impl Transaction {
             response_message: None,
             seen_100continue: false,
             response_headers: Table::with_capacity(32),
+            is_http_2_upgrade: false,
             response_message_len: 0,
             response_entity_len: 0,
             response_content_length: -1,

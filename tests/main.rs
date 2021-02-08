@@ -2499,3 +2499,13 @@ fn ResponseMultipartRanges() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("113-response-multipart-byte-ranges.t").is_err());
 }
+
+#[test]
+fn Http2Upgrade() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run("114-http-2-upgrade.t").is_ok());
+
+    assert_eq!(2, t.connp.tx_size());
+    assert!(!t.connp.tx(0).unwrap().is_http_2_upgrade);
+    assert!(t.connp.tx(1).unwrap().is_http_2_upgrade);
+}

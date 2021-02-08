@@ -324,6 +324,15 @@ impl ConnectionParser {
         // rather unlikely, so don't try to probe tunnel for nested HTTP,
         // and switch to tunnel mode right away.
         if self.response().response_status_number.eq_num(101) {
+            if self
+                .response()
+                .response_headers
+                .get_nocase_nozero("upgrade")
+                .map(|(_, upgrade)| upgrade.value.index_of_nocase_nozero("h2c").is_some())
+                .unwrap_or(false)
+            {
+                self.response_mut().is_http_2_upgrade = true;
+            }
             if te_opt.is_none() && cl_opt.is_none() {
                 self.out_state = State::FINALIZE;
                 if self.in_status != HtpStreamState::ERROR {
@@ -341,7 +350,7 @@ impl ConnectionParser {
             }
         }
         // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
-        if self.response().response_status_number.eq_num(100)
+        else if self.response().response_status_number.eq_num(100)
             && te_opt.is_none()
             && cl_opt.is_none()
         {
@@ -361,11 +370,10 @@ impl ConnectionParser {
             self.response_mut().seen_100continue = true;
             return Ok(());
         }
-
         // A request can indicate it waits for headers validation
         // before sending its body cf
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expect
-        if self.response().response_status_number.in_range(400, 499)
+        else if self.response().response_status_number.in_range(400, 499)
             && self.in_content_length > 0
             && self.in_body_data_left == self.in_content_length
         {

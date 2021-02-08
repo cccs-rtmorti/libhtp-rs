@@ -164,6 +164,19 @@ pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const Transaction) -> i32 {
     }
 }
 
+/// Get whether a transaction contains a successful 101 Switching Protocol response to HTTP/2.0
+///
+/// tx: Transaction pointer.
+///
+/// Returns 1 if the transaction is an HTTP/2.0 upgrade or 0 otherwise. A NULL argument will
+/// also result in a return value of 0.
+#[no_mangle]
+pub unsafe extern "C" fn htp_tx_is_http_2_upgrade(tx: *const Transaction) -> i32 {
+    tx.as_ref()
+        .map(|tx| tx.is_http_2_upgrade as i32)
+        .unwrap_or(0)
+}
+
 /// Get a transaction's parsed uri.
 ///
 /// tx: Transaction pointer.
