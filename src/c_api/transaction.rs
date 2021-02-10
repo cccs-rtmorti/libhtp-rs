@@ -1,17 +1,14 @@
 use crate::{
     bstr::Bstr, config::Config, connection_parser::ConnectionParser,
     decompressors::HtpContentEncoding, hook::DataExternalCallbackFn, request::HtpMethod,
-    transaction::*, uri::Uri, HtpStatus,
+    transaction::*, uri::Uri,
 };
-use std::{
-    convert::{TryFrom, TryInto},
-    rc::Rc,
-};
+use std::{convert::TryFrom, rc::Rc};
 
 /// Destroys the supplied transaction.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_destroy(connp: *mut ConnectionParser, tx: *mut Transaction) {
-    match (connp.as_mut(), tx.as_mut()) {
+pub unsafe extern "C" fn htp_tx_destroy(connp: *mut ConnectionParser, tx: *const Transaction) {
+    match (connp.as_mut(), tx.as_ref()) {
         (Some(connp), Some(tx)) => connp.remove_tx(tx.index),
         _ => {}
     }
@@ -21,21 +18,18 @@ pub unsafe extern "C" fn htp_tx_destroy(connp: *mut ConnectionParser, tx: *mut T
 ///
 /// tx: Transaction pointer.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction) -> *const Bstr {
+pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *const Transaction) -> *const Bstr {
     if (*(*tx).cfg).decoder_cfg.normalized_uri_include_all {
-        if let Some(uri) = tx
-            .as_ref()
+        tx.as_ref()
             .and_then(|tx| tx.complete_normalized_uri.as_ref())
-        {
-            return uri;
-        }
-    } else if let Some(uri) = tx
-        .as_ref()
-        .and_then(|tx| tx.partial_normalized_uri.as_ref())
-    {
-        return uri;
+            .map(|uri| uri as *const Bstr)
+            .unwrap_or(std::ptr::null())
+    } else {
+        tx.as_ref()
+            .and_then(|tx| tx.partial_normalized_uri.as_ref())
+            .map(|uri| uri as *const Bstr)
+            .unwrap_or(std::ptr::null())
     }
-    std::ptr::null()
 }
 
 /// Get the transaction's configuration.
@@ -44,12 +38,10 @@ pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *mut Transaction) -> *const B
 ///
 /// Returns a pointer to the configuration or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_cfg(tx: *mut Transaction) -> *const Config {
-    if let Some(tx) = tx.as_mut() {
-        Rc::as_ptr(&tx.cfg)
-    } else {
-        std::ptr::null()
-    }
+pub unsafe extern "C" fn htp_tx_cfg(tx: *const Transaction) -> *const Config {
+    tx.as_ref()
+        .map(|tx| Rc::as_ptr(&tx.cfg))
+        .unwrap_or(std::ptr::null())
 }
 
 /// Returns the user data associated with this transaction or NULL on error.
@@ -64,9 +56,7 @@ pub unsafe extern "C" fn htp_tx_user_data(tx: *const Transaction) -> *mut libc::
 /// Associates user data with this transaction.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_set_user_data(tx: *mut Transaction, user_data: *mut libc::c_void) {
-    if let Some(tx) = tx.as_mut() {
-        tx.set_user_data(Box::new(user_data));
-    }
+    tx.as_mut().map(|tx| tx.set_user_data(Box::new(user_data)));
 }
 
 /// Get a transaction's request line.
@@ -102,11 +92,9 @@ pub unsafe extern "C" fn htp_tx_request_method(tx: *const Transaction) -> *const
 /// Returns the request method number or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_method_number(tx: *const Transaction) -> HtpMethod {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_method_number
-    } else {
-        HtpMethod::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_method_number)
+        .unwrap_or(HtpMethod::ERROR)
 }
 
 /// Get a transaction's request uri.
@@ -142,11 +130,9 @@ pub unsafe extern "C" fn htp_tx_request_protocol(tx: *const Transaction) -> *con
 /// Returns the protocol number or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_protocol_number(tx: *const Transaction) -> HtpProtocol {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_protocol_number
-    } else {
-        HtpProtocol::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_protocol_number)
+        .unwrap_or(HtpProtocol::ERROR)
 }
 
 /// Get whether a transaction's protocol is version 0.9.
@@ -157,11 +143,7 @@ pub unsafe extern "C" fn htp_tx_request_protocol_number(tx: *const Transaction) 
 /// also result in a return value of 0.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const Transaction) -> i32 {
-    if let Some(tx) = tx.as_ref() {
-        tx.is_protocol_0_9 as i32
-    } else {
-        0
-    }
+    tx.as_ref().map(|tx| tx.is_protocol_0_9 as i32).unwrap_or(0)
 }
 
 /// Get whether a transaction contains a successful 101 Switching Protocol response to HTTP/2.0
@@ -183,7 +165,7 @@ pub unsafe extern "C" fn htp_tx_is_http_2_upgrade(tx: *const Transaction) -> i32
 ///
 /// Returns the parsed uri or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *mut Transaction) -> *const Uri {
+pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *const Transaction) -> *const Uri {
     tx.as_ref()
         .and_then(|tx| tx.parsed_uri.as_ref())
         .map(|uri| uri as *const Uri)
@@ -197,11 +179,9 @@ pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *mut Transaction) -> *const Uri {
 /// Returns the request headers or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_headers(tx: *const Transaction) -> *const Headers {
-    if let Some(tx) = tx.as_ref() {
-        &tx.request_headers
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .map(|tx| &tx.request_headers as *const Headers)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request headers size.
@@ -211,11 +191,9 @@ pub unsafe extern "C" fn htp_tx_request_headers(tx: *const Transaction) -> *cons
 /// Returns the size or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_headers_size(tx: *const Transaction) -> isize {
-    if let Some(tx) = tx.as_ref() {
-        isize::try_from(tx.request_headers.size()).unwrap_or(-1)
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .map(|tx| isize::try_from(tx.request_headers.size()).unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get the first request header value matching the key from a transaction.
@@ -229,11 +207,9 @@ pub unsafe extern "C" fn htp_tx_request_header(
     tx: *const Transaction,
     ckey: *const libc::c_char,
 ) -> *const Header {
-    if let Some(tx) = tx.as_ref() {
-        super::htp_headers_get(&tx.request_headers, ckey)
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .map(|tx| super::htp_headers_get(&tx.request_headers, ckey))
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the request header at the given index.
@@ -247,15 +223,14 @@ pub unsafe extern "C" fn htp_tx_request_header_index(
     tx: *const Transaction,
     index: usize,
 ) -> *const Header {
-    if let Some(tx) = tx.as_ref() {
-        if let Some((_, value)) = tx.request_headers.get(index) {
-            value
-        } else {
-            std::ptr::null()
-        }
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .map(|tx| {
+            tx.request_headers
+                .get(index)
+                .map(|(_, value)| value as *const Header)
+                .unwrap_or(std::ptr::null())
+        })
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's request transfer coding.
@@ -267,11 +242,9 @@ pub unsafe extern "C" fn htp_tx_request_header_index(
 pub unsafe extern "C" fn htp_tx_request_transfer_coding(
     tx: *const Transaction,
 ) -> HtpTransferCoding {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_transfer_coding
-    } else {
-        HtpTransferCoding::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_transfer_coding)
+        .unwrap_or(HtpTransferCoding::ERROR)
 }
 
 /// Get a transaction's request content encoding.
@@ -283,11 +256,9 @@ pub unsafe extern "C" fn htp_tx_request_transfer_coding(
 pub unsafe extern "C" fn htp_tx_request_content_encoding(
     tx: *const Transaction,
 ) -> HtpContentEncoding {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_content_encoding
-    } else {
-        HtpContentEncoding::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_content_encoding)
+        .unwrap_or(HtpContentEncoding::ERROR)
 }
 
 /// Get a transaction's request content type.
@@ -310,11 +281,9 @@ pub unsafe extern "C" fn htp_tx_request_content_type(tx: *const Transaction) -> 
 /// Returns the content length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -> i64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_content_length
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_content_length)
+        .unwrap_or(-1)
 }
 
 /// Get the transaction's request authentication type.
@@ -324,11 +293,9 @@ pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -
 /// Returns the auth type or HTP_AUTH_ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_auth_type(tx: *const Transaction) -> HtpAuthType {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_auth_type
-    } else {
-        HtpAuthType::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_auth_type)
+        .unwrap_or(HtpAuthType::ERROR)
 }
 
 /// Get a transaction's request hostname.
@@ -364,11 +331,7 @@ pub unsafe extern "C" fn htp_tx_request_port_number(tx: *const Transaction) -> i
 /// Returns the request message length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_message_len(tx: *const Transaction) -> i64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_message_len
-    } else {
-        -1
-    }
+    tx.as_ref().map(|tx| tx.request_message_len).unwrap_or(-1)
 }
 
 /// Get a transaction's request entity length.
@@ -378,11 +341,7 @@ pub unsafe extern "C" fn htp_tx_request_message_len(tx: *const Transaction) -> i
 /// Returns the request entity length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_entity_len(tx: *const Transaction) -> i64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_entity_len
-    } else {
-        -1
-    }
+    tx.as_ref().map(|tx| tx.request_entity_len).unwrap_or(-1)
 }
 
 /// Get a transaction's response line.
@@ -418,11 +377,9 @@ pub unsafe extern "C" fn htp_tx_response_protocol(tx: *const Transaction) -> *co
 /// Returns the protocol number or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_protocol_number(tx: *const Transaction) -> HtpProtocol {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_protocol_number
-    } else {
-        HtpProtocol::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.response_protocol_number)
+        .unwrap_or(HtpProtocol::ERROR)
 }
 
 /// Get the transaction's response status.
@@ -485,11 +442,9 @@ pub unsafe extern "C" fn htp_tx_response_message(tx: *const Transaction) -> *con
 /// Returns the response headers or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_headers(tx: *const Transaction) -> *const Headers {
-    if let Some(tx) = tx.as_ref() {
-        &tx.response_headers
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .map(|tx| &tx.response_headers as *const Headers)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's response headers size.
@@ -499,11 +454,9 @@ pub unsafe extern "C" fn htp_tx_response_headers(tx: *const Transaction) -> *con
 /// Returns the size or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_headers_size(tx: *const Transaction) -> isize {
-    if let Some(tx) = tx.as_ref() {
-        isize::try_from(tx.response_headers.size()).unwrap_or(-1)
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .map(|tx| isize::try_from(tx.response_headers.size()).unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get the first response header value matching the key from a transaction.
@@ -517,11 +470,9 @@ pub unsafe extern "C" fn htp_tx_response_header(
     tx: *const Transaction,
     ckey: *const libc::c_char,
 ) -> *const Header {
-    if let Some(tx) = tx.as_ref() {
-        super::htp_headers_get(&tx.response_headers, ckey)
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .map(|tx| super::htp_headers_get(&tx.response_headers, ckey))
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the response header at the given index.
@@ -535,15 +486,14 @@ pub unsafe extern "C" fn htp_tx_response_header_index(
     tx: *const Transaction,
     index: usize,
 ) -> *const Header {
-    if let Some(tx) = tx.as_ref() {
-        if let Some((_, value)) = tx.response_headers.get(index) {
-            value
-        } else {
-            std::ptr::null()
-        }
-    } else {
-        std::ptr::null()
-    }
+    tx.as_ref()
+        .map(|tx| {
+            tx.response_headers
+                .get(index)
+                .map(|(_, value)| value as *const Header)
+                .unwrap_or(std::ptr::null())
+        })
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get a transaction's response message length.
@@ -553,11 +503,7 @@ pub unsafe extern "C" fn htp_tx_response_header_index(
 /// Returns the response message length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_message_len(tx: *const Transaction) -> i64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_message_len
-    } else {
-        -1
-    }
+    tx.as_ref().map(|tx| tx.response_message_len).unwrap_or(-1)
 }
 
 /// Get a transaction's response entity length.
@@ -567,11 +513,7 @@ pub unsafe extern "C" fn htp_tx_response_message_len(tx: *const Transaction) -> 
 /// Returns the response entity length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_entity_len(tx: *const Transaction) -> i64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_entity_len
-    } else {
-        -1
-    }
+    tx.as_ref().map(|tx| tx.response_entity_len).unwrap_or(-1)
 }
 
 /// Get a transaction's response content length.
@@ -581,11 +523,9 @@ pub unsafe extern "C" fn htp_tx_response_entity_len(tx: *const Transaction) -> i
 /// Returns the response content length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_content_length(tx: *const Transaction) -> i64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_content_length
-    } else {
-        -1
-    }
+    tx.as_ref()
+        .map(|tx| tx.response_content_length)
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's response content type.
@@ -609,11 +549,7 @@ pub unsafe extern "C" fn htp_tx_response_content_type(tx: *const Transaction) ->
 /// or a NULL ptr is passed as an argument.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_flags(tx: *const Transaction) -> u64 {
-    if let Some(tx) = tx.as_ref() {
-        tx.flags
-    } else {
-        0
-    }
+    tx.as_ref().map(|tx| tx.flags).unwrap_or(0)
 }
 
 /// Get the transaction's request progress.
@@ -623,29 +559,9 @@ pub unsafe extern "C" fn htp_tx_flags(tx: *const Transaction) -> u64 {
 /// Returns the progress or HTP_REQUEST_ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_progress(tx: *const Transaction) -> HtpRequestProgress {
-    if let Some(tx) = tx.as_ref() {
-        tx.request_progress
-    } else {
-        HtpRequestProgress::ERROR
-    }
-}
-
-/// Set the transaction's request progress.
-///
-/// tx: Transaction pointer.
-///
-/// Returns OK on success or ERROR on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_set_request_progress(
-    tx: *mut Transaction,
-    progress: HtpRequestProgress,
-) -> HtpStatus {
-    if let Some(tx) = tx.as_mut() {
-        tx.request_progress = progress;
-        HtpStatus::OK
-    } else {
-        HtpStatus::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.request_progress)
+        .unwrap_or(HtpRequestProgress::ERROR)
 }
 
 /// Get the transaction's response progress.
@@ -655,11 +571,9 @@ pub unsafe extern "C" fn htp_tx_set_request_progress(
 /// Returns the progress or ERROR on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_progress(tx: *const Transaction) -> HtpResponseProgress {
-    if let Some(tx) = tx.as_ref() {
-        tx.response_progress
-    } else {
-        HtpResponseProgress::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| tx.response_progress)
+        .unwrap_or(HtpResponseProgress::ERROR)
 }
 
 /// Get the transaction's index.
@@ -669,65 +583,9 @@ pub unsafe extern "C" fn htp_tx_response_progress(tx: *const Transaction) -> Htp
 /// Returns an index or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_index(tx: *const Transaction) -> isize {
-    if let Some(tx) = tx.as_ref() {
-        isize::try_from(tx.index).unwrap_or(-1)
-    } else {
-        -1
-    }
-}
-
-/// Set the transaction's response progress.
-///
-/// tx: Transaction pointer.
-///
-/// Returns OK on success or ERROR on error.
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_set_response_progress(
-    tx: *mut Transaction,
-    progress: HtpResponseProgress,
-) -> HtpStatus {
-    if let Some(tx) = tx.as_mut() {
-        tx.response_progress = progress;
-        HtpStatus::OK
-    } else {
-        HtpStatus::ERROR
-    }
-}
-
-/// Change transaction state to REQUEST and invoke registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns OK on success; ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_request_complete(
-    connp: *mut ConnectionParser,
-    tx: *mut Transaction,
-) -> HtpStatus {
-    if let Some(tx) = tx.as_mut() {
-        tx.state_request_complete(&mut *connp).into()
-    } else {
-        HtpStatus::ERROR
-    }
-}
-
-/// Change transaction state to RESPONSE and invoke registered callbacks.
-///
-/// tx: Transaction pointer. Must not be NULL.
-///
-/// Returns OK on success; ERROR on error, HTP_STOP if one of the
-///         callbacks does not want to follow the transaction any more.
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_state_response_complete(
-    connp: *mut ConnectionParser,
-    tx: *mut Transaction,
-) -> HtpStatus {
-    if let Some(tx) = tx.as_mut() {
-        tx.state_response_complete(&mut *connp).into()
-    } else {
-        HtpStatus::ERROR
-    }
+    tx.as_ref()
+        .map(|tx| isize::try_from(tx.index).unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
@@ -736,21 +594,18 @@ pub unsafe extern "C" fn htp_tx_register_response_body_data(
     tx: *mut Transaction,
     cbk_fn: DataExternalCallbackFn,
 ) {
-    if let Some(tx) = tx.as_mut() {
-        tx.hook_response_body_data.register_extern(cbk_fn);
-    }
+    tx.as_mut()
+        .map(|tx| tx.hook_response_body_data.register_extern(cbk_fn));
 }
 
 /// Get the data's transaction.
 ///
 /// Returns the transaction or NULL on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_data_tx(data: *mut Data) -> *mut Transaction {
-    if let Some(data) = data.as_ref() {
-        data.tx()
-    } else {
-        std::ptr::null_mut()
-    }
+pub unsafe extern "C" fn htp_tx_data_tx(data: *const Data) -> *const Transaction {
+    data.as_ref()
+        .map(|data| data.tx() as *const Transaction)
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the data pointer.
@@ -758,11 +613,9 @@ pub unsafe extern "C" fn htp_tx_data_tx(data: *mut Data) -> *mut Transaction {
 /// Returns the data or NULL on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_data(data: *const Data) -> *const u8 {
-    if let Some(data) = data.as_ref() {
-        data.data()
-    } else {
-        std::ptr::null()
-    }
+    data.as_ref()
+        .map(|data| data.data())
+        .unwrap_or(std::ptr::null())
 }
 
 /// Get the length of the data.
@@ -770,11 +623,9 @@ pub unsafe extern "C" fn htp_tx_data_data(data: *const Data) -> *const u8 {
 /// Returns the length or -1 on error.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_len(data: *const Data) -> isize {
-    if let Some(data) = data.as_ref() {
-        data.len().try_into().unwrap_or(-1)
-    } else {
-        -1
-    }
+    data.as_ref()
+        .map(|data| isize::try_from(data.len()).unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get whether this is the last chunk of data.
@@ -782,11 +633,7 @@ pub unsafe extern "C" fn htp_tx_data_len(data: *const Data) -> isize {
 /// Returns true if this is the last chunk of data or false otherwise.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_is_last(data: *const Data) -> bool {
-    if let Some(data) = data.as_ref() {
-        data.is_last()
-    } else {
-        false
-    }
+    data.as_ref().map(|data| data.is_last()).unwrap_or(false)
 }
 
 /// Get whether this data is empty.
@@ -794,9 +641,5 @@ pub unsafe extern "C" fn htp_tx_data_is_last(data: *const Data) -> bool {
 /// Returns true if data is NULL or zero-length.
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_is_empty(data: *const Data) -> bool {
-    if let Some(data) = data.as_ref() {
-        data.is_empty()
-    } else {
-        true
-    }
+    data.as_ref().map(|data| data.is_empty()).unwrap_or(true)
 }
