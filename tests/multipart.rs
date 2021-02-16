@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use htp::{
     bstr::Bstr,
-    c_api::htp_connp_create,
+    c_api::connection_parser::htp_connp_create,
     config::{Config, HtpServerPersonality},
     connection_parser::ConnectionParser,
     multipart::*,

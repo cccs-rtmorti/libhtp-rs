@@ -1,7 +1,7 @@
 use crate::{
-    bstr::Bstr, config::Config, connection_parser::ConnectionParser,
-    decompressors::HtpContentEncoding, hook::DataExternalCallbackFn, request::HtpMethod,
-    transaction::*, uri::Uri,
+    bstr::Bstr, c_api::header::htp_headers_get, config::Config,
+    connection_parser::ConnectionParser, decompressors::HtpContentEncoding,
+    hook::DataExternalCallbackFn, request::HtpMethod, transaction::*, uri::Uri,
 };
 use std::{convert::TryFrom, rc::Rc};
 
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn htp_tx_request_header(
     ckey: *const libc::c_char,
 ) -> *const Header {
     tx.as_ref()
-        .map(|tx| super::htp_headers_get(&tx.request_headers, ckey))
+        .map(|tx| htp_headers_get(&tx.request_headers, ckey))
         .unwrap_or(std::ptr::null())
 }
 
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn htp_tx_response_header(
     ckey: *const libc::c_char,
 ) -> *const Header {
     tx.as_ref()
-        .map(|tx| super::htp_headers_get(&tx.response_headers, ckey))
+        .map(|tx| htp_headers_get(&tx.response_headers, ckey))
         .unwrap_or(std::ptr::null())
 }
 
