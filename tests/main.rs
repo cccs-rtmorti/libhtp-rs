@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 use chrono::{DateTime, Utc};
 use htp::{
+    bstr::Bstr,
     config::{Config, HtpServerPersonality},
     connection::Flags as ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState},
@@ -28,6 +29,20 @@ mod common;
 enum Chunk {
     Client(Vec<u8>),
     Server(Vec<u8>),
+}
+
+struct MainUserData {
+    pub req_data: Vec<Bstr>,
+    pub res_data: Vec<Bstr>,
+}
+
+impl MainUserData {
+    pub fn new() -> Self {
+        Self {
+            req_data: Vec::with_capacity(5),
+            res_data: Vec::with_capacity(5),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -237,6 +252,18 @@ impl Test {
             .close(Some(DateTime::<Utc>::from(SystemTime::now())));
         Ok(())
     }
+}
+
+fn response_body_data(d: &mut Data) -> Result<()> {
+    let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
+    user_data.res_data.push(Bstr::from(d.as_slice().unwrap()));
+    Ok(())
+}
+
+fn request_body_data(d: &mut Data) -> Result<()> {
+    let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
+    user_data.req_data.push(Bstr::from(d.as_slice().unwrap()));
+    Ok(())
 }
 
 #[test]
@@ -2508,4 +2535,156 @@ fn Http2Upgrade() {
     assert_eq!(2, t.connp.tx_size());
     assert!(!t.connp.tx(0).unwrap().is_http_2_upgrade);
     assert!(t.connp.tx(1).unwrap().is_http_2_upgrade);
+}
+
+#[test]
+fn HttpEvader017() {
+    let mut cfg = TestConfig();
+    cfg.register_response_body_data(response_body_data);
+    cfg.register_request_body_data(request_body_data);
+    let mut t = Test::new(cfg);
+    // Configure user data and callbacks
+    t.connp
+        .response_mut()
+        .set_user_data(Box::new(MainUserData::new()));
+    assert!(t.run("http-evader-017.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert!(tx
+        .request_uri
+        .as_ref()
+        .unwrap()
+        .eq("/chunked/eicar.txt/cr-size"));
+    assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
+    assert_header_eq!(tx, request_headers, "host", "evader.example.com");
+    assert_response_header_eq!(tx, "content-type", "application/octet-stream");
+    assert_response_header_eq!(
+        tx,
+        "content-disposition",
+        "attachment; filename=\"eicar.txt\""
+    );
+    assert_response_header_eq!(tx, "transfer-encoding", "chunked");
+    assert_response_header_eq!(tx, "connection", "close");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(101, tx.response_message_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(5, user_data.res_data.len());
+    assert_eq!(
+        b"X5O!P%@AP[4\\PZX".as_ref(),
+        (&user_data.res_data[0]).as_slice()
+    );
+    assert_eq!(
+        b"54(P^)7CC)7}$EI".as_ref(),
+        (&user_data.res_data[1]).as_slice()
+    );
+    assert_eq!(
+        b"CAR-STANDARD-AN".as_ref(),
+        (&user_data.res_data[2]).as_slice()
+    );
+    assert_eq!(
+        b"TIVIRUS-TEST-FI".as_ref(),
+        (&user_data.res_data[3]).as_slice()
+    );
+    assert_eq!(b"LE!$H+H*".as_ref(), (&user_data.res_data[4]).as_slice());
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+}
+
+#[test]
+fn HttpEvader018() {
+    let mut cfg = TestConfig();
+    cfg.register_response_body_data(response_body_data);
+    cfg.register_request_body_data(request_body_data);
+    let mut t = Test::new(cfg);
+    // Configure user data and callbacks
+    t.connp
+        .response_mut()
+        .set_user_data(Box::new(MainUserData::new()));
+    assert!(t.run("http-evader-018.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert!(tx
+        .request_uri
+        .as_ref()
+        .unwrap()
+        .eq("/chunked/eicar.txt/lf-size"));
+    assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
+    assert_header_eq!(tx, request_headers, "host", "evader.example.com");
+    assert_response_header_eq!(tx, "content-type", "application/octet-stream");
+    assert_response_header_eq!(
+        tx,
+        "content-disposition",
+        "attachment; filename=\"eicar.txt\""
+    );
+    assert_response_header_eq!(tx, "transfer-encoding", "chunked");
+    assert_response_header_eq!(tx, "connection", "close");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(101, tx.response_message_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(5, user_data.res_data.len());
+    assert_eq!(
+        b"X5O!P%@AP[4\\PZX".as_ref(),
+        (&user_data.res_data[0]).as_slice()
+    );
+    assert_eq!(
+        b"54(P^)7CC)7}$EI".as_ref(),
+        (&user_data.res_data[1]).as_slice()
+    );
+    assert_eq!(
+        b"CAR-STANDARD-AN".as_ref(),
+        (&user_data.res_data[2]).as_slice()
+    );
+    assert_eq!(
+        b"TIVIRUS-TEST-FI".as_ref(),
+        (&user_data.res_data[3]).as_slice()
+    );
+    assert_eq!(b"LE!$H+H*".as_ref(), (&user_data.res_data[4]).as_slice());
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+}
+
+#[test]
+fn HttpEvader044() {
+    let mut cfg = TestConfig();
+    cfg.register_response_body_data(response_body_data);
+    cfg.register_request_body_data(request_body_data);
+    let mut t = Test::new(cfg);
+    // Configure user data and callbacks
+    t.connp
+        .response_mut()
+        .set_user_data(Box::new(MainUserData::new()));
+    assert!(t.run("http-evader-044.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert!(tx
+        .request_uri
+        .as_ref()
+        .unwrap()
+        .eq("/chunked/eicar.txt/chunked,http10,do_clen"));
+    assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
+
+    assert_eq!(HtpProtocol::V1_0, tx.response_protocol_number);
+    assert!(tx.response_status_number.eq_num(200));
+    assert_response_header_eq!(tx, "content-type", "application/octet-stream");
+    assert_response_header_eq!(
+        tx,
+        "content-disposition",
+        "attachment; filename=\"eicar.txt\""
+    );
+    assert_response_header_eq!(tx, "transfer-encoding", "chunked");
+    assert_response_header_eq!(tx, "connection", "close");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(68, tx.response_message_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(1, user_data.res_data.len());
+    let chunk = &user_data.res_data[0];
+    assert_eq!(
+        b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
+        chunk.as_slice()
+    );
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }

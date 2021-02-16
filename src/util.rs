@@ -371,7 +371,7 @@ pub fn hex_digits() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
         map(
             tuple((
                 nom_take_is_space,
-                take_while1(|c: u8| c.is_ascii_hexdigit()),
+                take_while(|c: u8| c.is_ascii_hexdigit()),
                 nom_take_is_space,
             )),
             |(_, digits, _)| digits,
@@ -1210,6 +1210,26 @@ pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
+/// Skip control characters
+pub fn take_chunked_ctl_chars(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(is_chunked_ctl_char)(data)
+}
+
+/// Check if the data contains valid chunked length chars, i.e. leading chunked ctl chars and ascii hexdigits
+///
+/// Returns true if valid, false otherwise
+pub fn is_valid_chunked_length_data(data: &[u8]) -> bool {
+    tuple((
+        take_chunked_ctl_chars,
+        take_while1(|c: u8| !c.is_ascii_hexdigit()),
+    ))(data)
+    .is_err()
+}
+
+fn is_chunked_ctl_char(c: u8) -> bool {
+    matches!(c, 0x0d | 0x0a | 0x20 | 0x09 | 0x0b | 0x0c)
+}
+
 #[cfg(test)]
 mod test {
     use crate::{config::Config, util::*};
@@ -1500,7 +1520,6 @@ mod test {
         assert!(!validate_hostname(b"[:::?]"));
     }
 
-    // Tests
     #[test]
     fn AsciiDigits() {
         // Returns (any trailing non-LWS characters, (non-LWS leading characters, ascii digits))
@@ -1539,7 +1558,44 @@ mod test {
             Ok((b"12a5".as_ref(), b"68656c6c6f".as_ref())),
             hex_digits()(b"68656c6c6f   12a5")
         );
-        assert!(hex_digits()(b"  .....").is_err());
+        assert_eq!(
+            Ok((b".....".as_ref(), b"".as_ref())),
+            hex_digits()(b"  .....")
+        );
+    }
+
+    #[test]
+    fn TakeChunkedCtlChars() {
+        assert_eq!(
+            Ok((b"no chunked ctl chars here".as_ref(), b"".as_ref())),
+            take_chunked_ctl_chars(b"no chunked ctl chars here")
+        );
+        assert_eq!(
+            Ok((
+                b"no chunked ctl chars here".as_ref(),
+                b"\x0d\x0a\x20\x09\x0b\x0c".as_ref()
+            )),
+            take_chunked_ctl_chars(b"\x0d\x0a\x20\x09\x0b\x0cno chunked ctl chars here")
+        );
+        assert_eq!(
+            Ok((
+                b"no chunked ctl chars here\x0d\x0a".as_ref(),
+                b"\x20\x09\x0b\x0c".as_ref()
+            )),
+            take_chunked_ctl_chars(b"\x20\x09\x0b\x0cno chunked ctl chars here\x0d\x0a")
+        );
+    }
+
+    #[test]
+    fn IsValidChunkedLengthData() {
+        assert!(is_valid_chunked_length_data(b"68656c6c6f"));
+        assert!(is_valid_chunked_length_data(
+            b"\x0d\x0a\x20\x09\x0b\x0c68656c6c6f"
+        ));
+        assert!(!is_valid_chunked_length_data(b"X5O!P%@AP"));
+        assert!(!is_valid_chunked_length_data(
+            b"\x0d\x0a\x20\x09\x0b\x0cX5O!P%@AP"
+        ));
     }
 
     #[test]

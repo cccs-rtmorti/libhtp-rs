@@ -7,8 +7,8 @@ use crate::{
     parsers::parse_chunked_length,
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
-        chomp, is_line_ignorable, is_space, nom_take_is_space, take_is_space, take_not_is_space,
-        take_till_lf, take_till_lf_null, FlagOperations,
+        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
+        take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
     },
     HtpStatus,
 };
@@ -360,15 +360,21 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
     pub fn req_body_chunked_length(&mut self, data: &[u8]) -> Result<()> {
-        if let Ok((_, line)) = take_till_lf(data) {
+        if let Ok((remaining, line)) = take_till_lf(data) {
             self.in_curr_data
                 .seek(SeekFrom::Current(line.len() as i64))?;
             if !self.in_buf.is_empty() {
                 self.check_in_buffer_limit(line.len())?;
             }
-            let mut data = take(&mut self.in_buf);
+            if line.eq(b"\n") {
+                self.request_mut().request_message_len = (self.request().request_message_len as u64)
+                    .wrapping_add(line.len() as u64)
+                    as i64;
+                //Empty chunk len. Try to continue parsing.
+                return self.req_body_chunked_length(remaining);
+            }
+            let mut data = self.in_buf.clone();
             data.add(line);
-
             self.request_mut().request_message_len =
                 (self.request().request_message_len as u64).wrapping_add(data.len() as u64) as i64;
             // Handle chunk length.
@@ -402,7 +408,19 @@ impl ConnectionParser {
                 Err(_) => Err(HtpStatus::ERROR),
             }
         } else {
-            self.handle_in_absent_lf(data)
+            // Check if the data we have seen so far is invalid
+            if !is_valid_chunked_length_data(data) {
+                // Contains leading junk non hex_ascii data
+                // Invalid chunk length
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
+                    "Request chunk encoding: Invalid chunk length"
+                );
+                Err(HtpStatus::ERROR)
+            } else {
+                self.handle_in_absent_lf(data)
+            }
         }
     }
 
@@ -634,15 +652,13 @@ impl ConnectionParser {
             if in_next_byte.is_none() {
                 return self.state_request_complete();
             }
-            let lf = in_next_byte.map(|byte| *byte == b'\n').unwrap_or(false);
-            if !lf {
-                if let Ok((_, line)) = take_till_lf(data) {
-                    self.in_curr_data
-                        .seek(SeekFrom::Current(line.len() as i64))?;
-                    work = line;
-                } else {
-                    return self.handle_in_absent_lf(data);
-                }
+
+            if let Ok((_, line)) = take_till_lf(data) {
+                self.in_curr_data
+                    .seek(SeekFrom::Current(line.len() as i64))?;
+                work = line;
+            } else {
+                return self.handle_in_absent_lf(data);
             }
         }
 

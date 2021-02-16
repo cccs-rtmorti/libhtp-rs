@@ -11,8 +11,8 @@ use crate::{
     },
     uri::Uri,
     util::{
-        chomp, is_line_ignorable, is_space, take_till_lf, treat_response_line_as_body,
-        FlagOperations, HtpFlags,
+        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, take_till_lf,
+        treat_response_line_as_body, FlagOperations, HtpFlags,
     },
     HtpStatus,
 };
@@ -176,13 +176,20 @@ impl ConnectionParser {
     /// Returns Ok(()) on success, Err(HTP_ERROR) on error, or Err(HTP_DATA) when more data is needed.
     pub fn res_body_chunked_length(&mut self, data: &[u8]) -> Result<()> {
         match take_till_lf(data) {
-            Ok((_, line)) => {
+            Ok((remaining, line)) => {
                 self.out_curr_data
                     .seek(SeekFrom::Current(line.len() as i64))?;
                 if !self.out_buf.is_empty() {
                     self.check_out_buffer_limit(line.len())?;
                 }
-                let mut data = take(&mut self.out_buf);
+                if line.eq(b"\n") {
+                    self.response_mut().response_message_len =
+                        (self.response().response_message_len as u64)
+                            .wrapping_add(line.len() as u64) as i64;
+                    //Empty chunk len. Try to continue parsing.
+                    return self.res_body_chunked_length(remaining);
+                }
+                let mut data = self.out_buf.clone();
                 data.add(line);
                 self.response_mut().response_message_len =
                     (self.response().response_message_len as u64).wrapping_add(data.len() as u64)
@@ -194,21 +201,26 @@ impl ConnectionParser {
                         // Handle chunk length
                         if let Some(len) = len {
                             match len.cmp(&0) {
-                                Ordering::Greater => {
-                                    // More data available
-                                    self.out_state = State::BODY_CHUNKED_DATA
-                                }
                                 Ordering::Equal => {
                                     // End of data
                                     self.out_state = State::HEADERS;
                                     self.response_mut().response_progress =
                                         HtpResponseProgress::TRAILER
                                 }
-                                _ => return Ok(()), // empty chunk length line, lets try to continue
+                                Ordering::Greater => {
+                                    // More data available.
+                                    self.out_state = State::BODY_CHUNKED_DATA
+                                }
+                                _ => {}
                             }
+                        } else {
+                            return Ok(()); // empty chunk length line, lets try to continue
                         }
                     }
                     Err(_) => {
+                        // reset cursor so res_body_identity_stream_close doesn't miss the first bytes
+                        self.out_curr_data
+                            .seek(SeekFrom::Current(-(line.len() as i64)))?;
                         self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
                         self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
                         htp_error!(
@@ -221,7 +233,22 @@ impl ConnectionParser {
 
                 Ok(())
             }
-            _ => self.handle_out_absent_lf(data),
+            _ => {
+                // Check if the data we have seen so far is invalid
+                if !is_valid_chunked_length_data(data) {
+                    // Contains leading junk non hex_ascii data
+                    self.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
+                    self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
+                    htp_error!(
+                        self.logger,
+                        HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
+                        "Response chunk encoding: Invalid chunk length"
+                    );
+                    Ok(())
+                } else {
+                    self.handle_out_absent_lf(data)
+                }
+            }
         }
     }
 
@@ -272,6 +299,7 @@ impl ConnectionParser {
             self.out_state = State::FINALIZE;
             return Ok(());
         }
+
         Err(HtpStatus::DATA)
     }
 

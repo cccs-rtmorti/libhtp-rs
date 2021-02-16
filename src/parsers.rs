@@ -4,7 +4,10 @@ use crate::{
     log::Logger,
     table::Table,
     transaction::{Header, HtpAuthType, HtpProtocol, HtpResponseNumber, Transaction},
-    util::{ascii_digits, convert_port, hex_digits, take_ascii_whitespace, validate_hostname},
+    util::{
+        ascii_digits, convert_port, hex_digits, take_ascii_whitespace, take_chunked_ctl_chars,
+        validate_hostname,
+    },
     HtpStatus,
 };
 use nom::{
@@ -78,13 +81,15 @@ pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option
 /// Parses chunked length (positive hexadecimal number). White space is allowed before
 /// and after the number.
 pub fn parse_chunked_length(input: &[u8]) -> std::result::Result<Option<i32>, &'static str> {
-    if let Ok((trailing_data, chunked_length)) = hex_digits()(input) {
-        if trailing_data.is_empty() && chunked_length.is_empty() {
-            return Ok(None);
-        }
-        if let Ok(chunked_length) = std::str::from_utf8(chunked_length) {
-            if let Ok(chunked_length) = i32::from_str_radix(chunked_length, 16) {
-                return Ok(Some(chunked_length));
+    if let Ok((rest, _)) = take_chunked_ctl_chars(input) {
+        if let Ok((trailing_data, chunked_length)) = hex_digits()(rest) {
+            if trailing_data.is_empty() && chunked_length.is_empty() {
+                return Ok(None);
+            }
+            if let Ok(chunked_length) = std::str::from_utf8(chunked_length) {
+                if let Ok(chunked_length) = i32::from_str_radix(chunked_length, 16) {
+                    return Ok(Some(chunked_length));
+                }
             }
         }
     }
