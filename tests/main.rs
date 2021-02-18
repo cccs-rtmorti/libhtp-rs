@@ -2122,6 +2122,40 @@ fn CompressedResponseDeflateAsGzip() {
 }
 
 #[test]
+fn CompressedResponseZlibAsDeflate() {
+    let mut cfg = TestConfig();
+    cfg.register_response_body_data(response_body_data);
+
+    let mut t = Test::new(cfg);
+    t.connp
+        .response_mut()
+        .set_user_data(Box::new(MainUserData::new()));
+
+    assert!(t.run("http-evader-118.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.is_complete());
+
+    assert_response_header_eq!(
+        tx,
+        "content-disposition",
+        "attachment; filename=\"eicar.txt\""
+    );
+    assert_response_header_eq!(tx, "content-encoding", "deflate");
+    assert_eq!(68, tx.response_entity_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(1, user_data.res_data.len());
+    let chunk = &user_data.res_data[0];
+    assert_eq!(
+        b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
+        chunk.as_slice()
+    );
+}
+
+#[test]
 fn CompressedResponseMultiple() {
     let mut t = Test::new(TestConfig());
 

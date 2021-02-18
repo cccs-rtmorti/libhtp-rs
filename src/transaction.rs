@@ -947,7 +947,10 @@ impl Transaction {
             as i64;
 
         match self.response_content_encoding_processing {
-            HtpContentEncoding::GZIP | HtpContentEncoding::DEFLATE | HtpContentEncoding::LZMA => {
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => {
                 // Send data buffer to the decompressor
                 let mut decompressor = self.out_decompressor.take().ok_or(HtpStatus::ERROR)?;
                 if let Some(data) = data {
@@ -1375,7 +1378,10 @@ impl Transaction {
         //    forces decompression by setting response_content_encoding to one of the
         //    supported algorithms.
         match &self.response_content_encoding_processing {
-            HtpContentEncoding::GZIP | HtpContentEncoding::DEFLATE | HtpContentEncoding::LZMA => {
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => {
                 self.prepend_decompressor(connp, self.response_content_encoding_processing)?;
                 Ok(())
             }

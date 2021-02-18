@@ -210,8 +210,10 @@ pub enum HtpContentEncoding {
     NONE,
     /// Gzip compression.
     GZIP,
-    /// Deflate compression.
+    /// Deflate compression (RFC 1951).
     DEFLATE,
+    /// Deflate compression with zlib header (RFC 1950)
+    ZLIB,
     /// LZMA compression.
     LZMA,
     /// Error retrieving the content encoding.
@@ -280,11 +282,12 @@ impl Decompressor {
     pub fn prepend(self, encoding: HtpContentEncoding, options: Options) -> std::io::Result<Self> {
         match encoding {
             HtpContentEncoding::NONE => Ok(Decompressor::new(self.inner)),
-            HtpContentEncoding::GZIP | HtpContentEncoding::DEFLATE | HtpContentEncoding::LZMA => {
-                Ok(Decompressor::new(Box::new(InnerDecompressor::new(
-                    encoding, self.inner, options,
-                )?)))
-            }
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => Ok(Decompressor::new(Box::new(InnerDecompressor::new(
+                encoding, self.inner, options,
+            )?))),
             HtpContentEncoding::ERROR => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "expected a valid encoding",
@@ -442,6 +445,29 @@ impl BufWriter for DeflateBufWriter {
     }
 }
 
+/// Simple wrapper around a zlib implementation
+struct ZlibBufWriter(flate2::write::ZlibDecoder<Cursor<Box<[u8]>>>);
+
+impl Write for ZlibBufWriter {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0.write(data)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+impl BufWriter for ZlibBufWriter {
+    fn get_mut(&mut self) -> Option<&mut Cursor<Box<[u8]>>> {
+        Some(self.0.get_mut())
+    }
+
+    fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>> {
+        self.0.finish()
+    }
+}
+
 /// Simple wrapper around an lzma implementation
 struct LzmaBufWriter(lzma_rs::decompress::Stream<Cursor<Box<[u8]>>>);
 
@@ -481,6 +507,8 @@ struct InnerDecompressor {
     inner: Option<Box<dyn Decompress>>,
     /// Encoding type of the decompressor.
     encoding: HtpContentEncoding,
+    /// Next encoding to try when we fail to decompress
+    next_encoding: HtpContentEncoding,
     /// Indicates whether to pass through the data without calling the writer.
     passthrough: bool,
     /// Tracks the number of restarts
@@ -504,6 +532,10 @@ impl InnerDecompressor {
             )),
             HtpContentEncoding::DEFLATE => Ok((
                 Box::new(DeflateBufWriter(flate2::write::DeflateDecoder::new(buf))),
+                false,
+            )),
+            HtpContentEncoding::ZLIB => Ok((
+                Box::new(ZlibBufWriter(flate2::write::ZlibDecoder::new(buf))),
                 false,
             )),
             HtpContentEncoding::LZMA => {
@@ -536,6 +568,7 @@ impl InnerDecompressor {
         Ok(Self {
             inner: Some(inner),
             encoding,
+            next_encoding: encoding,
             writer: Some(writer),
             passthrough,
             restarts: 0,
@@ -677,13 +710,14 @@ impl Decompress for InnerDecompressor {
     fn restart(&mut self) -> std::io::Result<()> {
         if self.restarts < 3 {
             // first retry the same encoding type
-            let encoding = if self.restarts == 0 {
+            self.next_encoding = if self.restarts == 0 {
                 self.encoding
             } else {
                 // if that still fails, try the other method we support
-                match self.encoding {
+                match self.next_encoding {
                     HtpContentEncoding::GZIP => HtpContentEncoding::DEFLATE,
-                    HtpContentEncoding::DEFLATE => HtpContentEncoding::GZIP,
+                    HtpContentEncoding::DEFLATE => HtpContentEncoding::ZLIB,
+                    HtpContentEncoding::ZLIB => HtpContentEncoding::GZIP,
                     HtpContentEncoding::LZMA => HtpContentEncoding::DEFLATE,
                     HtpContentEncoding::NONE | HtpContentEncoding::ERROR => {
                         return Err(std::io::Error::new(
@@ -693,7 +727,7 @@ impl Decompress for InnerDecompressor {
                     }
                 }
             };
-            let (writer, passthrough) = Self::writer(encoding, &self.options)?;
+            let (writer, passthrough) = Self::writer(self.next_encoding, &self.options)?;
             self.writer = Some(writer);
             if passthrough {
                 self.passthrough = passthrough;
