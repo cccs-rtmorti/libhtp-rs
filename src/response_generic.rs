@@ -2,7 +2,7 @@ use crate::{
     bstr::Bstr,
     connection_parser::ConnectionParser,
     error::Result,
-    headers::{headers, Flags as HeaderFlags},
+    headers::Flags as HeaderFlags,
     parsers::{parse_content_length, parse_protocol, parse_status},
     transaction::{Header, HtpProtocol, HtpResponseNumber},
     util::{take_ascii_whitespace, take_is_space, take_not_is_space, FlagOperations, HtpFlags},
@@ -65,7 +65,7 @@ impl ConnectionParser {
         &mut self,
         data: &'a [u8],
     ) -> Result<(&'a [u8], bool)> {
-        let rc = headers(data);
+        let rc = self.response_mut().res_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
                 let mut flags = 0;

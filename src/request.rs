@@ -8,7 +8,8 @@ use crate::{
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
         chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
-        take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
+        take_is_space, take_not_is_space, take_till_eol, take_till_lf, take_till_lf_null,
+        FlagOperations,
     },
     HtpStatus,
 };
@@ -592,23 +593,19 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
     pub fn req_line_complete(&mut self, line: &[u8]) -> Result<()> {
-        if !self.in_buf.is_empty() {
-            self.check_in_buffer_limit(line.len())?;
-        }
-        let mut data = take(&mut self.in_buf);
-        data.add(line);
-        if data.is_empty() {
+        self.check_in_buffer_limit(line.len())?;
+        if line.is_empty() {
             return Err(HtpStatus::DATA);
         }
         // Is this a line that should be ignored?
-        if is_line_ignorable(self.cfg.server_personality, &data) {
+        if is_line_ignorable(self.cfg.server_personality, &line) {
             // We have an empty/whitespace line, which we'll note, ignore and move on.
             self.request_mut().request_ignored_lines =
                 self.request().request_ignored_lines.wrapping_add(1);
             return Ok(());
         }
         // Process request line.
-        let data = chomp(&data);
+        let data = chomp(&line);
         self.request_mut().request_line = Some(Bstr::from(data));
         self.parse_request_line(data)?;
         // Finalize request line parsing.
@@ -620,19 +617,23 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    pub fn req_line(&mut self, data: &[u8]) -> Result<()> {
-        match take_till_lf(data) {
-            Ok((_, read)) => {
+    pub fn req_line(&mut self, input: &[u8]) -> Result<()> {
+        let mut data = take(&mut self.in_buf);
+        let data_len = data.len();
+        data.add(input);
+        match take_till_eol(data.as_slice()) {
+            Ok((_, (line, eol))) => {
                 self.in_curr_data
-                    .seek(SeekFrom::Current(read.len() as i64))?;
-                self.req_line_complete(read)
+                    .seek(SeekFrom::Current((line.len() - data_len) as i64))?;
+                self.request_mut().req_header_parser.set_eol(eol);
+                self.req_line_complete(line)
             }
             _ => {
                 if self.in_status == HtpStreamState::CLOSED {
                     self.in_curr_data.seek(SeekFrom::End(0))?;
-                    self.req_line_complete(data)
+                    self.req_line_complete(data.as_slice())
                 } else {
-                    self.handle_in_absent_lf(data)
+                    self.handle_in_absent_lf(data.as_slice())
                 }
             }
         }
@@ -665,12 +666,14 @@ impl ConnectionParser {
         if !self.in_buf.is_empty() {
             self.check_in_buffer_limit(work.len())?;
         }
-        self.in_buf.add(work);
         let mut data = take(&mut self.in_buf);
+        let buf_len = data.len();
+        data.add(work);
+
         if data.is_empty() {
+            //closing
             return self.state_request_complete();
         }
-
         let res = tuple::<_, _, (&[u8], ErrorKind), _>((take_is_space, take_not_is_space))(&data);
 
         if let Ok((_, (_, method))) = res {
@@ -703,13 +706,14 @@ impl ConnectionParser {
             } // else continue
             self.in_body_data_left = -1;
         }
-
-        self.in_buf = take(&mut data);
-        if (self.in_curr_data.position() as i64) < self.in_buf.len() as i64 {
+        // didnt use data, restore
+        self.in_buf.add(&data[0..buf_len]);
+        //unread last end of line so that req_line works
+        if self.in_curr_data.position() < data.len() as u64 {
             self.in_curr_data.set_position(0);
         } else {
             self.in_curr_data
-                .seek(SeekFrom::Current(-(self.in_buf.len() as i64)))?;
+                .seek(SeekFrom::Current(-(data.len() as i64)))?;
         }
         self.state_request_complete()
     }

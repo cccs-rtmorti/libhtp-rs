@@ -3,7 +3,7 @@ use crate::{
     config::HtpUnwanted,
     connection_parser::ConnectionParser,
     error::Result,
-    headers::{headers, Flags as HeaderFlags},
+    headers::Flags as HeaderFlags,
     parsers::{parse_content_length, parse_protocol},
     request::HtpMethod,
     transaction::{Header, HtpProtocol},
@@ -86,7 +86,7 @@ impl ConnectionParser {
         &mut self,
         data: &'a [u8],
     ) -> Result<(&'a [u8], bool)> {
-        let rc = headers(data);
+        let rc = self.request_mut().req_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
                 let mut flags = 0;

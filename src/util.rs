@@ -14,17 +14,18 @@ use nom::{
         is_not, tag, tag_no_case, take, take_till, take_until, take_while, take_while1,
         take_while_m_n,
     },
-    bytes::streaming::take_till as streaming_take_till,
-    bytes::streaming::take_while as streaming_take_while,
+    bytes::streaming::{
+        tag as streaming_tag, take_till as streaming_take_till, take_while as streaming_take_while,
+    },
     character::complete::{char, digit1},
     character::is_space as nom_is_space,
-    combinator::{map, not, opt},
+    combinator::{map, not, opt, peek},
     multi::fold_many0,
     number::complete::be_u8,
     sequence::tuple,
-    IResult,
+    Err::Incomplete,
+    IResult, Needed,
 };
-
 use std::{io::Write, rc::Rc, sync::Mutex};
 use tempfile::{Builder, NamedTempFile};
 
@@ -158,6 +159,21 @@ pub enum HtpFileSource {
     MULTIPART = 1,
     /// File from a PUT request.
     PUT = 2,
+}
+
+/// Enumerates possible EOLs
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum Eol {
+    /// No specific EOL found
+    None,
+    /// '\n'
+    LF,
+    /// '\r'
+    CR,
+    /// "\r\n"
+    CRLF,
+    /// "\n\r"
+    LFCR,
 }
 
 /// Used to represent files that are seen during the processing of HTTP traffic. Most
@@ -1199,6 +1215,43 @@ pub fn take_till_lf(data: &[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
+/// Returns all data up to and including the first EOL and which EOL was seen
+///
+/// Returns Err if not found
+pub fn take_till_eol(data: &[u8]) -> IResult<&[u8], (&[u8], Eol)> {
+    let (_, (line, eol)) = tuple((
+        streaming_take_till(|c| c == b'\n' || c == b'\r'),
+        alt((
+            streaming_tag("\r\n"),
+            map(
+                alt((
+                    tuple((streaming_tag("\r"), not(streaming_tag("\n")))),
+                    tuple((streaming_tag("\n\r"), not(streaming_tag("\n")))),
+                    tuple((streaming_tag("\n"), not(streaming_tag("\r")))),
+                )),
+                |(eol, _)| eol,
+            ),
+            map(
+                tuple((streaming_tag("\n"), peek(streaming_tag("\r\n")))),
+                |(eol, _)| eol,
+            ),
+        )),
+    ))(data)?;
+    match eol {
+        b"\n" => Ok((&data[line.len() + 1..], (&data[0..line.len() + 1], Eol::LF))),
+        b"\r" => Ok((&data[line.len() + 1..], (&data[0..line.len() + 1], Eol::CR))),
+        b"\r\n" => Ok((
+            &data[line.len() + 2..],
+            (&data[0..line.len() + 2], Eol::CRLF),
+        )),
+        b"\n\r" => Ok((
+            &data[line.len() + 2..],
+            (&data[0..line.len() + 2], Eol::LFCR),
+        )),
+        _ => Err(Incomplete(Needed::Size(1))),
+    }
+}
+
 /// Returns all data up to and including the first lf or cr character
 /// Returns Err if not found
 pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -1378,6 +1431,54 @@ mod test {
             take_till_lf(b"abcdefg\nhijk")
         );
         assert_eq!(Err(Incomplete(Needed::Size(1))), take_till_lf(b"abcdefg"));
+    }
+
+    #[test]
+    fn TakeTillEol() {
+        assert_eq!(
+            Ok(("hijk".as_bytes(), ("abcdefg\n".as_bytes(), Eol::LF))),
+            take_till_eol(b"abcdefg\nhijk")
+        );
+        assert_eq!(
+            Ok(("\r\nhijk".as_bytes(), ("abcdefg\n".as_bytes(), Eol::LF))),
+            take_till_eol(b"abcdefg\n\r\nhijk")
+        );
+        assert_eq!(
+            Ok(("hijk".as_bytes(), ("abcdefg\r".as_bytes(), Eol::CR))),
+            take_till_eol(b"abcdefg\rhijk")
+        );
+
+        assert_eq!(
+            Ok(("hijk".as_bytes(), ("abcdefg\r\n".as_bytes(), Eol::CRLF))),
+            take_till_eol(b"abcdefg\r\nhijk")
+        );
+        assert_eq!(
+            Ok(("".as_bytes(), ("abcdefg\r\n".as_bytes(), Eol::CRLF))),
+            take_till_eol(b"abcdefg\r\n")
+        );
+
+        assert_eq!(
+            Ok(("hijk".as_bytes(), ("abcdefg\n\r".as_bytes(), Eol::LFCR))),
+            take_till_eol(b"abcdefg\n\rhijk")
+        );
+        assert_eq!(
+            Ok(("\r\nhijk".as_bytes(), ("abcdefg\n\r".as_bytes(), Eol::LFCR))),
+            take_till_eol(b"abcdefg\n\r\r\nhijk")
+        );
+        assert_eq!(
+            Err(Incomplete(Needed::Size(2))),
+            take_till_eol(b"abcdefg\n")
+        );
+
+        assert_eq!(
+            Err(Incomplete(Needed::Size(1))),
+            take_till_eol(b"abcdefg\n\r")
+        );
+        assert_eq!(
+            Err(Incomplete(Needed::Size(2))),
+            take_till_eol(b"abcdefg\r")
+        );
+        assert_eq!(Err(Incomplete(Needed::Size(1))), take_till_eol(b"abcdefg"));
     }
 
     #[test]

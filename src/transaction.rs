@@ -4,6 +4,7 @@ use crate::{
     connection_parser::{ConnectionParser, HtpStreamState, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::Result,
+    headers::Parser as HeaderParser,
     hook::{DataHook, DataNativeCallbackFn},
     list::List,
     log::Logger,
@@ -502,6 +503,10 @@ pub struct Transaction {
     pub req_header_repetitions: u16,
     /// Total repetitions for headers in response.
     pub res_header_repetitions: u16,
+    /// Request header parser
+    pub req_header_parser: HeaderParser,
+    /// Response header parser
+    pub res_header_parser: HeaderParser,
 }
 
 /// Type alias for list of transactions.
@@ -570,6 +575,8 @@ impl Transaction {
             index,
             req_header_repetitions: 0,
             res_header_repetitions: 0,
+            req_header_parser: HeaderParser::default(),
+            res_header_parser: HeaderParser::default(),
         }
     }
 

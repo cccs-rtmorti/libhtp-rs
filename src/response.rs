@@ -11,8 +11,8 @@ use crate::{
     },
     uri::Uri,
     util::{
-        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, take_till_lf,
-        treat_response_line_as_body, FlagOperations, HtpFlags,
+        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, take_till_eol,
+        take_till_lf, treat_response_line_as_body, FlagOperations, HtpFlags,
     },
     HtpStatus,
 };
@@ -636,30 +636,38 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
     /// when more data is needed.
-    pub fn res_line(&mut self, data: &[u8]) -> Result<()> {
-        let line = match take_till_lf(data) {
-            Ok((_, line)) => {
+    pub fn res_line(&mut self, input: &[u8]) -> Result<()> {
+        let mut data = take(&mut self.out_buf);
+        let data_len = data.len();
+        data.add(input);
+        match take_till_eol(data.as_slice()) {
+            Ok((_, (line, eol))) => {
                 self.out_curr_data
-                    .seek(SeekFrom::Current(line.len() as i64))?;
-                line
+                    .seek(SeekFrom::Current((line.len() - data_len) as i64))?;
+                self.response_mut().res_header_parser.set_eol(eol);
+                self.res_line_complete(line)
             }
             _ => {
                 if self.out_status == HtpStreamState::CLOSED {
                     self.out_curr_data.seek(SeekFrom::End(0))?;
-                    data
+                    self.res_line_complete(data.as_slice())
                 } else {
-                    return self.handle_out_absent_lf(data);
+                    self.handle_out_absent_lf(data.as_slice())
                 }
             }
-        };
-
-        if !self.out_buf.is_empty() {
-            self.check_out_buffer_limit(data.len())?;
         }
-        let mut data = take(&mut self.out_buf);
-        data.add(line);
+    }
 
-        if is_line_ignorable(self.cfg.server_personality, &data) {
+    /// Parse the complete response line.
+    ///
+    /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
+    /// when more data is needed.
+    pub fn res_line_complete(&mut self, line: &[u8]) -> Result<()> {
+        self.check_out_buffer_limit(line.len())?;
+        if line.is_empty() {
+            return Err(HtpStatus::DATA);
+        }
+        if is_line_ignorable(self.cfg.server_personality, &line) {
             if self.out_status == HtpStreamState::CLOSED {
                 self.out_state = State::FINALIZE
             }
@@ -676,7 +684,7 @@ impl ConnectionParser {
         self.response_mut().response_status = None;
         self.response_mut().response_message = None;
         // Process response line.
-        let data = chomp(&data);
+        let data = chomp(line);
         // If the response line is invalid, determine if it _looks_ like
         // a response line. If it does not look like a line, process the
         // data as a response body because that is what browsers do.
