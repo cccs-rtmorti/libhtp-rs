@@ -48,11 +48,15 @@ pub struct Header {
 
 pub struct Parser {
     eol: Eol,
+    null_terminates: bool,
 }
 
 impl Parser {
-    pub fn new(eol: Eol) -> Self {
-        Self { eol }
+    pub fn new(eol: Eol, null_terminates: bool) -> Self {
+        Self {
+            eol,
+            null_terminates,
+        }
     }
     /// Returns true if c is a line feed character
     fn is_eol(&self) -> impl Fn(u8) -> bool + '_ {
@@ -150,8 +154,8 @@ impl Parser {
                 tuple((
                     self.complete_eol(),
                     alt((tag(" "), tag("\t"))),
-                    self.complete_null_or_eol(),
-                    peek(self.complete_null_or_eol()),
+                    self.complete_eol(),
+                    peek(self.complete_eol()),
                 ))(input)
             {
                 Ok((
@@ -166,7 +170,7 @@ impl Parser {
                     tuple((
                         self.complete_eol(),
                         alt((tag(" "), tag("\t"))),
-                        peek(self.complete_null_or_eol()),
+                        peek(self.complete_eol()),
                     )),
                     |((end, flags), _, _)| (end, flags | Flags::TERMINATOR_SPECIAL_CASE),
                 )(input)
@@ -186,6 +190,26 @@ impl Parser {
                 }),
                 map(self.null_or_eol(), |end| (end, None)),
             ))(input)
+        }
+    }
+
+    /// Removes trailing unwanted characaters from input.
+    /// If null terminates is set to true, it will remove all characters before the null character
+    fn remove_trailing(&self, input: &mut Vec<u8>, flags: &mut u64) {
+        if self.null_terminates {
+            if let Ok((trailing_data, data)) = take_until_null(&input) {
+                if trailing_data.first() == Some(&b'\0') {
+                    flags.set(Flags::NULL_TERMINATED);
+                }
+                *input = data.to_vec();
+            }
+        }
+        while let Some(end) = input.last() {
+            if is_space(*end) {
+                input.pop();
+            } else {
+                break;
+            }
         }
     }
 
@@ -224,7 +248,7 @@ impl Parser {
                             }
                             value.extend(val_bytes);
                             if fold.is_none() {
-                                remove_trailing_lws(&mut value);
+                                self.remove_trailing(&mut value, &mut flags);
                                 return Ok((rest, Value { value, flags }));
                             }
                         }
@@ -235,7 +259,7 @@ impl Parser {
                 if value.is_empty() {
                     flags.set(Flags::VALUE_EMPTY);
                 } else {
-                    remove_trailing_lws(&mut value);
+                    self.remove_trailing(&mut value, &mut flags);
                 }
                 Ok((rest, Value { value, flags }))
             }
@@ -329,7 +353,10 @@ impl Parser {
 
 impl Default for Parser {
     fn default() -> Self {
-        Self { eol: Eol::None }
+        Self {
+            eol: Eol::None,
+            null_terminates: true,
+        }
     }
 }
 
@@ -422,22 +449,6 @@ fn folding_lws(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
             (fold, Flags::FOLDING_SPECIAL_CASE)
         }),
     ))(input)
-}
-
-/// Removes trailing lws from input before null character
-/// if it exists
-fn remove_trailing_lws(input: &mut Vec<u8>) {
-    if let Ok((_, data)) = take_until_null(&input) {
-        *input = data.to_vec()
-    }
-
-    while let Some(end) = input.last() {
-        if is_space(*end) {
-            input.pop();
-        } else {
-            break;
-        }
-    }
 }
 
 /// Parse a separator (colon + space) between header name and value
@@ -601,10 +612,40 @@ mod test {
     }
 
     #[test]
+    fn NullTerminates() {
+        let parser = Parser::new(Eol::None, false);
+        let parser_null_terminates = Parser::new(Eol::None, true);
+
+        let input = b"k1:v1\r\nk2:v2 before\0v2 after\r\n\r\n";
+        let result = Ok((
+            b!(""),
+            (
+                vec![
+                    header!(b"k1", 0, b"v1", 0),
+                    header!(b"k2", 0, b"v2 before\0v2 after", 0),
+                ],
+                true,
+            ),
+        ));
+        let result_null_terminates = Ok((
+            b!("\r\n"),
+            (
+                vec![
+                    header!(b"k1", 0, b"v1", 0),
+                    header!(b"k2", 0, b"v2 before", Flags::NULL_TERMINATED),
+                ],
+                true,
+            ),
+        ));
+        assert_headers_result_eq!(result, input, parser);
+        assert_headers_result_eq!(result_null_terminates, input, parser_null_terminates);
+    }
+
+    #[test]
     fn Headers() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
 
         let input = b"k1:v1\r\n:v2\r\n v2+\r\nk3: v3\r\nk4 v4\r\nk\r5:v\r5\n\rmore\r\n\r\n";
         let common = vec![
@@ -677,8 +718,11 @@ mod test {
         let result = Ok((
             b!("k3:v3\r"),
             (
-                vec![header!(b"k1", 0, b"v1", 0), header!(b"k2", 0, b"v2", 0)],
-                false,
+                vec![
+                    header!(b"k1", 0, b"v1", 0),
+                    header!(b"k2", 0, b"v2", Flags::NULL_TERMINATED),
+                ],
+                true,
             ),
         ));
         assert_headers_result_eq!(result, input, parser, parser_cr, parser_lfcr);
@@ -749,7 +793,7 @@ mod test {
 
         // Test only \n\r terminators (should be same result as above EXCEPT for
         // ALL deformed warning)
-        let mut deformed = common.clone();
+        let mut deformed = common;
         for header in deformed.iter_mut() {
             header.value.flags.set(Flags::DEFORMED_EOL)
         }
@@ -840,7 +884,10 @@ mod test {
         );
         assert_eq!(
             parser.header_with_colon()(b"K: V before\0 V after\r\n\r\n"),
-            Ok((b!("\r\n"), header!(b"K", 0, b"V before", 0),))
+            Ok((
+                b!("\r\n"),
+                header!(b"K", 0, b"V before", Flags::NULL_TERMINATED),
+            ))
         );
         assert_eq!(
             parser.header_with_colon()(b"K: V\r\n a\r\n l\r\n u\r\n\te\r\n\r\n"),
@@ -851,8 +898,8 @@ mod test {
     #[test]
     fn Header() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         assert_header_result_eq!(
             Err(Incomplete(Needed::Size(1))),
             b"K: V",
@@ -955,7 +1002,10 @@ mod test {
             parser_lfcr
         );
         assert_header_result_eq!(
-            Ok((b!("\r\n"), header!(b"K", 0, b"V before", 0),)),
+            Ok((
+                b!("\r\n"),
+                header!(b"K", 0, b"V before", Flags::NULL_TERMINATED),
+            )),
             b"K: V before\0 V after\r\n\r\n",
             parser,
             parser_cr,
@@ -1258,8 +1308,8 @@ mod test {
     #[test]
     fn Eol() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         assert_eol_result_eq!(
             Err(Error((b"test".as_ref(), Tag))),
             b"test",
@@ -1391,8 +1441,8 @@ mod test {
     #[test]
     fn NullOrEol() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         assert_null_or_eol_result_eq!(
             Err(Error((b"test".as_ref(), Tag))),
             b"test",
@@ -1560,8 +1610,8 @@ mod test {
     #[test]
     fn Folding() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         assert_folding_result_eq!(
             Err(Error((b"test".as_ref(), Tag))),
             b"test",
@@ -1714,8 +1764,8 @@ mod test {
     #[test]
     fn FoldingOrTerminator() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         // All of these fail because they are incomplete.
         // We need more bytes before we can get the full fold
         // or decide there is no fold.
@@ -1992,8 +2042,8 @@ mod test {
     #[test]
     fn ValueBytes() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         // Expect fail because we need to see EOL
         assert_value_bytes_result_eq!(
             Err(Incomplete(Needed::Size(1))),
@@ -2182,8 +2232,8 @@ mod test {
     #[test]
     fn Value() {
         let parser = Parser::default();
-        let parser_cr = Parser::new(Eol::CR);
-        let parser_lfcr = Parser::new(Eol::LFCR);
+        let parser_cr = Parser::new(Eol::CR, true);
+        let parser_lfcr = Parser::new(Eol::LFCR, true);
         let input = b"value\rnext:";
         assert_value_result_eq!(Err(Incomplete(Needed::Size(1))), input, parser, parser_lfcr);
         assert_value_result_eq!(
