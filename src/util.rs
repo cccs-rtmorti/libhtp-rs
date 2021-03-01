@@ -1107,7 +1107,7 @@ pub fn treat_response_line_as_body(data: &[u8]) -> bool {
     //      IE: (?i)^\s*http\s*/
     //      Safari: ^HTTP/\d+\.\d+\s+\d{3}
 
-    tuple((opt(take_is_space), tag_no_case("http")))(data).is_err()
+    tuple((opt(take_is_space_or_null), tag_no_case("http")))(data).is_err()
 }
 
 /// Implements relaxed (not strictly RFC) hostname validation.
@@ -1181,6 +1181,11 @@ pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Take leading space as defined by util::is_space.
 pub fn take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(is_space)(data)
+}
+
+/// Take leading null characters or spaces as defined by util::is_space
+pub fn take_is_space_or_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while(|c| is_space(c) || c == b'\0')(data)
 }
 
 /// Take any non-space character as defined by is_space.
@@ -1356,6 +1361,7 @@ mod test {
     #[test]
     fn TreatResponseLineAsBody() {
         assert_eq!(false, treat_response_line_as_body(b"   http 1.1"));
+        assert_eq!(false, treat_response_line_as_body(b"\0 http 1.1"));
         assert_eq!(false, treat_response_line_as_body(b"http"));
         assert_eq!(false, treat_response_line_as_body(b"HTTP"));
         assert_eq!(false, treat_response_line_as_body(b"    HTTP"));

@@ -5,7 +5,10 @@ use crate::{
     headers::Flags as HeaderFlags,
     parsers::{parse_content_length, parse_protocol, parse_status},
     transaction::{Header, HtpProtocol, HtpResponseNumber},
-    util::{take_ascii_whitespace, take_is_space, take_not_is_space, FlagOperations, HtpFlags},
+    util::{
+        take_ascii_whitespace, take_is_space, take_is_space_or_null, take_not_is_space,
+        FlagOperations, HtpFlags,
+    },
     HtpStatus,
 };
 use nom::{error::ErrorKind, sequence::tuple};
@@ -21,7 +24,7 @@ impl ConnectionParser {
         out_tx.response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
-            take_is_space,
+            take_is_space_or_null,
             take_not_is_space,
             take_is_space,
             take_not_is_space,

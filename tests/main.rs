@@ -2794,6 +2794,64 @@ fn HttpEvader303() {
 }
 
 #[test]
+fn HttpEvader390() {
+    let mut cfg = TestConfig();
+    cfg.register_response_body_data(response_body_data);
+    cfg.register_request_body_data(request_body_data);
+    let mut t = Test::new(cfg);
+    // Configure user data and callbacks
+    t.connp
+        .response_mut()
+        .set_user_data(Box::new(MainUserData::new()));
+    assert!(t.run("http-evader-390.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert!(tx
+        .request_uri
+        .as_ref()
+        .unwrap()
+        .eq("/broken/eicar.txt/status%3A%5C000HTTP/1.1%28space%29200%28space%29ok;chunked"));
+    assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
+    assert_request_header_eq!(tx, "Host", "evader.example.com");
+
+    assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
+    assert!(tx.response_status_number.eq_num(200));
+    assert_response_header_eq!(tx, "Content-type", "application/octet-stream");
+    assert_response_header_eq!(
+        tx,
+        "Content-disposition",
+        "attachment; filename=\"eicar.txt\""
+    );
+    assert_response_header_eq!(tx, "Connection", "close");
+    assert_response_header_eq!(tx, "Transfer-Encoding", "chunked");
+    assert_response_header_eq!(tx, "Yet-another-header", "foo");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(156, tx.response_message_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(17, user_data.res_data.len());
+    assert_eq!(b"X5O!".as_ref(), (&user_data.res_data[0]).as_slice());
+    assert_eq!(b"P%@A".as_ref(), (&user_data.res_data[1]).as_slice());
+    assert_eq!(b"P[4\\".as_ref(), (&user_data.res_data[2]).as_slice());
+    assert_eq!(b"PZX5".as_ref(), (&user_data.res_data[3]).as_slice());
+    assert_eq!(b"4(P^".as_ref(), (&user_data.res_data[4]).as_slice());
+    assert_eq!(b")7CC".as_ref(), (&user_data.res_data[5]).as_slice());
+    assert_eq!(b")7}$".as_ref(), (&user_data.res_data[6]).as_slice());
+    assert_eq!(b"EICA".as_ref(), (&user_data.res_data[7]).as_slice());
+    assert_eq!(b"R-ST".as_ref(), (&user_data.res_data[8]).as_slice());
+    assert_eq!(b"ANDA".as_ref(), (&user_data.res_data[9]).as_slice());
+    assert_eq!(b"RD-A".as_ref(), (&user_data.res_data[10]).as_slice());
+    assert_eq!(b"NTIV".as_ref(), (&user_data.res_data[11]).as_slice());
+    assert_eq!(b"IRUS".as_ref(), (&user_data.res_data[12]).as_slice());
+    assert_eq!(b"-TES".as_ref(), (&user_data.res_data[13]).as_slice());
+    assert_eq!(b"T-FI".as_ref(), (&user_data.res_data[14]).as_slice());
+    assert_eq!(b"LE!$".as_ref(), (&user_data.res_data[15]).as_slice());
+    assert_eq!(b"H+H*".as_ref(), (&user_data.res_data[16]).as_slice());
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+}
+
+#[test]
 fn HttpEvader402() {
     let mut cfg = TestConfig();
     cfg.register_response_body_data(response_body_data);
