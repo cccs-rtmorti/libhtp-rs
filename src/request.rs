@@ -622,10 +622,9 @@ impl ConnectionParser {
         let data_len = data.len();
         data.add(input);
         match take_till_eol(data.as_slice()) {
-            Ok((_, (line, eol))) => {
+            Ok((_, (line, _))) => {
                 self.in_curr_data
                     .seek(SeekFrom::Current((line.len() - data_len) as i64))?;
-                self.request_mut().req_header_parser.set_eol(eol);
                 self.req_line_complete(line)
             }
             _ => {

@@ -2,7 +2,7 @@ use crate::{
     bstr::Bstr,
     config::{Config, MultipartConfig},
     error::Result,
-    headers::{Flags as HeaderFlags, Parser as HeadersParser},
+    headers::{Flags as HeaderFlags, Parser as HeadersParser, Side},
     hook::FileDataHook,
     list::List,
     parsers::parse_content_type,
@@ -732,7 +732,7 @@ impl Parser {
             return Err(HtpStatus::DECLINED);
         }
         // Extract the name and the value
-        let parser = HeadersParser::default();
+        let parser = HeadersParser::new(Side::Request);
         if let Ok((remaining, (headers, _))) = parser.headers()(self.pending_header_line.as_slice())
         {
             let remaining = remaining.to_vec();

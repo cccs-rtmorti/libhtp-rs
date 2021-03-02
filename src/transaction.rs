@@ -4,7 +4,7 @@ use crate::{
     connection_parser::{ConnectionParser, HtpStreamState, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::Result,
-    headers::Parser as HeaderParser,
+    headers::{Parser as HeaderParser, Side},
     hook::{DataHook, DataNativeCallbackFn},
     list::List,
     log::Logger,
@@ -17,7 +17,7 @@ use crate::{
     table::Table,
     uri::Uri,
     urlencoded::Parser as UrlEncodedParser,
-    util::{validate_hostname, Eol, File, FlagOperations, HtpFileSource, HtpFlags},
+    util::{validate_hostname, File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
 
@@ -575,8 +575,8 @@ impl Transaction {
             index,
             req_header_repetitions: 0,
             res_header_repetitions: 0,
-            req_header_parser: HeaderParser::default(),
-            res_header_parser: HeaderParser::new(Eol::None, false),
+            req_header_parser: HeaderParser::new(Side::Request),
+            res_header_parser: HeaderParser::new(Side::Response),
         }
     }
 
