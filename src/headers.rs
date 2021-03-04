@@ -401,8 +401,8 @@ impl Parser {
                         complete_tag(":"),
                         space0,
                         self.complete_eol(),
-                        complete_tag("\0"),
                         space0,
+                        not(self.complete_eol()),
                     )),
                     |(tagged, _, _, _, _)| tagged,
                 ),
@@ -1353,7 +1353,7 @@ mod test {
                 header!(
                     b"K",
                     Flags::DEFORMED_SEPARATOR,
-                    b"Value V",
+                    b"\0Value V",
                     Flags::DEFORMED_SEPARATOR | Flags::FOLDING
                 ),
             )),

@@ -2755,7 +2755,7 @@ fn HttpEvader307() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%3A%5C012%5C000chunked;do_chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx, "\0chunked");
 }
 
 #[test]
