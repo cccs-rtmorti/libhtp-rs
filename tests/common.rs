@@ -166,6 +166,75 @@ macro_rules! assert_contains_param {
     }};
 }
 
+/// Assert the common evader request values are as expected
+///
+/// Example usage:
+/// assert_evader_request!(tx, "url");
+#[macro_export]
+macro_rules! assert_evader_request {
+    ($tx:expr, $url:expr) => {{
+        assert!(($tx).request_method.as_ref().unwrap().eq("GET"));
+        assert!(($tx).request_uri.as_ref().unwrap().eq($url));
+        assert_eq!(HtpProtocol::V1_1, ($tx).request_protocol_number);
+        assert_header_eq!($tx, request_headers, "host", "evader.example.com");
+    }};
+}
+
+/// Assert the common evader response values are as expected
+///
+/// Example usage:
+/// assert_evader_response!(tx);
+#[macro_export]
+macro_rules! assert_evader_response {
+    ($tx:expr) => {{
+        assert_eq!(HtpProtocol::V1_1, ($tx).response_protocol_number);
+        assert!(($tx).response_status_number.eq_num(200));
+        assert_response_header_eq!($tx, "Content-type", "application/octet-stream");
+        assert_response_header_eq!(
+            $tx,
+            "Content-disposition",
+            "attachment; filename=\"eicar.txt\""
+        );
+        assert_response_header_eq!($tx, "Connection", "close");
+    }};
+}
+
+/// Assert the common chunked evader values are as expected
+///
+/// Example usage:
+/// assert_evader_chunked_response!(tx, "chunked value");
+#[macro_export]
+macro_rules! assert_evader_chunked {
+    ($tx:expr, $val:expr) => {{
+        assert_response_header_eq!($tx, "Transfer-Encoding", $val);
+        assert_response_header_eq!($tx, "Yet-Another-Header", "foo");
+        assert_eq!(68, ($tx).response_entity_len);
+        assert_eq!(156, ($tx).response_message_len);
+        let user_data = ($tx).user_data::<MainUserData>().unwrap();
+        assert!(user_data.req_data.is_empty());
+        assert_eq!(17, user_data.res_data.len());
+        assert_eq!(b"X5O!".as_ref(), (&user_data.res_data[0]).as_slice());
+        assert_eq!(b"P%@A".as_ref(), (&user_data.res_data[1]).as_slice());
+        assert_eq!(b"P[4\\".as_ref(), (&user_data.res_data[2]).as_slice());
+        assert_eq!(b"PZX5".as_ref(), (&user_data.res_data[3]).as_slice());
+        assert_eq!(b"4(P^".as_ref(), (&user_data.res_data[4]).as_slice());
+        assert_eq!(b")7CC".as_ref(), (&user_data.res_data[5]).as_slice());
+        assert_eq!(b")7}$".as_ref(), (&user_data.res_data[6]).as_slice());
+        assert_eq!(b"EICA".as_ref(), (&user_data.res_data[7]).as_slice());
+        assert_eq!(b"R-ST".as_ref(), (&user_data.res_data[8]).as_slice());
+        assert_eq!(b"ANDA".as_ref(), (&user_data.res_data[9]).as_slice());
+        assert_eq!(b"RD-A".as_ref(), (&user_data.res_data[10]).as_slice());
+        assert_eq!(b"NTIV".as_ref(), (&user_data.res_data[11]).as_slice());
+        assert_eq!(b"IRUS".as_ref(), (&user_data.res_data[12]).as_slice());
+        assert_eq!(b"-TES".as_ref(), (&user_data.res_data[13]).as_slice());
+        assert_eq!(b"T-FI".as_ref(), (&user_data.res_data[14]).as_slice());
+        assert_eq!(b"LE!$".as_ref(), (&user_data.res_data[15]).as_slice());
+        assert_eq!(b"H+H*".as_ref(), (&user_data.res_data[16]).as_slice());
+        assert_eq!(HtpRequestProgress::COMPLETE, ($tx).request_progress);
+        assert_eq!(HtpResponseProgress::COMPLETE, ($tx).response_progress);
+    }};
+}
+
 /// Assert the table of Param contains a param from the given source with a matching name value pair
 ///
 /// Example usage:

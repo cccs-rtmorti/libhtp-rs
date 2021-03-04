@@ -8,7 +8,7 @@ use nom::{
     combinator::{map, not, opt, peek},
     sequence::tuple,
     Err::Incomplete,
-    IResult,
+    IResult, Needed,
 };
 
 #[derive(Debug, PartialEq)]
@@ -95,7 +95,7 @@ impl Parser {
                     map(
                         tuple((
                             complete_tag("\r\n\r"),
-                            take_while1(|c| c == b'\r'),
+                            take_while1(|c| c == b'\r' || c == b' '),
                             opt(complete_tag("\n")),
                             not(alt((complete_tag("\n"), complete_tag("\r\n")))),
                         )),
@@ -255,6 +255,25 @@ impl Parser {
             if fold.is_some() {
                 let mut i = rest;
                 loop {
+                    if self.side == Side::Response {
+                        // Peek ahead for ambiguous name with lws vs. value with folding
+                        let result = tuple((self.token_name(), separator_regular))(i);
+                        match result {
+                            Ok(_) => {
+                                flags.unset(Flags::FOLDING_SPECIAL_CASE);
+                                if value.is_empty() {
+                                    flags.set(Flags::VALUE_EMPTY);
+                                } else {
+                                    self.remove_trailing(&mut value, &mut flags);
+                                }
+                                return Ok((rest, Value { value, flags }));
+                            }
+                            Err(Incomplete(_)) => {
+                                return Err(Incomplete(Needed::Size(1)));
+                            }
+                            _ => {}
+                        }
+                    }
                     match self.value_bytes()(i) {
                         Ok((rest, (val_bytes, ((_eol, other_flags), fold)))) => {
                             i = rest;
@@ -395,16 +414,17 @@ impl Parser {
             ))(input)
         }
     }
+
     /// Parse a separator between header name and value
     fn separator(&self) -> impl Fn(&[u8]) -> IResult<&[u8], u64> + '_ {
         move |input| {
             if self.side == Side::Response {
                 alt((
                     map(self.separator_deformed(), |_| Flags::DEFORMED_SEPARATOR),
-                    map(tuple((tag(":"), space0)), |_| 0),
+                    map(separator_regular, |_| 0),
                 ))(input)
             } else {
-                map(tuple((tag(":"), space0)), |_| 0)(input)
+                map(separator_regular, |_| 0)(input)
             }
         }
     }
@@ -540,6 +560,11 @@ fn folding_lws(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
             (fold, Flags::FOLDING_SPECIAL_CASE)
         }),
     ))(input)
+}
+
+/// Parse a regular separator (colon followed by optional spaces) between header name and value
+fn separator_regular(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
+    tuple((complete_tag(":"), space0))(input)
 }
 
 #[cfg(test)]
@@ -2834,6 +2859,30 @@ mod test {
                 Value {
                     value: b"value more and more".to_vec(),
                     flags: Flags::DEFORMED_EOL | Flags::FOLDING
+                }
+            )),
+            input,
+            res_parser
+        );
+
+        let input = b"value1\n\r next: value2\r\n  and\r\n more\r\nnext3:";
+        assert_value_result_eq!(
+            Ok((
+                b!("next3:"),
+                Value {
+                    value: b"value1 next: value2 and more".to_vec(),
+                    flags: Flags::FOLDING_SPECIAL_CASE
+                }
+            )),
+            input,
+            req_parser
+        );
+        assert_value_result_eq!(
+            Ok((
+                b!("next: value2\r\n  and\r\n more\r\nnext3:"),
+                Value {
+                    value: b"value1".to_vec(),
+                    flags: Flags::DEFORMED_EOL
                 }
             )),
             input,
