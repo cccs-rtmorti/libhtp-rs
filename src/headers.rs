@@ -8,7 +8,7 @@ use nom::{
         is_space,
         streaming::{space0, space1},
     },
-    combinator::{map, not, opt, peek},
+    combinator::{complete, map, not, opt, peek},
     sequence::tuple,
     Err::Incomplete,
     IResult, Needed,
@@ -62,12 +62,24 @@ pub enum Side {
 
 pub struct Parser {
     side: Side,
+    complete: bool,
 }
 
 impl Parser {
     pub fn new(side: Side) -> Self {
-        Self { side }
+        Self {
+            side,
+            complete: false,
+        }
     }
+
+    /// Sets the parser complete state.
+    ///
+    /// If set to true, parser operates under the assumption that no more data is incoming
+    pub fn set_complete(&mut self, complete: bool) {
+        self.complete = complete;
+    }
+
     /// Returns true if c is a line feed character
     fn is_eol(&self) -> impl Fn(u8) -> bool + '_ {
         move |c| c == b'\n' || (self.side == Side::Response && c == b'\r')
@@ -235,8 +247,32 @@ impl Parser {
         }
     }
 
-    /// Parse folding bytes or a value terminator (eol or null)
-    fn folding_or_terminator(
+    /// Parse complete folding bytes or a value terminator (eol or null)
+    fn complete_folding_or_terminator(
+        &self,
+    ) -> impl Fn(&[u8]) -> IResult<&[u8], ((&[u8], u64), Option<&[u8]>)> + '_ {
+        move |input| {
+            if self.side == Side::Response {
+                alt((
+                    complete(map(self.terminator_special_case(), |result| (result, None))),
+                    complete(map(self.folding(), |(end, fold, flags)| {
+                        ((end, flags), Some(fold))
+                    })),
+                    map(self.complete_null_or_eol(), |end| (end, None)),
+                ))(input)
+            } else {
+                alt((
+                    complete(map(self.folding(), |(end, fold, flags)| {
+                        ((end, flags), Some(fold))
+                    })),
+                    map(self.complete_null_or_eol(), |end| (end, None)),
+                ))(input)
+            }
+        }
+    }
+
+    /// Parse complete folding bytes or a value terminator (eol or null)
+    fn streaming_folding_or_terminator(
         &self,
     ) -> impl Fn(&[u8]) -> IResult<&[u8], ((&[u8], u64), Option<&[u8]>)> + '_ {
         move |input| {
@@ -255,6 +291,19 @@ impl Parser {
                     }),
                     map(self.null_or_eol(), |end| (end, None)),
                 ))(input)
+            }
+        }
+    }
+
+    /// Parse folding bytes or a value terminator (eol or null)
+    fn folding_or_terminator(
+        &self,
+    ) -> impl Fn(&[u8]) -> IResult<&[u8], ((&[u8], u64), Option<&[u8]>)> + '_ {
+        move |input| {
+            if self.complete {
+                self.complete_folding_or_terminator()(input)
+            } else {
+                self.streaming_folding_or_terminator()(input)
             }
         }
     }
@@ -487,7 +536,7 @@ impl Parser {
     fn header_sans_colon(&self) -> impl Fn(&[u8]) -> IResult<&[u8], Header> + '_ {
         move |input| {
             let (mut remaining, (_, mut value)) = tuple((
-                not(tag("\r\n")),
+                not(complete_tag("\r\n")),
                 take_till1(|c| c == b':' || self.is_terminator(c)),
             ))(input)?;
             if value.last() == Some(&b'\r') {
@@ -1089,6 +1138,10 @@ mod test {
     fn Header() {
         let req_parser = Parser::new(Side::Request);
         let res_parser = Parser::new(Side::Response);
+        let mut req_parser_complete = Parser::new(Side::Request);
+        req_parser_complete.set_complete(true);
+        let mut res_parser_complete = Parser::new(Side::Response);
+        res_parser_complete.set_complete(true);
         assert_header_result_eq!(
             Err(Incomplete(Needed::Size(1))),
             b"K: V",
@@ -1100,6 +1153,12 @@ mod test {
             b"K: V\r\n",
             req_parser,
             res_parser
+        );
+        assert_header_result_eq!(
+            Ok((b!(""), header!(b"K", 0, b"V", 0),)),
+            b"K: V\r\n",
+            req_parser_complete,
+            res_parser_complete
         );
 
         let input = b"Host:www.google.com\rName: Value\r\n\r\n";

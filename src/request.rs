@@ -495,6 +495,7 @@ impl ConnectionParser {
     /// when more data is needed.
     pub fn req_headers(&mut self, data: &[u8]) -> Result<()> {
         if self.in_status == HtpStreamState::CLOSED {
+            self.request_mut().req_header_parser.set_complete(true);
             // Parse previous header, if any.
             if let Some(in_header) = self.in_header.take() {
                 self.process_request_headers(in_header.as_slice())?;

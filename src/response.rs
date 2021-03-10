@@ -571,6 +571,11 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA when more data is needed.
     pub fn res_headers(&mut self, data: &[u8]) -> Result<()> {
         if self.out_status == HtpStreamState::CLOSED {
+            self.response_mut().res_header_parser.set_complete(true);
+            // Parse previous header, if any.
+            if let Some(out_header) = self.out_header.take() {
+                self.process_response_headers(out_header.as_slice())?;
+            }
             // Finalize sending raw trailer data.
             self.res_receiver_finalize_clear()?;
             // Run hook response_TRAILER.

@@ -2579,6 +2579,29 @@ fn Http2Upgrade() {
     assert!(!t.connp.tx(0).unwrap().is_http_2_upgrade);
     assert!(t.connp.tx(1).unwrap().is_http_2_upgrade);
 }
+
+#[test]
+fn HttpCloseHeaders() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run("http-close-headers.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert!(tx.request_uri.as_ref().unwrap().eq("/"));
+
+    assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
+    assert_eq!(HtpProtocol::V1_0, tx.response_protocol_number);
+
+    assert_request_header_eq!(tx, "Host", "100.64.0.200");
+    assert_request_header_eq!(tx, "Connection", "keep-alive");
+    assert_request_header_eq!(tx, "Accept-Encoding", "gzip, deflate");
+    assert_request_header_eq!(tx, "Accept", "*/*");
+    assert_request_header_eq!(tx, "User-Agent", "python-requests/2.21.0");
+    assert_response_header_eq!(tx, "Server", "ng1nx");
+
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+}
+
 // Evader Tests
 #[test]
 fn HttpEvader017() {
