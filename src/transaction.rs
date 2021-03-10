@@ -1398,6 +1398,9 @@ impl Transaction {
                         let mut layers = 0;
 
                         for encoding in ce.split(|c| *c == b',' || *c == b' ') {
+                            if encoding.is_empty() {
+                                continue;
+                            }
                             layers += 1;
 
                             if let Some(limit) = self.cfg.compression_options.get_layer_limit() {

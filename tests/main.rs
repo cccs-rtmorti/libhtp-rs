@@ -2730,6 +2730,22 @@ fn HttpEvader078() {
 }
 
 #[test]
+fn HttpEvader130() {
+    let mut t = Test::new(TestConfig());
+    assert!(!t.run("http-evader-130.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert_evader_request!(
+        tx,
+        "/compressed/eicar.txt/ce%3Adeflate-nl-,-nl-deflate-nl-;deflate;deflate"
+    );
+    assert_evader_response!(tx);
+    assert_response_header_eq!(tx, "Content-Encoding", "deflate , deflate");
+    assert_response_header_eq!(tx, "Content-Length", "75");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(76, tx.response_message_len);
+}
+
+#[test]
 fn HttpEvader274() {
     let mut t = Test::new_with_callbacks();
     assert!(t.run("http-evader-274.t").is_ok());
