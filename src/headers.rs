@@ -3,8 +3,11 @@ use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,
     bytes::streaming::{tag, take_till, take_till1, take_while, take_while1},
-    character::is_space,
-    character::streaming::{space0, space1},
+    character::{
+        complete::space1 as complete_space1,
+        is_space,
+        streaming::{space0, space1},
+    },
     combinator::{map, not, opt, peek},
     sequence::tuple,
     Err::Incomplete,
@@ -27,6 +30,7 @@ impl Flags {
     pub const DEFORMED_EOL: u64 = 0x0200;
     pub const TERMINATOR_SPECIAL_CASE: u64 = 0x0400;
     pub const DEFORMED_SEPARATOR: u64 = (0x0800 | Self::NAME_NON_TOKEN_CHARS);
+    pub const FOLDING_EMPTY: u64 = (0x1000 | Self::DEFORMED_EOL);
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,7 +77,12 @@ impl Parser {
     fn complete_eol_regular(&self) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> + '_ {
         move |input| {
             if self.side == Side::Response {
-                alt((complete_tag("\r\n"), complete_tag("\n"), complete_tag("\r")))(input)
+                alt((
+                    complete_tag("\r\n"),
+                    complete_tag("\n\r"),
+                    complete_tag("\n"),
+                    complete_tag("\r"),
+                ))(input)
             } else {
                 alt((complete_tag("\r\n"), complete_tag("\n")))(input)
             }
@@ -81,7 +90,7 @@ impl Parser {
     }
 
     /// Parse one complete deformed end of line character set
-    fn complete_eol_deformed(&self) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> + '_ {
+    fn complete_eol_deformed(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], u64)> + '_ {
         move |input| {
             if self.side == Side::Response {
                 alt((
@@ -90,20 +99,24 @@ impl Parser {
                             complete_tag("\n\r\r\n"),
                             peek(alt((complete_tag("\n"), complete_tag("\r\n")))),
                         )),
-                        |(eol, _)| eol,
+                        |(eol, _)| (eol, Flags::DEFORMED_EOL),
                     ),
+                    // Treat EOL + empty folding + EOL as just EOL
+                    self.folding_empty(),
                     map(
                         tuple((
                             complete_tag("\r\n\r"),
-                            take_while1(|c| c == b'\r' || c == b' '),
+                            take_while1(|c| c == b'\r' || c == b' ' || c == b'\t'),
                             opt(complete_tag("\n")),
                             not(alt((complete_tag("\n"), complete_tag("\r\n")))),
                         )),
                         |(eol1, eol2, eol3, _): (&[u8], &[u8], Option<&[u8]>, _)| {
-                            &input[..(eol1.len() + eol2.len() + eol3.unwrap_or(b"").len())]
+                            (
+                                &input[..(eol1.len() + eol2.len() + eol3.unwrap_or(b"").len())],
+                                Flags::DEFORMED_EOL,
+                            )
                         },
                     ),
-                    complete_tag("\n\r"),
                 ))(input)
             } else {
                 map(
@@ -114,7 +127,7 @@ impl Parser {
                         )),
                         tuple((complete_tag("\n\r"), peek(complete_tag("\r\n")))),
                     )),
-                    |(eol, _)| eol,
+                    |(eol, _)| (eol, Flags::DEFORMED_EOL),
                 )(input)
             }
         }
@@ -124,9 +137,7 @@ impl Parser {
     fn complete_eol(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], u64)> + '_ {
         move |input| {
             alt((
-                map(self.complete_eol_deformed(), |eol| {
-                    (eol, Flags::DEFORMED_EOL)
-                }),
+                self.complete_eol_deformed(),
                 map(self.complete_eol_regular(), |eol| (eol, 0)),
             ))(input)
         }
@@ -152,44 +163,73 @@ impl Parser {
         move |input| alt((null, self.complete_eol()))(input)
     }
 
+    /// Parse empty header folding as a single EOL (eol + whitespace + eol = eol)
+    fn folding_empty(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], u64)> + '_ {
+        move |input| {
+            map(
+                tuple((
+                    self.complete_eol_regular(),
+                    complete_space1,
+                    self.complete_eol_regular(),
+                )),
+                |(eol1, spaces, eol2): (&[u8], &[u8], &[u8])| {
+                    (
+                        &input[..eol1.len() + spaces.len() + eol2.len()],
+                        Flags::FOLDING_EMPTY,
+                    )
+                },
+            )(input)
+        }
+    }
     /// Parse header folding bytes (eol + whitespace or eol + special cases)
     fn folding(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], &[u8], u64)> + '_ {
         move |input| {
-            map(
-                tuple((self.complete_eol(), folding_lws)),
-                |((eol, flags), (folding_lws, other_flags))| {
-                    (eol, folding_lws, flags | other_flags)
-                },
-            )(input)
+            if self.side == Side::Response {
+                map(
+                    tuple((
+                        not(self.folding_empty()),
+                        map(self.complete_eol_regular(), |eol| (eol, 0)),
+                        folding_lws,
+                    )),
+                    |(_, (eol, flags), (folding_lws, other_flags))| {
+                        (eol, folding_lws, flags | other_flags)
+                    },
+                )(input)
+            } else {
+                map(
+                    tuple((self.complete_eol(), folding_lws)),
+                    |((eol, flags), (folding_lws, other_flags))| {
+                        (eol, folding_lws, flags | other_flags)
+                    },
+                )(input)
+            }
         }
     }
 
     /// Special case check for end of headers with space or tab seperating the EOLs
     fn terminator_special_case(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], u64)> + '_ {
         move |input| {
-            if let Ok((remaining, ((eol1, flags1), space, (eol2, flags2), _))) =
-                tuple((
-                    self.complete_eol(),
-                    alt((tag(" "), tag("\t"))),
-                    self.complete_eol(),
-                    peek(self.complete_eol()),
-                ))(input)
+            //Treat the empty folding as a single EOL when it is followed by another eol.
+            if let Ok((remaining, ((eol, flags), _))) =
+                tuple((self.folding_empty(), peek(self.complete_eol_regular())))(input)
             {
-                Ok((
-                    remaining,
-                    (
-                        &input[..eol1.len() + space.len() + eol2.len()],
-                        flags1 | flags2 | Flags::TERMINATOR_SPECIAL_CASE,
-                    ),
-                ))
+                Ok((remaining, (eol, Flags::TERMINATOR_SPECIAL_CASE | flags)))
             } else {
                 map(
                     tuple((
-                        self.complete_eol(),
-                        alt((tag(" "), tag("\t"))),
-                        peek(self.complete_eol()),
+                        self.complete_eol_regular(),
+                        space1,
+                        peek(tuple((
+                            self.complete_eol_regular(),
+                            not(tuple((token_chars, separator_regular))),
+                        ))),
                     )),
-                    |((end, flags), _, _)| (end, flags | Flags::TERMINATOR_SPECIAL_CASE),
+                    |(eol, space, _)| {
+                        (
+                            &input[..eol.len() + space.len()],
+                            Flags::TERMINATOR_SPECIAL_CASE,
+                        )
+                    },
                 )(input)
             }
         }
@@ -200,13 +240,22 @@ impl Parser {
         &self,
     ) -> impl Fn(&[u8]) -> IResult<&[u8], ((&[u8], u64), Option<&[u8]>)> + '_ {
         move |input| {
-            alt((
-                map(self.terminator_special_case(), |result| (result, None)),
-                map(self.folding(), |(end, fold, flags)| {
-                    ((end, flags), Some(fold))
-                }),
-                map(self.null_or_eol(), |end| (end, None)),
-            ))(input)
+            if self.side == Side::Response {
+                alt((
+                    map(self.terminator_special_case(), |result| (result, None)),
+                    map(self.folding(), |(end, fold, flags)| {
+                        ((end, flags), Some(fold))
+                    }),
+                    map(self.null_or_eol(), |end| (end, None)),
+                ))(input)
+            } else {
+                alt((
+                    map(self.folding(), |(end, fold, flags)| {
+                        ((end, flags), Some(fold))
+                    }),
+                    map(self.null_or_eol(), |end| (end, None)),
+                ))(input)
+            }
         }
     }
 
@@ -257,8 +306,7 @@ impl Parser {
                 loop {
                     if self.side == Side::Response {
                         // Peek ahead for ambiguous name with lws vs. value with folding
-                        let result = tuple((self.token_name(), separator_regular))(i);
-                        match result {
+                        match tuple((token_chars, separator_regular))(i) {
                             Ok(_) => {
                                 flags.unset(Flags::FOLDING_SPECIAL_CASE);
                                 if value.is_empty() {
@@ -366,52 +414,34 @@ impl Parser {
     /// Handles accepted deformed separators
     fn separator_deformed(&self) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> + '_ {
         move |input| {
-            alt((
-                map(
-                    tuple((
-                        self.complete_eol(),
-                        alt((tag(" "), tag("\t"))),
-                        self.complete_eol(),
-                        space0,
-                        tag(":"),
-                        space0,
-                        self.complete_eol(),
-                        space0,
-                    )),
-                    |(_, _, _, _, tagged, _, _, _)| tagged,
-                ),
-                map(
-                    tuple((
-                        alt((
-                            map(self.complete_eol(), |(eol, _)| eol),
-                            alt((
-                                complete_tag("\x0a"),
-                                complete_tag("\x0b"),
-                                complete_tag("\x0c"),
+            map(
+                tuple((
+                    not(tuple((self.complete_eol(), self.complete_eol()))),
+                    alt((
+                        map(
+                            tuple((
+                                take_while1(is_special_whitespace),
+                                complete_tag(":"),
+                                space0,
+                                not(tuple((self.complete_eol(), self.complete_eol()))),
+                                take_while(is_special_whitespace),
                             )),
-                        )),
-                        space0,
-                        tag(":"),
-                        space0,
+                            |(_, tagged, _, _, _)| tagged,
+                        ),
+                        map(
+                            tuple((
+                                take_while(is_special_whitespace),
+                                complete_tag(":"),
+                                space0,
+                                not(tuple((self.complete_eol(), self.complete_eol()))),
+                                take_while1(is_special_whitespace),
+                            )),
+                            |(_, tagged, _, _, _)| tagged,
+                        ),
                     )),
-                    |(_, _, tagged, _)| tagged,
-                ),
-                map(
-                    tuple((
-                        complete_tag(":"),
-                        space0,
-                        self.complete_eol(),
-                        space0,
-                        not(self.complete_eol()),
-                    )),
-                    |(tagged, _, _, _, _)| tagged,
-                ),
-                map(
-                    tuple((complete_tag("\r"), space0, complete_tag(":"), space0)),
-                    |(_, _, tagged, _)| tagged,
-                ),
-                complete_tag("\r\n\r \r"),
-            ))(input)
+                )),
+                |(_, sep)| sep,
+            )(input)
         }
     }
 
@@ -434,8 +464,8 @@ impl Parser {
         move |input| {
             // The name should consist only of token characters (i.e., no spaces, seperators, control characters, etc)
             map(
-                tuple((space0, take_while(is_token), space0, peek(self.separator()))),
-                |(leading_spaces, name, trailing_spaces, _): (&[u8], &[u8], &[u8], _)| {
+                tuple((token_chars, peek(self.separator()))),
+                |((leading_spaces, name, trailing_spaces), _): ((&[u8], &[u8], &[u8]), _)| {
                     let mut flags = 0;
                     if !name.is_empty() {
                         if !leading_spaces.is_empty() {
@@ -565,6 +595,16 @@ fn folding_lws(input: &[u8]) -> IResult<&[u8], (&[u8], u64)> {
 /// Parse a regular separator (colon followed by optional spaces) between header name and value
 fn separator_regular(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     tuple((complete_tag(":"), space0))(input)
+}
+
+/// Parse token characters with leading and trailing whitespace
+fn token_chars(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8], &[u8])> {
+    tuple((space0, take_while(is_token), space0))(input)
+}
+
+/// Check if the input is a space, HT, VT, CR, LF, or FF
+fn is_special_whitespace(c: u8) -> bool {
+    c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b'\x0b' || c == b'\x0c'
 }
 
 #[cfg(test)]
@@ -844,12 +884,7 @@ mod test {
                     common.as_slice(),
                     vec![
                         header!(b"k\r5", Flags::NAME_NON_TOKEN_CHARS, b"v", 0),
-                        header!(
-                            b"",
-                            Flags::MISSING_COLON | Flags::DEFORMED_EOL,
-                            b"5",
-                            Flags::MISSING_COLON | Flags::DEFORMED_EOL
-                        ),
+                        header!(b"", Flags::MISSING_COLON, b"5", Flags::MISSING_COLON),
                         header!(b"", Flags::MISSING_COLON, b"more", Flags::MISSING_COLON),
                     ]
                     .as_slice(),
@@ -891,14 +926,19 @@ mod test {
             input,
             res_parser
         );
-        let common = vec![
-            header!(b"Name1", 0, b"Value1", 0),
-            header!(b"Name2", 0, b"Value2", 0),
-            header!(b"Name3", 0, b"Val ue3", Flags::FOLDING),
-            header!(b"Name4", 0, b"Value4 Value4.1 Value4.2", Flags::FOLDING),
-        ];
 
-        let result = Ok((b!(""), (common.clone(), true)));
+        let result = Ok((
+            b!(""),
+            (
+                vec![
+                    header!(b"Name1", 0, b"Value1", 0),
+                    header!(b"Name2", 0, b"Value2", 0),
+                    header!(b"Name3", 0, b"Val ue3", Flags::FOLDING),
+                    header!(b"Name4", 0, b"Value4 Value4.1 Value4.2", Flags::FOLDING),
+                ],
+                true,
+            ),
+        ));
         // Test only \n terminators (should be same result as above)
         let i = b"Name1: Value1\n\
                   Name2:Value2\n\
@@ -939,16 +979,7 @@ mod test {
                   \n";
         assert_headers_result_eq!(result, i, res_parser);
 
-        // Test a mix of \r\n, \n\r, \n terminators (should be same result as above
-        // EXCEPT only ONE deformed warning)
-        let mut one_deformed = common.clone();
-        one_deformed
-            .get_mut(2)
-            .unwrap()
-            .value
-            .flags
-            .set(Flags::DEFORMED_EOL);
-        let result = Ok((b!(""), (one_deformed, true)));
+        // Test a mix of \r\n, \n\r, \n terminators
         let i = b"Name1: Value1\r\n\
                   Name2:Value2\n\
                   Name3: Val\n\r ue3\n\r\
@@ -956,13 +987,7 @@ mod test {
                   \n";
         assert_headers_result_eq!(result, i, res_parser);
 
-        // Test only \n\r terminators (should be same result as above EXCEPT for
-        // ALL deformed warning)
-        let mut deformed = common;
-        for header in deformed.iter_mut() {
-            header.value.flags.set(Flags::DEFORMED_EOL)
-        }
-        let result = Ok((b!(""), (deformed, true)));
+        // Test only \n\r terminators
         let i = b"Name1: Value1\n\r\
                   Name2:Value2\n\r\
                   Name3: Val\n\r ue3\n\r\
@@ -1231,12 +1256,7 @@ mod test {
         assert_header_result_eq!(
             Ok((
                 b!("\r\n"),
-                header!(
-                    b"K",
-                    0,
-                    b"deformed folded V",
-                    Flags::FOLDING | Flags::DEFORMED_EOL
-                ),
+                header!(b"K", 0, b"deformed folded V", Flags::FOLDING),
             )),
             input,
             res_parser
@@ -1246,12 +1266,7 @@ mod test {
         assert_header_result_eq!(
             Ok((
                 b!("\r\n"),
-                header!(
-                    b"K",
-                    0,
-                    b"deformed folded V",
-                    Flags::FOLDING_SPECIAL_CASE | Flags::DEFORMED_EOL
-                ),
+                header!(b"K", 0, b"deformed folded V", Flags::FOLDING_SPECIAL_CASE),
             )),
             input,
             res_parser
@@ -1445,18 +1460,12 @@ mod test {
     fn Separator() {
         let req_parser = Parser::new(Side::Request);
         let res_parser = Parser::new(Side::Response);
-        assert_separator_result_eq!(
-            Err(Error((b" : ".as_ref(), Tag))),
-            b" : ",
-            req_parser,
-            res_parser
-        );
-        assert_separator_result_eq!(
-            Err(Error((b" ".as_ref(), Tag))),
-            b" ",
-            req_parser,
-            res_parser
-        );
+        let input = b" : ";
+        assert_separator_result_eq!(Err(Error((input.as_ref(), Tag))), input, req_parser);
+        assert_separator_result_eq!(Err(Incomplete(Needed::Size(1))), input, res_parser);
+        let input = b" ";
+        assert_separator_result_eq!(Err(Error((input.as_ref(), Tag))), input, req_parser);
+        assert_separator_result_eq!(Err(Incomplete(Needed::Size(1))), input, res_parser);
         assert_separator_result_eq!(Ok((b!("value"), 0)), b":value", req_parser, res_parser);
         assert_separator_result_eq!(Ok((b!("value"), 0)), b": value", req_parser, res_parser);
         assert_separator_result_eq!(Ok((b!("value"), 0)), b":\t value", req_parser, res_parser);
@@ -1474,6 +1483,23 @@ mod test {
             Ok((b!("value"), Flags::DEFORMED_SEPARATOR)),
             b"\r: value",
             res_parser
+        );
+    }
+
+    #[test]
+    fn TokenChars() {
+        assert_eq!(Err(Incomplete(Needed::Size(1))), token_chars(b"name"));
+        assert_eq!(
+            Ok((b!(":"), (b!(""), b!("name"), b!("")))),
+            token_chars(b"name:")
+        );
+        assert_eq!(
+            Ok((b!(":"), (b!(""), b!("name"), b!(" ")))),
+            token_chars(b"name :")
+        );
+        assert_eq!(
+            Ok((b!(":"), (b!(" "), b!("name"), b!(" ")))),
+            token_chars(b" name :")
         );
     }
 
@@ -1895,37 +1921,28 @@ mod test {
 
         let input = b"\n\ra";
         assert_eol_result_eq!(Err(Error((b!("\ra"), Not))), input, req_parser);
-        assert_eol_result_eq!(
-            Ok((b!("a"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            input,
-            res_parser
-        );
+        assert_eol_result_eq!(Ok((b!("a"), (b!("\n\r"), 0))), input, res_parser);
         let input = b"\n\r\n";
         assert_eol_result_eq!(Ok((b!("\r\n"), (b!("\n"), 0))), input, req_parser);
-        assert_eol_result_eq!(
-            Ok((b!("\n"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            input,
-            res_parser
-        );
+        assert_eol_result_eq!(Ok((b!("\n"), (b!("\n\r"), 0))), input, res_parser);
         let input = b"\n\r\n\r";
         assert_eol_result_eq!(Ok((b!("\r\n\r"), (b!("\n"), 0))), input, req_parser);
-        assert_eol_result_eq!(
-            Ok((b!("\n\r"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            input,
-            res_parser
-        );
+        assert_eol_result_eq!(Ok((b!("\n\r"), (b!("\n\r"), 0))), input, res_parser);
         assert_eol_result_eq!(
             Ok((b!("a"), (b!("\n"), 0))),
             (b"\na"),
             req_parser,
             res_parser
         );
+
+        let input = b"\n\r\r\na";
         assert_eol_result_eq!(
             Ok((b!("\r\na"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            b"\n\r\r\na",
-            req_parser,
-            res_parser
+            input,
+            req_parser
         );
+        assert_eol_result_eq!(Ok((b!("\r\na"), (b!("\n\r"), 0))), input, res_parser);
+
         assert_eol_result_eq!(
             Ok((b!("\r\na"), (b!("\r\n"), 0))),
             b"\r\n\r\na",
@@ -1946,12 +1963,15 @@ mod test {
             res_parser
         );
         assert_complete_eol_result_eq!(Ok((b!(""), (b!("\n"), 0))), b"\n", req_parser, res_parser);
+
+        let input = b"\n\r\r\n";
         assert_complete_eol_result_eq!(
             Ok((b!("\r\n"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            b"\n\r\r\n",
-            req_parser,
-            res_parser
+            input,
+            req_parser
         );
+        assert_complete_eol_result_eq!(Ok((b!("\r\n"), (b!("\n\r"), 0))), input, res_parser);
+
         assert_complete_eol_result_eq!(
             Ok((b!("\r\n"), (b!("\r\n"), 0))),
             b"\r\n\r\n",
@@ -2008,12 +2028,13 @@ mod test {
             res_parser
         );
         assert_null_or_eol_result_eq!(Ok((b!("a"), (b!("\n"), 0))), b"\na", req_parser, res_parser);
+        let input = b"\n\r\r\na";
         assert_null_or_eol_result_eq!(
             Ok((b!("\r\na"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            b"\n\r\r\na",
-            req_parser,
-            res_parser
+            input,
+            req_parser
         );
+        assert_null_or_eol_result_eq!(Ok((b!("\r\na"), (b!("\n\r"), 0))), input, res_parser);
         assert_null_or_eol_result_eq!(
             Ok((b!("\r\n"), (b!("\r\n"), 0))),
             b"\r\n\r\n",
@@ -2022,18 +2043,10 @@ mod test {
         );
         let input = b"\n\r\n";
         assert_null_or_eol_result_eq!(Ok((b!("\r\n"), (b!("\n"), 0))), input, req_parser);
-        assert_null_or_eol_result_eq!(
-            Ok((b!("\n"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            input,
-            res_parser
-        );
+        assert_null_or_eol_result_eq!(Ok((b!("\n"), (b!("\n\r"), 0))), input, res_parser);
         let input = b"\n\r\n\r";
         assert_null_or_eol_result_eq!(Ok((b!("\r\n\r"), (b!("\n"), 0))), input, req_parser);
-        assert_null_or_eol_result_eq!(
-            Ok((b!("\n\r"), (b!("\n\r"), Flags::DEFORMED_EOL))),
-            input,
-            res_parser
-        );
+        assert_null_or_eol_result_eq!(Ok((b!("\n\r"), (b!("\n\r"), 0))), input, res_parser);
     }
 
     #[test]
@@ -2189,50 +2202,40 @@ mod test {
             req_parser,
             res_parser
         );
+
+        let input = b"\r\n\t\t\r\n";
         assert_folding_result_eq!(
             Ok((b!("\r\n"), (b!("\r\n"), b!("\t\t"), Flags::FOLDING))),
-            b"\r\n\t\t\r\n",
-            req_parser,
-            res_parser
+            input,
+            req_parser
         );
+        assert_folding_result_eq!(Err(Error((input.as_ref(), Not))), input, res_parser);
+
+        let input = b"\r\n\t \t\r";
         assert_folding_result_eq!(
             Ok((b!("\r"), (b!("\r\n"), b!("\t \t"), Flags::FOLDING))),
-            b"\r\n\t \t\r",
-            req_parser,
-            res_parser
+            input,
+            req_parser
         );
+        assert_folding_result_eq!(Err(Error((input.as_ref(), Not))), input, res_parser);
+
         assert_folding_result_eq!(
             Ok((b!("\n"), (b!("\r\n"), b!("     "), Flags::FOLDING))),
             b"\r\n     \n",
-            req_parser,
-            res_parser
-        );
-
-        let input = b"\n\r     \n";
-        assert_folding_result_eq!(
-            Ok((
-                b!("\n"),
-                (b!("\n"), b!("\r     "), Flags::FOLDING_SPECIAL_CASE)
-            )),
-            input,
             req_parser
         );
         assert_folding_result_eq!(
             Ok((
                 b!("\n"),
-                (
-                    b!("\n\r"),
-                    b!("     "),
-                    Flags::FOLDING | Flags::DEFORMED_EOL
-                )
+                (b!("\n"), b!("\r     "), Flags::FOLDING_SPECIAL_CASE)
             )),
-            input,
-            res_parser
+            b"\n\r     \n",
+            req_parser
         );
 
-        let input = b"\r     \n";
+        let input = b"\r    hello \n";
         assert_folding_result_eq!(
-            Ok((b!("\n"), (b!("\r"), b!("     "), Flags::FOLDING))),
+            Ok((b!("hello \n"), (b!("\r"), b!("    "), Flags::FOLDING))),
             input,
             res_parser
         );
@@ -2324,10 +2327,15 @@ mod test {
             req_parser,
             res_parser
         );
+        let input = b"\n\r\r\na";
         assert_folding_or_terminator_result_eq!(
             Ok((b!("\r\na"), ((b!("\n\r"), Flags::DEFORMED_EOL), None))),
-            b"\n\r\r\na",
-            req_parser,
+            input,
+            req_parser
+        );
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("\r\na"), ((b!("\n\r"), 0), None))),
+            input,
             res_parser
         );
         assert_folding_or_terminator_result_eq!(
@@ -2348,33 +2356,90 @@ mod test {
             input,
             req_parser
         );
-        let input = b"\n\r     \n";
+        let input = b"\n\r \na:b";
         assert_folding_or_terminator_result_eq!(
             Ok((
-                b!("\n"),
-                ((b!("\n"), Flags::FOLDING_SPECIAL_CASE), Some(b!("\r     ")))
+                b!("\na:b"),
+                ((b!("\n"), Flags::FOLDING_SPECIAL_CASE), Some(b!("\r ")))
             )),
             input,
             req_parser
         );
         assert_folding_or_terminator_result_eq!(
+            Ok((b!("a:b"), ((b!("\n\r \n"), Flags::FOLDING_EMPTY), None))),
+            input,
+            res_parser
+        );
+
+        let input = b"\n\r \na:b";
+        assert_folding_or_terminator_result_eq!(
             Ok((
-                b!("\n"),
-                (
-                    (b!("\n\r"), Flags::FOLDING | Flags::DEFORMED_EOL),
-                    Some(b!("     "))
-                )
+                b!("\na:b"),
+                ((b!("\n"), Flags::FOLDING_SPECIAL_CASE), Some(b!("\r ")))
+            )),
+            input,
+            req_parser
+        );
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("a:b"), ((b!("\n\r \n"), Flags::FOLDING_EMPTY), None))),
+            input,
+            res_parser
+        );
+
+        let input = b"\n \na:b";
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("\na:b"), ((b!("\n"), Flags::FOLDING), Some(b!(" "))))),
+            input,
+            req_parser
+        );
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("a:b"), ((b!("\n \n"), Flags::FOLDING_EMPTY), None))),
+            input,
+            res_parser
+        );
+
+        let input = b"\r\n \na:b";
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("\na:b"), ((b!("\r\n"), Flags::FOLDING), Some(b!(" "))))),
+            input,
+            req_parser
+        );
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("a:b"), ((b!("\r\n \n"), Flags::FOLDING_EMPTY), None))),
+            input,
+            res_parser
+        );
+
+        let input = b"\r\n \r\na:b";
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("\r\na:b"), ((b!("\r\n"), Flags::FOLDING), Some(b!(" "))))),
+            input,
+            req_parser
+        );
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("a:b"), ((b!("\r\n \r\n"), Flags::FOLDING_EMPTY), None))),
+            input,
+            res_parser
+        );
+
+        let input = b"\n \r\na\n";
+        assert_folding_or_terminator_result_eq!(
+            Ok((b!("\r\na\n"), ((b!("\n"), Flags::FOLDING), Some(b!(" "))))),
+            input,
+            req_parser
+        );
+        assert_folding_or_terminator_result_eq!(
+            Ok((
+                b!("\r\na\n"),
+                ((b!("\n "), Flags::TERMINATOR_SPECIAL_CASE), None)
             )),
             input,
             res_parser
         );
 
-        let input = b"\n\r \n";
+        let input = b"\n \r\n\n";
         assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                ((b!("\n"), Flags::FOLDING_SPECIAL_CASE), Some(b!("\r ")))
-            )),
+            Ok((b!("\r\n\n"), ((b!("\n"), Flags::FOLDING), Some(b!(" "))))),
             input,
             req_parser
         );
@@ -2383,108 +2448,8 @@ mod test {
                 b!("\n"),
                 (
                     (
-                        b!("\n\r"),
-                        Flags::TERMINATOR_SPECIAL_CASE | Flags::DEFORMED_EOL
-                    ),
-                    None
-                )
-            )),
-            input,
-            res_parser
-        );
-
-        assert_folding_or_terminator_result_eq!(
-            Ok((b!("\n"), ((b!("\n"), Flags::TERMINATOR_SPECIAL_CASE), None))),
-            b"\n \n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                ((b!("\r\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\r\n \n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\r\n"),
-                ((b!("\r\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\r\n \r\n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\r\n"),
-                ((b!("\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\n \r\n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((b!("\n"), ((b!("\n"), Flags::TERMINATOR_SPECIAL_CASE), None))),
-            b"\n\t\n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                ((b!("\n \r\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\n \r\n\n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                ((b!("\n\t\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\n\t\n\n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                ((b!("\r\n \r\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\r\n \r\n\n",
-            req_parser,
-            res_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                ((b!("\n\t\r\n"), Flags::TERMINATOR_SPECIAL_CASE), None)
-            )),
-            b"\n\t\r\n\n",
-            req_parser,
-            res_parser
-        );
-
-        let input = b"\n\r \n\n";
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n\n"),
-                ((b!("\n"), Flags::FOLDING_SPECIAL_CASE), Some(b!("\r ")))
-            )),
-            input,
-            req_parser
-        );
-        assert_folding_or_terminator_result_eq!(
-            Ok((
-                b!("\n"),
-                (
-                    (
-                        b!("\n\r \n"),
-                        Flags::TERMINATOR_SPECIAL_CASE | Flags::DEFORMED_EOL
+                        b!("\n \r\n"),
+                        Flags::FOLDING_EMPTY | Flags::TERMINATOR_SPECIAL_CASE
                     ),
                     None
                 )
@@ -2637,10 +2602,7 @@ mod test {
             req_parser
         );
         assert_value_bytes_result_eq!(
-            Ok((
-                b!("more"),
-                (b!("value"), ((b!("\n\r"), Flags::DEFORMED_EOL), None))
-            )),
+            Ok((b!("more"), (b!("value"), ((b!("\n\r"), 0), None)))),
             input,
             res_parser
         );
@@ -2797,7 +2759,7 @@ mod test {
                 b!("\r\n"),
                 Value {
                     value: b"value more and more".to_vec(),
-                    flags: Flags::FOLDING | Flags::DEFORMED_EOL
+                    flags: Flags::FOLDING
                 }
             )),
             input,
@@ -2810,7 +2772,7 @@ mod test {
                 b!("\r\n"),
                 Value {
                     value: b"value more and more".to_vec(),
-                    flags: Flags::DEFORMED_EOL | Flags::FOLDING
+                    flags: Flags::FOLDING
                 }
             )),
             input,
@@ -2858,7 +2820,7 @@ mod test {
                 b!("next:"),
                 Value {
                     value: b"value more and more".to_vec(),
-                    flags: Flags::DEFORMED_EOL | Flags::FOLDING
+                    flags: Flags::FOLDING
                 }
             )),
             input,
@@ -2882,7 +2844,7 @@ mod test {
                 b!("next: value2\r\n  and\r\n more\r\nnext3:"),
                 Value {
                     value: b"value1".to_vec(),
-                    flags: Flags::DEFORMED_EOL
+                    flags: 0
                 }
             )),
             input,

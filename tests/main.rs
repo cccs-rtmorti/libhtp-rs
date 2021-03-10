@@ -2679,6 +2679,57 @@ fn HttpEvader044() {
 }
 
 #[test]
+fn HttpEvader059() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run("http-evader-059.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert_evader_request!(tx, "/chunked/eicar.txt/chunkednl-");
+    assert_evader_response!(tx);
+    assert_evader_chunked!(tx, "chunked");
+}
+
+#[test]
+fn HttpEvader060() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run("http-evader-060.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert_evader_request!(tx, "/chunked/eicar.txt/nl-nl-chunked");
+    assert_evader_response!(tx);
+    assert_evader_chunked!(tx, "chunked");
+}
+
+#[test]
+fn HttpEvader061() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run("http-evader-061.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert_evader_request!(tx, "/chunked/eicar.txt/nl-nl-chunked-nl-");
+    assert_evader_response!(tx);
+    assert_evader_chunked!(tx, "chunked");
+}
+#[test]
+fn HttpEvader078() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run("http-evader-078.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert_evader_request!(tx, "/chunked/eicar.txt/chunkedcr-,do_clen");
+    assert_evader_response!(tx);
+    assert_response_header_eq!(tx, "transfer-encoding", "chunked");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(68, tx.response_message_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(1, user_data.res_data.len());
+    let chunk = &user_data.res_data[0];
+    assert_eq!(
+        b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
+        chunk.as_slice()
+    );
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+}
+
+#[test]
 fn HttpEvader274() {
     let mut t = Test::new_with_callbacks();
     assert!(t.run("http-evader-274.t").is_ok());
