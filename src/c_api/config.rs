@@ -222,6 +222,16 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
         .map(|cfg| cfg.compression_options.set_bomb_limit(bomblimit));
 }
 
+/// Configures the maximum compression time LibHTP will allow.
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_compression_time_limit(
+    cfg: *mut Config,
+    timelimit: libc::c_uint,
+) {
+    cfg.as_mut()
+        .map(|cfg| cfg.compression_options.set_time_limit(timelimit));
+}
+
 /// Configures whether input data will be converted to lowercase. Useful for handling servers with
 /// case-insensitive filesystems.
 #[no_mangle]
