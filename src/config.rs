@@ -111,6 +111,9 @@ pub struct Config {
     pub hook_log: LogHook,
     /// Reaction to leading whitespace on the request line
     pub requestline_leading_whitespace_unwanted: HtpUnwanted,
+    /// Whether to decompress decompress request data.
+    /// TODO: actually implement request decompression
+    pub request_decompression: bool,
     /// Configuration options for decompression.
     pub compression_options: Options,
     /// Multipart configurations for file extraction.
@@ -152,6 +155,7 @@ impl Default for Config {
             hook_transaction_complete: TxHook::default(),
             hook_log: LogHook::default(),
             requestline_leading_whitespace_unwanted: HtpUnwanted::IGNORE,
+            request_decompression: false,
             compression_options: Options::default(),
             multipart_cfg: Default::default(),
         }
@@ -635,6 +639,11 @@ impl Config {
     /// Configures how the server reacts to leading whitespace on the request line.
     pub fn set_requestline_leading_whitespace_unwanted(&mut self, unwanted: HtpUnwanted) {
         self.requestline_leading_whitespace_unwanted = unwanted;
+    }
+
+    /// Configures whether request data is decompressed.
+    pub fn set_request_decompression(&mut self, set: bool) {
+        self.request_decompression = set;
     }
 
     /// Configures many layers of compression we try to decompress.

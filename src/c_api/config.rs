@@ -326,6 +326,16 @@ pub unsafe extern "C" fn htp_config_set_path_separators_decode(
         .map(|cfg| cfg.set_path_separators_decode(enabled == 1));
 }
 
+/// Configures whether request data is decompressed
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_request_decompression(
+    cfg: *mut Config,
+    enabled: libc::c_int,
+) {
+    cfg.as_mut()
+        .map(|cfg| cfg.set_request_decompression(enabled == 1));
+}
+
 /// Configures many layers of compression we try to decompress.
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_response_decompression_layer_limit(
