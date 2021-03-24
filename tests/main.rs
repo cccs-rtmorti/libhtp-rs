@@ -2769,6 +2769,27 @@ fn HttpEvader130() {
 }
 
 #[test]
+fn HttpEvader195() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run("http-evader-195.t").is_ok());
+    let tx = t.connp.tx(0).unwrap();
+    assert_evader_request!(
+        tx,
+        "/compressed/eicar.txt/ce%3Agzip;gzip;replace%3A3,1%7C02;replace%3A10,0=0000"
+    );
+    assert_response_header_eq!(tx, "Content-Encoding", "gzip");
+    assert_eq!(68, tx.response_entity_len);
+    assert_eq!(90, tx.response_message_len);
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    assert!(user_data.req_data.is_empty());
+    assert_eq!(1, user_data.res_data.len());
+    assert_eq!(
+        (&user_data.res_data[0]).as_slice(),
+        b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref()
+    );
+}
+
+#[test]
 fn HttpEvader274() {
     let mut t = Test::new_with_callbacks();
     assert!(t.run("http-evader-274.t").is_ok());
