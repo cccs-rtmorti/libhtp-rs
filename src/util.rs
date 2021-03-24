@@ -148,6 +148,12 @@ impl HtpFlags {
     pub const REQUEST_INVALID_C_L: u64 = 0x0002_0000_0000;
     /// Authorization is invalid.
     pub const AUTH_INVALID: u64 = 0x0004_0000_0000;
+    /// Missing bytes in request and/or response data.
+    pub const MISSING_BYTES: u64 = 0x0008_0000_0000;
+    /// Missing bytes in request data.
+    pub const REQUEST_MISSING_BYTES: u64 = (0x0010_0000_0000 | Self::MISSING_BYTES);
+    /// Missing bytes in the response data.
+    pub const RESPONSE_MISSING_BYTES: u64 = (0x0020_0000_0000 | Self::MISSING_BYTES);
 }
 
 /// Enumerates file sources.

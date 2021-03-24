@@ -79,6 +79,120 @@ pub enum HtpStreamState {
     DATA,
 }
 
+#[derive(Debug, Clone)]
+/// This structure is used to pass data (for example
+/// request and response body buffers or gaps) to parsers.
+pub struct Data<'a> {
+    /// Ref to the data buffer.
+    data: Option<&'a [u8]>,
+    // Length of data gap. Only set if is a gap.
+    gap_len: Option<usize>,
+    // Current position offset of the data to parse
+    position: usize,
+}
+
+impl<'a> Data<'a> {
+    /// Returns a pointer to the raw data associated with Data.
+    pub fn data_ptr(&self) -> *const u8 {
+        self.data()
+            .as_ref()
+            .map(|data| data.as_ptr())
+            .unwrap_or(std::ptr::null())
+    }
+
+    /// Returns the data
+    pub fn data(&self) -> Option<&[u8]> {
+        if let Some(data) = self.data {
+            Some(&data[self.position..])
+        } else {
+            None
+        }
+    }
+
+    /// Returns the length of the data.
+    pub fn len(&self) -> usize {
+        self.gap_len.unwrap_or(self.as_slice().len())
+    }
+
+    /// Return an immutable slice view of the data.
+    pub fn as_slice(&self) -> &[u8] {
+        if let Some(data) = self.data {
+            &data[self.position..]
+        } else {
+            b""
+        }
+    }
+
+    /// Determines if this chunk is a gap or not
+    pub fn is_gap(&self) -> bool {
+        self.gap_len.is_some()
+    }
+
+    /// Determine whether this data is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Set the position offset into the data for parsing
+    pub fn set_position(&mut self, position: usize) {
+        self.position = position;
+    }
+}
+
+impl<'a> Default for Data<'a> {
+    fn default() -> Self {
+        Data {
+            data: None,
+            gap_len: None,
+            position: 0,
+        }
+    }
+}
+
+impl<'a> From<Option<&'a [u8]>> for Data<'a> {
+    fn from(data: Option<&'a [u8]>) -> Self {
+        Data {
+            data,
+            gap_len: None,
+            position: 0,
+        }
+    }
+}
+
+impl<'a> From<&'a [u8]> for Data<'a> {
+    fn from(data: &'a [u8]) -> Self {
+        Data {
+            data: Some(data),
+            gap_len: None,
+            position: 0,
+        }
+    }
+}
+
+impl<'a> From<usize> for Data<'a> {
+    fn from(gap_len: usize) -> Self {
+        Data {
+            data: None,
+            gap_len: Some(gap_len),
+            position: 0,
+        }
+    }
+}
+
+impl<'a> From<(*mut u8, usize)> for Data<'a> {
+    fn from((data, len): (*mut u8, usize)) -> Self {
+        if data.is_null() {
+            if len > 0 {
+                Data::from(len)
+            } else {
+                Data::from(b"".as_ref())
+            }
+        } else {
+            unsafe { Data::from(std::slice::from_raw_parts(data, len)) }
+        }
+    }
+}
+
 /// Stores information about the parsing process and associated transactions.
 pub struct ConnectionParser {
     // General fields
@@ -285,41 +399,41 @@ impl ConnectionParser {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_in_state(&mut self, data: &[u8]) -> Result<()> {
-        let data = &data[self.in_curr_data.position() as usize..];
+    pub fn handle_in_state(&mut self, data: &mut Data) -> Result<()> {
+        data.set_position(self.in_curr_data.position() as usize);
         match self.in_state {
             State::NONE => Err(HtpStatus::ERROR),
             State::IDLE => self.req_idle(),
             State::IGNORE_DATA_AFTER_HTTP_0_9 => self.req_ignore_data_after_http_0_9(),
-            State::LINE => self.req_line(&data),
-            State::PROTOCOL => self.req_protocol(&data),
-            State::HEADERS => self.req_headers(&data),
+            State::LINE => self.req_line(data.as_slice()),
+            State::PROTOCOL => self.req_protocol(data.as_slice()),
+            State::HEADERS => self.req_headers(data.as_slice()),
             State::CONNECT_WAIT_RESPONSE => self.req_connect_wait_response(),
             State::CONNECT_CHECK => self.req_connect_check(),
-            State::CONNECT_PROBE_DATA => self.req_connect_probe_data(&data),
+            State::CONNECT_PROBE_DATA => self.req_connect_probe_data(data.as_slice()),
             State::BODY_DETERMINE => self.req_body_determine(),
-            State::BODY_CHUNKED_DATA => self.req_body_chunked_data(&data),
-            State::BODY_CHUNKED_LENGTH => self.req_body_chunked_length(&data),
-            State::BODY_CHUNKED_DATA_END => self.req_body_chunked_data_end(&data),
-            State::BODY_IDENTITY => self.req_body_identity(&data),
-            State::FINALIZE => self.req_finalize(&data),
+            State::BODY_CHUNKED_DATA => self.req_body_chunked_data(data.as_slice()),
+            State::BODY_CHUNKED_LENGTH => self.req_body_chunked_length(data.as_slice()),
+            State::BODY_CHUNKED_DATA_END => self.req_body_chunked_data_end(data.as_slice()),
+            State::BODY_IDENTITY => self.req_body_identity(data),
+            State::FINALIZE => self.req_finalize(data),
             // These are only used by out_state
             _ => Err(HtpStatus::ERROR),
         }
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_out_state(&mut self, data: &[u8]) -> Result<()> {
-        let data = &data[self.out_curr_data.position() as usize..];
+    pub fn handle_out_state(&mut self, data: &mut Data) -> Result<()> {
+        data.set_position(self.out_curr_data.position() as usize);
         match self.out_state {
             State::NONE => Err(HtpStatus::ERROR),
             State::IDLE => self.res_idle(),
-            State::LINE => self.res_line(data),
-            State::HEADERS => self.res_headers(data),
+            State::LINE => self.res_line(data.as_slice()),
+            State::HEADERS => self.res_headers(data.as_slice()),
             State::BODY_DETERMINE => self.res_body_determine(),
-            State::BODY_CHUNKED_DATA => self.res_body_chunked_data(data),
-            State::BODY_CHUNKED_LENGTH => self.res_body_chunked_length(data),
-            State::BODY_CHUNKED_DATA_END => self.res_body_chunked_data_end(data),
+            State::BODY_CHUNKED_DATA => self.res_body_chunked_data(data.as_slice()),
+            State::BODY_CHUNKED_LENGTH => self.res_body_chunked_length(data.as_slice()),
+            State::BODY_CHUNKED_DATA_END => self.res_body_chunked_data_end(data.as_slice()),
             State::FINALIZE => self.res_finalize(data),
             State::BODY_IDENTITY_STREAM_CLOSE => self.res_body_identity_stream_close(data),
             State::BODY_IDENTITY_CL_KNOWN => self.res_body_identity_cl_known(data),

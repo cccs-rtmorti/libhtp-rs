@@ -2,7 +2,7 @@
 use htp::{
     bstr::*,
     config::{Config, HtpServerPersonality},
-    connection_parser::ConnectionParser,
+    connection_parser::{ConnectionParser, Data as ParserData},
     decompressors::{Decompressor, HtpContentEncoding},
     transaction::{Data, Transaction},
     HtpStatus,
@@ -46,7 +46,8 @@ impl Test {
             decompressor: Decompressor::new_with_callback(
                 HtpContentEncoding::GZIP,
                 Box::new(move |data: Option<&[u8]>| {
-                    let mut tx_data = Data::new(tx, data, false);
+                    let data = ParserData::from(data);
+                    let mut tx_data = Data::new(tx, &data, false);
                     GUnzip_decompressor_callback(&mut tx_data);
                     Ok(tx_data.len())
                 }),

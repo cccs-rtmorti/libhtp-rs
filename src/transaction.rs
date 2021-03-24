@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     config::{Config, HtpUnwanted},
-    connection_parser::{ConnectionParser, HtpStreamState, State},
+    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::Result,
     headers::{Parser as HeaderParser, Side},
@@ -66,8 +66,8 @@ impl Param {
 pub struct Data<'a> {
     /// Transaction pointer.
     tx: *mut Transaction,
-    /// Ref to the data buffer.
-    data: Option<&'a [u8]>,
+    /// Ref to the parser data.
+    data: &'a ParserData<'a>,
     /// Indicator if this chunk of data is the last in the series. Currently
     /// used only by REQUEST_HEADER_DATA, REQUEST_TRAILER_DATA, RESPONSE_HEADER_DATA,
     /// and RESPONSE_TRAILER_DATA callbacks.
@@ -76,7 +76,7 @@ pub struct Data<'a> {
 
 impl<'a> Data<'a> {
     /// Construct a new Data.
-    pub fn new(tx: *mut Transaction, data: Option<&'a [u8]>, is_last: bool) -> Self {
+    pub fn new(tx: *mut Transaction, data: &'a ParserData<'a>, is_last: bool) -> Self {
         Self { tx, data, is_last }
     }
 
@@ -87,20 +87,17 @@ impl<'a> Data<'a> {
 
     /// Returns a pointer to the raw data associated with Data.
     pub fn data(&self) -> *const u8 {
-        self.data
-            .as_ref()
-            .map(|data| data.as_ptr())
-            .unwrap_or(std::ptr::null())
+        self.data.data_ptr()
     }
 
     /// Returns the length of the data.
     pub fn len(&self) -> usize {
-        self.data.as_ref().map(|data| data.len()).unwrap_or(0)
+        self.data.len()
     }
 
     /// Return an immutable slice view of the data.
     pub fn as_slice(&self) -> Option<&[u8]> {
-        self.data
+        self.data.data()
     }
 
     /// Determines if this chunk is the last Data in a series.
@@ -108,9 +105,9 @@ impl<'a> Data<'a> {
         self.is_last
     }
 
-    /// Determine whether this data is empty or null.
+    /// Determine whether this data is empty.
     pub fn is_empty(&self) -> bool {
-        self.data().is_null() || self.len() == 0
+        self.len() == 0
     }
 }
 
@@ -201,6 +198,8 @@ impl Header {
 pub enum HtpResponseProgress {
     /// Default state.
     NOT_STARTED,
+    /// Response gap.
+    GAP,
     /// Response Line.
     LINE,
     /// Response Headers.
@@ -225,6 +224,8 @@ pub enum HtpResponseProgress {
 pub enum HtpRequestProgress {
     /// Default state.
     NOT_STARTED,
+    /// In request gap state.
+    GAP,
     /// In request line state.
     LINE,
     /// In request headers state.
@@ -889,14 +890,13 @@ impl Transaction {
     ) -> Result<()> {
         // None data is used to indicate the end of request body.
         // Keep track of the body length.
-        if let Some(data) = data {
-            self.request_entity_len =
-                (self.request_entity_len as u64).wrapping_add(data.len() as u64) as i64;
-        }
+        self.request_entity_len =
+            (self.request_entity_len as u64).wrapping_add(data.unwrap_or(b"").len() as u64) as i64;
         let _ = self.req_process_multipart_data(data);
         let _ = self.req_process_urlencoded_data(data);
         // Send data to the callbacks.
-        let mut data = Data::new(self, data, false);
+        let data = ParserData::from(data);
+        let mut data = Data::new(self, &data, false);
         connp.req_run_hook_body_data(&mut data).map_err(|e| {
             htp_error!(
                 self.logger,
@@ -950,7 +950,7 @@ impl Transaction {
         // None data is used to indicate the end of response body.
         // Keep track of body size before decompression.
         self.response_message_len = (self.response_message_len as u64)
-            .wrapping_add(data.map(|data| data.len()).unwrap_or(0) as u64)
+            .wrapping_add(data.unwrap_or(b"").len() as u64)
             as i64;
 
         match self.response_content_encoding_processing {
@@ -990,9 +990,10 @@ impl Transaction {
             HtpContentEncoding::NONE => {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
+                let data = ParserData::from(data);
                 let mut tx_data = Data {
                     tx: self,
-                    data,
+                    data: &data,
                     is_last: false,
                 };
                 self.response_entity_len =
@@ -1230,7 +1231,7 @@ impl Transaction {
         // response body.
         let mut tx_data = Data {
             tx: self,
-            data,
+            data: &ParserData::from(data),
             // is_last is not used in this callback
             is_last: false,
         };

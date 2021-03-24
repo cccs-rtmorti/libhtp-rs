@@ -192,7 +192,7 @@ pub enum Callback<E, N> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::config::Config;
+    use crate::{config::Config, connection_parser::Data as ParserData};
 
     #[test]
     fn test_callback() {
@@ -201,11 +201,15 @@ mod test {
         }
         let connp = ConnectionParser::new(Config::default());
         let mut hook = DataHook::default();
-        let mut data = Data::new(std::ptr::null_mut(), None, false);
 
         hook.register(|_| Ok(()));
         hook.register_extern(foo);
 
-        assert!(hook.run_all(&connp, &mut data).is_ok());
+        assert!(hook
+            .run_all(
+                &connp,
+                &mut Data::new(std::ptr::null_mut(), &ParserData::default(), false)
+            )
+            .is_ok());
     }
 }

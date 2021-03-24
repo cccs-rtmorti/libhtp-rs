@@ -1,15 +1,15 @@
 use crate::{
     bstr::Bstr,
     connection::Flags as ConnectionFlags,
-    connection_parser::{ConnectionParser, HtpStreamState, State},
+    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState, State},
     error::Result,
     hook::DataHook,
     parsers::parse_chunked_length,
-    transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
+    transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
     util::{
         chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
         take_is_space, take_not_is_space, take_till_eol, take_till_lf, take_till_lf_null,
-        FlagOperations,
+        FlagOperations, HtpFlags,
     },
     HtpStatus,
 };
@@ -131,16 +131,19 @@ impl HtpMethod {
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     fn req_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
-        let mut data = Data::new(
-            self.request_mut(),
-            Some(
-                &self.in_curr_data.get_ref()[self.in_current_receiver_offset as usize
-                    ..self.in_curr_data.position() as usize],
-            ),
-            is_last,
-        );
+        let tx = self.request_mut() as *mut Transaction;
         if let Some(hook) = &self.in_data_receiver_hook {
-            hook.run_all(self, &mut data)?;
+            hook.run_all(
+                self,
+                &mut Data::new(
+                    tx,
+                    &ParserData::from(
+                        &self.in_curr_data.get_ref()[self.in_current_receiver_offset as usize
+                            ..self.in_curr_data.position() as usize],
+                    ),
+                    is_last,
+                ),
+            )?;
         } else {
             return Ok(());
         };
@@ -429,18 +432,24 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    pub fn req_body_identity(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_body_identity(&mut self, data: &mut ParserData) -> Result<()> {
         // Determine how many bytes we can consume.
         let bytes_to_consume: usize = min(data.len(), self.in_body_data_left as usize);
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
-        // Consume data.
-        self.req_process_body_data_ex(&data[0..bytes_to_consume])?;
-        // Adjust counters.
-        self.in_curr_data
-            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
+        if data.is_gap() {
+            // Send the gap to the data hooks
+            let mut tx_data = Data::new(self.request_mut(), data, false);
+            self.req_run_hook_body_data(&mut tx_data)?;
+        } else {
+            // Consume the data.
+            self.req_process_body_data_ex(&data.as_slice()[0..bytes_to_consume])?;
+            self.in_curr_data
+                .seek(SeekFrom::Current(bytes_to_consume as i64))?;
+        }
+        // Adjust the counters.
         self.request_mut().request_message_len = (self.request().request_message_len as u64)
             .wrapping_add(bytes_to_consume as u64)
             as i64;
@@ -643,8 +652,11 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    pub fn req_finalize(&mut self, data: &[u8]) -> Result<()> {
-        let mut work = data;
+    pub fn req_finalize(&mut self, data: &ParserData) -> Result<()> {
+        if data.is_gap() {
+            return self.state_request_complete();
+        }
+        let mut work = data.as_slice();
         if self.in_status != HtpStreamState::CLOSED {
             let in_next_byte = self
                 .in_curr_data
@@ -654,12 +666,12 @@ impl ConnectionParser {
                 return self.state_request_complete();
             }
 
-            if let Ok((_, line)) = take_till_lf(data) {
+            if let Ok((_, line)) = take_till_lf(work) {
                 self.in_curr_data
                     .seek(SeekFrom::Current(line.len() as i64))?;
                 work = line;
             } else {
-                return self.handle_in_absent_lf(data);
+                return self.handle_in_absent_lf(work);
             }
         }
 
@@ -821,8 +833,18 @@ impl ConnectionParser {
         }
 
         // Store the current chunk information
-        let chunk = unsafe { std::slice::from_raw_parts(data as *mut u8, len) };
-        self.in_curr_data = Cursor::new(chunk.to_vec());
+        let mut chunk = ParserData::from((data as *mut u8, len));
+        if chunk.is_gap() {
+            // Gap
+            self.request_mut()
+                .flags
+                .set(HtpFlags::REQUEST_MISSING_BYTES);
+            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
+                // Force the parser to start if it hasn't already
+                self.request_mut().request_progress = HtpRequestProgress::GAP;
+            }
+        }
+        self.in_curr_data = Cursor::new(chunk.as_slice().to_vec());
         self.in_current_receiver_offset = 0;
         self.in_chunk_count = self.in_chunk_count.wrapping_add(1);
         self.conn.track_inbound_data(len);
@@ -834,6 +856,19 @@ impl ConnectionParser {
         if self.out_status == HtpStreamState::DATA_OTHER {
             self.out_status = HtpStreamState::DATA
         }
+        //handle gap
+        if chunk.is_gap()
+            && self.in_state != State::BODY_IDENTITY
+            && self.in_state != State::IGNORE_DATA_AFTER_HTTP_0_9
+        {
+            // go to req_connect_probe_data ?
+            htp_error!(
+                self.logger,
+                HtpLogCode::INVALID_GAP,
+                "Gaps are not allowed during this state"
+            );
+            return HtpStreamState::CLOSED;
+        }
         loop
         // Invoke a processor, in a loop, until an error
         // occurs or until we run out of data. Many processors
@@ -842,28 +877,7 @@ impl ConnectionParser {
         // Return if there's been an error or if we've run out of data. We are relying
         // on processors to supply error messages, so we'll keep quiet here.
         {
-            let mut rc;
-
-            //handle gap
-            if data.is_null() && len > 0 {
-                match self.in_state {
-                    State::BODY_IDENTITY | State::IGNORE_DATA_AFTER_HTTP_0_9 => {
-                        rc = self.handle_in_state(chunk)
-                    }
-                    State::FINALIZE => rc = self.state_request_complete(),
-                    _ => {
-                        // go to req_connect_probe_data ?
-                        htp_error!(
-                            self.logger,
-                            HtpLogCode::INVALID_GAP,
-                            "Gaps are not allowed during this state"
-                        );
-                        return HtpStreamState::CLOSED;
-                    }
-                }
-            } else {
-                rc = self.handle_in_state(chunk);
-            }
+            let mut rc = self.handle_in_state(&mut chunk);
 
             if rc.is_ok() {
                 if self.in_status == HtpStreamState::TUNNEL {

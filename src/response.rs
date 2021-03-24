@@ -1,6 +1,6 @@
 use crate::{
     bstr::Bstr,
-    connection_parser::{ConnectionParser, HtpStreamState, State},
+    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState, State},
     decompressors::HtpContentEncoding,
     error::Result,
     hook::DataHook,
@@ -19,7 +19,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use nom::{bytes::streaming::take_till as streaming_take_till, error::ErrorKind};
 use std::{
-    cmp::Ordering,
+    cmp::{min, Ordering},
     io::{Cursor, Seek, SeekFrom},
     mem::take,
 };
@@ -27,17 +27,19 @@ use std::{
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     fn res_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
-        let mut data = Data::new(
-            self.response_mut(),
-            Some(
-                &self.out_curr_data.get_ref()[self.out_current_receiver_offset as usize
-                    ..self.out_curr_data.position() as usize],
-            ),
-            is_last,
-        );
-
+        let tx = self.response_mut() as *mut Transaction;
         if let Some(hook) = &self.out_data_receiver_hook {
-            hook.run_all(self, &mut data)?;
+            hook.run_all(
+                self,
+                &mut Data::new(
+                    tx,
+                    &ParserData::from(
+                        &self.out_curr_data.get_ref()[self.out_current_receiver_offset as usize
+                            ..self.out_curr_data.position() as usize],
+                    ),
+                    is_last,
+                ),
+            )?;
         } else {
             return Ok(());
         };
@@ -149,8 +151,7 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on state change, HtpStatus::Error on error, or
     /// HtpStatus::DATA when more data is needed.
     pub fn res_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
-        let bytes_to_consume: usize =
-            std::cmp::min(data.len(), self.out_chunked_length.unwrap_or(0) as usize);
+        let bytes_to_consume = min(data.len(), self.out_chunked_length.unwrap_or(0) as usize);
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
@@ -256,21 +257,31 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or
     /// HtpStatus::DATA when more data is needed.
-    pub fn res_body_identity_cl_known(&mut self, data: &[u8]) -> Result<()> {
-        let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_body_data_left as usize);
+    pub fn res_body_identity_cl_known(&mut self, data: &mut ParserData) -> Result<()> {
         if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             // Sends close signal to decompressors
             return self.res_process_body_data_ex(None);
         }
+        let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_body_data_left as usize);
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
-        // Consume the data.
-        self.res_process_body_data_ex(Some(&data[0..bytes_to_consume]))?;
+        if data.is_gap() {
+            self.response_mut().response_message_len = self
+                .response()
+                .response_message_len
+                .wrapping_add(data.len() as i64);
+            // Send the gap to the data hooks
+            let mut tx_data = Data::new(self.response_mut(), data, false);
+            self.res_run_hook_body_data(&mut tx_data)?;
+        } else {
+            // Consume the data.
+            self.res_process_body_data_ex(Some(&data.as_slice()[0..bytes_to_consume]))?;
+            self.out_curr_data
+                .seek(SeekFrom::Current(bytes_to_consume as i64))?;
+        }
         // Adjust the counters.
-        self.out_curr_data
-            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         self.out_body_data_left =
             (self.out_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
         // Have we seen the entire response body?
@@ -287,10 +298,14 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
     /// when more data is needed.
-    pub fn res_body_identity_stream_close(&mut self, data: &[u8]) -> Result<()> {
-        // Consume all data from the input buffer.
-        if !data.is_empty() {
-            self.res_process_body_data_ex(Some(&data))?;
+    pub fn res_body_identity_stream_close(&mut self, data: &ParserData) -> Result<()> {
+        if data.is_gap() {
+            // Send the gap to the data hooks
+            let mut tx_data = Data::new(self.response_mut(), data, false);
+            self.res_run_hook_body_data(&mut tx_data)?;
+        } else if !data.is_empty() {
+            // Consume all data from the input buffer.
+            self.res_process_body_data_ex(data.data())?;
             // Adjust the counters.
             self.out_curr_data.seek(SeekFrom::End(0))?;
         }
@@ -716,8 +731,11 @@ impl ConnectionParser {
     }
 
     /// Finalizes response parsing.
-    pub fn res_finalize(&mut self, data: &[u8]) -> Result<()> {
-        let mut work = data;
+    pub fn res_finalize(&mut self, data: &ParserData) -> Result<()> {
+        if data.is_gap() {
+            return self.state_response_complete_ex(0);
+        }
+        let mut work = data.as_slice();
         if self.out_status != HtpStreamState::CLOSED {
             let out_next_byte = self
                 .out_curr_data
@@ -728,16 +746,16 @@ impl ConnectionParser {
             }
             let lf = out_next_byte.map(|byte| *byte == b'\n').unwrap_or(false);
             if !lf {
-                if let Ok((_, line)) = take_till_lf(data) {
+                if let Ok((_, line)) = take_till_lf(work) {
                     self.out_curr_data
                         .seek(SeekFrom::Current(line.len() as i64))?;
                     work = line;
                 } else {
-                    return self.handle_out_absent_lf(data);
+                    return self.handle_out_absent_lf(work);
                 }
             } else {
                 self.out_curr_data
-                    .seek(SeekFrom::Current(data.len() as i64))?;
+                    .seek(SeekFrom::Current(work.len() as i64))?;
             }
         }
         if !self.out_buf.is_empty() {
@@ -758,7 +776,7 @@ impl ConnectionParser {
                 HtpLogCode::RESPONSE_BODY_UNEXPECTED,
                 "Unexpected response body"
             );
-            return self.res_process_body_data_ex(Some(&data));
+            return self.res_process_body_data_ex(Some(data.as_slice()));
         }
         // didnt use data, restore
         self.out_buf.add(&data[0..buf_len]);
@@ -853,7 +871,7 @@ impl ConnectionParser {
         // only if the stream has been closed. We do not allow zero-sized
         // chunks in the API, but we use it internally to force the parsers
         // to finalize parsing.
-        if (data.is_null() || len == 0) && self.out_status != HtpStreamState::CLOSED {
+        if len == 0 && self.out_status != HtpStreamState::CLOSED {
             htp_error!(
                 self.logger,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
@@ -866,14 +884,36 @@ impl ConnectionParser {
             self.out_timestamp = timestamp;
         }
         // Store the current chunk information
-        let chunk = unsafe { std::slice::from_raw_parts(data as *mut u8, len) };
-        self.out_curr_data = Cursor::new(chunk.to_vec());
+        let mut chunk = ParserData::from((data as *mut u8, len));
+        if chunk.is_gap() {
+            // Gap
+            self.response_mut()
+                .flags
+                .set(HtpFlags::RESPONSE_MISSING_BYTES);
+            if self.response().response_progress == HtpResponseProgress::NOT_STARTED {
+                // Force the parser to start if it hasn't already
+                self.response_mut().response_progress = HtpResponseProgress::GAP;
+            }
+        }
+        self.out_curr_data = Cursor::new(chunk.as_slice().to_vec());
         self.out_current_receiver_offset = 0;
         self.conn.track_outbound_data(len);
         // Return without processing any data if the stream is in tunneling
         // mode (which it would be after an initial CONNECT transaction.
         if self.out_status == HtpStreamState::TUNNEL {
             return HtpStreamState::TUNNEL;
+        }
+        if chunk.is_gap()
+            && self.out_state != State::BODY_IDENTITY_CL_KNOWN
+            && self.out_state != State::BODY_IDENTITY_STREAM_CLOSE
+            && self.out_state != State::FINALIZE
+        {
+            htp_error!(
+                self.logger,
+                HtpLogCode::INVALID_GAP,
+                "Gaps are not allowed during this state"
+            );
+            return HtpStreamState::CLOSED;
         }
         loop
         // Invoke a processor, in a loop, until an error
@@ -885,28 +925,7 @@ impl ConnectionParser {
         // on processors to add error messages, so we'll
         // keep quiet here.
         {
-            let mut rc;
-            //handle gap
-            if data.is_null() && len > 0 {
-                match self.out_state {
-                    State::BODY_IDENTITY_CL_KNOWN | State::BODY_IDENTITY_STREAM_CLOSE => {
-                        rc = self.handle_out_state(chunk)
-                    }
-                    State::FINALIZE => {
-                        rc = self.state_response_complete_ex(0);
-                    }
-                    _ => {
-                        htp_error!(
-                            self.logger,
-                            HtpLogCode::INVALID_GAP,
-                            "Gaps are not allowed during this state"
-                        );
-                        return HtpStreamState::CLOSED;
-                    }
-                }
-            } else {
-                rc = self.handle_out_state(chunk);
-            }
+            let mut rc = self.handle_out_state(&mut chunk);
 
             if rc.is_ok() {
                 if self.out_status == HtpStreamState::TUNNEL {
