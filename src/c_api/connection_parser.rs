@@ -225,7 +225,13 @@ pub unsafe extern "C" fn htp_connp_tx(
         .map(|connp| {
             connp
                 .tx(tx_id)
-                .map(|tx| tx as *const Transaction)
+                .map(|tx| {
+                    if tx.is_started() {
+                        tx as *const Transaction
+                    } else {
+                        std::ptr::null()
+                    }
+                })
                 .unwrap_or(std::ptr::null())
         })
         .unwrap_or(std::ptr::null())

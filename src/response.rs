@@ -804,11 +804,10 @@ impl ConnectionParser {
         if self.out_curr_data.position() as i64 >= self.out_curr_len() {
             return Err(HtpStatus::DATA);
         }
-        // Parsing a new response
-        let tx = self.response();
 
-        // Log if we have not seen this request yet
-        if tx.request_progress == HtpRequestProgress::NOT_STARTED {
+        // Parsing a new response
+        // Log if we have not seen the corresponding request yet
+        if self.response().request_progress == HtpRequestProgress::NOT_STARTED {
             htp_error!(
                 self.logger,
                 HtpLogCode::UNABLE_TO_MATCH_RESPONSE_TO_REQUEST,
@@ -819,6 +818,8 @@ impl ConnectionParser {
             uri.path = Some(Bstr::from("/libhtp::request_uri_not_seen"));
             tx.request_uri = uri.path.clone();
             tx.parsed_uri = Some(uri);
+            tx.request_progress = HtpRequestProgress::COMPLETE;
+            self.request_next();
         }
         self.out_content_length = -1;
         self.out_body_data_left = -1;

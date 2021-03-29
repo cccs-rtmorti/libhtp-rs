@@ -2602,6 +2602,46 @@ fn HttpCloseHeaders() {
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
 
+#[test]
+fn HttpStartFromResponse() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run("http-start-from-response.t").is_ok());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert!(tx.request_method.is_none());
+    assert_eq!(
+        tx.request_uri,
+        Some(Bstr::from("/libhtp::request_uri_not_seen"))
+    );
+    assert!(tx.response_status_number.eq_num(200));
+
+    assert_eq!(HtpProtocol::UNKNOWN, tx.request_protocol_number);
+    assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
+
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+
+    let tx = t.connp.tx(1).unwrap();
+    assert_eq!(tx.request_method, Some(Bstr::from("GET")));
+    assert_eq!(tx.request_uri, Some(Bstr::from("/favicon.ico")));
+    assert!(tx.response_status_number.eq_num(404));
+
+    assert_eq!(HtpProtocol::V1_1, tx.request_protocol_number);
+    assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
+
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+
+    let logs = t.connp.conn.get_logs();
+    assert_eq!(1, logs.len());
+    assert_eq!(
+        logs.get(0).unwrap().msg.msg,
+        "Unable to match response to request"
+    );
+    assert_eq!(HtpLogLevel::ERROR, logs.get(0).unwrap().msg.level);
+}
+
 // Evader Tests
 #[test]
 fn HttpEvader017() {
