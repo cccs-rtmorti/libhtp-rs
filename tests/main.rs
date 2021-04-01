@@ -2581,6 +2581,23 @@ fn Http2Upgrade() {
 }
 
 #[test]
+fn AuthBearer() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run("115-auth-bearer.t").is_ok());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
+    assert_eq!(HtpAuthType::BEARER, tx.request_auth_type);
+
+    assert!(tx
+        .request_auth_token
+        .as_ref()
+        .unwrap()
+        .eq("mF_9.B5f-4.1JqM"));
+}
+
+#[test]
 fn HttpCloseHeaders() {
     let mut t = Test::new(TestConfig());
     assert!(t.run("http-close-headers.t").is_ok());

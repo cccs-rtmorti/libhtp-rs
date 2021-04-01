@@ -435,6 +435,14 @@ pub fn parse_authorization(in_tx: &mut Transaction) -> Result<()> {
             return Ok(());
         }
         return Err(HtpStatus::DECLINED);
+    } else if auth_header.value.starts_with_nocase("bearer") {
+        in_tx.request_auth_type = HtpAuthType::BEARER;
+        let (token, _) = tuple((
+            tag_no_case("bearer"),
+            take_ascii_whitespace(), // allow lws
+        ))(auth_header.value.as_slice())
+        .map_err(|_| HtpStatus::DECLINED)?;
+        in_tx.request_auth_token = Some(Bstr::from(token));
     } else {
         // Unrecognized authentication method
         in_tx.request_auth_type = HtpAuthType::UNRECOGNIZED

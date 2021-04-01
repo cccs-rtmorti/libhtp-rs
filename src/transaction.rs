@@ -255,6 +255,8 @@ pub enum HtpAuthType {
     BASIC,
     /// HTTP Digest authentication used.
     DIGEST,
+    /// HTTP Bearer authentication used.
+    BEARER,
     /// Unrecognized authentication method.
     UNRECOGNIZED = 9,
     /// Error retrieving the auth type.
@@ -399,6 +401,8 @@ pub struct Transaction {
     pub request_auth_username: Option<Bstr>,
     /// Authentication password. Available only when Transaction::request_auth_type is HTP_AUTH_BASIC.
     pub request_auth_password: Option<Bstr>,
+    /// Authentication token. Available only when Transaction::request_auth_type is HTP_AUTH_BEARER.
+    pub request_auth_token: Option<Bstr>,
     /// Request hostname. Per the RFC, the hostname will be taken from the Host header
     /// when available. If the host information is also available in the URI, it is used
     /// instead of whatever might be in the Host header. Can be NULL. This field does
@@ -549,6 +553,7 @@ impl Transaction {
             request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
+            request_auth_token: None,
             request_hostname: None,
             request_port_number: None,
             response_ignored_lines: 0,
