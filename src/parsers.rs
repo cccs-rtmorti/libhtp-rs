@@ -14,6 +14,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, tag_no_case, take_until, take_while},
     combinator::{map, not, opt, peek},
+    error::ErrorKind,
     multi::many0,
     sequence::tuple,
     IResult,
@@ -370,8 +371,8 @@ fn parse_authorization_digest(auth_header_value: &[u8]) -> IResult<&[u8], Vec<u8
     let (mut remaining_input, _) = tuple((
         take_until("username="),
         tag("username="),
-        take_while(|c: u8| c.is_ascii_whitespace()), // allow leading whitespace
-        tag("\""), // First character after LWS must be a double quote
+        take_ascii_whitespace(), // allow lws
+        tag("\""),               // First character after LWS must be a double quote
     ))(auth_header_value)?;
     let mut result = Vec::new();
     // Unescape any escaped double quotes and find the closing quote
@@ -393,37 +394,17 @@ fn parse_authorization_digest(auth_header_value: &[u8]) -> IResult<&[u8], Vec<u8
 
 /// Parses Basic Authorization request header.
 pub fn parse_authorization_basic(in_tx: &mut Transaction, auth_header: &Header) -> Result<()> {
-    let data = &auth_header.value;
-
-    if data.len() <= 5 {
-        return Err(HtpStatus::DECLINED);
-    };
-
     // Skip 'Basic<lws>'
-    let value_start = if let Some(pos) = data[5..].iter().position(|&c| !c.is_ascii_whitespace()) {
-        pos + 5
-    } else {
-        return Err(HtpStatus::DECLINED);
-    };
-
+    let (remaining_input, _) =
+        tuple((tag_no_case("basic"), take_ascii_whitespace()))(auth_header.value.as_slice())
+            .map_err(|_| HtpStatus::DECLINED)?;
     // Decode base64-encoded data
-    let decoded = if let Ok(decoded) = base64::decode(&data[value_start..]) {
-        decoded
-    } else {
-        return Err(HtpStatus::DECLINED);
-    };
-
-    // Extract username and password
-    let i = if let Some(i) = decoded.iter().position(|&c| c == b':') {
-        i
-    } else {
-        return Err(HtpStatus::DECLINED);
-    };
-
-    let (username, password) = decoded.split_at(i);
+    let decoded = base64::decode(remaining_input).map_err(|_| HtpStatus::DECLINED)?;
+    let (password, (username, _)) =
+        tuple::<_, _, (&[u8], ErrorKind), _>((take_until(":"), tag(":")))(decoded.as_slice())
+            .map_err(|_| HtpStatus::DECLINED)?;
     in_tx.request_auth_username = Some(Bstr::from(username));
-    in_tx.request_auth_password = Some(Bstr::from(&password[1..]));
-
+    in_tx.request_auth_password = Some(Bstr::from(password));
     Ok(())
 }
 
@@ -448,10 +429,10 @@ pub fn parse_authorization(in_tx: &mut Transaction) -> Result<()> {
             if let Some(username) = &mut in_tx.request_auth_username {
                 username.clear();
                 username.add(auth_username);
-                return Ok(());
             } else {
                 in_tx.request_auth_username = Some(Bstr::from(auth_username));
             }
+            return Ok(());
         }
         return Err(HtpStatus::DECLINED);
     } else {
