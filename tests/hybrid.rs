@@ -367,10 +367,10 @@ fn PostUrlecodedTest() {
     t.connp.state_request_headers().unwrap();
 
     // Send request body
-    t.connp.req_process_body_data_ex(b"p=1").unwrap();
-    t.connp.req_process_body_data_ex(b"").unwrap();
-    t.connp.req_process_body_data_ex(b"&").unwrap();
-    t.connp.req_process_body_data_ex(b"q=2").unwrap();
+    t.connp.req_process_body_data_ex(Some(b"p=1")).unwrap();
+    t.connp.req_process_body_data_ex(Some(b"")).unwrap();
+    t.connp.req_process_body_data_ex(Some(b"&")).unwrap();
+    t.connp.req_process_body_data_ex(Some(b"q=2")).unwrap();
 
     let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.request_headers, "Host", "www.example.com");
@@ -483,9 +483,9 @@ fn PostUrlecodedChunked() {
     t.connp.state_request_headers().unwrap();
 
     // Send request body.
-    t.connp.req_process_body_data_ex(b"p=1").unwrap();
-    t.connp.req_process_body_data_ex(b"&").unwrap();
-    t.connp.req_process_body_data_ex(b"q=2").unwrap();
+    t.connp.req_process_body_data_ex(Some(b"p=1")).unwrap();
+    t.connp.req_process_body_data_ex(Some(b"&")).unwrap();
+    t.connp.req_process_body_data_ex(Some(b"q=2")).unwrap();
 
     // Request complete.
     t.connp.state_request_complete().unwrap();

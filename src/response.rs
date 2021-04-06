@@ -261,7 +261,7 @@ impl ConnectionParser {
         if self.out_status == HtpStreamState::CLOSED {
             self.out_state = State::FINALIZE;
             // Sends close signal to decompressors
-            return self.res_process_body_data_ex(None);
+            return self.res_process_body_data_ex(data.data());
         }
         let bytes_to_consume: usize = std::cmp::min(data.len(), self.out_body_data_left as usize);
         if bytes_to_consume == 0 {
@@ -290,6 +290,7 @@ impl ConnectionParser {
             // Tells decompressors to output partially decompressed data
             return self.res_process_body_data_ex(None);
         }
+        // Ask for more data
         Err(HtpStatus::DATA)
     }
 

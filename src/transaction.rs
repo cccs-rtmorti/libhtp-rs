@@ -368,12 +368,22 @@ pub struct Transaction {
     /// determined yet), IDENTITY, CHUNKED, NO_BODY,
     /// and UNRECOGNIZED.
     pub request_transfer_coding: HtpTransferCoding,
-    /// Request body compression.
+    /// Request body compression, which indicates if compression is used
+    /// for the request body. This field is an interpretation of the information
+    /// available in request headers.
     pub request_content_encoding: HtpContentEncoding,
-    /// This field contain the request content type when that information is
-    /// available in request headers. The contents of the field will be converted
+    /// Request body compression processing information, which is related to how
+    /// the library is going to process (or has processed) a request body. Changing
+    /// this field mid-processing can influence library actions. For example, setting
+    /// this field to NONE in a request_headers callback will prevent
+    /// decompression.
+    pub request_content_encoding_processing: HtpContentEncoding,
+    /// This field will contain the request content type when that information
+    /// is available in request headers. The contents of the field will be converted
     /// to lowercase and any parameters (e.g., character set information) removed.
     pub request_content_type: Option<Bstr>,
+    /// Request decompressor used to decompress request body data.
+    pub request_decompressor: Option<Decompressor>,
     /// Contains the value specified in the Content-Length header. The value of this
     /// field will be -1 from the beginning of the transaction and until request
     /// headers are processed. It will stay -1 if the C-L header was not provided,
@@ -492,7 +502,7 @@ pub struct Transaction {
     /// to lowercase and any parameters (e.g., character set information) removed.
     pub response_content_type: Option<Bstr>,
     /// Response decompressor used to decompress response body data.
-    pub out_decompressor: Option<Decompressor>,
+    pub response_decompressor: Option<Decompressor>,
 
     // Common fields
     /// Parsing flags; a combination of: HTP_REQUEST_INVALID_T_E, HTP_INVALID_FOLDING,
@@ -542,8 +552,10 @@ impl Transaction {
             request_headers: Table::with_capacity(32),
             request_transfer_coding: HtpTransferCoding::UNKNOWN,
             request_content_encoding: HtpContentEncoding::NONE,
+            request_content_encoding_processing: HtpContentEncoding::NONE,
             request_content_type: None,
             request_content_length: -1,
+            request_decompressor: None,
             hook_request_body_data: DataHook::default(),
             hook_response_body_data: DataHook::default(),
             request_urlenp_body: None,
@@ -574,7 +586,7 @@ impl Transaction {
             response_content_encoding: HtpContentEncoding::NONE,
             response_content_encoding_processing: HtpContentEncoding::NONE,
             response_content_type: None,
-            out_decompressor: None,
+            response_decompressor: None,
             flags: 0,
             request_progress: HtpRequestProgress::NOT_STARTED,
             response_progress: HtpResponseProgress::NOT_STARTED,
@@ -808,8 +820,135 @@ impl Transaction {
             })?;
         }
 
+        let ce = (*self)
+            .request_headers
+            .get_nocase_nozero("content-encoding")
+            .map(|(_, val)| (&val.value).clone());
+        // Process multiple encodings if there is no match on fast path
+        let mut slow_path = false;
+
+        // Fast path - try to match directly on the encoding value
+        self.request_content_encoding = if let Some(ce) = &ce {
+            if ce.cmp_nocase_nozero(b"gzip") == Ordering::Equal
+                || ce.cmp_nocase_nozero(b"x-gzip") == Ordering::Equal
+            {
+                HtpContentEncoding::GZIP
+            } else if ce.cmp_nocase_nozero(b"deflate") == Ordering::Equal
+                || ce.cmp_nocase_nozero(b"x-deflate") == Ordering::Equal
+            {
+                HtpContentEncoding::DEFLATE
+            } else if ce.cmp_nocase_nozero(b"lzma") == Ordering::Equal {
+                HtpContentEncoding::LZMA
+            } else if ce.cmp_nocase_nozero(b"inflate") == Ordering::Equal {
+                HtpContentEncoding::NONE
+            } else {
+                slow_path = true;
+                HtpContentEncoding::NONE
+            }
+        } else {
+            HtpContentEncoding::NONE
+        };
+
+        // Configure decompression, if enabled in the configuration.
+        self.request_content_encoding_processing = if self.cfg.request_decompression_enabled {
+            self.request_content_encoding
+        } else {
+            slow_path = false;
+            HtpContentEncoding::NONE
+        };
         // Run hook REQUEST_HEADERS.
         connp.cfg.hook_request_headers.run_all(connp, self)?;
+
+        // Initialize the decompression engine as necessary. We can deal with three
+        // scenarios:
+        //
+        // 1. Decompression is enabled, compression indicated in headers, and we decompress.
+        //
+        // 2. As above, but the user disables decompression by setting request_content_encoding
+        //    to COMPRESSION_NONE.
+        //
+        // 3. Decompression is disabled and we do not attempt to enable it, but the user
+        //    forces decompression by setting request_content_encoding to one of the
+        //    supported algorithms.
+        match &self.request_content_encoding_processing {
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => {
+                self.req_prepend_decompressor(connp, self.request_content_encoding_processing)?;
+            }
+            HtpContentEncoding::NONE => {
+                if slow_path {
+                    if let Some(ce) = &ce {
+                        let mut layers = 0;
+
+                        for encoding in ce.split(|c| *c == b',' || *c == b' ') {
+                            if encoding.is_empty() {
+                                continue;
+                            }
+                            layers += 1;
+
+                            if let Some(limit) = self.cfg.compression_options.get_layer_limit() {
+                                // decompression layer depth check
+                                if layers > limit {
+                                    htp_warn!(
+                                        self.logger,
+                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
+                                        "Too many request content encoding layers"
+                                    );
+                                    break;
+                                }
+                            }
+
+                            let encoding = Bstr::from(encoding);
+                            let encoding = if encoding.index_of_nocase(b"gzip").is_some() {
+                                if !(encoding.cmp(b"gzip") == Ordering::Equal
+                                    || encoding.cmp(b"x-gzip") == Ordering::Equal)
+                                {
+                                    htp_warn!(
+                                        self.logger,
+                                        HtpLogCode::ABNORMAL_CE_HEADER,
+                                        "C-E gzip has abnormal value"
+                                    );
+                                }
+                                HtpContentEncoding::GZIP
+                            } else if encoding.index_of_nocase(b"deflate").is_some() {
+                                if !(encoding.cmp(b"deflate") == Ordering::Equal
+                                    || encoding.cmp(b"x-deflate") == Ordering::Equal)
+                                {
+                                    htp_warn!(
+                                        self.logger,
+                                        HtpLogCode::ABNORMAL_CE_HEADER,
+                                        "C-E deflate has abnormal value"
+                                    );
+                                }
+                                HtpContentEncoding::DEFLATE
+                            } else if encoding.cmp(b"lzma") == Ordering::Equal {
+                                HtpContentEncoding::LZMA
+                            } else if encoding.cmp(b"inflate") == Ordering::Equal {
+                                HtpContentEncoding::NONE
+                            } else {
+                                htp_warn!(
+                                    self.logger,
+                                    HtpLogCode::ABNORMAL_CE_HEADER,
+                                    "C-E unknown setting"
+                                );
+                                HtpContentEncoding::NONE
+                            };
+                            self.req_prepend_decompressor(connp, encoding)?;
+                        }
+                    }
+                }
+            }
+            HtpContentEncoding::ERROR => {
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_CONTENT_ENCODING,
+                    "Expected a valid content encoding"
+                );
+                return Err(HtpStatus::ERROR);
+            }
+        }
         // We cannot proceed if the request is invalid.
         if self.flags.is_set(HtpFlags::REQUEST_INVALID) {
             return Err(HtpStatus::ERROR);
@@ -881,6 +1020,7 @@ impl Transaction {
         }
         Ok(())
     }
+
     /// Process a chunk of request body data. This function assumes that
     /// handling of chunked encoding is implemented by the container. When
     /// you're done submitting body data, invoke a state change (to REQUEST)
@@ -894,22 +1034,77 @@ impl Transaction {
         data: Option<&[u8]>,
     ) -> Result<()> {
         // None data is used to indicate the end of request body.
-        // Keep track of the body length.
-        self.request_entity_len =
-            (self.request_entity_len as u64).wrapping_add(data.unwrap_or(b"").len() as u64) as i64;
-        let _ = self.req_process_multipart_data(data);
-        let _ = self.req_process_urlencoded_data(data);
-        // Send data to the callbacks.
-        let data = ParserData::from(data);
-        let mut data = Data::new(self, &data, false);
-        connp.req_run_hook_body_data(&mut data).map_err(|e| {
-            htp_error!(
-                self.logger,
-                HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
-                format!("Request body data callback returned error ({:?})", e)
-            );
-            e
-        })
+        // Keep track of body size before decompression.
+        self.request_message_len =
+            (self.request_message_len as u64).wrapping_add(data.unwrap_or(b"").len() as u64) as i64;
+        match self.request_content_encoding_processing {
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => {
+                // Send data buffer to the decompressor if it exists
+                if self.request_decompressor.is_none() && data.is_none() {
+                    return Ok(());
+                }
+                let mut decompressor = self.request_decompressor.take().ok_or(HtpStatus::ERROR)?;
+                if let Some(data) = data {
+                    decompressor
+                        .decompress(data)
+                        .map_err(|_| HtpStatus::ERROR)?;
+                    if decompressor.time_spent()
+                        > self.cfg.compression_options.get_time_limit() as u64
+                    {
+                        htp_log!(
+                            self.logger,
+                            HtpLogLevel::ERROR,
+                            HtpLogCode::COMPRESSION_BOMB,
+                            format!(
+                                "Compression bomb: spent {} us decompressing",
+                                decompressor.time_spent(),
+                            )
+                        );
+                        return Err(HtpStatus::ERROR);
+                    }
+                    // put the decompressor back in its slot
+                    self.request_decompressor.replace(decompressor);
+                } else {
+                    // don't put the decompressor back in its slot
+                    // ignore errors
+                    let _ = decompressor.finish();
+                }
+            }
+            HtpContentEncoding::NONE => {
+                // When there's no decompression, request_entity_len.
+                // is identical to request_message_len.
+                // None data is used to indicate the end of request body.
+                // Keep track of the body length.
+                self.request_entity_len = (self.request_entity_len as u64)
+                    .wrapping_add(data.unwrap_or(b"").len() as u64)
+                    as i64;
+                let _ = self.req_process_multipart_data(data);
+                let _ = self.req_process_urlencoded_data(data);
+                // Send data to the callbacks.
+                let data = ParserData::from(data);
+                let mut data = Data::new(self, &data, false);
+                connp.req_run_hook_body_data(&mut data).map_err(|e| {
+                    htp_error!(
+                        self.logger,
+                        HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                        format!("Request body data callback returned error ({:?})", e)
+                    );
+                    e
+                })?
+            }
+            HtpContentEncoding::ERROR => {
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_CONTENT_ENCODING,
+                    "Expected a valid content encoding"
+                );
+                return Err(HtpStatus::ERROR);
+            }
+        }
+        Ok(())
     }
 
     /// Change transaction state to RESPONSE_LINE and invoke registered callbacks.
@@ -963,8 +1158,11 @@ impl Transaction {
             | HtpContentEncoding::DEFLATE
             | HtpContentEncoding::ZLIB
             | HtpContentEncoding::LZMA => {
-                // Send data buffer to the decompressor
-                let mut decompressor = self.out_decompressor.take().ok_or(HtpStatus::ERROR)?;
+                // Send data buffer to the decompressor if it exists
+                if self.response_decompressor.is_none() && data.is_none() {
+                    return Ok(());
+                }
+                let mut decompressor = self.response_decompressor.take().ok_or(HtpStatus::ERROR)?;
                 if let Some(data) = data {
                     decompressor
                         .decompress(data)
@@ -985,7 +1183,7 @@ impl Transaction {
                         return Err(HtpStatus::ERROR);
                     }
                     // put the decompressor back in its slot
-                    self.out_decompressor.replace(decompressor);
+                    self.response_decompressor.replace(decompressor);
                 } else {
                     // don't put the decompressor back in its slot
                     // ignore errors
@@ -1227,7 +1425,7 @@ impl Transaction {
         Ok(())
     }
 
-    fn decompressor_callback(
+    fn res_decompressor_callback(
         &mut self,
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
@@ -1250,7 +1448,7 @@ impl Transaction {
             .res_run_hook_body_data(&mut tx_data)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
 
-        if let Some(decompressor) = &mut self.out_decompressor {
+        if let Some(decompressor) = &mut self.response_decompressor {
             if decompressor.callback_inc() % self.cfg.compression_options.get_time_test_freq() == 0
             {
                 if let Some(time_spent) = decompressor.timer_reset() {
@@ -1298,14 +1496,119 @@ impl Transaction {
         Ok(tx_data.len())
     }
 
-    fn prepend_decompressor(
+    fn req_decompressor_callback(
+        &mut self,
+        connp: &mut ConnectionParser,
+        data: Option<&[u8]>,
+    ) -> std::io::Result<usize> {
+        // If no data is passed, call the hooks with NULL to signify the end of the
+        // request body.
+        let mut tx_data = Data {
+            tx: self,
+            data: &ParserData::from(data),
+            // is_last is not used in this callback
+            is_last: false,
+        };
+
+        // Keep track of actual request body length.
+        self.request_entity_len =
+            (self.request_entity_len as u64).wrapping_add(tx_data.len() as u64) as i64;
+
+        // Invoke all callbacks.
+        connp
+            .req_run_hook_body_data(&mut tx_data)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
+
+        if let Some(decompressor) = &mut self.request_decompressor {
+            if decompressor.callback_inc() % self.cfg.compression_options.get_time_test_freq() == 0
+            {
+                if let Some(time_spent) = decompressor.timer_reset() {
+                    if time_spent > self.cfg.compression_options.get_time_limit() as u64 {
+                        htp_log!(
+                            self.logger,
+                            HtpLogLevel::ERROR,
+                            HtpLogCode::COMPRESSION_BOMB,
+                            format!("Compression bomb: spent {} us decompressing", time_spent)
+                        );
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "compression_time_limit reached",
+                        ));
+                    }
+                }
+            }
+        }
+
+        // output > ratio * input ?
+        let ratio = self.cfg.compression_options.get_bomb_ratio();
+        let exceeds_ratio = if let Some(ratio) = self.request_message_len.checked_mul(ratio) {
+            self.request_entity_len > ratio
+        } else {
+            // overflow occured
+            true
+        };
+
+        let bomb_limit = self.cfg.compression_options.get_bomb_limit();
+        if self.request_entity_len > bomb_limit as i64 && exceeds_ratio {
+            htp_log!(
+                self.logger,
+                HtpLogLevel::ERROR,
+                HtpLogCode::COMPRESSION_BOMB,
+                format!(
+                    "Compression bomb: decompressed {} bytes out of {}",
+                    self.request_entity_len, self.request_message_len,
+                )
+            );
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "compression_bomb_limit reached",
+            ));
+        }
+        Ok(tx_data.len())
+    }
+
+    fn req_prepend_decompressor(
         &mut self,
         connp: &mut ConnectionParser,
         encoding: HtpContentEncoding,
     ) -> Result<()> {
         if encoding != HtpContentEncoding::NONE {
-            if let Some(decompressor) = self.out_decompressor.take() {
-                self.out_decompressor
+            if let Some(decompressor) = self.request_decompressor.take() {
+                self.request_decompressor
+                    .replace(decompressor.prepend(encoding, self.cfg.compression_options)?);
+            } else {
+                // The processing encoding will be the first one encountered
+                (*self).request_content_encoding_processing = encoding;
+
+                // Add the callback first because it will be called last in
+                // the chain of writers
+
+                // TODO: fix lifetime error and remove this line!
+                let tx = self as *mut Self;
+                let connp_ptr: *mut ConnectionParser = connp as *mut ConnectionParser;
+
+                self.request_decompressor.replace(unsafe {
+                    Decompressor::new_with_callback(
+                        encoding,
+                        Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
+                            (*tx).req_decompressor_callback(&mut *connp_ptr, data)
+                        }),
+                        self.cfg.compression_options,
+                    )?
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn res_prepend_decompressor(
+        &mut self,
+        connp: &mut ConnectionParser,
+        encoding: HtpContentEncoding,
+    ) -> Result<()> {
+        if encoding != HtpContentEncoding::NONE {
+            if let Some(decompressor) = self.response_decompressor.take() {
+                self.response_decompressor
                     .replace(decompressor.prepend(encoding, self.cfg.compression_options)?);
             } else {
                 // The processing encoding will be the first one encountered
@@ -1318,11 +1621,11 @@ impl Transaction {
                 let tx = self as *mut Self;
                 let connp_ptr: *mut ConnectionParser = connp as *mut ConnectionParser;
 
-                self.out_decompressor.replace(unsafe {
+                self.response_decompressor.replace(unsafe {
                     Decompressor::new_with_callback(
                         encoding,
                         Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
-                            (*tx).decompressor_callback(&mut *connp_ptr, data)
+                            (*tx).res_decompressor_callback(&mut *connp_ptr, data)
                         }),
                         self.cfg.compression_options,
                     )?
@@ -1395,7 +1698,7 @@ impl Transaction {
             | HtpContentEncoding::DEFLATE
             | HtpContentEncoding::ZLIB
             | HtpContentEncoding::LZMA => {
-                self.prepend_decompressor(connp, self.response_content_encoding_processing)?;
+                self.res_prepend_decompressor(connp, self.response_content_encoding_processing)?;
                 Ok(())
             }
             HtpContentEncoding::NONE => {
@@ -1457,7 +1760,7 @@ impl Transaction {
                                 HtpContentEncoding::NONE
                             };
 
-                            self.prepend_decompressor(connp, encoding)?;
+                            self.res_prepend_decompressor(connp, encoding)?;
                         }
                     }
                 }

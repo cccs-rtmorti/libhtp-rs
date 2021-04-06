@@ -569,10 +569,10 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
     /// is invalid or request body data hook fails.
-    pub fn req_process_body_data_ex(&mut self, data: &[u8]) -> Result<()> {
+    pub fn req_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         self.request_mut()
-            .req_process_body_data(unsafe { &mut *connp_ptr }, Some(data))
+            .req_process_body_data(unsafe { &mut *connp_ptr }, data)
     }
 
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,

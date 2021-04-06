@@ -341,13 +341,10 @@ impl ConnectionParser {
             return Err(HtpStatus::DATA);
         }
         // Consume the data.
-        self.req_process_body_data_ex(&data[0..bytes_to_consume])?;
+        self.req_process_body_data_ex(Some(&data[0..bytes_to_consume]))?;
         // Adjust counters.
         self.in_curr_data
             .seek(SeekFrom::Current(bytes_to_consume as i64))?;
-        self.request_mut().request_message_len = (self.request().request_message_len as u64)
-            .wrapping_add(bytes_to_consume as u64)
-            as i64;
         if let Some(len) = &mut self.in_chunked_length {
             *len = len.wrapping_sub(bytes_to_consume as i32);
             if *len == 0 {
@@ -440,25 +437,28 @@ impl ConnectionParser {
             return Err(HtpStatus::DATA);
         }
         if data.is_gap() {
+            self.request_mut().request_message_len = self
+                .request()
+                .request_message_len
+                .wrapping_add(bytes_to_consume as i64);
             // Send the gap to the data hooks
             let mut tx_data = Data::new(self.request_mut(), data, false);
             self.req_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
-            self.req_process_body_data_ex(&data.as_slice()[0..bytes_to_consume])?;
+            self.req_process_body_data_ex(Some(&data.as_slice()[0..bytes_to_consume]))?;
             self.in_curr_data
                 .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         }
         // Adjust the counters.
-        self.request_mut().request_message_len = (self.request().request_message_len as u64)
-            .wrapping_add(bytes_to_consume as u64)
-            as i64;
         self.in_body_data_left =
             (self.in_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
+        // Have we seen the entire request body?
         if self.in_body_data_left == 0 {
             // End of request body.
             self.in_state = State::FINALIZE;
-            return Ok(());
+            // Sends close signal to decompressors
+            return self.req_process_body_data_ex(None);
         }
         // Ask for more data.
         Err(HtpStatus::DATA)

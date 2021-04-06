@@ -2659,6 +2659,44 @@ fn HttpStartFromResponse() {
     assert_eq!(HtpLogLevel::ERROR, logs.get(0).unwrap().msg.level);
 }
 
+#[test]
+fn RequestCompression() {
+    let mut cfg = TestConfig();
+    cfg.set_request_decompression(true);
+    let mut t = Test::new(cfg);
+
+    assert!(t.run("116-request-compression.t").is_ok());
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert!(tx.is_complete());
+
+    assert_eq!(1355, tx.request_message_len);
+    assert_eq!(2614, tx.request_entity_len);
+}
+
+#[test]
+fn RequestResponseCompression() {
+    let mut cfg = TestConfig();
+    cfg.set_request_decompression(true);
+    let mut t = Test::new(cfg);
+
+    assert!(t.run("117-request-response-compression.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert!(tx.is_complete());
+
+    assert_eq!(1355, tx.request_message_len);
+    assert_eq!(2614, tx.request_entity_len);
+
+    assert_eq!(51, tx.response_message_len);
+    assert_eq!(25, tx.response_entity_len);
+}
+
 // Evader Tests
 #[test]
 fn HttpEvader017() {
