@@ -937,8 +937,7 @@ fn url_decode_invalid_uencoding(
 ///  e.g. "2f" -> "/"
 ///
 /// Returns decoded byte, corresponding status code, appropriate flags and whether the byte should be output.
-fn url_decode_valid_hex<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], (u8, HtpUnwanted, u64, bool)>
-{
+fn url_decode_valid_hex() -> impl Fn(&[u8]) -> IResult<&[u8], (u8, HtpUnwanted, u64, bool)> {
     move |input| {
         // Valid encoding (2 xbytes)
         not(alt((char('u'), char('U'))))(input)?;

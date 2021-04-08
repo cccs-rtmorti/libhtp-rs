@@ -258,7 +258,7 @@ impl<T: AsRef<[u8]>> Iterator for LowercaseNoZeroIterator<'_, T> {
     }
 }
 
-impl<'a, T: AsRef<[u8]>> SubIterator for LowercaseNoZeroIterator<'_, T> {
+impl<T: AsRef<[u8]>> SubIterator for LowercaseNoZeroIterator<'_, T> {
     fn subiter(&self) -> Self {
         LowercaseNoZeroIterator {
             src: &self.src,
@@ -310,7 +310,7 @@ impl<T: AsRef<[u8]>> Iterator for LowercaseIterator<'_, T> {
     }
 }
 
-impl<'a, T: AsRef<[u8]>> SubIterator for LowercaseIterator<'_, T> {
+impl<T: AsRef<[u8]>> SubIterator for LowercaseIterator<'_, T> {
     fn subiter(&self) -> Self {
         LowercaseIterator {
             src: &self.src,

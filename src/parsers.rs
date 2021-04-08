@@ -213,7 +213,7 @@ pub fn hostname() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and the matched port.
-pub fn port<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn port() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         // Must start with ":" for there to be a port to parse
         let (input, (_, _, port, _)) =
@@ -236,7 +236,7 @@ pub fn port<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and the matched path.
-pub fn path<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn path() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| is_not("#?")(input)
 }
 
@@ -253,7 +253,7 @@ pub fn path<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and the matched query.
-pub fn query<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn query() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         // Skip the starting '?'
         map(tuple((tag("?"), is_not("#"))), |(_, query)| query)(input)
@@ -272,7 +272,7 @@ pub fn query<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and the matched fragment.
-pub fn fragment<'a>() -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+pub fn fragment() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| {
         // Skip the starting '#'
         let (input, _) = tag("#")(input)?;
