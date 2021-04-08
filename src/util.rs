@@ -163,8 +163,8 @@ impl HtpFlags {
 pub enum HtpFileSource {
     /// File from a multipart request.
     MULTIPART = 1,
-    /// File from a PUT request.
-    PUT = 2,
+    /// File from a request body.
+    REQUEST_BODY = 2,
 }
 
 /// Enumerates possible EOLs

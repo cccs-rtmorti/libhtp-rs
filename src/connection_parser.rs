@@ -276,8 +276,8 @@ pub struct ConnectionParser {
     pub response_state_previous: State,
     /// The hook that should be receiving raw connection data.
     pub response_data_receiver_hook: Option<DataHook>,
-    /// On a PUT request, this field contains additional file data.
-    pub put_file: Option<File>,
+    /// On request body data, this field contains additional file data.
+    pub request_file: Option<File>,
 
     /// Transactions processed by this parser
     transactions: Transactions,
@@ -332,7 +332,7 @@ impl ConnectionParser {
             response_state: State::IDLE,
             response_state_previous: State::NONE,
             response_data_receiver_hook: None,
-            put_file: None,
+            request_file: None,
             transactions: Transactions::new(&cfg, &logger),
         }
     }

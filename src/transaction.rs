@@ -722,10 +722,10 @@ impl Transaction {
             self.request_transfer_coding = HtpTransferCoding::INVALID;
             self.flags.set(HtpFlags::REQUEST_INVALID)
         }
-        // Check for PUT requests, which we need to treat as file uploads.
-        if self.request_method_number == HtpMethod::PUT && self.request_has_body() {
-            // Prepare to treat PUT request body as a file.
-            connp.put_file = Some(File::new(HtpFileSource::PUT, None));
+        // Check for body data to treat as file uploads.
+        if self.request_has_body() {
+            // Prepare to treat request body as a file.
+            connp.request_file = Some(File::new(HtpFileSource::REQUEST_BODY, None));
         }
         // Determine hostname.
         // Use the hostname from the URI, when available.

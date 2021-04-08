@@ -1941,9 +1941,9 @@ fn Put() {
 
     let tx = t.connp.tx(0).unwrap();
 
-    let file = t.connp.put_file.as_ref().unwrap();
+    let file = t.connp.request_file.as_ref().unwrap();
     assert_eq!(file.len, 12);
-    assert_eq!(file.source as u8, HtpFileSource::PUT as u8);
+    assert_eq!(file.source as u8, HtpFileSource::REQUEST_BODY as u8);
     assert!(file.filename.is_none());
     assert!(file.tmpfile.is_none());
 
@@ -2699,6 +2699,24 @@ fn RequestResponseCompression() {
 
     assert_eq!(51, tx.response_message_len);
     assert_eq!(25, tx.response_entity_len);
+}
+
+#[test]
+fn Post() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run("118-post.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    let file = t.connp.request_file.as_ref().unwrap();
+    assert_eq!(file.len, 12);
+    assert_eq!(file.source as u8, HtpFileSource::REQUEST_BODY as u8);
+    assert!(file.filename.is_none());
+    assert!(file.tmpfile.is_none());
+
+    assert!(tx.request_hostname.as_ref().unwrap().eq("www.example.com"));
 }
 
 // Evader Tests
