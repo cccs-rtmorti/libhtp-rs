@@ -23,6 +23,11 @@ resources:
     endpoint: rtmorti
     name: cse-nbs/cyberdeck
     ref: refs/heads/libhtp-rs-fixes
+  - repository: suricata-verify
+    type: bitbucket
+    endpoint: rtmorti
+    name: cse-nbs/suricata-verify
+    ref: 'refs/heads/libhtp-rs'
 
 jobs:
 - job: test_libhtp2
@@ -129,6 +134,22 @@ jobs:
         rm -f /var/log/suricata/boo.txt
         ./src/suricata -u
       displayName: "suricata: test"
+      workingDirectory: $(Agent.BuildDirectory)/suricata
+
+    #
+    # Suricata-Verify Steps
+    # ==============
+    
+    #
+    # Checkout suricata-verify
+    - checkout: suricata-verify
+      path: suricata-verify
+
+    #
+    # Test suricata-verify
+    - script: |
+        python3 $(Agent.BuildDirectory)/suricata-verify/run.py
+      displayName: "suricata-verify: test"
       workingDirectory: $(Agent.BuildDirectory)/suricata
 
     #
