@@ -21,7 +21,7 @@ impl ConnectionParser {
     fn process_request_header_generic(&mut self, header: Header) -> Result<()> {
         // Try to parse the header.
         let mut repeated = false;
-        let reps = self.request().req_header_repetitions;
+        let reps = self.request().request_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
         if let Some((_, h_existing)) = self
@@ -68,8 +68,8 @@ impl ConnectionParser {
                 .add(header.name.clone(), header);
         }
         if update_reps {
-            self.request_mut().req_header_repetitions =
-                self.request().req_header_repetitions.wrapping_add(1)
+            self.request_mut().request_header_repetitions =
+                self.request().request_header_repetitions.wrapping_add(1)
         }
         if repeated {
             htp_warn!(
@@ -86,7 +86,7 @@ impl ConnectionParser {
         &mut self,
         data: &'a [u8],
     ) -> Result<(&'a [u8], bool)> {
-        let rc = self.request_mut().req_header_parser.headers()(data);
+        let rc = self.request_mut().request_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
                 let mut flags = 0;

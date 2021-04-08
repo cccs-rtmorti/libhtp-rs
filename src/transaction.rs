@@ -515,13 +515,13 @@ pub struct Transaction {
     /// Transaction index on the connection.
     pub index: usize,
     /// Total repetitions for headers in request.
-    pub req_header_repetitions: u16,
+    pub request_header_repetitions: u16,
     /// Total repetitions for headers in response.
-    pub res_header_repetitions: u16,
+    pub response_header_repetitions: u16,
     /// Request header parser
-    pub req_header_parser: HeaderParser,
+    pub request_header_parser: HeaderParser,
     /// Response header parser
-    pub res_header_parser: HeaderParser,
+    pub response_header_parser: HeaderParser,
 }
 
 /// Type alias for list of transactions.
@@ -591,10 +591,10 @@ impl Transaction {
             request_progress: HtpRequestProgress::NOT_STARTED,
             response_progress: HtpResponseProgress::NOT_STARTED,
             index,
-            req_header_repetitions: 0,
-            res_header_repetitions: 0,
-            req_header_parser: HeaderParser::new(Side::Request),
-            res_header_parser: HeaderParser::new(Side::Response),
+            request_header_repetitions: 0,
+            response_header_repetitions: 0,
+            request_header_parser: HeaderParser::new(Side::Request),
+            response_header_parser: HeaderParser::new(Side::Response),
         }
     }
 
@@ -630,7 +630,7 @@ impl Transaction {
 
     /// Adds one parameter to the request. This function will take over the
     /// responsibility for the provided Param structure.
-    pub fn req_add_param(&mut self, mut param: Param) -> Result<()> {
+    pub fn request_add_param(&mut self, mut param: Param) -> Result<()> {
         if let Some(parameter_processor_fn) = self.cfg.parameter_processor {
             parameter_processor_fn(&mut param)?
         }
@@ -639,7 +639,7 @@ impl Transaction {
     }
 
     /// Determine if the request has a body.
-    pub fn req_has_body(&self) -> bool {
+    pub fn request_has_body(&self) -> bool {
         self.request_transfer_coding == HtpTransferCoding::IDENTITY
             || self.request_transfer_coding == HtpTransferCoding::CHUNKED
     }
@@ -723,7 +723,7 @@ impl Transaction {
             self.flags.set(HtpFlags::REQUEST_INVALID)
         }
         // Check for PUT requests, which we need to treat as file uploads.
-        if self.request_method_number == HtpMethod::PUT && self.req_has_body() {
+        if self.request_method_number == HtpMethod::PUT && self.request_has_body() {
             // Prepare to treat PUT request body as a file.
             connp.put_file = Some(File::new(HtpFileSource::PUT, None));
         }
@@ -875,7 +875,7 @@ impl Transaction {
             | HtpContentEncoding::DEFLATE
             | HtpContentEncoding::ZLIB
             | HtpContentEncoding::LZMA => {
-                self.req_prepend_decompressor(connp, self.request_content_encoding_processing)?;
+                self.request_prepend_decompressor(connp, self.request_content_encoding_processing)?;
             }
             HtpContentEncoding::NONE => {
                 if slow_path {
@@ -935,7 +935,7 @@ impl Transaction {
                                 );
                                 HtpContentEncoding::NONE
                             };
-                            self.req_prepend_decompressor(connp, encoding)?;
+                            self.request_prepend_decompressor(connp, encoding)?;
                         }
                     }
                 }
@@ -959,7 +959,7 @@ impl Transaction {
     /// Process the provided data as Urlencoded Data
     ///
     /// Returns HtpStatus::DECLINED if the provided data is not urlencoded (i.e. no urlencoded parser was ever created)
-    fn req_process_urlencoded_data(&mut self, data: Option<&[u8]>) -> Result<()> {
+    fn request_process_urlencoded_data(&mut self, data: Option<&[u8]>) -> Result<()> {
         let urlenp = self
             .request_urlenp_body
             .as_mut()
@@ -978,7 +978,7 @@ impl Transaction {
                     Bstr::from((*value).as_slice()),
                     HtpDataSource::BODY,
                 );
-                self.req_add_param(param)?;
+                self.request_add_param(param)?;
             }
         }
         Ok(())
@@ -987,7 +987,7 @@ impl Transaction {
     /// Process the provided data as Multipart Data
     ///
     /// Returns HtpStatus::DECLINED if the provided data is not multipart (i.e. no multipart parser was ever created)
-    fn req_process_multipart_data(&mut self, data: Option<&[u8]>) -> Result<()> {
+    fn request_process_multipart_data(&mut self, data: Option<&[u8]>) -> Result<()> {
         let mpartp = self.request_mpartp.as_mut().ok_or(HtpStatus::DECLINED)?;
 
         if let Some(data) = data {
@@ -1008,7 +1008,7 @@ impl Transaction {
                         Bstr::from((*part.value).as_slice()),
                         HtpDataSource::BODY,
                     );
-                    self.req_add_param(param)?;
+                    self.request_add_param(param)?;
                 }
             }
             // Put the parts back
@@ -1028,7 +1028,7 @@ impl Transaction {
     /// fully consumed and there is no expectation that it will be available
     /// afterwards. The protocol parsing code makes no copies of the data,
     /// but some parsers might.
-    pub fn req_process_body_data(
+    pub fn request_process_body_data(
         &mut self,
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
@@ -1081,12 +1081,12 @@ impl Transaction {
                 self.request_entity_len = (self.request_entity_len as u64)
                     .wrapping_add(data.unwrap_or(b"").len() as u64)
                     as i64;
-                let _ = self.req_process_multipart_data(data);
-                let _ = self.req_process_urlencoded_data(data);
+                let _ = self.request_process_multipart_data(data);
+                let _ = self.request_process_urlencoded_data(data);
                 // Send data to the callbacks.
                 let data = ParserData::from(data);
                 let mut data = Data::new(self, &data, false);
-                connp.req_run_hook_body_data(&mut data).map_err(|e| {
+                connp.request_run_hook_body_data(&mut data).map_err(|e| {
                     htp_error!(
                         self.logger,
                         HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
@@ -1142,7 +1142,7 @@ impl Transaction {
     /// a RESPONSE_HEADERS callback, by setting tx->response_content_encoding either
     /// to COMPRESSION_NONE (to disable compression), or to one of the supported
     /// decompression algorithms.
-    pub fn res_process_body_data(
+    pub fn response_process_body_data(
         &mut self,
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
@@ -1201,7 +1201,7 @@ impl Transaction {
                 };
                 self.response_entity_len =
                     (self.response_entity_len as u64).wrapping_add(tx_data.len() as u64) as i64;
-                connp.res_run_hook_body_data(&mut tx_data)?;
+                connp.response_run_hook_body_data(&mut tx_data)?;
             }
             HtpContentEncoding::ERROR => {
                 htp_error!(
@@ -1218,8 +1218,8 @@ impl Transaction {
     /// Process any final request body data and complete request.
     pub fn state_request_complete_partial(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         // Finalize request body.
-        if self.req_has_body() {
-            self.req_process_body_data(connp, None)?;
+        if self.request_has_body() {
+            self.request_process_body_data(connp, None)?;
         }
         self.request_progress = HtpRequestProgress::COMPLETE;
         // Run hook REQUEST_COMPLETE.
@@ -1237,9 +1237,9 @@ impl Transaction {
         }
         // Determine what happens next, and remove this transaction from the parser.
         if self.is_protocol_0_9 {
-            connp.in_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
+            connp.request_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
         } else {
-            connp.in_state = State::IDLE;
+            connp.request_state = State::IDLE;
         }
         // Check if the entire transaction is complete.
         let _ = self.finalize(connp);
@@ -1252,7 +1252,7 @@ impl Transaction {
         // Run hook REQUEST_START.
         connp.cfg.hook_request_start.run_all(connp, self)?;
         // Change state into request line parsing.
-        connp.in_state = State::LINE;
+        connp.request_state = State::LINE;
         self.request_progress = HtpRequestProgress::LINE;
         Ok(())
     }
@@ -1270,15 +1270,15 @@ impl Transaction {
             // Run hook HTP_REQUEST_TRAILER.
             connp.cfg.hook_request_trailer.run_all(connp, self)?;
             // Completed parsing this request; finalize it now.
-            connp.in_state = State::FINALIZE;
+            connp.request_state = State::FINALIZE;
         } else if self.request_progress >= HtpRequestProgress::LINE {
             // Request headers.
             // Did this request arrive in multiple data chunks?
-            if connp.in_chunk_count != connp.in_chunk_request_index {
+            if connp.request_chunk_count != connp.request_chunk_request_index {
                 self.flags.set(HtpFlags::MULTI_PACKET_HEAD)
             }
             self.process_request_headers(connp)?;
-            connp.in_state = State::CONNECT_CHECK;
+            connp.request_state = State::CONNECT_CHECK;
         } else {
             htp_warn!(
                 self.logger,
@@ -1334,7 +1334,7 @@ impl Transaction {
                         Bstr::from(value.as_slice()),
                         HtpDataSource::QUERY_STRING,
                     );
-                    self.req_add_param(param)?;
+                    self.request_add_param(param)?;
                 }
             }
         }
@@ -1356,7 +1356,7 @@ impl Transaction {
             self.complete_normalized_uri = complete_normalized_uri;
         }
         // Move on to the next phase.
-        connp.in_state = State::PROTOCOL;
+        connp.request_state = State::PROTOCOL;
         Ok(())
     }
 
@@ -1389,7 +1389,7 @@ impl Transaction {
             self.response_progress = HtpResponseProgress::COMPLETE;
             // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
             if self.response_transfer_coding != HtpTransferCoding::NO_BODY {
-                let _ = self.res_process_body_data(connp, None);
+                let _ = self.response_process_body_data(connp, None);
             }
             // Run hook RESPONSE_COMPLETE.
             connp.cfg.hook_response_complete.run_all(connp, self)?;
@@ -1405,19 +1405,19 @@ impl Transaction {
             // example, when a CONNECT is sent, different paths are used when it is accepted
             // and when it is not accepted.
             //
-            // It is not enough to check only in_status here. Because of pipelining, it's possible
+            // It is not enough to check only request_status here. Because of pipelining, it's possible
             // that many inbound transactions have been processed, and that the parser is
             // waiting on a response that we have not seen yet.
-            if connp.in_status == HtpStreamState::DATA_OTHER
+            if connp.request_status == HtpStreamState::DATA_OTHER
                 && connp.request_index() == connp.response_index()
             {
                 return Err(HtpStatus::DATA_OTHER);
             }
             // Do we have a signal to yield to inbound processing at
             // the end of the next transaction?
-            if connp.out_data_other_at_tx_end {
+            if connp.response_data_other_at_tx_end {
                 // We do. Let's yield then.
-                connp.out_data_other_at_tx_end = false;
+                connp.response_data_other_at_tx_end = false;
                 return Err(HtpStatus::DATA_OTHER);
             }
         }
@@ -1425,7 +1425,7 @@ impl Transaction {
         Ok(())
     }
 
-    fn res_decompressor_callback(
+    fn response_decompressor_callback(
         &mut self,
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
@@ -1445,7 +1445,7 @@ impl Transaction {
 
         // Invoke all callbacks.
         connp
-            .res_run_hook_body_data(&mut tx_data)
+            .response_run_hook_body_data(&mut tx_data)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
 
         if let Some(decompressor) = &mut self.response_decompressor {
@@ -1496,7 +1496,7 @@ impl Transaction {
         Ok(tx_data.len())
     }
 
-    fn req_decompressor_callback(
+    fn request_decompressor_callback(
         &mut self,
         connp: &mut ConnectionParser,
         data: Option<&[u8]>,
@@ -1516,7 +1516,7 @@ impl Transaction {
 
         // Invoke all callbacks.
         connp
-            .req_run_hook_body_data(&mut tx_data)
+            .request_run_hook_body_data(&mut tx_data)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
 
         if let Some(decompressor) = &mut self.request_decompressor {
@@ -1567,7 +1567,7 @@ impl Transaction {
         Ok(tx_data.len())
     }
 
-    fn req_prepend_decompressor(
+    fn request_prepend_decompressor(
         &mut self,
         connp: &mut ConnectionParser,
         encoding: HtpContentEncoding,
@@ -1591,7 +1591,7 @@ impl Transaction {
                     Decompressor::new_with_callback(
                         encoding,
                         Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
-                            (*tx).req_decompressor_callback(&mut *connp_ptr, data)
+                            (*tx).request_decompressor_callback(&mut *connp_ptr, data)
                         }),
                         self.cfg.compression_options,
                     )?
@@ -1601,7 +1601,7 @@ impl Transaction {
         Ok(())
     }
 
-    fn res_prepend_decompressor(
+    fn response_prepend_decompressor(
         &mut self,
         connp: &mut ConnectionParser,
         encoding: HtpContentEncoding,
@@ -1625,7 +1625,7 @@ impl Transaction {
                     Decompressor::new_with_callback(
                         encoding,
                         Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
-                            (*tx).res_decompressor_callback(&mut *connp_ptr, data)
+                            (*tx).response_decompressor_callback(&mut *connp_ptr, data)
                         }),
                         self.cfg.compression_options,
                     )?
@@ -1698,7 +1698,10 @@ impl Transaction {
             | HtpContentEncoding::DEFLATE
             | HtpContentEncoding::ZLIB
             | HtpContentEncoding::LZMA => {
-                self.res_prepend_decompressor(connp, self.response_content_encoding_processing)?;
+                self.response_prepend_decompressor(
+                    connp,
+                    self.response_content_encoding_processing,
+                )?;
                 Ok(())
             }
             HtpContentEncoding::NONE => {
@@ -1760,7 +1763,7 @@ impl Transaction {
                                 HtpContentEncoding::NONE
                             };
 
-                            self.res_prepend_decompressor(connp, encoding)?;
+                            self.response_prepend_decompressor(connp, encoding)?;
                         }
                     }
                 }
@@ -1790,10 +1793,10 @@ impl Transaction {
             self.response_transfer_coding = HtpTransferCoding::IDENTITY;
             self.response_content_encoding_processing = HtpContentEncoding::NONE;
             self.response_progress = HtpResponseProgress::BODY;
-            connp.out_state = State::BODY_IDENTITY_STREAM_CLOSE;
-            connp.out_body_data_left = -1
+            connp.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
+            connp.response_body_data_left = -1
         } else {
-            connp.out_state = State::LINE;
+            connp.response_state = State::LINE;
             self.response_progress = HtpResponseProgress::LINE
         }
         // If at this point we have no method and no uri and our status
@@ -1801,7 +1804,7 @@ impl Transaction {
         // or a overly long request
         if self.request_method.is_none()
             && self.request_uri.is_none()
-            && connp.in_state == State::LINE
+            && connp.request_state == State::LINE
         {
             htp_warn!(
                 self.logger,

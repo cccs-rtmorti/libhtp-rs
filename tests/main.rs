@@ -32,15 +32,15 @@ enum Chunk {
 }
 
 struct MainUserData {
-    pub req_data: Vec<Bstr>,
-    pub res_data: Vec<Bstr>,
+    pub request_data: Vec<Bstr>,
+    pub response_data: Vec<Bstr>,
 }
 
 impl MainUserData {
     pub fn new() -> Self {
         Self {
-            req_data: Vec::with_capacity(5),
-            res_data: Vec::with_capacity(5),
+            request_data: Vec::with_capacity(5),
+            response_data: Vec::with_capacity(5),
         }
     }
 }
@@ -170,12 +170,12 @@ impl Test {
         let mut path = self.basedir.clone();
         path.push(file);
         let test = TestInput::new(path);
-        let mut in_buf: Option<Vec<u8>> = None;
-        let mut out_buf: Option<Vec<u8>> = None;
+        let mut request_buf: Option<Vec<u8>> = None;
+        let mut response_buf: Option<Vec<u8>> = None;
         for chunk in test {
             match chunk {
                 Chunk::Client(data) => {
-                    let rc = self.connp.req_data(
+                    let rc = self.connp.request_data(
                         Some(tv_start),
                         data.as_ptr() as *const core::ffi::c_void,
                         data.len(),
@@ -188,30 +188,30 @@ impl Test {
                     if rc == HtpStreamState::DATA_OTHER {
                         let consumed = self
                             .connp
-                            .req_data_consumed()
+                            .request_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
                         let mut remaining = Vec::with_capacity(data.len() - consumed);
                         remaining.extend_from_slice(&data[consumed..]);
-                        in_buf = Some(remaining);
+                        request_buf = Some(remaining);
                     }
                 }
                 Chunk::Server(data) => {
                     // If we have leftover data from before then use it first
-                    if let Some(out_remaining) = out_buf {
-                        let rc = (&mut self.connp).res_data(
+                    if let Some(response_remaining) = response_buf {
+                        let rc = (&mut self.connp).response_data(
                             Some(tv_start),
-                            out_remaining.as_ptr() as *const core::ffi::c_void,
-                            out_remaining.len(),
+                            response_remaining.as_ptr() as *const core::ffi::c_void,
+                            response_remaining.len(),
                         );
-                        out_buf = None;
+                        response_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
                     }
 
                     // Now use up this data chunk
-                    let rc = (&mut self.connp).res_data(
+                    let rc = (&mut self.connp).response_data(
                         Some(tv_start),
                         data.as_ptr() as *const core::ffi::c_void,
                         data.len(),
@@ -223,22 +223,22 @@ impl Test {
                     if rc == HtpStreamState::DATA_OTHER {
                         let consumed = self
                             .connp
-                            .res_data_consumed()
+                            .response_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
                         let mut remaining = Vec::with_capacity(data.len() - consumed);
                         remaining.extend_from_slice(&data[consumed..]);
-                        out_buf = Some(remaining);
+                        response_buf = Some(remaining);
                     }
 
                     // And check if we also had some input data buffered
-                    if let Some(in_remaining) = in_buf {
-                        let rc = self.connp.req_data(
+                    if let Some(request_remaining) = request_buf {
+                        let rc = self.connp.request_data(
                             Some(tv_start),
-                            in_remaining.as_ptr() as *const core::ffi::c_void,
-                            in_remaining.len(),
+                            request_remaining.as_ptr() as *const core::ffi::c_void,
+                            request_remaining.len(),
                         );
-                        in_buf = None;
+                        request_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
@@ -248,11 +248,11 @@ impl Test {
         }
 
         // Clean up any remaining server data
-        if let Some(out_remaining) = out_buf {
-            let rc = (&mut self.connp).res_data(
+        if let Some(response_remaining) = response_buf {
+            let rc = (&mut self.connp).response_data(
                 Some(tv_start),
-                out_remaining.as_ptr() as *const core::ffi::c_void,
-                out_remaining.len(),
+                response_remaining.as_ptr() as *const core::ffi::c_void,
+                response_remaining.len(),
             );
             if rc == HtpStreamState::ERROR {
                 return Err(TestError::StreamError);
@@ -266,13 +266,17 @@ impl Test {
 
 fn response_body_data(d: &mut Data) -> Result<()> {
     let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
-    user_data.res_data.push(Bstr::from(d.as_slice().unwrap()));
+    user_data
+        .response_data
+        .push(Bstr::from(d.as_slice().unwrap()));
     Ok(())
 }
 
 fn request_body_data(d: &mut Data) -> Result<()> {
     let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
-    user_data.req_data.push(Bstr::from(d.as_slice().unwrap()));
+    user_data
+        .request_data
+        .push(Bstr::from(d.as_slice().unwrap()));
     Ok(())
 }
 
@@ -2149,9 +2153,9 @@ fn CompressedResponseZlibAsDeflate() {
     assert_response_header_eq!(tx, "content-encoding", "deflate");
     assert_eq!(68, tx.response_entity_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(1, user_data.res_data.len());
-    let chunk = &user_data.res_data[0];
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(1, user_data.response_data.len());
+    let chunk = &user_data.response_data[0];
     assert_eq!(
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
         chunk.as_slice()
@@ -2505,9 +2509,9 @@ fn ResponseHeaderDeformedEOL() {
     assert_eq!(logs.get(0).unwrap().msg.code, HtpLogCode::DEFORMED_EOL);
 
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(1, user_data.res_data.len());
-    assert_eq!(b"abcdef".as_ref(), (&user_data.res_data[0]).as_slice());
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(1, user_data.response_data.len());
+    assert_eq!(b"abcdef".as_ref(), (&user_data.response_data[0]).as_slice());
 }
 
 #[test]
@@ -2709,25 +2713,28 @@ fn HttpEvader017() {
     assert_eq!(68, tx.response_entity_len);
     assert_eq!(101, tx.response_message_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(5, user_data.res_data.len());
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(5, user_data.response_data.len());
     assert_eq!(
         b"X5O!P%@AP[4\\PZX".as_ref(),
-        (&user_data.res_data[0]).as_slice()
+        (&user_data.response_data[0]).as_slice()
     );
     assert_eq!(
         b"54(P^)7CC)7}$EI".as_ref(),
-        (&user_data.res_data[1]).as_slice()
+        (&user_data.response_data[1]).as_slice()
     );
     assert_eq!(
         b"CAR-STANDARD-AN".as_ref(),
-        (&user_data.res_data[2]).as_slice()
+        (&user_data.response_data[2]).as_slice()
     );
     assert_eq!(
         b"TIVIRUS-TEST-FI".as_ref(),
-        (&user_data.res_data[3]).as_slice()
+        (&user_data.response_data[3]).as_slice()
     );
-    assert_eq!(b"LE!$H+H*".as_ref(), (&user_data.res_data[4]).as_slice());
+    assert_eq!(
+        b"LE!$H+H*".as_ref(),
+        (&user_data.response_data[4]).as_slice()
+    );
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
@@ -2743,25 +2750,28 @@ fn HttpEvader018() {
     assert_eq!(68, tx.response_entity_len);
     assert_eq!(101, tx.response_message_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(5, user_data.res_data.len());
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(5, user_data.response_data.len());
     assert_eq!(
         b"X5O!P%@AP[4\\PZX".as_ref(),
-        (&user_data.res_data[0]).as_slice()
+        (&user_data.response_data[0]).as_slice()
     );
     assert_eq!(
         b"54(P^)7CC)7}$EI".as_ref(),
-        (&user_data.res_data[1]).as_slice()
+        (&user_data.response_data[1]).as_slice()
     );
     assert_eq!(
         b"CAR-STANDARD-AN".as_ref(),
-        (&user_data.res_data[2]).as_slice()
+        (&user_data.response_data[2]).as_slice()
     );
     assert_eq!(
         b"TIVIRUS-TEST-FI".as_ref(),
-        (&user_data.res_data[3]).as_slice()
+        (&user_data.response_data[3]).as_slice()
     );
-    assert_eq!(b"LE!$H+H*".as_ref(), (&user_data.res_data[4]).as_slice());
+    assert_eq!(
+        b"LE!$H+H*".as_ref(),
+        (&user_data.response_data[4]).as_slice()
+    );
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
@@ -2785,9 +2795,9 @@ fn HttpEvader044() {
     assert_eq!(68, tx.response_entity_len);
     assert_eq!(68, tx.response_message_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(1, user_data.res_data.len());
-    let chunk = &user_data.res_data[0];
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(1, user_data.response_data.len());
+    let chunk = &user_data.response_data[0];
     assert_eq!(
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
         chunk.as_slice()
@@ -2836,9 +2846,9 @@ fn HttpEvader078() {
     assert_eq!(68, tx.response_entity_len);
     assert_eq!(68, tx.response_message_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(1, user_data.res_data.len());
-    let chunk = &user_data.res_data[0];
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(1, user_data.response_data.len());
+    let chunk = &user_data.response_data[0];
     assert_eq!(
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
         chunk.as_slice()
@@ -2876,10 +2886,10 @@ fn HttpEvader195() {
     assert_eq!(68, tx.response_entity_len);
     assert_eq!(90, tx.response_message_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(1, user_data.res_data.len());
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(1, user_data.response_data.len());
     assert_eq!(
-        (&user_data.res_data[0]).as_slice(),
+        (&user_data.response_data[0]).as_slice(),
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref()
     );
 }
@@ -3056,13 +3066,13 @@ fn HttpEvader416() {
     assert_eq!(69, tx.response_message_len);
     assert_eq!(69, tx.response_entity_len);
     let user_data = tx.user_data::<MainUserData>().unwrap();
-    assert!(user_data.req_data.is_empty());
-    assert_eq!(2, user_data.res_data.len());
+    assert!(user_data.request_data.is_empty());
+    assert_eq!(2, user_data.response_data.len());
     assert_eq!(
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
-        (&user_data.res_data[0]).as_slice()
+        (&user_data.response_data[0]).as_slice()
     );
-    assert_eq!(b"\n".as_ref(), (&user_data.res_data[1]).as_slice());
+    assert_eq!(b"\n".as_ref(), (&user_data.response_data[1]).as_slice());
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }

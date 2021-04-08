@@ -393,7 +393,7 @@ fn parse_authorization_digest(auth_header_value: &[u8]) -> IResult<&[u8], Vec<u8
 }
 
 /// Parses Basic Authorization request header.
-pub fn parse_authorization_basic(in_tx: &mut Transaction, auth_header: &Header) -> Result<()> {
+pub fn parse_authorization_basic(request_tx: &mut Transaction, auth_header: &Header) -> Result<()> {
     // Skip 'Basic<lws>'
     let (remaining_input, _) =
         tuple((tag_no_case("basic"), take_ascii_whitespace()))(auth_header.value.as_slice())
@@ -403,49 +403,51 @@ pub fn parse_authorization_basic(in_tx: &mut Transaction, auth_header: &Header) 
     let (password, (username, _)) =
         tuple::<_, _, (&[u8], ErrorKind), _>((take_until(":"), tag(":")))(decoded.as_slice())
             .map_err(|_| HtpStatus::DECLINED)?;
-    in_tx.request_auth_username = Some(Bstr::from(username));
-    in_tx.request_auth_password = Some(Bstr::from(password));
+    request_tx.request_auth_username = Some(Bstr::from(username));
+    request_tx.request_auth_password = Some(Bstr::from(password));
     Ok(())
 }
 
 /// Parses Authorization request header.
-pub fn parse_authorization(in_tx: &mut Transaction) -> Result<()> {
-    let auth_header =
-        if let Some((_, auth_header)) = in_tx.request_headers.get_nocase_nozero("authorization") {
-            auth_header.clone()
-        } else {
-            in_tx.request_auth_type = HtpAuthType::NONE;
-            return Ok(());
-        };
+pub fn parse_authorization(request_tx: &mut Transaction) -> Result<()> {
+    let auth_header = if let Some((_, auth_header)) = request_tx
+        .request_headers
+        .get_nocase_nozero("authorization")
+    {
+        auth_header.clone()
+    } else {
+        request_tx.request_auth_type = HtpAuthType::NONE;
+        return Ok(());
+    };
     // TODO Need a flag to raise when failing to parse authentication headers.
     if auth_header.value.starts_with_nocase("basic") {
         // Basic authentication
-        in_tx.request_auth_type = HtpAuthType::BASIC;
-        return parse_authorization_basic(in_tx, &auth_header);
+        request_tx.request_auth_type = HtpAuthType::BASIC;
+        return parse_authorization_basic(request_tx, &auth_header);
     } else if auth_header.value.starts_with_nocase("digest") {
         // Digest authentication
-        in_tx.request_auth_type = HtpAuthType::DIGEST;
+        request_tx.request_auth_type = HtpAuthType::DIGEST;
         if let Ok((_, auth_username)) = parse_authorization_digest(auth_header.value.as_slice()) {
-            if let Some(username) = &mut in_tx.request_auth_username {
+            if let Some(username) = &mut request_tx.request_auth_username {
                 username.clear();
                 username.add(auth_username);
             } else {
-                in_tx.request_auth_username = Some(Bstr::from(auth_username));
+                request_tx.request_auth_username = Some(Bstr::from(auth_username));
             }
             return Ok(());
         }
         return Err(HtpStatus::DECLINED);
     } else if auth_header.value.starts_with_nocase("bearer") {
-        in_tx.request_auth_type = HtpAuthType::BEARER;
+        request_tx.request_auth_type = HtpAuthType::BEARER;
         let (token, _) = tuple((
             tag_no_case("bearer"),
             take_ascii_whitespace(), // allow lws
         ))(auth_header.value.as_slice())
         .map_err(|_| HtpStatus::DECLINED)?;
-        in_tx.request_auth_token = Some(Bstr::from(token));
+        request_tx.request_auth_token = Some(Bstr::from(token));
     } else {
         // Unrecognized authentication method
-        in_tx.request_auth_type = HtpAuthType::UNRECOGNIZED
+        request_tx.request_auth_type = HtpAuthType::UNRECOGNIZED
     }
     Ok(())
 }
@@ -463,11 +465,11 @@ pub fn single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
 }
 
 /// Parses the Cookie request header in v0 format and places the results into tx->request_cookies.
-pub fn parse_cookies_v0(in_tx: &mut Transaction) -> Result<()> {
-    if let Some((_, cookie_header)) = in_tx.request_headers.get_nocase_nozero_mut("cookie") {
+pub fn parse_cookies_v0(request_tx: &mut Transaction) -> Result<()> {
+    if let Some((_, cookie_header)) = request_tx.request_headers.get_nocase_nozero_mut("cookie") {
         let data: &[u8] = cookie_header.value.as_ref();
         // Create a new table to store cookies.
-        in_tx.request_cookies = Table::with_capacity(4);
+        request_tx.request_cookies = Table::with_capacity(4);
         for cookie in data.split(|b| *b == b';') {
             if let Ok((cookie, _)) = take_ascii_whitespace()(cookie) {
                 if cookie.is_empty() {
@@ -475,7 +477,7 @@ pub fn parse_cookies_v0(in_tx: &mut Transaction) -> Result<()> {
                 }
                 let (name, value) = single_cookie_v0(cookie);
                 if !name.is_empty() {
-                    in_tx
+                    request_tx
                         .request_cookies
                         .add(Bstr::from(name), Bstr::from(value));
                 }

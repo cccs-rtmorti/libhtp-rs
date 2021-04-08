@@ -17,11 +17,11 @@ use std::cmp::Ordering;
 impl ConnectionParser {
     /// Generic response line parser.
     pub fn parse_response_line_generic(&mut self, response_line: &[u8]) -> Result<()> {
-        let out_tx = self.response_mut();
-        out_tx.response_protocol_number = HtpProtocol::INVALID;
-        out_tx.response_status = None;
-        out_tx.response_status_number = HtpResponseNumber::INVALID;
-        out_tx.response_message = None;
+        let response_tx = self.response_mut();
+        response_tx.response_protocol_number = HtpProtocol::INVALID;
+        response_tx.response_status = None;
+        response_tx.response_status_number = HtpResponseNumber::INVALID;
+        response_tx.response_message = None;
 
         let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
             take_is_space_or_null,
@@ -38,7 +38,7 @@ impl ConnectionParser {
                 return Ok(());
             }
 
-            out_tx.response_protocol = Some(Bstr::from(response_protocol));
+            response_tx.response_protocol = Some(Bstr::from(response_protocol));
             self.response_mut().response_protocol_number =
                 parse_protocol(response_protocol, &mut self.logger);
 
@@ -46,15 +46,15 @@ impl ConnectionParser {
                 return Ok(());
             }
 
-            let out_tx = self.response_mut();
-            out_tx.response_status = Some(Bstr::from(status_code));
-            out_tx.response_status_number = parse_status(status_code);
+            let response_tx = self.response_mut();
+            response_tx.response_status = Some(Bstr::from(status_code));
+            response_tx.response_status_number = parse_status(status_code);
 
             if ws2.is_empty() {
                 return Ok(());
             }
 
-            out_tx.response_message = Some(Bstr::from(message));
+            response_tx.response_message = Some(Bstr::from(message));
         } else {
             return Err(HtpStatus::ERROR);
         }
@@ -68,7 +68,7 @@ impl ConnectionParser {
         &mut self,
         data: &'a [u8],
     ) -> Result<(&'a [u8], bool)> {
-        let rc = self.response_mut().res_header_parser.headers()(data);
+        let rc = self.response_mut().response_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
                 let mut flags = 0;
@@ -160,7 +160,7 @@ impl ConnectionParser {
     /// into a single buffer before invoking the parsing function.
     fn process_response_header_generic(&mut self, header: Header) -> Result<()> {
         let mut repeated = false;
-        let reps = self.response().res_header_repetitions;
+        let reps = self.response().response_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
         if let Some((_, h_existing)) = self
@@ -205,8 +205,8 @@ impl ConnectionParser {
                 .add(header.name.clone(), header);
         }
         if update_reps {
-            self.response_mut().res_header_repetitions =
-                self.response().res_header_repetitions.wrapping_add(1)
+            self.response_mut().response_header_repetitions =
+                self.response().response_header_repetitions.wrapping_add(1)
         }
         if repeated {
             htp_warn!(

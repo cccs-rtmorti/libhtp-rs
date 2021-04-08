@@ -82,8 +82,8 @@ impl Test {
 fn GUnzip_Minimal() {
     let mut t = Test::new();
     assert!(t.run("gztest-01-minimal.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 
@@ -91,8 +91,8 @@ fn GUnzip_Minimal() {
 fn GUnzip_FNAME() {
     let mut t = Test::new();
     assert!(t.run("gztest-02-fname.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 
@@ -100,8 +100,8 @@ fn GUnzip_FNAME() {
 fn GUnzip_FEXTRA() {
     let mut t = Test::new();
     assert!(t.run("gztest-05-fextra.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 
@@ -109,8 +109,8 @@ fn GUnzip_FEXTRA() {
 fn GUnzip_FTEXT() {
     let mut t = Test::new();
     assert!(t.run("gztest-06-ftext.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 
@@ -118,8 +118,8 @@ fn GUnzip_FTEXT() {
 fn GUnzip_Multipart() {
     let mut t = Test::new();
     assert!(t.run("gztest-10-multipart.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 
@@ -127,8 +127,8 @@ fn GUnzip_Multipart() {
 fn GUnzip_InvalidExtraFlags() {
     let mut t = Test::new();
     assert!(t.run("gztest-14-invalid-xfl.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 
@@ -136,8 +136,8 @@ fn GUnzip_InvalidExtraFlags() {
 fn GUnzip_InvalidHeaderCrc() {
     let mut t = Test::new();
     assert!(t.run("gztest-15-invalid-fhcrc.gz").is_ok());
-    let in_tx = t.connp.request();
-    let output = in_tx.user_data::<Bstr>().unwrap();
+    let request_tx = t.connp.request();
+    let output = request_tx.user_data::<Bstr>().unwrap();
     assert_eq!(*output, t.expected);
 }
 

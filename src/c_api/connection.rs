@@ -1,16 +1,20 @@
 #![deny(missing_docs)]
 use crate::{connection::Connection, log::Log};
 
-/// Returns the in_data_counter
+/// Returns the request_data_counter
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_in_data_counter(conn: *const Connection) -> i64 {
-    conn.as_ref().map(|conn| conn.in_data_counter).unwrap_or(0)
+pub unsafe extern "C" fn htp_conn_request_data_counter(conn: *const Connection) -> i64 {
+    conn.as_ref()
+        .map(|conn| conn.request_data_counter)
+        .unwrap_or(0)
 }
 
-/// Returns the out_data_counter
+/// Returns the response_data_counter
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_out_data_counter(conn: *const Connection) -> i64 {
-    conn.as_ref().map(|conn| conn.out_data_counter).unwrap_or(0)
+pub unsafe extern "C" fn htp_conn_response_data_counter(conn: *const Connection) -> i64 {
+    conn.as_ref()
+        .map(|conn| conn.response_data_counter)
+        .unwrap_or(0)
 }
 
 /// Get the next logged message from the connection

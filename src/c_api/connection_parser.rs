@@ -130,12 +130,12 @@ pub unsafe extern "C" fn htp_connp_open(
 ///
 /// timestamp is optional
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_req_close(
+pub unsafe extern "C" fn htp_connp_request_close(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
 ) {
     connp.as_mut().map(|connp| {
-        connp.req_close(timestamp.as_ref().map(|val| {
+        connp.request_close(timestamp.as_ref().map(|val| {
             DateTime::<Utc>::from_utc(
                 NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
                 Utc,
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn htp_connp_req_close(
 /// Returns HTP_STREAM_STATE_DATA, HTP_STREAM_STATE_ERROR or HTP_STREAM_STATE_DATA_OTHER (see QUICK_START).
 ///         HTP_STREAM_STATE_CLOSED and HTP_STREAM_STATE_TUNNEL are also possible.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_req_data(
+pub unsafe extern "C" fn htp_connp_request_data(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
     data: *const libc::c_void,
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
     connp
         .as_mut()
         .map(|connp| {
-            connp.req_data(
+            connp.request_data(
                 timestamp.as_ref().map(|val| {
                     DateTime::<Utc>::from_utc(
                         NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn htp_connp_req_data(
 /// timestamp is optional.
 /// Returns HTP_STREAM_STATE_OK on state change, HTP_STREAM_STATE_ERROR on error, or HTP_STREAM_STATE_DATA when more data is needed
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_res_data(
+pub unsafe extern "C" fn htp_connp_response_data(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
     data: *const libc::c_void,
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn htp_connp_res_data(
     connp
         .as_mut()
         .map(|connp| {
-            connp.res_data(
+            connp.response_data(
                 timestamp.as_ref().map(|val| {
                     DateTime::<Utc>::from_utc(
                         NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
@@ -282,24 +282,24 @@ pub unsafe extern "C" fn htp_connp_flush_incomplete_transactions(connp: *mut Con
 
 /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_req_data_consumed(connp: *const ConnectionParser) -> i64 {
+pub unsafe extern "C" fn htp_connp_request_data_consumed(connp: *const ConnectionParser) -> i64 {
     connp
         .as_ref()
-        .map(|connp| connp.req_data_consumed())
+        .map(|connp| connp.request_data_consumed())
         .unwrap_or(-1)
 }
 
 /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
-/// of htp_connp_res_data() will consume all data from the supplied buffer, but there are circumstances
+/// of htp_connp_response_data() will consume all data from the supplied buffer, but there are circumstances
 /// where only partial consumption is possible. In such cases HTP_STREAM_DATA_OTHER will be returned.
 /// Consumed bytes are no longer necessary, but the remainder of the buffer will be need to be saved
 /// for later.
 /// Returns the number of bytes consumed from the last data chunk sent for outbound processing
 /// or -1 on error.
 #[no_mangle]
-pub unsafe extern "C" fn htp_connp_res_data_consumed(connp: *const ConnectionParser) -> i64 {
+pub unsafe extern "C" fn htp_connp_response_data_consumed(connp: *const ConnectionParser) -> i64 {
     connp
         .as_ref()
-        .map(|connp| connp.res_data_consumed())
+        .map(|connp| connp.response_data_consumed())
         .unwrap_or(-1)
 }

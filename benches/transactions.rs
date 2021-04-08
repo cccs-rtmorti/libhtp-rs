@@ -70,12 +70,12 @@ impl Test {
             Some(tv_start),
         );
 
-        let mut in_buf: Option<Vec<u8>> = None;
-        let mut out_buf: Option<Vec<u8>> = None;
+        let mut request_buf: Option<Vec<u8>> = None;
+        let mut response_buf: Option<Vec<u8>> = None;
         for chunk in test {
             match chunk {
                 Chunk::Client(data) => {
-                    let rc = self.connp.req_data(
+                    let rc = self.connp.request_data(
                         Some(tv_start),
                         data.as_ptr() as *const core::ffi::c_void,
                         data.len(),
@@ -88,30 +88,30 @@ impl Test {
                         // HTP_STREAM_DATA_OTHER = 5
                         let consumed = self
                             .connp
-                            .req_data_consumed()
+                            .request_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
                         let mut remaining = Vec::with_capacity(data.len() - consumed);
                         remaining.extend_from_slice(&data[consumed..]);
-                        in_buf = Some(remaining);
+                        request_buf = Some(remaining);
                     }
                 }
                 Chunk::Server(data) => {
                     // If we have leftover data from before then use it first
-                    if let Some(out_remaining) = out_buf {
-                        let rc = self.connp.res_data(
+                    if let Some(response_remaining) = response_buf {
+                        let rc = self.connp.response_data(
                             Some(tv_start),
-                            out_remaining.as_ptr() as *const core::ffi::c_void,
-                            out_remaining.len(),
+                            response_remaining.as_ptr() as *const core::ffi::c_void,
+                            response_remaining.len(),
                         );
-                        out_buf = None;
+                        response_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
                     }
 
                     // Now use up this data chunk
-                    let rc = self.connp.res_data(
+                    let rc = self.connp.response_data(
                         Some(tv_start),
                         data.as_ptr() as *const core::ffi::c_void,
                         data.len(),
@@ -123,22 +123,22 @@ impl Test {
                     if rc == HtpStreamState::DATA_OTHER {
                         let consumed = self
                             .connp
-                            .res_data_consumed()
+                            .response_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
                         let mut remaining = Vec::with_capacity(data.len() - consumed);
                         remaining.extend_from_slice(&data[consumed..]);
-                        out_buf = Some(remaining);
+                        response_buf = Some(remaining);
                     }
 
                     // And check if we also had some input data buffered
-                    if let Some(in_remaining) = in_buf {
-                        let rc = self.connp.req_data(
+                    if let Some(request_remaining) = request_buf {
+                        let rc = self.connp.request_data(
                             Some(tv_start),
-                            in_remaining.as_ptr() as *const core::ffi::c_void,
-                            in_remaining.len(),
+                            request_remaining.as_ptr() as *const core::ffi::c_void,
+                            request_remaining.len(),
                         );
-                        in_buf = None;
+                        request_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
                         }
@@ -148,11 +148,11 @@ impl Test {
         }
 
         // Clean up any remaining server data
-        if let Some(out_remaining) = out_buf {
-            let rc = self.connp.res_data(
+        if let Some(response_remaining) = response_buf {
+            let rc = self.connp.response_data(
                 Some(tv_start),
-                out_remaining.as_ptr() as *const core::ffi::c_void,
-                out_remaining.len(),
+                response_remaining.as_ptr() as *const core::ffi::c_void,
+                response_remaining.len(),
             );
             if rc == HtpStreamState::ERROR {
                 return Err(TestError::StreamError);

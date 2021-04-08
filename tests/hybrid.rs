@@ -315,11 +315,11 @@ fn GetTest() {
 
     // Response body data
     t.connp
-        .res_process_body_data_ex(Some(b"<h1>Hello"))
+        .response_process_body_data_ex(Some(b"<h1>Hello"))
         .unwrap();
-    t.connp.res_process_body_data_ex(Some(b" ")).unwrap();
+    t.connp.response_process_body_data_ex(Some(b" ")).unwrap();
     t.connp
-        .res_process_body_data_ex(Some(b"World!</h1>"))
+        .response_process_body_data_ex(Some(b"World!</h1>"))
         .unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
@@ -367,10 +367,10 @@ fn PostUrlecodedTest() {
     t.connp.state_request_headers().unwrap();
 
     // Send request body
-    t.connp.req_process_body_data_ex(Some(b"p=1")).unwrap();
-    t.connp.req_process_body_data_ex(Some(b"")).unwrap();
-    t.connp.req_process_body_data_ex(Some(b"&")).unwrap();
-    t.connp.req_process_body_data_ex(Some(b"q=2")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"p=1")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"&")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"q=2")).unwrap();
 
     let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.request_headers, "Host", "www.example.com");
@@ -422,7 +422,7 @@ fn CompressedResponse() {
     let body = Bstr::from(base64::decode(RESPONSE).unwrap());
 
     t.connp
-        .res_process_body_data_ex(Some(body.as_slice()))
+        .response_process_body_data_ex(Some(body.as_slice()))
         .unwrap();
 
     t.connp.state_response_complete_ex(1).unwrap();
@@ -483,9 +483,9 @@ fn PostUrlecodedChunked() {
     t.connp.state_request_headers().unwrap();
 
     // Send request body.
-    t.connp.req_process_body_data_ex(Some(b"p=1")).unwrap();
-    t.connp.req_process_body_data_ex(Some(b"&")).unwrap();
-    t.connp.req_process_body_data_ex(Some(b"q=2")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"p=1")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"&")).unwrap();
+    t.connp.request_process_body_data_ex(Some(b"q=2")).unwrap();
 
     // Request complete.
     t.connp.state_request_complete().unwrap();

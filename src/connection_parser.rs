@@ -34,7 +34,7 @@ pub enum State {
     BODY_DETERMINE,
     /// State for finalizing transaction side.
     FINALIZE,
-    // Used by in_state only
+    // Used by request_state only
     /// State for determining the request protocol.
     PROTOCOL,
     /// State to determine if there is a CONNECT request.
@@ -47,7 +47,7 @@ pub enum State {
     BODY_IDENTITY,
     /// State to consume remaining data in request buffer for the HTTP 0.9 case.
     IGNORE_DATA_AFTER_HTTP_0_9,
-    // Used by out_state only
+    // Used by response_state only
     /// State to consume response remaining body data when content-length is unknown.
     BODY_IDENTITY_STREAM_CLOSE,
     /// State to consume response body data when content-length is known.
@@ -206,76 +206,76 @@ pub struct ConnectionParser {
     pub user_data: Option<Box<dyn Any>>,
     // Request parser fields
     /// Parser inbound status. Starts as OK, but may turn into ERROR.
-    pub in_status: HtpStreamState,
+    pub request_status: HtpStreamState,
     /// Parser outbound status. Starts as OK, but may turn into ERROR.
-    pub out_status: HtpStreamState,
+    pub response_status: HtpStreamState,
     /// When true, this field indicates that there is unprocessed inbound data, and
     /// that the response parsing code should stop at the end of the current request
     /// in order to allow more requests to be produced.
-    pub out_data_other_at_tx_end: bool,
+    pub response_data_other_at_tx_end: bool,
     /// The time when the last request data chunk was received.
-    pub in_timestamp: DateTime<Utc>,
+    pub request_timestamp: DateTime<Utc>,
     /// Pointer to the current request data chunk.
-    pub in_curr_data: Cursor<Vec<u8>>,
+    pub request_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the inbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
     /// request_header_data).
-    pub in_current_receiver_offset: u64,
+    pub request_current_receiver_offset: u64,
     /// How many data chunks does the inbound connection stream consist of?
-    pub in_chunk_count: usize,
+    pub request_chunk_count: usize,
     /// The index of the first chunk used in the current request.
-    pub in_chunk_request_index: usize,
+    pub request_chunk_request_index: usize,
     /// Used to buffer a line of inbound data when buffering cannot be avoided.
-    pub in_buf: Bstr,
+    pub request_buf: Bstr,
     /// Stores the current value of a folded request header. Such headers span
     /// multiple lines, and are processed only when all data is available.
-    pub in_header: Option<Bstr>,
+    pub request_header: Option<Bstr>,
     /// The request body length declared in a valid request header. The key here
     /// is "valid". This field will not be populated if the request contains both
     /// a Transfer-Encoding header and a Content-Length header.
-    pub in_content_length: i64,
+    pub request_content_length: i64,
     /// Holds the remaining request body length that we expect to read. This
     /// field will be available only when the length of a request body is known
     /// in advance, i.e. when request headers contain a Content-Length header.
-    pub in_body_data_left: i64,
+    pub request_body_data_left: i64,
     /// Holds the amount of data that needs to be read from the
     /// current data chunk. Only used with chunked request bodies.
-    pub in_chunked_length: Option<i32>,
+    pub request_chunked_length: Option<i32>,
     /// Current request parser state.
-    pub in_state: State,
+    pub request_state: State,
     /// Previous request parser state. Used to detect state changes.
-    pub in_state_previous: State,
+    pub request_state_previous: State,
     /// The hook that should be receiving raw connection data.
-    pub in_data_receiver_hook: Option<DataHook>,
+    pub request_data_receiver_hook: Option<DataHook>,
 
     // Response parser fields
     /// The time when the last response data chunk was received.
-    pub out_timestamp: DateTime<Utc>,
+    pub response_timestamp: DateTime<Utc>,
     /// Pointer to the current response data chunk.
-    pub out_curr_data: Cursor<Vec<u8>>,
+    pub response_curr_data: Cursor<Vec<u8>>,
     /// Marks the starting point of raw data within the outbound data chunk. Raw
     /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
     /// response_header_data).
-    pub out_current_receiver_offset: u64,
+    pub response_current_receiver_offset: u64,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
-    pub out_buf: Bstr,
+    pub response_buf: Bstr,
     /// Stores the current value of a folded response header. Such headers span
     /// multiple lines, and are processed only when all data is available.
-    pub out_header: Option<Bstr>,
+    pub response_header: Option<Bstr>,
     /// The length of the current response body as presented in the
     /// Content-Length response header.
-    pub out_content_length: i64,
+    pub response_content_length: i64,
     /// The remaining length of the current response body, if known. Set to -1 otherwise.
-    pub out_body_data_left: i64,
+    pub response_body_data_left: i64,
     /// Holds the amount of data that needs to be read from the
     /// current response data chunk. Only used with chunked response bodies.
-    pub out_chunked_length: Option<i32>,
+    pub response_chunked_length: Option<i32>,
     /// Current response parser state.
-    pub out_state: State,
+    pub response_state: State,
     /// Previous response parser state.
-    pub out_state_previous: State,
+    pub response_state_previous: State,
     /// The hook that should be receiving raw connection data.
-    pub out_data_receiver_hook: Option<DataHook>,
+    pub response_data_receiver_hook: Option<DataHook>,
     /// On a PUT request, this field contains additional file data.
     pub put_file: Option<File>,
 
@@ -286,8 +286,8 @@ pub struct ConnectionParser {
 impl std::fmt::Debug for ConnectionParser {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("ConnectionParser")
-            .field("in_status", &self.in_status)
-            .field("out_status", &self.out_status)
+            .field("request_status", &self.request_status)
+            .field("response_status", &self.response_status)
             .field("request_index", &self.request_index())
             .field("response_index", &self.response_index())
             .finish()
@@ -305,33 +305,33 @@ impl ConnectionParser {
             cfg: Rc::clone(&cfg),
             conn,
             user_data: None,
-            in_status: HtpStreamState::NEW,
-            out_status: HtpStreamState::NEW,
-            out_data_other_at_tx_end: false,
-            in_timestamp: DateTime::<Utc>::from(SystemTime::now()),
-            in_curr_data: Cursor::new(Vec::new()),
-            in_current_receiver_offset: 0,
-            in_chunk_count: 0,
-            in_chunk_request_index: 0,
-            in_buf: Bstr::new(),
-            in_header: None,
-            in_content_length: 0,
-            in_body_data_left: 0,
-            in_chunked_length: None,
-            in_state: State::IDLE,
-            in_state_previous: State::NONE,
-            in_data_receiver_hook: None,
-            out_timestamp: DateTime::<Utc>::from(SystemTime::now()),
-            out_curr_data: Cursor::new(Vec::new()),
-            out_current_receiver_offset: 0,
-            out_buf: Bstr::new(),
-            out_header: None,
-            out_content_length: 0,
-            out_body_data_left: 0,
-            out_chunked_length: None,
-            out_state: State::IDLE,
-            out_state_previous: State::NONE,
-            out_data_receiver_hook: None,
+            request_status: HtpStreamState::NEW,
+            response_status: HtpStreamState::NEW,
+            response_data_other_at_tx_end: false,
+            request_timestamp: DateTime::<Utc>::from(SystemTime::now()),
+            request_curr_data: Cursor::new(Vec::new()),
+            request_current_receiver_offset: 0,
+            request_chunk_count: 0,
+            request_chunk_request_index: 0,
+            request_buf: Bstr::new(),
+            request_header: None,
+            request_content_length: 0,
+            request_body_data_left: 0,
+            request_chunked_length: None,
+            request_state: State::IDLE,
+            request_state_previous: State::NONE,
+            request_data_receiver_hook: None,
+            response_timestamp: DateTime::<Utc>::from(SystemTime::now()),
+            response_curr_data: Cursor::new(Vec::new()),
+            response_current_receiver_offset: 0,
+            response_buf: Bstr::new(),
+            response_header: None,
+            response_content_length: 0,
+            response_body_data_left: 0,
+            response_chunked_length: None,
+            response_state: State::IDLE,
+            response_state_previous: State::NONE,
+            response_data_receiver_hook: None,
             put_file: None,
             transactions: Transactions::new(&cfg, &logger),
         }
@@ -399,45 +399,45 @@ impl ConnectionParser {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_in_state(&mut self, data: &mut Data) -> Result<()> {
-        data.set_position(self.in_curr_data.position() as usize);
-        match self.in_state {
+    pub fn handle_request_state(&mut self, data: &mut Data) -> Result<()> {
+        data.set_position(self.request_curr_data.position() as usize);
+        match self.request_state {
             State::NONE => Err(HtpStatus::ERROR),
-            State::IDLE => self.req_idle(),
-            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.req_ignore_data_after_http_0_9(),
-            State::LINE => self.req_line(data.as_slice()),
-            State::PROTOCOL => self.req_protocol(data.as_slice()),
-            State::HEADERS => self.req_headers(data.as_slice()),
-            State::CONNECT_WAIT_RESPONSE => self.req_connect_wait_response(),
-            State::CONNECT_CHECK => self.req_connect_check(),
-            State::CONNECT_PROBE_DATA => self.req_connect_probe_data(data.as_slice()),
-            State::BODY_DETERMINE => self.req_body_determine(),
-            State::BODY_CHUNKED_DATA => self.req_body_chunked_data(data.as_slice()),
-            State::BODY_CHUNKED_LENGTH => self.req_body_chunked_length(data.as_slice()),
-            State::BODY_CHUNKED_DATA_END => self.req_body_chunked_data_end(data.as_slice()),
-            State::BODY_IDENTITY => self.req_body_identity(data),
-            State::FINALIZE => self.req_finalize(data),
-            // These are only used by out_state
+            State::IDLE => self.request_idle(),
+            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.request_ignore_data_after_http_0_9(),
+            State::LINE => self.request_line(data.as_slice()),
+            State::PROTOCOL => self.request_protocol(data.as_slice()),
+            State::HEADERS => self.request_headers(data.as_slice()),
+            State::CONNECT_WAIT_RESPONSE => self.request_connect_wait_response(),
+            State::CONNECT_CHECK => self.request_connect_check(),
+            State::CONNECT_PROBE_DATA => self.request_connect_probe_data(data.as_slice()),
+            State::BODY_DETERMINE => self.request_body_determine(),
+            State::BODY_CHUNKED_DATA => self.request_body_chunked_data(data.as_slice()),
+            State::BODY_CHUNKED_LENGTH => self.request_body_chunked_length(data.as_slice()),
+            State::BODY_CHUNKED_DATA_END => self.request_body_chunked_data_end(data.as_slice()),
+            State::BODY_IDENTITY => self.request_body_identity(data),
+            State::FINALIZE => self.request_finalize(data),
+            // These are only used by response_state
             _ => Err(HtpStatus::ERROR),
         }
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_out_state(&mut self, data: &mut Data) -> Result<()> {
-        data.set_position(self.out_curr_data.position() as usize);
-        match self.out_state {
+    pub fn handle_response_state(&mut self, data: &mut Data) -> Result<()> {
+        data.set_position(self.response_curr_data.position() as usize);
+        match self.response_state {
             State::NONE => Err(HtpStatus::ERROR),
-            State::IDLE => self.res_idle(),
-            State::LINE => self.res_line(data.as_slice()),
-            State::HEADERS => self.res_headers(data.as_slice()),
-            State::BODY_DETERMINE => self.res_body_determine(),
-            State::BODY_CHUNKED_DATA => self.res_body_chunked_data(data.as_slice()),
-            State::BODY_CHUNKED_LENGTH => self.res_body_chunked_length(data.as_slice()),
-            State::BODY_CHUNKED_DATA_END => self.res_body_chunked_data_end(data.as_slice()),
-            State::FINALIZE => self.res_finalize(data),
-            State::BODY_IDENTITY_STREAM_CLOSE => self.res_body_identity_stream_close(data),
-            State::BODY_IDENTITY_CL_KNOWN => self.res_body_identity_cl_known(data),
-            // These are only used by in_state
+            State::IDLE => self.response_idle(),
+            State::LINE => self.response_line(data.as_slice()),
+            State::HEADERS => self.response_headers(data.as_slice()),
+            State::BODY_DETERMINE => self.response_body_determine(),
+            State::BODY_CHUNKED_DATA => self.response_body_chunked_data(data.as_slice()),
+            State::BODY_CHUNKED_LENGTH => self.response_body_chunked_length(data.as_slice()),
+            State::BODY_CHUNKED_DATA_END => self.response_body_chunked_data_end(data.as_slice()),
+            State::FINALIZE => self.response_finalize(data),
+            State::BODY_IDENTITY_STREAM_CLOSE => self.response_body_identity_stream_close(data),
+            State::BODY_IDENTITY_CL_KNOWN => self.response_body_identity_cl_known(data),
+            // These are only used by request_state
             _ => Err(HtpStatus::ERROR),
         }
     }
@@ -469,14 +469,14 @@ impl ConnectionParser {
     }
 
     /// Closes the connection associated with the supplied parser.
-    pub fn req_close(&mut self, timestamp: Option<DateTime<Utc>>) {
+    pub fn request_close(&mut self, timestamp: Option<DateTime<Utc>>) {
         // Update internal flags
-        if self.in_status != HtpStreamState::ERROR {
-            self.in_status = HtpStreamState::CLOSED
+        if self.request_status != HtpStreamState::ERROR {
+            self.request_status = HtpStreamState::CLOSED
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.req_data(timestamp, std::ptr::null(), 0);
+        self.request_data(timestamp, std::ptr::null(), 0);
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -484,37 +484,37 @@ impl ConnectionParser {
         // Close the underlying connection.
         self.conn.close(timestamp);
         // Update internal flags
-        if self.in_status != HtpStreamState::ERROR {
-            self.in_status = HtpStreamState::CLOSED
+        if self.request_status != HtpStreamState::ERROR {
+            self.request_status = HtpStreamState::CLOSED
         }
-        if self.out_status != HtpStreamState::ERROR {
-            self.out_status = HtpStreamState::CLOSED
+        if self.response_status != HtpStreamState::ERROR {
+            self.response_status = HtpStreamState::CLOSED
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.req_data(timestamp, std::ptr::null(), 0);
-        self.res_data(timestamp, std::ptr::null(), 0);
+        self.request_data(timestamp, std::ptr::null(), 0);
+        self.response_data(timestamp, std::ptr::null(), 0);
     }
 
     /// This function is most likely not used and/or not needed.
-    pub fn in_reset(&mut self) {
-        self.in_content_length = -1;
-        self.in_body_data_left = -1;
-        self.in_chunk_request_index = self.in_chunk_count;
+    pub fn request_reset(&mut self) {
+        self.request_content_length = -1;
+        self.request_body_data_left = -1;
+        self.request_chunk_request_index = self.request_chunk_count;
     }
 
     /// Returns the number of bytes consumed from the current data chunks so far.
-    pub fn req_data_consumed(&self) -> i64 {
-        self.in_curr_data.position() as i64
+    pub fn request_data_consumed(&self) -> i64 {
+        self.request_curr_data.position() as i64
     }
 
     /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
-    /// of res_data() will consume all data from the supplied buffer, but there are circumstances
+    /// of response_data() will consume all data from the supplied buffer, but there are circumstances
     /// where only partial consumption is possible. In such cases DATA_OTHER will be returned.
     /// Consumed bytes are no longer necessary, but the remainder of the buffer will be saved
     /// for later.
-    pub fn res_data_consumed(&self) -> i64 {
-        self.out_curr_data.position() as i64
+    pub fn response_data_consumed(&self) -> i64 {
+        self.response_curr_data.position() as i64
     }
 
     /// Opens connection.
@@ -527,7 +527,8 @@ impl ConnectionParser {
         timestamp: Option<DateTime<Utc>>,
     ) {
         // Check connection parser state first.
-        if self.in_status != HtpStreamState::NEW || self.out_status != HtpStreamState::NEW {
+        if self.request_status != HtpStreamState::NEW || self.response_status != HtpStreamState::NEW
+        {
             htp_error!(
                 self.logger,
                 HtpLogCode::CONNECTION_ALREADY_OPEN,
@@ -542,8 +543,8 @@ impl ConnectionParser {
             server_port,
             timestamp,
         );
-        self.in_status = HtpStreamState::OPEN;
-        self.out_status = HtpStreamState::OPEN;
+        self.request_status = HtpStreamState::OPEN;
+        self.response_status = HtpStreamState::OPEN;
     }
 
     /// Set the user data.
@@ -569,10 +570,10 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
     /// is invalid or request body data hook fails.
-    pub fn req_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
+    pub fn request_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         self.request_mut()
-            .req_process_body_data(unsafe { &mut *connp_ptr }, data)
+            .request_process_body_data(unsafe { &mut *connp_ptr }, data)
     }
 
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
@@ -594,7 +595,7 @@ impl ConnectionParser {
     pub fn state_request_headers(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         // Finalize sending raw header data
-        self.req_receiver_finalize_clear()?;
+        self.request_receiver_finalize_clear()?;
         self.request_mut()
             .state_request_headers(unsafe { &mut *connp_ptr })
     }
@@ -626,10 +627,10 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
     /// is invalid or response body data hook fails.
-    pub fn res_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
+    pub fn response_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         self.response_mut()
-            .res_process_body_data(unsafe { &mut *connp_ptr }, data)
+            .response_process_body_data(unsafe { &mut *connp_ptr }, data)
     }
 
     /// Advance state to LINE, or BODY if http version is 0.9.
@@ -649,7 +650,7 @@ impl ConnectionParser {
     pub fn state_response_headers(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         // Finalize sending raw header data.
-        self.res_receiver_finalize_clear()?;
+        self.response_receiver_finalize_clear()?;
         self.response_mut()
             .state_response_headers(unsafe { &mut *connp_ptr })
     }
@@ -673,7 +674,7 @@ impl ConnectionParser {
         self.response_mut()
             .state_response_complete_ex(unsafe { &mut *connp_ptr }, hybrid_mode)?;
         self.response_next();
-        self.out_state = State::IDLE;
+        self.response_state = State::IDLE;
         Ok(())
     }
 

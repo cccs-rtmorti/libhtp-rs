@@ -28,7 +28,7 @@ pub enum HtpStatus {
     /// stream (e.g., the inbound parser needs to observe some outbound
     /// data). The data provided was not completely consumed. On the next
     /// invocation the caller should supply only the data that has not
-    /// been processed already. Use req_data_consumed() and res_data_consumed()
+    /// been processed already. Use request_data_consumed() and response_data_consumed()
     /// to determine how much of the most recent data chunk was consumed.
     DATA_OTHER = 3,
     /// Used by callbacks to indicate that the processing should stop. For example,
