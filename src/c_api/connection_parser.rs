@@ -2,7 +2,7 @@
 use crate::{
     config::Config,
     connection::Connection,
-    connection_parser::{ConnectionParser, HtpStreamState},
+    connection_parser::{ConnectionParser, Data, HtpStreamState},
     transaction::Transaction,
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -160,14 +160,13 @@ pub unsafe extern "C" fn htp_connp_request_data(
         .as_mut()
         .map(|connp| {
             connp.request_data(
+                Data::from((data as *const u8, len)),
                 timestamp.as_ref().map(|val| {
                     DateTime::<Utc>::from_utc(
                         NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
                         Utc,
                     )
                 }),
-                data,
-                len,
             )
         })
         .unwrap_or(HtpStreamState::ERROR)
@@ -188,14 +187,13 @@ pub unsafe extern "C" fn htp_connp_response_data(
         .as_mut()
         .map(|connp| {
             connp.response_data(
+                Data::from((data as *const u8, len)),
                 timestamp.as_ref().map(|val| {
                     DateTime::<Utc>::from_utc(
                         NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
                         Utc,
                     )
                 }),
-                data,
-                len,
             )
         })
         .unwrap_or(HtpStreamState::ERROR)

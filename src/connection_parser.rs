@@ -169,6 +169,16 @@ impl<'a> From<&'a [u8]> for Data<'a> {
     }
 }
 
+impl<'a> From<&'a Vec<u8>> for Data<'a> {
+    fn from(data: &'a Vec<u8>) -> Self {
+        Data {
+            data: Some(data.as_slice()),
+            gap_len: None,
+            position: 0,
+        }
+    }
+}
+
 impl<'a> From<usize> for Data<'a> {
     fn from(gap_len: usize) -> Self {
         Data {
@@ -179,8 +189,8 @@ impl<'a> From<usize> for Data<'a> {
     }
 }
 
-impl<'a> From<(*mut u8, usize)> for Data<'a> {
-    fn from((data, len): (*mut u8, usize)) -> Self {
+impl<'a> From<(*const u8, usize)> for Data<'a> {
+    fn from((data, len): (*const u8, usize)) -> Self {
         if data.is_null() {
             if len > 0 {
                 Data::from(len)
@@ -476,7 +486,7 @@ impl ConnectionParser {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.request_data(timestamp, std::ptr::null(), 0);
+        self.request_data(Data::default(), timestamp);
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -492,8 +502,8 @@ impl ConnectionParser {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.request_data(timestamp, std::ptr::null(), 0);
-        self.response_data(timestamp, std::ptr::null(), 0);
+        self.request_data(Data::default(), timestamp);
+        self.response_data(Data::default(), timestamp);
     }
 
     /// This function is most likely not used and/or not needed.

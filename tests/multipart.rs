@@ -68,11 +68,7 @@ impl Test {
 
         // Send headers
         for header in headers {
-            self.connp.request_data(
-                None,
-                header.as_ptr() as *const core::ffi::c_void,
-                header.chars().count(),
-            );
+            self.connp.request_data(header.as_bytes().into(), None);
         }
 
         // Calculate body length.
@@ -82,22 +78,13 @@ impl Test {
         }
 
         let contentStr = format!("Content-Length: {}\r\n", bodyLen);
-        self.connp.request_data(
-            None,
-            contentStr.as_ptr() as *const core::ffi::c_void,
-            contentStr.chars().count(),
-        );
+        self.connp.request_data(contentStr.as_bytes().into(), None);
 
-        self.connp
-            .request_data(None, "\r\n".as_ptr() as *const core::ffi::c_void, 2);
+        self.connp.request_data((b"\r\n" as &[u8]).into(), None);
 
         // Send data.
         for d in data {
-            self.connp.request_data(
-                None,
-                d.as_ptr() as *const core::ffi::c_void,
-                d.chars().count(),
-            );
+            self.connp.request_data(d.as_bytes().into(), None);
         }
 
         assert_eq!(1, self.connp.tx_size());

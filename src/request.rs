@@ -796,9 +796,8 @@ impl ConnectionParser {
     /// Process a chunk of inbound (client or request) data.
     pub fn request_data(
         &mut self,
+        mut chunk: ParserData,
         timestamp: Option<DateTime<Utc>>,
-        data: *const core::ffi::c_void,
-        len: usize,
     ) -> HtpStreamState {
         // Return if the connection is in stop state.
         if self.request_status == HtpStreamState::STOP {
@@ -823,7 +822,7 @@ impl ConnectionParser {
         // only if the stream has been closed. We do not allow zero-sized
         // chunks in the API, but we use them internally to force the parsers
         // to finalize parsing.
-        if len == 0 && self.request_status != HtpStreamState::CLOSED {
+        if chunk.len() == 0 && self.request_status != HtpStreamState::CLOSED {
             htp_error!(
                 self.logger,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
@@ -837,7 +836,6 @@ impl ConnectionParser {
         }
 
         // Store the current chunk information
-        let mut chunk = ParserData::from((data as *mut u8, len));
         if chunk.is_gap() {
             // Gap
             self.request_mut()
@@ -851,7 +849,7 @@ impl ConnectionParser {
         self.request_curr_data = Cursor::new(chunk.as_slice().to_vec());
         self.request_current_receiver_offset = 0;
         self.request_chunk_count = self.request_chunk_count.wrapping_add(1);
-        self.conn.track_inbound_data(len);
+        self.conn.track_inbound_data(chunk.len());
         // Return without processing any data if the stream is in tunneling
         // mode (which it would be after an initial CONNECT transaction).
         if self.request_status == HtpStreamState::TUNNEL {

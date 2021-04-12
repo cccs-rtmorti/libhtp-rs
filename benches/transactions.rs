@@ -74,12 +74,8 @@ impl Test {
         let mut response_buf: Option<Vec<u8>> = None;
         for chunk in test {
             match chunk {
-                Chunk::Client(data) => {
-                    let rc = self.connp.request_data(
-                        Some(tv_start),
-                        data.as_ptr() as *const core::ffi::c_void,
-                        data.len(),
-                    );
+                Chunk::Client(ref data) => {
+                    let rc = self.connp.request_data(data.into(), Some(tv_start));
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
                     }
@@ -96,14 +92,12 @@ impl Test {
                         request_buf = Some(remaining);
                     }
                 }
-                Chunk::Server(data) => {
+                Chunk::Server(ref data) => {
                     // If we have leftover data from before then use it first
-                    if let Some(response_remaining) = response_buf {
-                        let rc = self.connp.response_data(
-                            Some(tv_start),
-                            response_remaining.as_ptr() as *const core::ffi::c_void,
-                            response_remaining.len(),
-                        );
+                    if let Some(ref response_remaining) = response_buf {
+                        let rc = self
+                            .connp
+                            .response_data(response_remaining.into(), Some(tv_start));
                         response_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
@@ -111,11 +105,7 @@ impl Test {
                     }
 
                     // Now use up this data chunk
-                    let rc = self.connp.response_data(
-                        Some(tv_start),
-                        data.as_ptr() as *const core::ffi::c_void,
-                        data.len(),
-                    );
+                    let rc = self.connp.response_data(data.into(), Some(tv_start));
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
                     }
@@ -132,12 +122,10 @@ impl Test {
                     }
 
                     // And check if we also had some input data buffered
-                    if let Some(request_remaining) = request_buf {
-                        let rc = self.connp.request_data(
-                            Some(tv_start),
-                            request_remaining.as_ptr() as *const core::ffi::c_void,
-                            request_remaining.len(),
-                        );
+                    if let Some(ref request_remaining) = request_buf {
+                        let rc = self
+                            .connp
+                            .request_data(request_remaining.into(), Some(tv_start));
                         request_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
@@ -148,12 +136,10 @@ impl Test {
         }
 
         // Clean up any remaining server data
-        if let Some(response_remaining) = response_buf {
-            let rc = self.connp.response_data(
-                Some(tv_start),
-                response_remaining.as_ptr() as *const core::ffi::c_void,
-                response_remaining.len(),
-            );
+        if let Some(ref response_remaining) = response_buf {
+            let rc = self
+                .connp
+                .response_data(response_remaining.into(), Some(tv_start));
             if rc == HtpStreamState::ERROR {
                 return Err(TestError::StreamError);
             }
