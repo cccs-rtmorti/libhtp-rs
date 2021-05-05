@@ -257,9 +257,14 @@ pub unsafe extern "C" fn htp_config_set_lzma_memlimit(cfg: *mut Config, memlimit
 
 /// Configures the maximum number of lzma layers to pass to the decompressor.
 #[no_mangle]
-pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut Config, layer: u32) {
+pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut Config, limit: libc::c_int) {
+    let limit = if limit <= 0 {
+        None
+    } else {
+        Some(limit as usize)
+    };
     cfg.as_mut()
-        .map(|cfg| cfg.compression_options.set_lzma_layers(layer));
+        .map(|cfg| cfg.compression_options.set_lzma_layers(limit));
 }
 
 /// Configures how the server reacts to encoded NUL bytes. Some servers will stop at

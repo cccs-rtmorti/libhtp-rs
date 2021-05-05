@@ -881,7 +881,7 @@ impl Transaction {
                 if slow_path {
                     if let Some(ce) = &ce {
                         let mut layers = 0;
-
+                        let mut lzma_layers = 0;
                         for encoding in ce.split(|c| *c == b',' || *c == b' ') {
                             if encoding.is_empty() {
                                 continue;
@@ -893,7 +893,7 @@ impl Transaction {
                                 if layers > limit {
                                     htp_warn!(
                                         self.logger,
-                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
+                                        HtpLogCode::REQUEST_TOO_MANY_ENCODING_LAYERS,
                                         "Too many request content encoding layers"
                                     );
                                     break;
@@ -924,6 +924,19 @@ impl Transaction {
                                 }
                                 HtpContentEncoding::DEFLATE
                             } else if encoding.cmp(b"lzma") == Ordering::Equal {
+                                lzma_layers += 1;
+                                if let Some(limit) = self.cfg.compression_options.get_lzma_layers()
+                                {
+                                    // LZMA decompression layer depth check
+                                    if lzma_layers > limit {
+                                        htp_warn!(
+                                            self.logger,
+                                            HtpLogCode::REQUEST_TOO_MANY_LZMA_LAYERS,
+                                            "Too many request content encoding lzma layers"
+                                        );
+                                        break;
+                                    }
+                                }
                                 HtpContentEncoding::LZMA
                             } else if encoding.cmp(b"inflate") == Ordering::Equal {
                                 HtpContentEncoding::NONE
@@ -1708,7 +1721,7 @@ impl Transaction {
                 if slow_path {
                     if let Some(ce) = &ce {
                         let mut layers = 0;
-
+                        let mut lzma_layers = 0;
                         for encoding in ce.split(|c| *c == b',' || *c == b' ') {
                             if encoding.is_empty() {
                                 continue;
@@ -1720,7 +1733,7 @@ impl Transaction {
                                 if layers > limit {
                                     htp_warn!(
                                         self.logger,
-                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
+                                        HtpLogCode::RESPONSE_TOO_MANY_ENCODING_LAYERS,
                                         "Too many response content encoding layers"
                                     );
                                     break;
@@ -1751,6 +1764,19 @@ impl Transaction {
                                 }
                                 HtpContentEncoding::DEFLATE
                             } else if encoding.cmp(b"lzma") == Ordering::Equal {
+                                lzma_layers += 1;
+                                if let Some(limit) = self.cfg.compression_options.get_lzma_layers()
+                                {
+                                    // Lzma layer depth check
+                                    if lzma_layers > limit {
+                                        htp_warn!(
+                                            self.logger,
+                                            HtpLogCode::RESPONSE_TOO_MANY_LZMA_LAYERS,
+                                            "Too many response content encoding lzma layers"
+                                        );
+                                        break;
+                                    }
+                                }
                                 HtpContentEncoding::LZMA
                             } else if encoding.cmp(b"inflate") == Ordering::Equal {
                                 HtpContentEncoding::NONE

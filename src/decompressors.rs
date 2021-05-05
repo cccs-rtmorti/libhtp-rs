@@ -7,7 +7,7 @@ const ENCODING_CHUNK_SIZE: usize = 8192;
 /// Default LZMA dictionary memory limit in bytes.
 const DEFAULT_LZMA_MEMLIMIT: usize = 1_048_576;
 /// Default number of LZMA layers to pass to the decompressor.
-const DEFAULT_LZMA_LAYERS: u32 = 1;
+const DEFAULT_LZMA_LAYERS: usize = 1;
 /// Default max output size for a compression bomb.
 const DEFAULT_BOMB_LIMIT: i32 = 1_048_576;
 /// Upper limit to max output size for a compression bomb.
@@ -26,9 +26,8 @@ const DEFAULT_LAYER_LIMIT: usize = 2;
 pub struct Options {
     /// lzma options or None to disable lzma.
     lzma: Option<lzma_rs::decompress::Options>,
-    // TODO: implement lzma layers check
-    /// number of LZMA layers to pass to the decompressor.
-    lzma_layers: u32,
+    /// Max number of LZMA layers to pass to the decompressor.
+    lzma_layers: Option<usize>,
     /// max output size for a compression bomb.
     bomb_limit: i32,
     /// max compressed-to-decrompressed ratio that should not be exceeded during decompression.
@@ -37,7 +36,7 @@ pub struct Options {
     time_limit: u32,
     /// number of iterations to before checking the time_limit.
     time_test_freq: u32,
-    /// number of layers of compression we will decompress
+    /// Max number of layers of compression we will decompress
     layer_limit: Option<usize>,
 }
 
@@ -72,8 +71,13 @@ impl Options {
     }
 
     /// Configures the maximum layers passed to lzma-rs.
-    pub fn set_lzma_layers(&mut self, layers: u32) {
+    pub fn set_lzma_layers(&mut self, layers: Option<usize>) {
         self.lzma_layers = layers;
+    }
+
+    /// Gets the maximum layers passed to lzma-rs.
+    pub fn get_lzma_layers(&self) -> Option<usize> {
+        self.lzma_layers
     }
 
     /// Get the compression bomb limit.
@@ -140,7 +144,7 @@ impl Default for Options {
                 memlimit: Some(DEFAULT_LZMA_MEMLIMIT),
                 ..Default::default()
             }),
-            lzma_layers: DEFAULT_LZMA_LAYERS,
+            lzma_layers: Some(DEFAULT_LZMA_LAYERS),
             bomb_limit: DEFAULT_BOMB_LIMIT,
             bomb_ratio: DEFAULT_BOMB_RATIO,
             time_limit: DEFAULT_TIME_LIMIT,
