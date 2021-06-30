@@ -2705,6 +2705,23 @@ fn Post() {
     assert!(tx.request_hostname.as_ref().unwrap().eq("www.example.com"));
 }
 
+#[test]
+fn AmbiguousEOL() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run("119-ambiguous-eol.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert!(tx.request_method.as_ref().unwrap().eq("POST"));
+    assert!(tx.request_uri.as_ref().unwrap().eq("/"));
+    assert_eq!(HtpProtocol::V1_0, tx.request_protocol_number);
+
+    assert_eq!(HtpProtocol::V1_0, tx.response_protocol_number);
+    assert!(tx.response_status_number.eq_num(200));
+}
+
 // Evader Tests
 #[test]
 fn HttpEvader017() {

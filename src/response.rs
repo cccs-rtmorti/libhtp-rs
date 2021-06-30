@@ -671,8 +671,13 @@ impl ConnectionParser {
         data.add(input);
         match take_till_eol(data.as_slice()) {
             Ok((_, (line, _))) => {
-                self.response_curr_data
-                    .seek(SeekFrom::Current((line.len() - data_len) as i64))?;
+                if data_len > line.len() {
+                    // Store the peeked ahead data
+                    self.response_buf.add(&data[line.len()..data_len]);
+                } else {
+                    self.response_curr_data
+                        .seek(SeekFrom::Current(line.len() as i64 - data_len as i64))?;
+                }
                 self.response_line_complete(line)
             }
             _ => {
