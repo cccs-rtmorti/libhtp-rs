@@ -105,10 +105,9 @@ impl ConnectionParser {
         // When calculating the size of the buffer, take into account the
         // space we're using for the response header buffer.
         if let Some(response_header) = &self.response_header {
-            newlen = newlen.wrapping_add(response_header.len())
+            newlen = newlen.wrapping_add(response_header.len());
         }
-
-        let field_limit = self.response().cfg.field_limit;
+        let field_limit = self.cfg.field_limit;
         if newlen > field_limit {
             htp_error!(
                 self.logger,
@@ -179,53 +178,72 @@ impl ConnectionParser {
     /// Extracts chunk length.
     ///
     /// Returns Ok(()) on success, Err(HTP_ERROR) on error, or Err(HTP_DATA) when more data is needed.
-    pub fn response_body_chunked_length(&mut self, data: &[u8]) -> Result<()> {
-        match take_till_lf(data) {
-            Ok((remaining, line)) => {
-                self.response_curr_data
-                    .seek(SeekFrom::Current(line.len() as i64))?;
-                if !self.response_buf.is_empty() {
-                    self.check_response_buffer_limit(line.len())?;
-                }
-                if line.eq(b"\n") {
+    pub fn response_body_chunked_length(&mut self, mut data: &[u8]) -> Result<()> {
+        loop {
+            match take_till_lf(data) {
+                Ok((remaining, line)) => {
+                    self.response_curr_data
+                        .seek(SeekFrom::Current(line.len() as i64))?;
+                    if !self.response_buf.is_empty() {
+                        self.check_response_buffer_limit(line.len())?;
+                    }
+                    if line.eq(b"\n") {
+                        self.response_mut().response_message_len =
+                            (self.response().response_message_len as u64)
+                                .wrapping_add(line.len() as u64) as i64;
+                        //Empty chunk len. Try to continue parsing.
+                        data = remaining;
+                        continue;
+                    }
+                    let mut data = self.response_buf.clone();
+                    data.add(line);
                     self.response_mut().response_message_len =
                         (self.response().response_message_len as u64)
-                            .wrapping_add(line.len() as u64) as i64;
-                    //Empty chunk len. Try to continue parsing.
-                    return self.response_body_chunked_length(remaining);
-                }
-                let mut data = self.response_buf.clone();
-                data.add(line);
-                self.response_mut().response_message_len =
-                    (self.response().response_message_len as u64).wrapping_add(data.len() as u64)
-                        as i64;
+                            .wrapping_add(data.len() as u64) as i64;
 
-                match parse_chunked_length(&data) {
-                    Ok(len) => {
-                        self.response_chunked_length = len;
-                        // Handle chunk length
-                        if let Some(len) = len {
-                            match len.cmp(&0) {
-                                Ordering::Equal => {
-                                    // End of data
-                                    self.response_state = State::HEADERS;
-                                    self.response_mut().response_progress =
-                                        HtpResponseProgress::TRAILER
+                    match parse_chunked_length(&data) {
+                        Ok(len) => {
+                            self.response_chunked_length = len;
+                            // Handle chunk length
+                            if let Some(len) = len {
+                                match len.cmp(&0) {
+                                    Ordering::Equal => {
+                                        // End of data
+                                        self.response_state = State::HEADERS;
+                                        self.response_mut().response_progress =
+                                            HtpResponseProgress::TRAILER
+                                    }
+                                    Ordering::Greater => {
+                                        // More data available.
+                                        self.response_state = State::BODY_CHUNKED_DATA
+                                    }
+                                    _ => {}
                                 }
-                                Ordering::Greater => {
-                                    // More data available.
-                                    self.response_state = State::BODY_CHUNKED_DATA
-                                }
-                                _ => {}
+                            } else {
+                                return Ok(()); // empty chunk length line, lets try to continue
                             }
-                        } else {
-                            return Ok(()); // empty chunk length line, lets try to continue
+                        }
+                        Err(_) => {
+                            // reset cursor so response_body_identity_stream_close doesn't miss the first bytes
+                            self.response_curr_data
+                                .seek(SeekFrom::Current(-(line.len() as i64)))?;
+                            self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
+                            self.response_mut().response_transfer_coding =
+                                HtpTransferCoding::IDENTITY;
+                            htp_error!(
+                                self.logger,
+                                HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
+                                "Response chunk encoding: Invalid chunk length"
+                            );
                         }
                     }
-                    Err(_) => {
-                        // reset cursor so response_body_identity_stream_close doesn't miss the first bytes
-                        self.response_curr_data
-                            .seek(SeekFrom::Current(-(line.len() as i64)))?;
+
+                    return Ok(());
+                }
+                _ => {
+                    // Check if the data we have seen so far is invalid
+                    if !is_valid_chunked_length_data(data) {
+                        // Contains leading junk non hex_ascii data
                         self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
                         self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
                         htp_error!(
@@ -233,25 +251,10 @@ impl ConnectionParser {
                             HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
                             "Response chunk encoding: Invalid chunk length"
                         );
+                        return Ok(());
+                    } else {
+                        return self.handle_response_absent_lf(data);
                     }
-                }
-
-                Ok(())
-            }
-            _ => {
-                // Check if the data we have seen so far is invalid
-                if !is_valid_chunked_length_data(data) {
-                    // Contains leading junk non hex_ascii data
-                    self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
-                    self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
-                    htp_error!(
-                        self.logger,
-                        HtpLogCode::INVALID_RESPONSE_CHUNK_LEN,
-                        "Response chunk encoding: Invalid chunk length"
-                    );
-                    Ok(())
-                } else {
-                    self.handle_response_absent_lf(data)
                 }
             }
         }
@@ -887,7 +890,7 @@ impl ConnectionParser {
         // only if the stream has been closed. We do not allow zero-sized
         // chunks in the API, but we use it internally to force the parsers
         // to finalize parsing.
-        if chunk.len() == 0 && self.response_status != HtpStreamState::CLOSED {
+        if chunk.is_empty() && self.response_status != HtpStreamState::CLOSED {
             htp_error!(
                 self.logger,
                 HtpLogCode::ZERO_LENGTH_DATA_CHUNKS,
