@@ -58,12 +58,17 @@ impl IntoIterator for TestInput {
     }
 }
 
-impl TestInput {
-    fn new(file: PathBuf) -> Self {
+impl From<PathBuf> for TestInput {
+    fn from(file: PathBuf) -> Self {
         let input = std::fs::read(file);
         assert!(input.is_ok());
         let input = input.unwrap();
+        TestInput::from(input.as_slice())
+    }
+}
 
+impl From<&[u8]> for TestInput {
+    fn from(input: &[u8]) -> Self {
         let mut test_input = TestInput { chunks: Vec::new() };
         let mut current = Vec::<u8>::new();
         let mut client = true;
@@ -96,7 +101,9 @@ impl TestInput {
         test_input.append(client, current);
         test_input
     }
+}
 
+impl TestInput {
     fn append(&mut self, client: bool, data: Vec<u8>) {
         if client {
             self.chunks.push(Chunk::Client(data));
@@ -107,13 +114,13 @@ impl TestInput {
 }
 
 #[derive(Debug)]
-enum TestError {
+pub enum TestError {
     //MultipleClientChunks,
     //MultipleServerChunks,
     StreamError,
 }
 
-struct Test {
+pub struct Test {
     connp: ConnectionParser,
     basedir: PathBuf,
 }
@@ -131,7 +138,7 @@ fn TestConfig() -> Config {
 }
 
 impl Test {
-    fn new(cfg: Config) -> Self {
+    pub fn new(cfg: Config) -> Self {
         let basedir = if let Ok(dir) = std::env::var("srcdir") {
             PathBuf::from(dir)
         } else {
@@ -146,6 +153,7 @@ impl Test {
         let connp = ConnectionParser::new(cfg);
         Test { connp, basedir }
     }
+
     fn new_with_callbacks() -> Self {
         let mut cfg = TestConfig();
         cfg.register_response_body_data(response_body_data);
@@ -157,7 +165,8 @@ impl Test {
             .set_user_data(Box::new(MainUserData::new()));
         t
     }
-    fn run(&mut self, file: &str) -> std::result::Result<(), TestError> {
+
+    fn run(&mut self, test: TestInput) -> std::result::Result<(), TestError> {
         let tv_start = DateTime::<Utc>::from(SystemTime::now());
         self.connp.open(
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
@@ -166,10 +175,6 @@ impl Test {
             Some(80),
             Some(tv_start),
         );
-
-        let mut path = self.basedir.clone();
-        path.push(file);
-        let test = TestInput::new(path);
         let mut request_buf: Option<Vec<u8>> = None;
         let mut response_buf: Option<Vec<u8>> = None;
         for chunk in test {
@@ -248,6 +253,16 @@ impl Test {
             .close(Some(DateTime::<Utc>::from(SystemTime::now())));
         Ok(())
     }
+
+    pub fn run_slice(&mut self, slice: &[u8]) -> std::result::Result<(), TestError> {
+        self.run(TestInput::from(slice))
+    }
+
+    fn run_file(&mut self, file: &str) -> std::result::Result<(), TestError> {
+        let mut path = self.basedir.clone();
+        path.push(file);
+        self.run(TestInput::from(path))
+    }
 }
 
 fn response_body_data(d: &mut Data) -> Result<()> {
@@ -269,13 +284,13 @@ fn request_body_data(d: &mut Data) -> Result<()> {
 #[test]
 fn AdHoc() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("00-adhoc.t").is_ok());
+    assert!(t.run_file("00-adhoc.t").is_ok());
 }
 
 #[test]
 fn Get() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("01-get.t").is_ok());
+    assert!(t.run_file("01-get.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -297,9 +312,49 @@ fn Get() {
 }
 
 #[test]
+fn GetSlice() {
+    let mut t = Test::new(TestConfig());
+    assert!(t
+        .run_slice(
+            b">>>
+GET /?p=%20 HTTP/1.0
+User-Agent: Mozilla
+
+
+<<<
+HTTP/1.0 200 OK
+Date: Mon, 31 Aug 2009 20:25:50 GMT
+Server: Apache
+Connection: close
+Content-Type: text/html
+Content-Length: 12
+
+Hello World!"
+        )
+        .is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert!(tx.request_method.as_ref().unwrap().eq("GET"));
+    assert!(tx.request_uri.as_ref().unwrap().eq("/?p=%20"));
+
+    assert!(tx
+        .parsed_uri
+        .as_ref()
+        .unwrap()
+        .query
+        .as_ref()
+        .unwrap()
+        .eq("p=%20"));
+
+    assert_contains_param!(&tx.request_params, "p", " ");
+}
+#[test]
 fn GetEncodedRelPath() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("99-get.t").is_ok());
+    assert!(t.run_file("99-get.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -321,7 +376,7 @@ fn GetEncodedRelPath() {
 fn ApacheHeaderParsing() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("02-header-test-apache2.t").is_ok());
+    assert!(t.run_file("02-header-test-apache2.t").is_ok());
 
     let tx = t.connp.tx(0).expect("expected tx to exist");
 
@@ -370,7 +425,7 @@ fn ApacheHeaderParsing() {
 #[test]
 fn PostUrlencoded() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("03-post-urlencoded.t").is_ok());
+    assert!(t.run_file("03-post-urlencoded.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -396,7 +451,7 @@ fn PostUrlencoded() {
 #[test]
 fn PostUrlencodedChunked() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("04-post-urlencoded-chunked.t").is_ok());
+    assert!(t.run_file("04-post-urlencoded-chunked.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -410,7 +465,7 @@ fn PostUrlencodedChunked() {
 #[test]
 fn Expect() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("05-expect.t").is_ok());
+    assert!(t.run_file("05-expect.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -423,7 +478,7 @@ fn Expect() {
 #[test]
 fn UriNormal() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("06-uri-normal.t").is_ok());
+    assert!(t.run_file("06-uri-normal.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -433,7 +488,7 @@ fn UriNormal() {
 #[test]
 fn PipelinedConn() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("07-pipelined-connection.t").is_ok());
+    assert!(t.run_file("07-pipelined-connection.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -445,7 +500,7 @@ fn PipelinedConn() {
 #[test]
 fn NotPipelinedConn() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("08-not-pipelined-connection.t").is_ok());
+    assert!(t.run_file("08-not-pipelined-connection.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -459,7 +514,7 @@ fn NotPipelinedConn() {
 #[test]
 fn MultiPacketRequest() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("09-multi-packet-request-head.t").is_ok());
+    assert!(t.run_file("09-multi-packet-request-head.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -471,7 +526,7 @@ fn MultiPacketRequest() {
 #[test]
 fn HeaderHostParsing() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("10-host-in-headers.t").is_ok());
+    assert!(t.run_file("10-host-in-headers.t").is_ok());
     assert_eq!(4, t.connp.tx_size());
 
     let tx1 = t.connp.tx(0).unwrap();
@@ -498,7 +553,7 @@ fn HeaderHostParsing() {
 #[test]
 fn ResponseWithoutContentLength() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("11-response-stream-closure.t").is_ok());
+    assert!(t.run_file("11-response-stream-closure.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -510,7 +565,7 @@ fn ResponseWithoutContentLength() {
 #[test]
 fn FailedConnectRequest() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("12-connect-request.t").is_ok());
+    assert!(t.run_file("12-connect-request.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -530,7 +585,7 @@ fn FailedConnectRequest() {
 #[test]
 fn CompressedResponseContentType() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("13-compressed-response-gzip-ct.t").is_ok());
+    assert!(t.run_file("13-compressed-response-gzip-ct.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -547,7 +602,7 @@ fn CompressedResponseContentType() {
 #[test]
 fn CompressedResponseChunked() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
+    assert!(t.run_file("14-compressed-response-gzip-chunked.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -563,13 +618,13 @@ fn CompressedResponseChunked() {
 #[test]
 fn SuccessfulConnectRequest() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("15-connect-complete.t").is_ok());
+    assert!(t.run_file("15-connect-complete.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
     let tx = t.connp.tx(0).unwrap();
 
-    // TODO: Update the test_run() function to provide better
+    // TODO: Update the test_run_file() function to provide better
     //       simulation of real traffic. At the moment, it does not
     //       invoke inbound parsing after outbound parsing returns
     //       HTP_DATA_OTHER, which is why the check below fails.
@@ -583,7 +638,7 @@ fn SuccessfulConnectRequest() {
 #[test]
 fn ConnectRequestWithExtraData() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("16-connect-extra.t").is_ok());
+    assert!(t.run_file("16-connect-extra.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -600,7 +655,7 @@ fn ConnectRequestWithExtraData() {
 #[test]
 fn Multipart() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("17-multipart-1.t").is_ok());
+    assert!(t.run_file("17-multipart-1.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -615,7 +670,7 @@ fn Multipart() {
 #[test]
 fn CompressedResponseDeflate() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("18-compressed-response-deflate.t").is_ok());
+    assert!(t.run_file("18-compressed-response-deflate.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -631,7 +686,7 @@ fn CompressedResponseDeflate() {
 #[test]
 fn UrlEncoded() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("19-urlencoded-test.t").is_ok());
+    assert!(t.run_file("19-urlencoded-test.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -650,7 +705,7 @@ fn UrlEncoded() {
 fn AmbiguousHost() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("20-ambiguous-host.t").is_ok());
+    assert!(t.run_file("20-ambiguous-host.t").is_ok());
 
     assert_eq!(5, t.connp.tx_size());
 
@@ -690,7 +745,7 @@ fn AmbiguousHost() {
 #[test]
 fn Http_0_9() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("21-http09.t").is_ok());
+    assert!(t.run_file("21-http09.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
     assert!(!t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
@@ -701,7 +756,7 @@ fn Http_0_9() {
 #[test]
 fn Http11HostMissing() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("22-http_1_1-host_missing").is_ok());
+    assert!(t.run_file("22-http_1_1-host_missing").is_ok());
     assert_eq!(1, t.connp.tx_size());
     let tx = t.connp.tx(0).unwrap();
     assert!(tx.flags.is_set(HtpFlags::HOST_MISSING));
@@ -710,7 +765,7 @@ fn Http11HostMissing() {
 #[test]
 fn Http_0_9_Multiple() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("23-http09-multiple.t").is_ok());
+    assert!(t.run_file("23-http09-multiple.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
     assert!(t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
@@ -721,7 +776,7 @@ fn Http_0_9_Multiple() {
 #[test]
 fn Http_0_9_Explicit() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("24-http09-explicit.t").is_ok());
+    assert!(t.run_file("24-http09-explicit.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -732,7 +787,7 @@ fn Http_0_9_Explicit() {
 #[test]
 fn SmallChunks() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("25-small-chunks.t").is_ok());
+    assert!(t.run_file("25-small-chunks.t").is_ok());
 }
 
 fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: &mut Data) -> Result<()> {
@@ -787,7 +842,7 @@ fn RequestHeaderData() {
     let mut cfg = TestConfig();
     cfg.register_request_header_data(ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA);
     let mut t = Test::new(cfg);
-    assert!(t.run("26-request-headers-raw.t").is_ok());
+    assert!(t.run_file("26-request-headers-raw.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
@@ -832,7 +887,7 @@ fn RequestTrailerData() {
     let mut cfg = TestConfig();
     cfg.register_request_trailer_data(ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA);
     let mut t = Test::new(cfg);
-    assert!(t.run("27-request-trailer-raw.t").is_ok());
+    assert!(t.run_file("27-request-trailer-raw.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_eq!(2, *tx.user_data::<i32>().unwrap());
 }
@@ -890,7 +945,7 @@ fn ResponseHeaderData() {
     let mut cfg = TestConfig();
     cfg.register_response_header_data(ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA);
     let mut t = Test::new(cfg);
-    assert!(t.run("28-response-headers-raw.t").is_ok());
+    assert!(t.run_file("28-response-headers-raw.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
@@ -952,7 +1007,7 @@ fn ResponseTrailerData() {
     let mut cfg = TestConfig();
     cfg.register_response_trailer_data(ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA);
     let mut t = Test::new(cfg);
-    assert!(t.run("29-response-trailer-raw.t").is_ok());
+    assert!(t.run_file("29-response-trailer-raw.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
@@ -961,7 +1016,7 @@ fn ResponseTrailerData() {
 #[test]
 fn GetIPv6() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("30-get-ipv6.t").is_ok());
+    assert!(t.run_file("30-get-ipv6.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -999,7 +1054,7 @@ fn GetIPv6() {
 #[test]
 fn GetRequestLineNul() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("31-get-request-line-nul.t").is_ok());
+    assert!(t.run_file("31-get-request-line-nul.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1011,7 +1066,7 @@ fn GetRequestLineNul() {
 #[test]
 fn InvalidHostname1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("32-invalid-hostname.t").is_ok());
+    assert!(t.run_file("32-invalid-hostname.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1024,7 +1079,7 @@ fn InvalidHostname1() {
 #[test]
 fn InvalidHostname2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("33-invalid-hostname.t").is_ok());
+    assert!(t.run_file("33-invalid-hostname.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1038,7 +1093,7 @@ fn InvalidHostname2() {
 #[test]
 fn InvalidHostname3() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("34-invalid-hostname.t").is_ok());
+    assert!(t.run_file("34-invalid-hostname.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1052,7 +1107,7 @@ fn InvalidHostname3() {
 #[test]
 fn EarlyResponse() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("35-early-response.t").is_ok());
+    assert!(t.run_file("35-early-response.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert!(tx.is_complete());
 }
@@ -1060,7 +1115,7 @@ fn EarlyResponse() {
 #[test]
 fn InvalidRequest1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("36-invalid-request-1-invalid-c-l.t").is_err());
+    assert!(t.run_file("36-invalid-request-1-invalid-c-l.t").is_err());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1075,7 +1130,7 @@ fn InvalidRequest1() {
 #[test]
 fn InvalidRequest2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("37-invalid-request-2-t-e-and-c-l.t").is_ok());
+    assert!(t.run_file("37-invalid-request-2-t-e-and-c-l.t").is_ok());
     // No error, flags only.
 
     let tx = t.connp.tx(0).unwrap();
@@ -1090,7 +1145,7 @@ fn InvalidRequest2() {
 #[test]
 fn InvalidRequest3() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("38-invalid-request-3-invalid-t-e.t").is_err());
+    assert!(t.run_file("38-invalid-request-3-invalid-t-e.t").is_err());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1107,7 +1162,7 @@ fn AutoDestroyCrash() {
     let mut cfg = TestConfig();
     cfg.set_tx_auto_destroy(true);
     let mut t = Test::new(cfg);
-    assert!(t.run("39-auto-destroy-crash.t").is_ok());
+    assert!(t.run_file("39-auto-destroy-crash.t").is_ok());
 
     assert_eq!(4, t.connp.tx_size());
 }
@@ -1115,7 +1170,7 @@ fn AutoDestroyCrash() {
 #[test]
 fn AuthBasic() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("40-auth-basic.t").is_ok());
+    assert!(t.run_file("40-auth-basic.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1129,7 +1184,7 @@ fn AuthBasic() {
 #[test]
 fn AuthDigest() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("41-auth-digest.t").is_ok());
+    assert!(t.run_file("41-auth-digest.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1145,7 +1200,7 @@ fn AuthDigest() {
 #[test]
 fn Unknown_MethodOnly() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("42-unknown-method_only.t").is_ok());
+    assert!(t.run_file("42-unknown-method_only.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1161,7 +1216,7 @@ fn Unknown_MethodOnly() {
 #[test]
 fn InvalidHtpProtocol() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("43-invalid-protocol.t").is_ok());
+    assert!(t.run_file("43-invalid-protocol.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1173,7 +1228,7 @@ fn InvalidHtpProtocol() {
 #[test]
 fn AuthBasicInvalid() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("44-auth-basic-invalid.t").is_ok());
+    assert!(t.run_file("44-auth-basic-invalid.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1191,7 +1246,7 @@ fn AuthBasicInvalid() {
 #[test]
 fn AuthDigestUnquotedUsername() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("45-auth-digest-unquoted-username.t").is_ok());
+    assert!(t.run_file("45-auth-digest-unquoted-username.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1209,7 +1264,7 @@ fn AuthDigestUnquotedUsername() {
 #[test]
 fn AuthDigestInvalidUsername1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("46-auth-digest-invalid-username.t").is_ok());
+    assert!(t.run_file("46-auth-digest-invalid-username.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1227,7 +1282,7 @@ fn AuthDigestInvalidUsername1() {
 #[test]
 fn AuthUnrecognized() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("47-auth-unrecognized.t").is_ok());
+    assert!(t.run_file("47-auth-unrecognized.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1243,7 +1298,7 @@ fn AuthUnrecognized() {
 #[test]
 fn InvalidResponseHeaders1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("48-invalid-response-headers-1.t").is_ok());
+    assert!(t.run_file("48-invalid-response-headers-1.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1265,7 +1320,7 @@ fn InvalidResponseHeaders1() {
 #[test]
 fn InvalidResponseHeaders2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("49-invalid-response-headers-2.t").is_ok());
+    assert!(t.run_file("49-invalid-response-headers-2.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1283,7 +1338,7 @@ fn Util() {
     let mut cfg = TestConfig();
     cfg.log_level = HtpLogLevel::NONE;
     let mut t = Test::new(cfg);
-    assert!(t.run("50-util.t").is_ok());
+    assert!(t.run_file("50-util.t").is_ok());
     // Explicitly add a log message to verify it is not logged
     htp_error!(&mut t.connp.logger, HtpLogCode::UNKNOWN, "Log message");
     assert_eq!(0, t.connp.conn.get_logs().len());
@@ -1292,7 +1347,7 @@ fn Util() {
 #[test]
 fn GetIPv6Invalid() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("51-get-ipv6-invalid.t").is_ok());
+    assert!(t.run_file("51-get-ipv6-invalid.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1318,7 +1373,7 @@ fn GetIPv6Invalid() {
 #[test]
 fn InvalidPath() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("52-invalid-path.t").is_ok());
+    assert!(t.run_file("52-invalid-path.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1341,7 +1396,7 @@ fn InvalidPath() {
 fn PathUtf8_None() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("53-path-utf8-none.t").is_ok());
+    assert!(t.run_file("53-path-utf8-none.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1356,7 +1411,7 @@ fn PathUtf8_None() {
 fn PathUtf8_Valid() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("54-path-utf8-valid.t").is_ok());
+    assert!(t.run_file("54-path-utf8-valid.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1369,7 +1424,7 @@ fn PathUtf8_Valid() {
 fn PathUtf8_Overlong2() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
+    assert!(t.run_file("55-path-utf8-overlong-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1382,7 +1437,7 @@ fn PathUtf8_Overlong2() {
 fn PathUtf8_Overlong3() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
+    assert!(t.run_file("56-path-utf8-overlong-3.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1395,7 +1450,7 @@ fn PathUtf8_Overlong3() {
 fn PathUtf8_Overlong4() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
+    assert!(t.run_file("57-path-utf8-overlong-4.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1408,7 +1463,7 @@ fn PathUtf8_Overlong4() {
 fn PathUtf8_Invalid() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("58-path-utf8-invalid.t").is_ok());
+    assert!(t.run_file("58-path-utf8-invalid.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1422,7 +1477,7 @@ fn PathUtf8_Invalid() {
 fn PathUtf8_FullWidth() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
+    assert!(t.run_file("59-path-utf8-fullwidth.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1437,7 +1492,7 @@ fn PathUtf8_Decode_Valid() {
     cfg.set_utf8_convert_bestfit(true);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("54-path-utf8-valid.t").is_ok());
+    assert!(t.run_file("54-path-utf8-valid.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1457,7 +1512,7 @@ fn PathUtf8_Decode_Overlong2() {
     let mut cfg = TestConfig();
     cfg.set_utf8_convert_bestfit(true);
     let mut t = Test::new(cfg);
-    assert!(t.run("55-path-utf8-overlong-2.t").is_ok());
+    assert!(t.run_file("55-path-utf8-overlong-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1481,7 +1536,7 @@ fn PathUtf8_Decode_Overlong3() {
     cfg.set_utf8_convert_bestfit(true);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("56-path-utf8-overlong-3.t").is_ok());
+    assert!(t.run_file("56-path-utf8-overlong-3.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1505,7 +1560,7 @@ fn PathUtf8_Decode_Overlong4() {
     cfg.set_utf8_convert_bestfit(true);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("57-path-utf8-overlong-4.t").is_ok());
+    assert!(t.run_file("57-path-utf8-overlong-4.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1527,7 +1582,7 @@ fn PathUtf8_Decode_Invalid() {
     let mut cfg = TestConfig();
     cfg.set_utf8_convert_bestfit(true);
     let mut t = Test::new(cfg);
-    assert!(t.run("58-path-utf8-invalid.t").is_ok());
+    assert!(t.run_file("58-path-utf8-invalid.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1551,7 +1606,7 @@ fn PathUtf8_Decode_FullWidth() {
     cfg.set_utf8_convert_bestfit(true);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("59-path-utf8-fullwidth.t").is_ok());
+    assert!(t.run_file("59-path-utf8-fullwidth.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1573,7 +1628,7 @@ fn PathUtf8_Decode_FullWidth() {
 fn RequestCookies1() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("60-request-cookies-1.t").is_ok());
+    assert!(t.run_file("60-request-cookies-1.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1598,7 +1653,7 @@ fn RequestCookies1() {
 fn EmptyLineBetweenRequests() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("61-empty-line-between-requests.t").is_ok());
+    assert!(t.run_file("61-empty-line-between-requests.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -1611,7 +1666,7 @@ fn EmptyLineBetweenRequests() {
 fn PostNoBody() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("62-post-no-body.t").is_ok());
+    assert!(t.run_file("62-post-no-body.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -1631,26 +1686,26 @@ fn PostNoBody() {
 #[test]
 fn PostChunkedInvalid1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("63-post-chunked-invalid-1.t").is_err());
+    assert!(t.run_file("63-post-chunked-invalid-1.t").is_err());
 }
 
 #[test]
 fn PostChunkedInvalid2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("64-post-chunked-invalid-2.t").is_err());
+    assert!(t.run_file("64-post-chunked-invalid-2.t").is_err());
 }
 
 #[test]
 fn PostChunkedInvalid3() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("65-post-chunked-invalid-3.t").is_err());
+    assert!(t.run_file("65-post-chunked-invalid-3.t").is_err());
 }
 
 #[test]
 fn PostChunkedSplitChunk() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("66-post-chunked-split-chunk.t").is_ok());
+    assert!(t.run_file("66-post-chunked-split-chunk.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1663,7 +1718,7 @@ fn PostChunkedSplitChunk() {
 fn LongRequestLine1() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("67-long-request-line.t").is_ok());
+    assert!(t.run_file("67-long-request-line.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1682,7 +1737,7 @@ fn LongRequestLine2() {
     cfg.set_field_limit(16);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("67-long-request-line.t").is_err());
+    assert!(t.run_file("67-long-request-line.t").is_err());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1693,7 +1748,7 @@ fn LongRequestLine2() {
 fn InvalidRequestHeader() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("68-invalid-request-header.t").is_ok());
+    assert!(t.run_file("68-invalid-request-header.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1709,7 +1764,7 @@ fn TestGenericPersonality() {
         .unwrap();
     let mut t = Test::new(cfg);
 
-    assert!(t.run("02-header-test-apache2.t").is_ok());
+    assert!(t.run_file("02-header-test-apache2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1722,7 +1777,7 @@ fn LongResponseHeader() {
     cfg.set_field_limit(18);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("69-long-response-header.t").is_err());
+    assert!(t.run_file("69-long-response-header.t").is_err());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1733,14 +1788,14 @@ fn LongResponseHeader() {
 #[test]
 fn ResponseInvalidChunkLength() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("70-response-invalid-chunk-length.t").is_ok());
+    assert!(t.run_file("70-response-invalid-chunk-length.t").is_ok());
 }
 
 #[test]
 fn ResponseSplitChunk() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("71-response-split-chunk.t").is_ok());
+    assert!(t.run_file("71-response-split-chunk.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1754,7 +1809,7 @@ fn ResponseSplitChunk() {
 fn ResponseBody() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("72-response-split-body.t").is_ok());
+    assert!(t.run_file("72-response-split-body.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1768,7 +1823,7 @@ fn ResponseBody() {
 fn ResponseContainsTeAndCl() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("73-response-te-and-cl.t").is_ok());
+    assert!(t.run_file("73-response-te-and-cl.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1784,7 +1839,7 @@ fn ResponseContainsTeAndCl() {
 fn ResponseMultipleCl() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("74-response-multiple-cl.t").is_ok());
+    assert!(t.run_file("74-response-multiple-cl.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1802,7 +1857,7 @@ fn ResponseMultipleCl() {
 #[test]
 fn ResponseMultipleClMismatch() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("88-response-multiple-cl-mismatch.t").is_ok());
+    assert!(t.run_file("88-response-multiple-cl-mismatch.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1827,7 +1882,7 @@ fn ResponseMultipleClMismatch() {
 #[test]
 fn ResponseInvalidCl() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("75-response-invalid-cl.t").is_ok());
+    assert!(t.run_file("75-response-invalid-cl.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1842,7 +1897,7 @@ fn ResponseInvalidCl() {
 #[test]
 fn ResponseNoBody() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("76-response-no-body.t").is_ok());
+    assert!(t.run_file("76-response-no-body.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -1864,7 +1919,7 @@ fn ResponseNoBody() {
 #[test]
 fn ResponseFoldedHeaders() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("77-response-folded-headers.t").is_ok());
+    assert!(t.run_file("77-response-folded-headers.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -1884,7 +1939,7 @@ fn ResponseFoldedHeaders() {
 #[test]
 fn ResponseNoStatusHeaders() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("78-response-no-status-headers.t").is_ok());
+    assert!(t.run_file("78-response-no-status-headers.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1897,7 +1952,7 @@ fn ResponseNoStatusHeaders() {
 #[test]
 fn ConnectInvalidHostport() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("79-connect-invalid-hostport.t").is_ok());
+    assert!(t.run_file("79-connect-invalid-hostport.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 }
@@ -1905,7 +1960,7 @@ fn ConnectInvalidHostport() {
 #[test]
 fn HostnameInvalid1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("80-hostname-invalid-1.t").is_ok());
+    assert!(t.run_file("80-hostname-invalid-1.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 }
@@ -1913,7 +1968,7 @@ fn HostnameInvalid1() {
 #[test]
 fn HostnameInvalid2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("81-hostname-invalid-2.t").is_ok());
+    assert!(t.run_file("81-hostname-invalid-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 }
@@ -1921,7 +1976,7 @@ fn HostnameInvalid2() {
 #[test]
 fn Put() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("82-put.t").is_ok());
+    assert!(t.run_file("82-put.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1939,7 +1994,7 @@ fn Put() {
 #[test]
 fn AuthDigestInvalidUsername2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("83-auth-digest-invalid-username-2.t").is_ok());
+    assert!(t.run_file("83-auth-digest-invalid-username-2.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -1957,7 +2012,7 @@ fn AuthDigestInvalidUsername2() {
 #[test]
 fn ResponseNoStatusHeaders2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("84-response-no-status-headers-2.t").is_ok());
+    assert!(t.run_file("84-response-no-status-headers-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -1972,7 +2027,7 @@ fn ResponseNoStatusHeaders2() {
 //fn ZeroByteRequestTimeout() {
 //    let mut t = Test::new(TestConfig());
 //unsafe {
-//    assert!(t.run("85-zero-byte-request-timeout.t").is_ok());
+//    assert!(t.run_file("85-zero-byte-request-timeout.t").is_ok());
 //
 //    assert_eq!(1, t.connp.tx_size());
 //
@@ -1986,7 +2041,7 @@ fn ResponseNoStatusHeaders2() {
 #[test]
 fn PartialRequestTimeout() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("86-partial-request-timeout.t").is_ok());
+    assert!(t.run_file("86-partial-request-timeout.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2000,7 +2055,7 @@ fn PartialRequestTimeout() {
 fn IncorrectHostAmbiguousWarning() {
     let mut t = Test::new(TestConfig());
     assert!(t
-        .run("87-issue-55-incorrect-host-ambiguous-warning.t")
+        .run_file("87-issue-55-incorrect-host-ambiguous-warning.t")
         .is_ok());
 
     assert_eq!(1, t.connp.tx_size());
@@ -2037,7 +2092,7 @@ fn IncorrectHostAmbiguousWarning() {
 fn GetWhitespace() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("89-get-whitespace.t").is_ok());
+    assert!(t.run_file("89-get-whitespace.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2060,7 +2115,7 @@ fn GetWhitespace() {
 fn RequestUriTooLarge() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("90-request-uri-too-large.t").is_ok());
+    assert!(t.run_file("90-request-uri-too-large.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2074,7 +2129,7 @@ fn RequestUriTooLarge() {
 fn RequestInvalid() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("91-request-unexpected-body.t").is_ok());
+    assert!(t.run_file("91-request-unexpected-body.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
 
@@ -2094,7 +2149,7 @@ fn RequestInvalid() {
 #[test]
 fn Http_0_9_MethodOnly() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("92-http_0_9-method_only.t").is_ok());
+    assert!(t.run_file("92-http_0_9-method_only.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -2109,7 +2164,7 @@ fn Http_0_9_MethodOnly() {
 fn CompressedResponseDeflateAsGzip() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("93-compressed-response-deflateasgzip.t").is_ok());
+    assert!(t.run_file("93-compressed-response-deflateasgzip.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2124,7 +2179,7 @@ fn CompressedResponseDeflateAsGzip() {
 #[test]
 fn CompressedResponseZlibAsDeflate() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-118.t").is_ok());
+    assert!(t.run_file("http-evader-118.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2152,7 +2207,7 @@ fn CompressedResponseZlibAsDeflate() {
 fn CompressedResponseMultiple() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("94-compressed-response-multiple.t").is_ok());
+    assert!(t.run_file("94-compressed-response-multiple.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2170,7 +2225,7 @@ fn CompressedResponseBombLimitOkay() {
     cfg.compression_options.set_bomb_limit(0);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("14-compressed-response-gzip-chunked.t").is_ok());
+    assert!(t.run_file("14-compressed-response-gzip-chunked.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2189,7 +2244,7 @@ fn CompressedResponseBombLimitExceeded() {
     cfg.compression_options.set_bomb_ratio(2);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("14-compressed-response-gzip-chunked.t").is_err());
+    assert!(t.run_file("14-compressed-response-gzip-chunked.t").is_err());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2206,7 +2261,7 @@ fn CompressedResponseTimeLimitExceeded() {
     cfg.compression_options.set_time_limit(0);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("14-compressed-response-gzip-chunked.t").is_err());
+    assert!(t.run_file("14-compressed-response-gzip-chunked.t").is_err());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2221,7 +2276,7 @@ fn CompressedResponseTimeLimitExceeded() {
 fn CompressedResponseGzipAsDeflate() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("95-compressed-response-gzipasdeflate.t").is_ok());
+    assert!(t.run_file("95-compressed-response-gzipasdeflate.t").is_ok());
     assert_eq!(1, t.connp.tx_size());
 
     let tx = t.connp.tx(0).unwrap();
@@ -2236,7 +2291,7 @@ fn CompressedResponseGzipAsDeflate() {
 fn CompressedResponseLzma() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("96-compressed-response-lzma.t").is_ok());
+    assert!(t.run_file("96-compressed-response-lzma.t").is_ok());
     assert_eq!(1, t.connp.tx_size());
 
     let tx = t.connp.tx(0).unwrap();
@@ -2253,7 +2308,7 @@ fn CompressedResponseLzmaDisabled() {
     cfg.compression_options.set_lzma_memlimit(0);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("96-compressed-response-lzma.t").is_ok());
+    assert!(t.run_file("96-compressed-response-lzma.t").is_ok());
     assert_eq!(1, t.connp.tx_size());
 
     let tx = t.connp.tx(0).unwrap();
@@ -2269,7 +2324,7 @@ fn CompressedResponseLzmaMemlimit() {
     cfg.compression_options.set_lzma_memlimit(1);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("96-compressed-response-lzma.t").is_ok());
+    assert!(t.run_file("96-compressed-response-lzma.t").is_ok());
     assert_eq!(1, t.connp.tx_size());
     let tx = t.connp.tx(0).unwrap();
     assert!(tx.is_complete());
@@ -2282,7 +2337,7 @@ fn CompressedResponseLzmaMemlimit() {
 fn RequestsCut() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("97-requests-cut.t").is_ok());
+    assert!(t.run_file("97-requests-cut.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
     let mut tx = t.connp.tx(0).unwrap();
@@ -2299,7 +2354,7 @@ fn RequestsCut() {
 fn ResponsesCut() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("98-responses-cut.t").is_ok());
+    assert!(t.run_file("98-responses-cut.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
     let mut tx = t.connp.tx(0).unwrap();
@@ -2321,7 +2376,7 @@ fn ResponsesCut() {
 fn AuthDigest_EscapedQuote() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("100-auth-digest-escaped-quote.t").is_ok());
+    assert!(t.run_file("100-auth-digest-escaped-quote.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -2338,7 +2393,7 @@ fn AuthDigest_EscapedQuote() {
 fn RequestCookies2() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("101-request-cookies-2.t").is_ok());
+    assert!(t.run_file("101-request-cookies-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2363,7 +2418,7 @@ fn RequestCookies2() {
 fn RequestCookies3() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("102-request-cookies-3.t").is_ok());
+    assert!(t.run_file("102-request-cookies-3.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2388,7 +2443,7 @@ fn RequestCookies3() {
 fn RequestCookies4() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("103-request-cookies-4.t").is_ok());
+    assert!(t.run_file("103-request-cookies-4.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2413,7 +2468,7 @@ fn RequestCookies4() {
 fn RequestCookies5() {
     let mut t = Test::new(TestConfig());
     // Empty cookie
-    assert!(t.run("104-request-cookies-5.t").is_ok());
+    assert!(t.run_file("104-request-cookies-5.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2426,7 +2481,7 @@ fn RequestCookies5() {
 fn Tunnelled1() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("106-tunnelled-1.t").is_ok());
+    assert!(t.run_file("106-tunnelled-1.t").is_ok());
     assert_eq!(2, t.connp.tx_size());
     let tx1 = t.connp.tx(0).unwrap();
 
@@ -2440,7 +2495,7 @@ fn Tunnelled1() {
 fn Expect100() {
     let mut t = Test::new(TestConfig());
 
-    assert!(t.run("105-expect-100.t").is_ok());
+    assert!(t.run_file("105-expect-100.t").is_ok());
     assert_eq!(2, t.connp.tx_size());
     let tx = t.connp.tx(0).unwrap();
 
@@ -2460,7 +2515,7 @@ fn Expect100() {
 #[test]
 fn UnknownStatusNumber() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("107-response_unknown_status.t").is_ok());
+    assert!(t.run_file("107-response_unknown_status.t").is_ok());
     assert_eq!(1, t.connp.tx_size());
     let tx = t.connp.tx(0).unwrap();
 
@@ -2471,7 +2526,7 @@ fn UnknownStatusNumber() {
 fn ResponseHeaderCrOnly() {
     // Content-Length terminated with \r only.
     let mut t = Test::new(TestConfig());
-    assert!(t.run("108-response-headers-cr-only.t").is_ok());
+    assert!(t.run_file("108-response-headers-cr-only.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_eq!(2, tx.response_headers.size());
     // Check response headers
@@ -2483,7 +2538,7 @@ fn ResponseHeaderCrOnly() {
 fn ResponseHeaderDeformedEOL() {
     // Content-Length terminated with \n\r\r\n\r\n only.
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("109-response-headers-deformed-eol.t").is_ok());
+    assert!(t.run_file("109-response-headers-deformed-eol.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_eq!(2, tx.response_headers.size());
     // Check response headers
@@ -2504,7 +2559,7 @@ fn ResponseHeaderDeformedEOL() {
 fn ResponseFoldedHeaders2() {
     // Space folding char
     let mut t = Test::new(TestConfig());
-    assert!(t.run("110-response-folded-headers-2.t").is_ok());
+    assert!(t.run_file("110-response-folded-headers-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2520,7 +2575,7 @@ fn ResponseFoldedHeaders2() {
 #[test]
 fn ResponseHeadersChunked() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("111-response-headers-chunked.t").is_ok());
+    assert!(t.run_file("111-response-headers-chunked.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2538,7 +2593,7 @@ fn ResponseHeadersChunked() {
 #[test]
 fn ResponseHeadersChunked2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("112-response-headers-chunked-2.t").is_ok());
+    assert!(t.run_file("112-response-headers-chunked-2.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2557,13 +2612,13 @@ fn ResponseHeadersChunked2() {
 fn ResponseMultipartRanges() {
     // This should be is_ok() once multipart/byteranges is handled in response parsing
     let mut t = Test::new(TestConfig());
-    assert!(t.run("113-response-multipart-byte-ranges.t").is_err());
+    assert!(t.run_file("113-response-multipart-byte-ranges.t").is_err());
 }
 
 #[test]
 fn Http2Upgrade() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("114-http-2-upgrade.t").is_ok());
+    assert!(t.run_file("114-http-2-upgrade.t").is_ok());
 
     assert_eq!(2, t.connp.tx_size());
     assert!(!t.connp.tx(0).unwrap().is_http_2_upgrade);
@@ -2573,7 +2628,7 @@ fn Http2Upgrade() {
 #[test]
 fn AuthBearer() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("115-auth-bearer.t").is_ok());
+    assert!(t.run_file("115-auth-bearer.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -2590,7 +2645,7 @@ fn AuthBearer() {
 #[test]
 fn HttpCloseHeaders() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("http-close-headers.t").is_ok());
+    assert!(t.run_file("http-close-headers.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq("GET"));
     assert!(tx.request_uri.as_ref().unwrap().eq("/"));
@@ -2612,7 +2667,7 @@ fn HttpCloseHeaders() {
 #[test]
 fn HttpStartFromResponse() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("http-start-from-response.t").is_ok());
+    assert!(t.run_file("http-start-from-response.t").is_ok());
 
     let tx = t.connp.tx(0).unwrap();
 
@@ -2655,7 +2710,7 @@ fn RequestCompression() {
     cfg.set_request_decompression(true);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("116-request-compression.t").is_ok());
+    assert!(t.run_file("116-request-compression.t").is_ok());
     assert_eq!(1, t.connp.tx_size());
 
     let tx = t.connp.tx(0).unwrap();
@@ -2672,7 +2727,7 @@ fn RequestResponseCompression() {
     cfg.set_request_decompression(true);
     let mut t = Test::new(cfg);
 
-    assert!(t.run("117-request-response-compression.t").is_ok());
+    assert!(t.run_file("117-request-response-compression.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2690,7 +2745,7 @@ fn RequestResponseCompression() {
 #[test]
 fn Post() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("118-post.t").is_ok());
+    assert!(t.run_file("118-post.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
@@ -2726,7 +2781,7 @@ fn AmbiguousEOL() {
 #[test]
 fn HttpEvader017() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-017.t").is_ok());
+    assert!(t.run_file("http-evader-017.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/cr-size");
     assert_evader_response!(tx);
@@ -2763,7 +2818,7 @@ fn HttpEvader017() {
 #[test]
 fn HttpEvader018() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-018.t").is_ok());
+    assert!(t.run_file("http-evader-018.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/lf-size");
     assert_evader_response!(tx);
@@ -2800,7 +2855,7 @@ fn HttpEvader018() {
 #[test]
 fn HttpEvader044() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-044.t").is_ok());
+    assert!(t.run_file("http-evader-044.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/chunked,http10,do_clen");
     assert_eq!(HtpProtocol::V1_0, tx.response_protocol_number);
@@ -2830,7 +2885,7 @@ fn HttpEvader044() {
 #[test]
 fn HttpEvader059() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-059.t").is_ok());
+    assert!(t.run_file("http-evader-059.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/chunkednl-");
     assert_evader_response!(tx);
@@ -2840,7 +2895,7 @@ fn HttpEvader059() {
 #[test]
 fn HttpEvader060() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-060.t").is_ok());
+    assert!(t.run_file("http-evader-060.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/nl-nl-chunked");
     assert_evader_response!(tx);
@@ -2850,7 +2905,7 @@ fn HttpEvader060() {
 #[test]
 fn HttpEvader061() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-061.t").is_ok());
+    assert!(t.run_file("http-evader-061.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/nl-nl-chunked-nl-");
     assert_evader_response!(tx);
@@ -2859,7 +2914,7 @@ fn HttpEvader061() {
 #[test]
 fn HttpEvader078() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-078.t").is_ok());
+    assert!(t.run_file("http-evader-078.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/chunkedcr-,do_clen");
     assert_evader_response!(tx);
@@ -2881,7 +2936,7 @@ fn HttpEvader078() {
 #[test]
 fn HttpEvader130() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run("http-evader-130.t").is_ok());
+    assert!(!t.run_file("http-evader-130.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(
         tx,
@@ -2897,7 +2952,7 @@ fn HttpEvader130() {
 #[test]
 fn HttpEvader195() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-195.t").is_ok());
+    assert!(t.run_file("http-evader-195.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(
         tx,
@@ -2918,7 +2973,7 @@ fn HttpEvader195() {
 #[test]
 fn HttpEvader274() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-274.t").is_ok());
+    assert!(t.run_file("http-evader-274.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/somehdr;space;chunked");
     assert_evader_response!(tx);
@@ -2928,7 +2983,7 @@ fn HttpEvader274() {
 #[test]
 fn HttpEvader284() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-284.t").is_ok());
+    assert!(t.run_file("http-evader-284.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/cr;chunked");
     assert_evader_response!(tx);
@@ -2938,7 +2993,7 @@ fn HttpEvader284() {
 #[test]
 fn HttpEvader286() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-286.t").is_ok());
+    assert!(t.run_file("http-evader-286.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/crcronly;chunked");
     assert_evader_response!(tx);
@@ -2948,7 +3003,7 @@ fn HttpEvader286() {
 #[test]
 fn HttpEvader287() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-287.t").is_ok());
+    assert!(t.run_file("http-evader-287.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/cr-cronly;chunked");
     assert_evader_response!(tx);
@@ -2958,7 +3013,7 @@ fn HttpEvader287() {
 #[test]
 fn HttpEvader297() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-297.t").is_ok());
+    assert!(t.run_file("http-evader-297.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%5C015%5C040%3Achunked;do_chunked");
     assert_evader_response!(tx);
@@ -2968,7 +3023,7 @@ fn HttpEvader297() {
 #[test]
 fn HttpEvader300() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-300.t").is_ok());
+    assert!(t.run_file("http-evader-300.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%5C015%5C012%5C040%5C015%5C012%5C040%3A%5C015%5C012%5C040chunked;do_chunked");
     assert_evader_response!(tx);
@@ -2978,7 +3033,7 @@ fn HttpEvader300() {
 #[test]
 fn HttpEvader303() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-303.t").is_ok());
+    assert!(t.run_file("http-evader-303.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%3A%5C000chunked;do_chunked");
     assert_evader_response!(tx);
@@ -2988,7 +3043,7 @@ fn HttpEvader303() {
 #[test]
 fn HttpEvader307() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-307.t").is_ok());
+    assert!(t.run_file("http-evader-307.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%3A%5C012%5C000chunked;do_chunked");
     assert_evader_response!(tx);
@@ -2998,7 +3053,7 @@ fn HttpEvader307() {
 #[test]
 fn HttpEvader318() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run("http-evader-318.t").is_ok());
+    assert!(!t.run_file("http-evader-318.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/ce%5C015%5C012%5C040%3Agzip;do_gzip");
     assert_evader_response!(tx);
@@ -3010,7 +3065,7 @@ fn HttpEvader318() {
 #[test]
 fn HttpEvader320() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run("http-evader-320.t").is_ok());
+    assert!(!t.run_file("http-evader-320.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/ce%5C013%3Agzip;do_gzip");
     assert_evader_response!(tx);
@@ -3023,7 +3078,7 @@ fn HttpEvader320() {
 #[test]
 fn HttpEvader321() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run("http-evader-321.t").is_ok());
+    assert!(!t.run_file("http-evader-321.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/ce%5C014%3Agzip;do_gzip");
     assert_evader_response!(tx);
@@ -3036,7 +3091,7 @@ fn HttpEvader321() {
 #[test]
 fn HttpEvader390() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-390.t").is_ok());
+    assert!(t.run_file("http-evader-390.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(
         tx,
@@ -3049,7 +3104,7 @@ fn HttpEvader390() {
 #[test]
 fn HttpEvader402() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-402.t").is_ok());
+    assert!(t.run_file("http-evader-402.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/chunked;cr-no-crlf;end-crlflf");
     assert_evader_response!(tx);
@@ -3059,7 +3114,7 @@ fn HttpEvader402() {
 #[test]
 fn HttpEvader405() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-405.t").is_ok());
+    assert!(t.run_file("http-evader-405.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/chunked;lfcr-no-crlf;end-crlfcrlf");
     assert_evader_response!(tx);
@@ -3069,7 +3124,7 @@ fn HttpEvader405() {
 #[test]
 fn HttpEvader411() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-411.t").is_ok());
+    assert!(t.run_file("http-evader-411.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/end-lfcrcrlf;chunked");
     assert_evader_response!(tx);
@@ -3079,7 +3134,7 @@ fn HttpEvader411() {
 #[test]
 fn HttpEvader416() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-416.t").is_ok());
+    assert!(t.run_file("http-evader-416.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/end-lf%5C040lf");
     assert_evader_response!(tx);
@@ -3101,7 +3156,7 @@ fn HttpEvader416() {
 #[test]
 fn HttpEvader419() {
     let mut t = Test::new_with_callbacks();
-    assert!(t.run("http-evader-419.t").is_ok());
+    assert!(t.run_file("http-evader-419.t").is_ok());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/chunked;end-lf%5C040lf");
     assert_evader_response!(tx);
@@ -3111,7 +3166,7 @@ fn HttpEvader419() {
 #[test]
 fn HttpEvader423() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("http-evader-423.t").is_err());
+    assert!(t.run_file("http-evader-423.t").is_err());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/gzip;end-lf%5C040lflf");
     assert_evader_response!(tx);
