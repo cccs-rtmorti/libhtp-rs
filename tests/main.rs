@@ -2763,7 +2763,7 @@ fn Post() {
 #[test]
 fn AmbiguousEOL() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run("119-ambiguous-eol.t").is_ok());
+    assert!(t.run_file("119-ambiguous-eol.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
 
