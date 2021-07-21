@@ -95,3 +95,7 @@ pub mod urlencoded;
 mod utf8_decoder;
 /// Module for utility functions.
 pub mod util;
+
+/// Test harness
+// TODO: add #[cfg(test)] here when this is fixed: https://github.com/rust-lang/cargo/issues/8379
+pub mod test;
