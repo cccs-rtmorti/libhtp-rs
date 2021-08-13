@@ -2,7 +2,7 @@
 use crate::{
     bstr::Bstr,
     config::{Config, HtpServerPersonality},
-    connection_parser::{ConnectionParser, HtpStreamState},
+    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState},
     error::Result,
     transaction::Data,
 };
@@ -18,8 +18,8 @@ use std::{
 
 #[derive(Debug)]
 enum Chunk {
-    Client(Vec<u8>),
-    Server(Vec<u8>),
+    Client(ParserData<'static>),
+    Server(ParserData<'static>),
 }
 
 /// A structure to hold callback data
@@ -67,10 +67,13 @@ impl From<&[u8]> for TestInput {
         let mut test_input = TestInput { chunks: Vec::new() };
         let mut current = Vec::<u8>::new();
         let mut client = true;
+        let mut is_gap = false;
         for line in input.split(|c| *c == b'\n') {
             if line.len() >= 3
-                && ((line[0] == b'>' && line[1] == b'>' && line[2] == b'>')
-                    || (line[0] == b'<' && line[1] == b'<' && line[2] == b'<'))
+                && (&line[0..3] == b"<<<"
+                    || &line[0..3] == b"<><"
+                    || &line[0..3] == b">>>"
+                    || &line[0..3] == b"><>")
             {
                 if !current.is_empty() {
                     // Pop off the CRLF from the last line, which
@@ -82,10 +85,13 @@ impl From<&[u8]> for TestInput {
                     if let Some(b'\r') = current.last() {
                         current.pop();
                     }
-                    test_input.append(client, current);
+                    test_input.append(client, current, is_gap);
                     current = Vec::<u8>::new();
                 }
+                // Client represented by first char is >
                 client = line[0] == b'>';
+                // Gaps represented by <>< or ><>
+                is_gap = line[0] != line[1];
             } else {
                 current.append(&mut line.to_vec());
                 current.push(b'\n');
@@ -93,18 +99,24 @@ impl From<&[u8]> for TestInput {
         }
         // Remove the '\n' we would have appended for EOF
         current.pop();
-        test_input.append(client, current);
+        test_input.append(client, current, is_gap);
         test_input
     }
 }
 
 impl TestInput {
-    fn append(&mut self, client: bool, data: Vec<u8>) {
-        if client {
-            self.chunks.push(Chunk::Client(data));
-        } else {
-            self.chunks.push(Chunk::Server(data));
-        }
+    fn append(&mut self, client: bool, data: Vec<u8>, is_gap: bool) {
+        let chunk = match (client, is_gap) {
+            // client gap
+            (true, true) => Chunk::Client(data.len().into()),
+            // client data
+            (true, false) => Chunk::Client(data.into()),
+            // server gap
+            (false, true) => Chunk::Server(data.len().into()),
+            // server data
+            (false, false) => Chunk::Server(data.into()),
+        };
+        self.chunks.push(chunk);
     }
 }
 
@@ -177,14 +189,12 @@ impl Test {
             Some(tv_start),
         );
 
-        let mut request_buf: Option<Vec<u8>> = None;
-        let mut response_buf: Option<Vec<u8>> = None;
+        let mut request_buf: Option<ParserData> = None;
+        let mut response_buf: Option<ParserData> = None;
         for chunk in test {
             match chunk {
                 Chunk::Client(data) => {
-                    let rc = self
-                        .connp
-                        .request_data(data.as_slice().into(), Some(tv_start));
+                    let rc = self.connp.request_data(data.clone(), Some(tv_start));
 
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
@@ -196,16 +206,16 @@ impl Test {
                             .request_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
-                        let mut remaining = Vec::with_capacity(data.len() - consumed);
-                        remaining.extend_from_slice(&data[consumed..]);
+                        let mut remaining = data.clone().into_owned();
+                        remaining.consume(consumed);
                         request_buf = Some(remaining);
                     }
                 }
                 Chunk::Server(data) => {
                     // If we have leftover data from before then use it first
-                    if let Some(ref response_remaining) = response_buf {
+                    if let Some(response_remaining) = response_buf {
                         let rc = (&mut self.connp)
-                            .response_data(response_remaining.into(), Some(tv_start));
+                            .response_data(response_remaining.as_slice().into(), Some(tv_start));
                         response_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
@@ -213,8 +223,7 @@ impl Test {
                     }
 
                     // Now use up this data chunk
-                    let rc =
-                        (&mut self.connp).response_data(data.as_slice().into(), Some(tv_start));
+                    let rc = (&mut self.connp).response_data(data.clone(), Some(tv_start));
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
                     }
@@ -225,16 +234,16 @@ impl Test {
                             .response_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
-                        let mut remaining = Vec::with_capacity(data.len() - consumed);
-                        remaining.extend_from_slice(&data[consumed..]);
+                        let mut remaining = data.clone().into_owned();
+                        remaining.consume(consumed);
                         response_buf = Some(remaining);
                     }
 
                     // And check if we also had some input data buffered
-                    if let Some(ref request_remaining) = request_buf {
+                    if let Some(request_remaining) = request_buf {
                         let rc = self
                             .connp
-                            .request_data(request_remaining.into(), Some(tv_start));
+                            .request_data(request_remaining.as_slice().into(), Some(tv_start));
                         request_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
@@ -245,8 +254,9 @@ impl Test {
         }
 
         // Clean up any remaining server data
-        if let Some(ref response_remaining) = response_buf {
-            let rc = (&mut self.connp).response_data(response_remaining.into(), Some(tv_start));
+        if let Some(response_remaining) = response_buf {
+            let rc = (&mut self.connp)
+                .response_data(response_remaining.as_slice().into(), Some(tv_start));
             if rc == HtpStreamState::ERROR {
                 return Err(TestError::StreamError);
             }
@@ -271,16 +281,22 @@ impl Test {
 
 fn response_body_data(d: &mut Data) -> Result<()> {
     let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
-    user_data
-        .response_data
-        .push(Bstr::from(d.as_slice().unwrap()));
+    let bstr = if let Some(slice) = d.as_slice() {
+        Bstr::from(slice)
+    } else {
+        Bstr::with_capacity(d.len())
+    };
+    user_data.response_data.push(bstr);
     Ok(())
 }
 
 fn request_body_data(d: &mut Data) -> Result<()> {
     let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
-    user_data
-        .request_data
-        .push(Bstr::from(d.as_slice().unwrap()));
+    let bstr = if let Some(slice) = d.as_slice() {
+        Bstr::from(slice)
+    } else {
+        Bstr::with_capacity(d.len())
+    };
+    user_data.request_data.push(bstr);
     Ok(())
 }

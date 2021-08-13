@@ -11,7 +11,7 @@ use crate::{
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
-use std::{any::Any, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
+use std::{any::Any, borrow::Cow, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
 
 /// Enumerates parsing state.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -84,7 +84,7 @@ pub enum HtpStreamState {
 /// request and response body buffers or gaps) to parsers.
 pub struct Data<'a> {
     /// Ref to the data buffer.
-    data: Option<&'a [u8]>,
+    data: Option<Cow<'a, [u8]>>,
     // Length of data gap. Only set if is a gap.
     gap_len: Option<usize>,
     // Current position offset of the data to parse
@@ -102,8 +102,12 @@ impl<'a> Data<'a> {
 
     /// Returns the data
     pub fn data(&self) -> Option<&[u8]> {
-        if let Some(data) = self.data {
-            Some(&data[self.position..])
+        if let Some(data) = &self.data {
+            if self.position <= data.len() {
+                Some(&data[self.position..])
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -116,8 +120,12 @@ impl<'a> Data<'a> {
 
     /// Return an immutable slice view of the data.
     pub fn as_slice(&self) -> &[u8] {
-        if let Some(data) = self.data {
-            &data[self.position..]
+        if let Some(data) = &self.data {
+            if self.position <= data.len() {
+                &data[self.position..]
+            } else {
+                b""
+            }
         } else {
             b""
         }
@@ -137,6 +145,20 @@ impl<'a> Data<'a> {
     pub fn set_position(&mut self, position: usize) {
         self.position = position;
     }
+
+    /// Advances the internal position where we are parsing
+    pub fn consume(&mut self, consumed: usize) {
+        self.set_position(self.position + consumed);
+    }
+
+    /// Make an owned version of this data.
+    pub fn into_owned(self) -> Data<'static> {
+        Data {
+            data: self.data.map(|d| Cow::Owned(d.into_owned())),
+            gap_len: self.gap_len,
+            position: self.position,
+        }
+    }
 }
 
 impl<'a> Default for Data<'a> {
@@ -152,7 +174,7 @@ impl<'a> Default for Data<'a> {
 impl<'a> From<Option<&'a [u8]>> for Data<'a> {
     fn from(data: Option<&'a [u8]>) -> Self {
         Data {
-            data,
+            data: data.map(|d| Cow::Borrowed(d)),
             gap_len: None,
             position: 0,
         }
@@ -162,7 +184,17 @@ impl<'a> From<Option<&'a [u8]>> for Data<'a> {
 impl<'a> From<&'a [u8]> for Data<'a> {
     fn from(data: &'a [u8]) -> Self {
         Data {
-            data: Some(data),
+            data: Some(Cow::Borrowed(data)),
+            gap_len: None,
+            position: 0,
+        }
+    }
+}
+
+impl From<Vec<u8>> for Data<'static> {
+    fn from(data: Vec<u8>) -> Self {
+        Data {
+            data: Some(Cow::Owned(data)),
             gap_len: None,
             position: 0,
         }
@@ -172,7 +204,7 @@ impl<'a> From<&'a [u8]> for Data<'a> {
 impl<'a> From<&'a Vec<u8>> for Data<'a> {
     fn from(data: &'a Vec<u8>) -> Self {
         Data {
-            data: Some(data.as_slice()),
+            data: Some(Cow::Borrowed(data.as_slice())),
             gap_len: None,
             position: 0,
         }

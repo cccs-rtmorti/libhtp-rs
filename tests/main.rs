@@ -2914,3 +2914,44 @@ fn HttpEvader423() {
     assert_eq!(89, tx.response_message_len);
     assert_eq!(68, tx.response_entity_len);
 }
+
+#[test]
+fn RequestGap() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run_file("120-request-gap.t").is_ok());
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+
+    assert!(tx.flags.is_set(HtpFlags::REQUEST_MISSING_BYTES));
+
+    // The interim header from the 100 response should not be among the final headers.
+    assert!(tx.request_headers.get_nocase_nozero("Header1").is_none());
+    assert_eq!(
+        (&user_data.request_data[1]).as_slice(),
+        b"<? echo ".as_ref()
+    );
+    // Next chunk is a gap of size 5
+    assert_eq!((&user_data.request_data[2]).as_slice(), b"".as_ref());
+    assert_eq!((&user_data.request_data[2]).capacity(), 5);
+    assert_eq!((&user_data.request_data[3]).as_slice(), b"; ?>".as_ref());
+}
+
+#[test]
+fn ResponseGap() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run_file("121-response-gap.t").is_ok());
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+
+    assert!(tx.flags.is_set(HtpFlags::RESPONSE_MISSING_BYTES));
+
+    assert_eq!((&user_data.response_data[0]).as_slice(), b"Hell".as_ref());
+    // Next chunk is a gap of size 4
+    assert_eq!((&user_data.response_data[1]).as_slice(), b"".as_ref());
+    assert_eq!((&user_data.response_data[1]).capacity(), 4);
+    assert_eq!((&user_data.response_data[2]).as_slice(), b"rld!".as_ref());
+}
