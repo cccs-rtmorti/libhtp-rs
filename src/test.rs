@@ -68,6 +68,7 @@ impl From<&[u8]> for TestInput {
         let mut current = Vec::<u8>::new();
         let mut client = true;
         let mut is_gap = false;
+        let mut start = true;
         for line in input.split(|c| *c == b'\n') {
             if line.len() >= 3
                 && (&line[0..3] == b"<<<"
@@ -92,7 +93,12 @@ impl From<&[u8]> for TestInput {
                 client = line[0] == b'>';
                 // Gaps represented by <>< or ><>
                 is_gap = line[0] != line[1];
+                start = false;
             } else {
+                if start {
+                    // we need to start with an indicated direction
+                    return test_input;
+                }
                 current.append(&mut line.to_vec());
                 current.push(b'\n');
             }
