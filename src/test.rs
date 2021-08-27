@@ -69,14 +69,14 @@ impl From<&[u8]> for TestInput {
         let mut client = true;
         let mut is_gap = false;
         let mut start = true;
-        for line in input.split(|c| *c == b'\n') {
-            if line.len() >= 3
-                && line.len() <= 4
+        for line in input.split_inclusive(|c| *c == b'\n') {
+            if line.len() >= 4
+                && line.len() <= 5
                 && (&line[0..3] == b"<<<"
                     || &line[0..3] == b"<><"
                     || &line[0..3] == b">>>"
                     || &line[0..3] == b"><>")
-                && (line.len() == 3 || line[3] == b'\r')
+                && (line.len() == 4 || line[3] == b'\r')
             {
                 if !current.is_empty() {
                     // Pop off the CRLF from the last line, which
@@ -102,11 +102,8 @@ impl From<&[u8]> for TestInput {
                     return test_input;
                 }
                 current.append(&mut line.to_vec());
-                current.push(b'\n');
             }
         }
-        // Remove the '\n' we would have appended for EOF
-        current.pop();
         test_input.append(client, current, is_gap);
         test_input
     }
