@@ -300,3 +300,34 @@ fn request_body_data(d: &mut Data) -> Result<()> {
     user_data.request_data.push(bstr);
     Ok(())
 }
+
+#[no_mangle]
+/// Creates a Fuzz test runner, and runs a byte slice on it
+pub unsafe extern "C" fn libhtprsFuzzRun(
+    input: *const u8,
+    input_len: u32,
+) -> *mut std::os::raw::c_void {
+    let mut cfg = TestConfig();
+    cfg.set_server_personality(HtpServerPersonality::IDS)
+        .unwrap();
+    let mut t = Test::new(cfg);
+    let data = std::slice::from_raw_parts(input as *const u8, input_len as usize);
+    t.run_slice(data);
+    let boxed = Box::new(t);
+    let r = Box::into_raw(boxed) as *mut _;
+    return r;
+}
+
+#[no_mangle]
+/// Frees a Fuzz test runner
+pub unsafe extern "C" fn libhtprsFreeFuzzRun(state: *mut std::os::raw::c_void) {
+    //just unbox
+    std::mem::drop(Box::from_raw(state as *mut Test));
+}
+
+#[no_mangle]
+/// Gets connection parser out of a test runner
+pub unsafe extern "C" fn libhtprsFuzzConnp(t: *mut std::os::raw::c_void) -> *mut ConnectionParser {
+    let state = t as *mut Test;
+    return &mut (*state).connp;
+}
