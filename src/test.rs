@@ -77,6 +77,7 @@ impl From<&[u8]> for TestInput {
                     || &line[0..3] == b">>>"
                     || &line[0..3] == b"><>")
                 && (line.len() == 4 || line[3] == b'\r')
+                && line[line.len() - 1] == b'\n'
             {
                 if !current.is_empty() {
                     // Pop off the CRLF from the last line, which
