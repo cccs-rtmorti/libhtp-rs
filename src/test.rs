@@ -71,10 +71,12 @@ impl From<&[u8]> for TestInput {
         let mut start = true;
         for line in input.split(|c| *c == b'\n') {
             if line.len() >= 3
+                && line.len() <= 4
                 && (&line[0..3] == b"<<<"
                     || &line[0..3] == b"<><"
                     || &line[0..3] == b">>>"
                     || &line[0..3] == b"><>")
+                && (line.len() == 3 || line[3] == b'\r')
             {
                 if !current.is_empty() {
                     // Pop off the CRLF from the last line, which
