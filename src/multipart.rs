@@ -915,6 +915,7 @@ impl Drop for Part {
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 enum HtpMultipartMode {
     /// When in line mode, the parser is handling part headers.
     LINE,
@@ -926,6 +927,7 @@ enum HtpMultipartMode {
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 enum HtpMultipartState {
     /// Processing data, waiting for a new line (which might indicate a new boundary).
     DATA,
@@ -1015,13 +1017,15 @@ fn content_disposition_param() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Vec<u
     }
 }
 
+type param_name_values<'a> = Vec<(&'a [u8], Vec<u8>)>;
+
 /// Extracts and decodes a C-D header param names and values. This is impossible to do correctly without a
 /// parsing personality because most browsers are broken:
 ///  - Firefox encodes " as \", and \ is not encoded.
 ///  - Chrome encodes " as %22.
 ///  - IE encodes " as \", and \ is not encoded.
 ///  - Opera encodes " as \" and \ as \\.
-fn content_disposition(input: &[u8]) -> IResult<&[u8], Vec<(&[u8], Vec<u8>)>> {
+fn content_disposition(input: &[u8]) -> IResult<&[u8], param_name_values> {
     // Multiple header values are seperated by a ", ": https://tools.ietf.org/html/rfc7230#section-3.2.2
     map(
         tuple((

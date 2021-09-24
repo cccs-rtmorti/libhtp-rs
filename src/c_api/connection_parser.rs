@@ -11,19 +11,21 @@ use std::{convert::TryFrom, ffi::CStr};
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_close(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
 ) {
-    connp.as_mut().map(|connp| {
+    if let Some(connp) = connp.as_mut() {
         connp.close(timestamp.as_ref().map(|val| {
             DateTime::<Utc>::from_utc(
                 NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
                 Utc,
             )
         }))
-    });
+    }
 }
 
 /// Creates a new connection parser using the provided configuration or a default configuration if NULL provided.
@@ -31,17 +33,19 @@ pub unsafe extern "C" fn htp_connp_close(
 /// to the original config will have no effect.
 ///
 /// Returns a new connection parser instance, or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_create(cfg: *mut Config) -> *mut ConnectionParser {
     Box::into_raw(Box::new(ConnectionParser::new(
-        cfg.as_ref()
-            .map(|cfg| cfg.clone())
-            .unwrap_or(Config::default()),
+        cfg.as_ref().cloned().unwrap_or_default(),
     )))
 }
 
 /// Destroys the connection parser, its data structures, as well
 /// as the connection and its transactions.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut ConnectionParser) {
     let _ = Box::from_raw(connp);
@@ -50,6 +54,8 @@ pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut ConnectionParser) {
 /// Returns the connection associated with the connection parser.
 ///
 /// Returns Connection instance, or NULL if one is not available.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_connection(connp: *const ConnectionParser) -> *const Connection {
     connp
@@ -60,29 +66,35 @@ pub unsafe extern "C" fn htp_connp_connection(connp: *const ConnectionParser) ->
 
 /// Retrieve the user data associated with this connection parser.
 /// Returns user data, or NULL if there isn't any.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_user_data(connp: *const ConnectionParser) -> *mut libc::c_void {
     connp
         .as_ref()
         .and_then(|val| val.user_data::<*mut libc::c_void>())
-        .map(|val| *val)
+        .copied()
         .unwrap_or(std::ptr::null_mut())
 }
 
 /// Associate user data with the supplied parser.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_set_user_data(
     connp: *mut ConnectionParser,
     user_data: *mut libc::c_void,
 ) {
-    connp
-        .as_mut()
-        .map(|connp| connp.set_user_data(Box::new(user_data)));
+    if let Some(connp) = connp.as_mut() {
+        connp.set_user_data(Box::new(user_data))
+    }
 }
 
 /// Opens connection.
 ///
 /// timestamp is optional
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_open(
     connp: *mut ConnectionParser,
@@ -92,7 +104,7 @@ pub unsafe extern "C" fn htp_connp_open(
     server_port: libc::c_int,
     timestamp: *const libc::timeval,
 ) {
-    connp.as_mut().map(|connp| {
+    if let Some(connp) = connp.as_mut() {
         connp.open(
             client_addr.as_ref().and_then(|client_addr| {
                 CStr::from_ptr(client_addr)
@@ -123,25 +135,27 @@ pub unsafe extern "C" fn htp_connp_open(
                 )
             }),
         )
-    });
+    }
 }
 
 /// Closes the connection associated with the supplied parser.
 ///
 /// timestamp is optional
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_request_close(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
 ) {
-    connp.as_mut().map(|connp| {
+    if let Some(connp) = connp.as_mut() {
         connp.request_close(timestamp.as_ref().map(|val| {
             DateTime::<Utc>::from_utc(
                 NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
                 Utc,
             )
         }))
-    });
+    }
 }
 
 /// Process a chunk of inbound client request data
@@ -149,6 +163,8 @@ pub unsafe extern "C" fn htp_connp_request_close(
 /// timestamp is optional
 /// Returns HTP_STREAM_STATE_DATA, HTP_STREAM_STATE_ERROR or HTP_STREAM_STATE_DATA_OTHER (see QUICK_START).
 ///         HTP_STREAM_STATE_CLOSED and HTP_STREAM_STATE_TUNNEL are also possible.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_request_data(
     connp: *mut ConnectionParser,
@@ -176,6 +192,8 @@ pub unsafe extern "C" fn htp_connp_request_data(
 ///
 /// timestamp is optional.
 /// Returns HTP_STREAM_STATE_OK on state change, HTP_STREAM_STATE_ERROR on error, or HTP_STREAM_STATE_DATA when more data is needed
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_response_data(
     connp: *mut ConnectionParser,
@@ -202,6 +220,8 @@ pub unsafe extern "C" fn htp_connp_response_data(
 /// Get the number of transactions processed on this connection.
 ///
 /// Returns the number of transactions or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_tx_size(connp: *const ConnectionParser) -> isize {
     connp
@@ -213,6 +233,8 @@ pub unsafe extern "C" fn htp_connp_tx_size(connp: *const ConnectionParser) -> is
 /// Get a transaction.
 ///
 /// Returns the transaction or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_tx(
     connp: *mut ConnectionParser,
@@ -238,6 +260,8 @@ pub unsafe extern "C" fn htp_connp_tx(
 /// Retrieves the pointer to the active response transaction. In connection
 /// parsing mode there can be many open transactions, and up to 2 active
 /// transactions at any one time. This is due to HTTP pipelining. Can be NULL.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_response_tx(
     connp: *mut ConnectionParser,
@@ -251,6 +275,8 @@ pub unsafe extern "C" fn htp_connp_get_response_tx(
 /// Retrieves the pointer to the active request transaction. In connection
 /// parsing mode there can be many open transactions, and up to 2 active
 /// transactions at any one time. This is due to HTTP pipelining. Call be NULL.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_get_request_tx(
     connp: *mut ConnectionParser,
@@ -271,14 +297,18 @@ pub unsafe extern "C" fn htp_connp_get_request_tx(
 /// completed due to packet loss or parsing errors.
 ///
 /// This function will also cause these transactions to be removed from the parser.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_flush_incomplete_transactions(connp: *mut ConnectionParser) {
-    connp
-        .as_mut()
-        .map(|connp| connp.flush_incomplete_transactions());
+    if let Some(connp) = connp.as_mut() {
+        connp.flush_incomplete_transactions()
+    }
 }
 
 /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_request_data_consumed(connp: *const ConnectionParser) -> i64 {
     connp
@@ -294,6 +324,8 @@ pub unsafe extern "C" fn htp_connp_request_data_consumed(connp: *const Connectio
 /// for later.
 /// Returns the number of bytes consumed from the last data chunk sent for outbound processing
 /// or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_response_data_consumed(connp: *const ConnectionParser) -> i64 {
     connp

@@ -42,13 +42,13 @@ impl Bstr {
     }
 
     /// Compare this bstr with the given slice
-    pub fn cmp<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
+    pub fn cmp_slice<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
         self.as_slice().cmp(other.as_ref())
     }
 
     /// Return true if self is equal to other
-    pub fn eq<B: AsRef<[u8]>>(&self, other: B) -> bool {
-        self.cmp(other) == Ordering::Equal
+    pub fn eq_slice<B: AsRef<[u8]>>(&self, other: B) -> bool {
+        self.cmp_slice(other) == Ordering::Equal
     }
 
     /// Compare bstr with the given slice, ingnoring ascii case.
@@ -111,7 +111,7 @@ impl Bstr {
 
     /// Find the index of the given slice ignoring ascii case
     pub fn index_of_nocase<B: AsRef<[u8]>>(&self, other: B) -> Option<usize> {
-        let src = &self.as_slice()[..];
+        let src = self.as_slice();
         let mut haystack = LowercaseIterator::new(&src);
         let needle = other.as_ref().to_ascii_lowercase();
         haystack.index_of(&needle)
@@ -119,7 +119,7 @@ impl Bstr {
 
     /// Find the index of the given slice ignoring ascii case and any zeros in self
     pub fn index_of_nocase_nozero<B: AsRef<[u8]>>(&self, other: B) -> Option<usize> {
-        let src = &self.as_slice()[..];
+        let src = self.as_slice();
         let mut haystack = LowercaseNoZeroIterator::new(&src);
         let needle = other.as_ref().to_ascii_lowercase();
         haystack.index_of(&needle)
@@ -246,11 +246,11 @@ impl<T: AsRef<[u8]>> Iterator for LowercaseNoZeroIterator<'_, T> {
             } else {
                 self.idx += 1;
             }
-            let next = if let Some(c) = self.src.as_ref().get(self.idx) {
-                Some(c.to_ascii_lowercase())
-            } else {
-                None
-            };
+            let next = self
+                .src
+                .as_ref()
+                .get(self.idx)
+                .map(|c| c.to_ascii_lowercase());
             if next != Some(0) {
                 break next;
             }
@@ -261,7 +261,7 @@ impl<T: AsRef<[u8]>> Iterator for LowercaseNoZeroIterator<'_, T> {
 impl<T: AsRef<[u8]>> SubIterator for LowercaseNoZeroIterator<'_, T> {
     fn subiter(&self) -> Self {
         LowercaseNoZeroIterator {
-            src: &self.src,
+            src: self.src,
             idx: self.idx,
             first: true,
         }
@@ -302,18 +302,17 @@ impl<T: AsRef<[u8]>> Iterator for LowercaseIterator<'_, T> {
         } else {
             self.idx += 1;
         }
-        if let Some(c) = self.src.as_ref().get(self.idx) {
-            Some(c.to_ascii_lowercase())
-        } else {
-            None
-        }
+        self.src
+            .as_ref()
+            .get(self.idx)
+            .map(|c| c.to_ascii_lowercase())
     }
 }
 
 impl<T: AsRef<[u8]>> SubIterator for LowercaseIterator<'_, T> {
     fn subiter(&self) -> Self {
         LowercaseIterator {
-            src: &self.src,
+            src: self.src,
             idx: self.idx,
             first: true,
         }
@@ -334,17 +333,17 @@ impl<T: AsRef<[u8]>> SubIterator for LowercaseIterator<'_, T> {
 fn Compare() {
     let b = Bstr::from("ABCDefgh");
     // direct equality
-    assert_eq!(Ordering::Equal, b.cmp("ABCDefgh"));
+    assert_eq!(Ordering::Equal, b.cmp_slice("ABCDefgh"));
     // case sensitive
-    assert_ne!(Ordering::Equal, b.cmp("abcdefgh"));
+    assert_ne!(Ordering::Equal, b.cmp_slice("abcdefgh"));
     // src shorter than dst
-    assert_eq!(Ordering::Less, b.cmp("ABCDefghi"));
+    assert_eq!(Ordering::Less, b.cmp_slice("ABCDefghi"));
     // src longer than dst
-    assert_eq!(Ordering::Greater, b.cmp("ABCDefg"));
+    assert_eq!(Ordering::Greater, b.cmp_slice("ABCDefg"));
     // case less
-    assert_eq!(Ordering::Less, b.cmp("abcdefgh"));
+    assert_eq!(Ordering::Less, b.cmp_slice("abcdefgh"));
     // case greater
-    assert_eq!(Ordering::Greater, b.cmp("ABCDEFGH"));
+    assert_eq!(Ordering::Greater, b.cmp_slice("ABCDEFGH"));
 }
 
 #[test]
@@ -373,7 +372,7 @@ fn CompareNocaseNozero() {
 fn Add() {
     let mut b = Bstr::from("ABCD");
     b.add("efgh");
-    assert_eq!(Ordering::Equal, b.cmp("ABCDefgh"));
+    assert_eq!(Ordering::Equal, b.cmp_slice("ABCDefgh"));
 }
 
 #[test]
@@ -387,7 +386,7 @@ fn AddNoEx() {
     assert_eq!(4, c.len());
     c.add_noex("efghijklmnopqrstuvwxyz");
     assert_eq!(10, c.len());
-    assert_eq!(Ordering::Equal, c.cmp("ABCDefghij"))
+    assert_eq!(Ordering::Equal, c.cmp_slice("ABCDefghij"))
 }
 
 #[test]

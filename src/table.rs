@@ -137,17 +137,17 @@ fn GetNoCase() {
 
     let mut result = t.get_nocase("KEY1");
     let mut res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp("Key1"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("Key1"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase("keY1");
     res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp("Key1"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("Key1"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase("key2");
     res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp("KeY2"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("KeY2"));
     assert_eq!("Value2", res.1);
 
     result = t.get_nocase("NotAKey");
@@ -164,17 +164,17 @@ fn GetNocaseNozero() {
 
     let mut result = t.get_nocase_nozero("key1");
     let mut res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp("K\x00\x00\x00\x00ey\x001"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("K\x00\x00\x00\x00ey\x001"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase_nozero("KeY1");
     res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp("K\x00\x00\x00\x00ey\x001"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("K\x00\x00\x00\x00ey\x001"));
     assert_eq!("Value1", res.1);
 
     result = t.get_nocase_nozero("KEY2");
     res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp("K\x00e\x00\x00Y2"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("K\x00e\x00\x00Y2"));
     assert_eq!("Value2", res.1);
 
     result = t.get_nocase("key1");
@@ -190,7 +190,7 @@ fn IndexAccess() {
     t.add(k, "Value2");
 
     let res = &t[1];
-    assert_eq!(Ordering::Equal, res.0.cmp("KeY2"));
+    assert_eq!(Ordering::Equal, res.0.cmp_slice("KeY2"));
     assert_eq!("Value2", res.1);
     assert_eq!("Value2", t.get(1).unwrap().1);
 

@@ -532,7 +532,7 @@ impl Transaction {
     pub fn new(cfg: &Rc<Config>, logger: &Logger, index: usize) -> Self {
         Self {
             logger: logger.clone(),
-            cfg: Rc::clone(&cfg),
+            cfg: Rc::clone(cfg),
             is_config_shared: true,
             user_data: None,
             request_ignored_lines: 0,
@@ -902,8 +902,8 @@ impl Transaction {
 
                             let encoding = Bstr::from(encoding);
                             let encoding = if encoding.index_of_nocase(b"gzip").is_some() {
-                                if !(encoding.cmp(b"gzip") == Ordering::Equal
-                                    || encoding.cmp(b"x-gzip") == Ordering::Equal)
+                                if !(encoding.cmp_slice(b"gzip") == Ordering::Equal
+                                    || encoding.cmp_slice(b"x-gzip") == Ordering::Equal)
                                 {
                                     htp_warn!(
                                         self.logger,
@@ -913,8 +913,8 @@ impl Transaction {
                                 }
                                 HtpContentEncoding::GZIP
                             } else if encoding.index_of_nocase(b"deflate").is_some() {
-                                if !(encoding.cmp(b"deflate") == Ordering::Equal
-                                    || encoding.cmp(b"x-deflate") == Ordering::Equal)
+                                if !(encoding.cmp_slice(b"deflate") == Ordering::Equal
+                                    || encoding.cmp_slice(b"x-deflate") == Ordering::Equal)
                                 {
                                     htp_warn!(
                                         self.logger,
@@ -923,7 +923,7 @@ impl Transaction {
                                     );
                                 }
                                 HtpContentEncoding::DEFLATE
-                            } else if encoding.cmp(b"lzma") == Ordering::Equal {
+                            } else if encoding.cmp_slice(b"lzma") == Ordering::Equal {
                                 lzma_layers += 1;
                                 if let Some(limit) = self.cfg.compression_options.get_lzma_layers()
                                 {
@@ -938,7 +938,7 @@ impl Transaction {
                                     }
                                 }
                                 HtpContentEncoding::LZMA
-                            } else if encoding.cmp(b"inflate") == Ordering::Equal {
+                            } else if encoding.cmp_slice(b"inflate") == Ordering::Equal {
                                 HtpContentEncoding::NONE
                             } else {
                                 htp_warn!(
@@ -1742,8 +1742,8 @@ impl Transaction {
 
                             let encoding = Bstr::from(encoding);
                             let encoding = if encoding.index_of_nocase(b"gzip").is_some() {
-                                if !(encoding.cmp(b"gzip") == Ordering::Equal
-                                    || encoding.cmp(b"x-gzip") == Ordering::Equal)
+                                if !(encoding.cmp_slice(b"gzip") == Ordering::Equal
+                                    || encoding.cmp_slice(b"x-gzip") == Ordering::Equal)
                                 {
                                     htp_warn!(
                                         self.logger,
@@ -1753,8 +1753,8 @@ impl Transaction {
                                 }
                                 HtpContentEncoding::GZIP
                             } else if encoding.index_of_nocase(b"deflate").is_some() {
-                                if !(encoding.cmp(b"deflate") == Ordering::Equal
-                                    || encoding.cmp(b"x-deflate") == Ordering::Equal)
+                                if !(encoding.cmp_slice(b"deflate") == Ordering::Equal
+                                    || encoding.cmp_slice(b"x-deflate") == Ordering::Equal)
                                 {
                                     htp_warn!(
                                         self.logger,
@@ -1763,7 +1763,7 @@ impl Transaction {
                                     );
                                 }
                                 HtpContentEncoding::DEFLATE
-                            } else if encoding.cmp(b"lzma") == Ordering::Equal {
+                            } else if encoding.cmp_slice(b"lzma") == Ordering::Equal {
                                 lzma_layers += 1;
                                 if let Some(limit) = self.cfg.compression_options.get_lzma_layers()
                                 {
@@ -1778,7 +1778,7 @@ impl Transaction {
                                     }
                                 }
                                 HtpContentEncoding::LZMA
-                            } else if encoding.cmp(b"inflate") == Ordering::Equal {
+                            } else if encoding.cmp_slice(b"inflate") == Ordering::Equal {
                                 HtpContentEncoding::NONE
                             } else {
                                 htp_warn!(

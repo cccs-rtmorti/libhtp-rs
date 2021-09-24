@@ -430,7 +430,7 @@ impl ConnectionParser {
             && self.request_body_data_left == self.request_content_length
         {
             if let Some((_, expect)) = self.response().request_headers.get_nocase("expect") {
-                if expect.value == "100-continue" {
+                if expect.value.eq_slice("100-continue") {
                     self.request_state = State::FINALIZE;
                 }
             }
@@ -703,7 +703,7 @@ impl ConnectionParser {
         if line.is_empty() {
             return Err(HtpStatus::DATA);
         }
-        if is_line_ignorable(self.cfg.server_personality, &line) {
+        if is_line_ignorable(self.cfg.server_personality, line) {
             if self.response_status == HtpStreamState::CLOSED {
                 self.response_state = State::FINALIZE
             }

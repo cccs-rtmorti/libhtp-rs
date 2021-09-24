@@ -130,11 +130,9 @@ impl Utf8Decoder {
                 self.codepoint = 0;
                 self.decoded_bytes.push(self.bestfit_map.replacement_byte);
                 if self.seq != 1 {
-                    self.seq = 0;
                     self.decode_byte(encoded_byte);
-                } else {
-                    self.seq = 0;
                 }
+                self.seq = 0;
             }
             _ => {
                 // The character is not yet formed.

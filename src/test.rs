@@ -30,9 +30,9 @@ pub struct MainUserData {
     pub response_data: Vec<Bstr>,
 }
 
-impl MainUserData {
+impl Default for MainUserData {
     /// Make a new user data struct
-    pub fn new() -> Self {
+    fn default() -> Self {
         Self {
             request_data: Vec::with_capacity(5),
             response_data: Vec::with_capacity(5),
@@ -145,7 +145,7 @@ pub fn TestConfig() -> Config {
     cfg.set_parse_urlencoded(true);
     cfg.set_parse_multipart(true);
 
-    return cfg;
+    cfg
 }
 
 impl Test {
@@ -175,7 +175,7 @@ impl Test {
         // Configure user data and callbacks
         t.connp
             .response_mut()
-            .set_user_data(Box::new(MainUserData::new()));
+            .set_user_data(Box::new(MainUserData::default()));
         t
     }
 

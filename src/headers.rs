@@ -312,7 +312,7 @@ impl Parser {
     /// If null terminates is set to true, it will remove all characters before the null character
     fn remove_trailing(&self, input: &mut Vec<u8>, flags: &mut u64) {
         if self.side == Side::Request {
-            if let Ok((trailing_data, data)) = take_until_null(&input) {
+            if let Ok((trailing_data, data)) = take_until_null(input) {
                 if trailing_data.first() == Some(&b'\0') {
                     flags.set(Flags::NULL_TERMINATED);
                 }
@@ -646,8 +646,9 @@ fn separator_regular(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8])> {
     tuple((complete_tag(":"), space0))(input)
 }
 
+type leading_token_trailing<'a> = (&'a [u8], &'a [u8], &'a [u8]);
 /// Parse token characters with leading and trailing whitespace
-fn token_chars(input: &[u8]) -> IResult<&[u8], (&[u8], &[u8], &[u8])> {
+fn token_chars(input: &[u8]) -> IResult<&[u8], leading_token_trailing> {
     tuple((space0, take_while(is_token), space0))(input)
 }
 

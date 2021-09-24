@@ -3,6 +3,8 @@ use crate::{bstr::Bstr, uri::Uri};
 /// Get the scheme of a uri.
 ///
 /// Returns the scheme for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_scheme(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -14,6 +16,8 @@ pub unsafe extern "C" fn htp_uri_scheme(uri: *const Uri) -> *const Bstr {
 /// Get the username of a uri.
 ///
 /// Returns the username for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_username(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -25,6 +29,8 @@ pub unsafe extern "C" fn htp_uri_username(uri: *const Uri) -> *const Bstr {
 /// Get the password of a uri.
 ///
 /// Returns the password for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_password(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -36,6 +42,8 @@ pub unsafe extern "C" fn htp_uri_password(uri: *const Uri) -> *const Bstr {
 /// Get the hostname of a uri.
 ///
 /// Returns the hostname for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_hostname(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -47,6 +55,8 @@ pub unsafe extern "C" fn htp_uri_hostname(uri: *const Uri) -> *const Bstr {
 /// Get the port of a uri.
 ///
 /// Returns the port for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_port(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -58,6 +68,8 @@ pub unsafe extern "C" fn htp_uri_port(uri: *const Uri) -> *const Bstr {
 /// Get the port_number of a uri.
 ///
 /// Returns the port_number for uri or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_port_number(uri: *const Uri) -> i32 {
     uri.as_ref()
@@ -69,6 +81,8 @@ pub unsafe extern "C" fn htp_uri_port_number(uri: *const Uri) -> i32 {
 /// Get the path of a uri.
 ///
 /// Returns the path for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_path(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -80,6 +94,8 @@ pub unsafe extern "C" fn htp_uri_path(uri: *const Uri) -> *const Bstr {
 /// Get the query of a uri.
 ///
 /// Returns the query for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_query(uri: *const Uri) -> *const Bstr {
     uri.as_ref()
@@ -91,6 +107,8 @@ pub unsafe extern "C" fn htp_uri_query(uri: *const Uri) -> *const Bstr {
 /// Get the fragment of a uri.
 ///
 /// Returns the fragment for uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that uri is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_uri_fragment(uri: *const Uri) -> *const Bstr {
     uri.as_ref()

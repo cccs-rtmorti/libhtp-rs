@@ -6,17 +6,20 @@ use crate::{
 use std::{convert::TryFrom, rc::Rc};
 
 /// Destroys the supplied transaction.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_destroy(connp: *mut ConnectionParser, tx: *const Transaction) {
-    match (connp.as_mut(), tx.as_ref()) {
-        (Some(connp), Some(tx)) => connp.remove_tx(tx.index),
-        _ => {}
+    if let (Some(connp), Some(tx)) = (connp.as_mut(), tx.as_ref()) {
+        connp.remove_tx(tx.index)
     }
 }
 
 /// Get a transaction's normalized parsed uri.
 ///
 /// tx: Transaction pointer.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *const Transaction) -> *const Bstr {
     if (*(*tx).cfg).decoder_cfg.normalized_uri_include_all {
@@ -37,6 +40,8 @@ pub unsafe extern "C" fn htp_tx_normalized_uri(tx: *const Transaction) -> *const
 /// tx: Transaction pointer.
 ///
 /// Returns a pointer to the configuration or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_cfg(tx: *const Transaction) -> *const Config {
     tx.as_ref()
@@ -45,18 +50,24 @@ pub unsafe extern "C" fn htp_tx_cfg(tx: *const Transaction) -> *const Config {
 }
 
 /// Returns the user data associated with this transaction or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_user_data(tx: *const Transaction) -> *mut libc::c_void {
     tx.as_ref()
         .and_then(|val| val.user_data::<*mut libc::c_void>())
-        .map(|val| *val)
+        .copied()
         .unwrap_or(std::ptr::null_mut())
 }
 
 /// Associates user data with this transaction.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_set_user_data(tx: *mut Transaction, user_data: *mut libc::c_void) {
-    tx.as_mut().map(|tx| tx.set_user_data(Box::new(user_data)));
+    if let Some(tx) = tx.as_mut() {
+        tx.set_user_data(Box::new(user_data))
+    }
 }
 
 /// Get a transaction's request line.
@@ -64,6 +75,8 @@ pub unsafe extern "C" fn htp_tx_set_user_data(tx: *mut Transaction, user_data: *
 /// tx: Transaction pointer.
 ///
 /// Returns the request line or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_line(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -77,6 +90,8 @@ pub unsafe extern "C" fn htp_tx_request_line(tx: *const Transaction) -> *const B
 /// tx: Transaction pointer.
 ///
 /// Returns the request method or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_method(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -90,6 +105,8 @@ pub unsafe extern "C" fn htp_tx_request_method(tx: *const Transaction) -> *const
 /// tx: Transaction pointer.
 ///
 /// Returns the request method number or ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_method_number(tx: *const Transaction) -> HtpMethod {
     tx.as_ref()
@@ -102,6 +119,8 @@ pub unsafe extern "C" fn htp_tx_request_method_number(tx: *const Transaction) ->
 /// tx: Transaction pointer.
 ///
 /// Returns the request uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_uri(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -115,6 +134,8 @@ pub unsafe extern "C" fn htp_tx_request_uri(tx: *const Transaction) -> *const Bs
 /// tx: Transaction pointer.
 ///
 /// Returns the protocol or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_protocol(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -128,6 +149,8 @@ pub unsafe extern "C" fn htp_tx_request_protocol(tx: *const Transaction) -> *con
 /// tx: Transaction pointer.
 ///
 /// Returns the protocol number or ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_protocol_number(tx: *const Transaction) -> HtpProtocol {
     tx.as_ref()
@@ -141,6 +164,8 @@ pub unsafe extern "C" fn htp_tx_request_protocol_number(tx: *const Transaction) 
 ///
 /// Returns 1 if the version is 0.9 or 0 otherwise. A NULL argument will
 /// also result in a return value of 0.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const Transaction) -> i32 {
     tx.as_ref().map(|tx| tx.is_protocol_0_9 as i32).unwrap_or(0)
@@ -152,6 +177,8 @@ pub unsafe extern "C" fn htp_tx_is_protocol_0_9(tx: *const Transaction) -> i32 {
 ///
 /// Returns 1 if the transaction is an HTTP/2.0 upgrade or 0 otherwise. A NULL argument will
 /// also result in a return value of 0.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_is_http_2_upgrade(tx: *const Transaction) -> i32 {
     tx.as_ref()
@@ -164,6 +191,8 @@ pub unsafe extern "C" fn htp_tx_is_http_2_upgrade(tx: *const Transaction) -> i32
 /// tx: Transaction pointer.
 ///
 /// Returns the parsed uri or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *const Transaction) -> *const Uri {
     tx.as_ref()
@@ -177,6 +206,8 @@ pub unsafe extern "C" fn htp_tx_parsed_uri(tx: *const Transaction) -> *const Uri
 /// tx: Transaction pointer.
 ///
 /// Returns the request headers or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_headers(tx: *const Transaction) -> *const Headers {
     tx.as_ref()
@@ -189,6 +220,8 @@ pub unsafe extern "C" fn htp_tx_request_headers(tx: *const Transaction) -> *cons
 /// tx: Transaction pointer.
 ///
 /// Returns the size or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_headers_size(tx: *const Transaction) -> isize {
     tx.as_ref()
@@ -202,6 +235,8 @@ pub unsafe extern "C" fn htp_tx_request_headers_size(tx: *const Transaction) -> 
 /// ckey: Header name to match.
 ///
 /// Returns the header or NULL when not found or on error
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_header(
     tx: *const Transaction,
@@ -218,6 +253,8 @@ pub unsafe extern "C" fn htp_tx_request_header(
 /// index: request header table index.
 ///
 /// Returns the header or NULL on error
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_header_index(
     tx: *const Transaction,
@@ -238,6 +275,8 @@ pub unsafe extern "C" fn htp_tx_request_header_index(
 /// tx: Transaction pointer.
 ///
 /// Returns the transfer coding or ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_transfer_coding(
     tx: *const Transaction,
@@ -252,6 +291,8 @@ pub unsafe extern "C" fn htp_tx_request_transfer_coding(
 /// tx: Transaction pointer.
 ///
 /// Returns the content encoding or ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_content_encoding(
     tx: *const Transaction,
@@ -266,6 +307,8 @@ pub unsafe extern "C" fn htp_tx_request_content_encoding(
 /// tx: Transaction pointer.
 ///
 /// Returns the content type or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_content_type(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -279,6 +322,8 @@ pub unsafe extern "C" fn htp_tx_request_content_type(tx: *const Transaction) -> 
 /// tx: Transaction pointer.
 ///
 /// Returns the content length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -> i64 {
     tx.as_ref()
@@ -291,6 +336,8 @@ pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -
 /// tx: Transaction pointer.
 ///
 /// Returns the auth type or HTP_AUTH_ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_auth_type(tx: *const Transaction) -> HtpAuthType {
     tx.as_ref()
@@ -303,6 +350,8 @@ pub unsafe extern "C" fn htp_tx_request_auth_type(tx: *const Transaction) -> Htp
 /// tx: Transaction pointer.
 ///
 /// Returns the request hostname or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_hostname(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -316,6 +365,8 @@ pub unsafe extern "C" fn htp_tx_request_hostname(tx: *const Transaction) -> *con
 /// tx: Transaction pointer.
 ///
 /// Returns the request port number or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_port_number(tx: *const Transaction) -> i32 {
     tx.as_ref()
@@ -329,6 +380,8 @@ pub unsafe extern "C" fn htp_tx_request_port_number(tx: *const Transaction) -> i
 /// tx: Transaction pointer.
 ///
 /// Returns the request message length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_message_len(tx: *const Transaction) -> i64 {
     tx.as_ref().map(|tx| tx.request_message_len).unwrap_or(-1)
@@ -339,6 +392,8 @@ pub unsafe extern "C" fn htp_tx_request_message_len(tx: *const Transaction) -> i
 /// tx: Transaction pointer.
 ///
 /// Returns the request entity length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_entity_len(tx: *const Transaction) -> i64 {
     tx.as_ref().map(|tx| tx.request_entity_len).unwrap_or(-1)
@@ -349,6 +404,8 @@ pub unsafe extern "C" fn htp_tx_request_entity_len(tx: *const Transaction) -> i6
 /// tx: Transaction pointer.
 ///
 /// Returns the response line or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_line(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -362,6 +419,8 @@ pub unsafe extern "C" fn htp_tx_response_line(tx: *const Transaction) -> *const 
 /// tx: Transaction pointer.
 ///
 /// Returns the response protocol or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_protocol(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -375,6 +434,8 @@ pub unsafe extern "C" fn htp_tx_response_protocol(tx: *const Transaction) -> *co
 /// tx: Transaction pointer.
 ///
 /// Returns the protocol number or ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_protocol_number(tx: *const Transaction) -> HtpProtocol {
     tx.as_ref()
@@ -387,6 +448,8 @@ pub unsafe extern "C" fn htp_tx_response_protocol_number(tx: *const Transaction)
 /// tx: Transaction pointer.
 ///
 /// Returns the response status or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_status(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -400,6 +463,8 @@ pub unsafe extern "C" fn htp_tx_response_status(tx: *const Transaction) -> *cons
 /// tx: Transaction pointer.
 ///
 /// Returns the response status number or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_status_number(tx: *const Transaction) -> i32 {
     tx.as_ref()
@@ -415,6 +480,8 @@ pub unsafe extern "C" fn htp_tx_response_status_number(tx: *const Transaction) -
 /// tx: Transaction pointer.
 ///
 /// Returns the expected number or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_status_expected_number(tx: *const Transaction) -> i32 {
     tx.as_ref()
@@ -427,6 +494,8 @@ pub unsafe extern "C" fn htp_tx_response_status_expected_number(tx: *const Trans
 /// tx: Transaction pointer.
 ///
 /// Returns the response message or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_message(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -440,6 +509,8 @@ pub unsafe extern "C" fn htp_tx_response_message(tx: *const Transaction) -> *con
 /// tx: Transaction pointer.
 ///
 /// Returns the response headers or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_headers(tx: *const Transaction) -> *const Headers {
     tx.as_ref()
@@ -452,6 +523,8 @@ pub unsafe extern "C" fn htp_tx_response_headers(tx: *const Transaction) -> *con
 /// tx: Transaction pointer.
 ///
 /// Returns the size or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_headers_size(tx: *const Transaction) -> isize {
     tx.as_ref()
@@ -465,6 +538,8 @@ pub unsafe extern "C" fn htp_tx_response_headers_size(tx: *const Transaction) ->
 /// ckey: Header name to match.
 ///
 /// Returns the header or NULL when not found or on error
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_header(
     tx: *const Transaction,
@@ -481,6 +556,8 @@ pub unsafe extern "C" fn htp_tx_response_header(
 /// index: response header table index.
 ///
 /// Returns the header or NULL on error
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_header_index(
     tx: *const Transaction,
@@ -501,6 +578,8 @@ pub unsafe extern "C" fn htp_tx_response_header_index(
 /// tx: Transaction pointer.
 ///
 /// Returns the response message length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_message_len(tx: *const Transaction) -> i64 {
     tx.as_ref().map(|tx| tx.response_message_len).unwrap_or(-1)
@@ -511,6 +590,8 @@ pub unsafe extern "C" fn htp_tx_response_message_len(tx: *const Transaction) -> 
 /// tx: Transaction pointer.
 ///
 /// Returns the response entity length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_entity_len(tx: *const Transaction) -> i64 {
     tx.as_ref().map(|tx| tx.response_entity_len).unwrap_or(-1)
@@ -521,6 +602,8 @@ pub unsafe extern "C" fn htp_tx_response_entity_len(tx: *const Transaction) -> i
 /// tx: Transaction pointer.
 ///
 /// Returns the response content length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_content_length(tx: *const Transaction) -> i64 {
     tx.as_ref()
@@ -533,6 +616,8 @@ pub unsafe extern "C" fn htp_tx_response_content_length(tx: *const Transaction) 
 /// tx: Transaction pointer.
 ///
 /// Returns the response content type or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_content_type(tx: *const Transaction) -> *const Bstr {
     tx.as_ref()
@@ -547,6 +632,8 @@ pub unsafe extern "C" fn htp_tx_response_content_type(tx: *const Transaction) ->
 ///
 /// Returns the flags represented as an integer or 0 if the flags are empty
 /// or a NULL ptr is passed as an argument.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_flags(tx: *const Transaction) -> u64 {
     tx.as_ref().map(|tx| tx.flags).unwrap_or(0)
@@ -557,6 +644,8 @@ pub unsafe extern "C" fn htp_tx_flags(tx: *const Transaction) -> u64 {
 /// tx: Transaction pointer.
 ///
 /// Returns the progress or HTP_REQUEST_ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_progress(tx: *const Transaction) -> HtpRequestProgress {
     tx.as_ref()
@@ -569,6 +658,8 @@ pub unsafe extern "C" fn htp_tx_request_progress(tx: *const Transaction) -> HtpR
 /// tx: Transaction pointer.
 ///
 /// Returns the progress or ERROR on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_progress(tx: *const Transaction) -> HtpResponseProgress {
     tx.as_ref()
@@ -581,6 +672,8 @@ pub unsafe extern "C" fn htp_tx_response_progress(tx: *const Transaction) -> Htp
 /// tx: Transaction pointer.
 ///
 /// Returns an index or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_index(tx: *const Transaction) -> isize {
     tx.as_ref()
@@ -589,18 +682,23 @@ pub unsafe extern "C" fn htp_tx_index(tx: *const Transaction) -> isize {
 }
 
 /// Register callback for the transaction-specific RESPONSE_BODY_DATA hook.
+/// # Safety
+/// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_register_response_body_data(
     tx: *mut Transaction,
     cbk_fn: DataExternalCallbackFn,
 ) {
-    tx.as_mut()
-        .map(|tx| tx.hook_response_body_data.register_extern(cbk_fn));
+    if let Some(tx) = tx.as_mut() {
+        tx.hook_response_body_data.register_extern(cbk_fn)
+    }
 }
 
 /// Get the data's transaction.
 ///
 /// Returns the transaction or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that data is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_tx(data: *const Data) -> *const Transaction {
     data.as_ref()
@@ -611,6 +709,8 @@ pub unsafe extern "C" fn htp_tx_data_tx(data: *const Data) -> *const Transaction
 /// Get the data pointer.
 ///
 /// Returns the data or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that data is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_data(data: *const Data) -> *const u8 {
     data.as_ref()
@@ -621,6 +721,8 @@ pub unsafe extern "C" fn htp_tx_data_data(data: *const Data) -> *const u8 {
 /// Get the length of the data.
 ///
 /// Returns the length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that data is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_len(data: *const Data) -> isize {
     data.as_ref()
@@ -631,6 +733,8 @@ pub unsafe extern "C" fn htp_tx_data_len(data: *const Data) -> isize {
 /// Get whether this is the last chunk of data.
 ///
 /// Returns true if this is the last chunk of data or false otherwise.
+/// # Safety
+/// When calling this method, you have to ensure that data is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_is_last(data: *const Data) -> bool {
     data.as_ref().map(|data| data.is_last()).unwrap_or(false)
@@ -639,6 +743,8 @@ pub unsafe extern "C" fn htp_tx_data_is_last(data: *const Data) -> bool {
 /// Get whether this data is empty.
 ///
 /// Returns true if data is NULL or zero-length.
+/// # Safety
+/// When calling this method, you have to ensure that data is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_data_is_empty(data: *const Data) -> bool {
     data.as_ref().map(|data| data.is_empty()).unwrap_or(true)

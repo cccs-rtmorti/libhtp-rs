@@ -73,31 +73,6 @@ impl Uri {
             fragment: None,
         }
     }
-    /// Create a new Uri struct from given values.
-    pub fn new(
-        scheme: Option<Bstr>,
-        username: Option<Bstr>,
-        password: Option<Bstr>,
-        hostname: Option<Bstr>,
-        port: Option<Bstr>,
-        port_number: Option<u16>,
-        path: Option<Bstr>,
-        query: Option<Bstr>,
-        fragment: Option<Bstr>,
-    ) -> Self {
-        Self {
-            cfg: DecoderConfig::default(),
-            scheme,
-            username,
-            password,
-            hostname,
-            port,
-            port_number,
-            path,
-            query,
-            fragment,
-        }
-    }
 
     /// Create an empty Uri struct.
     pub fn default() -> Self {
@@ -163,7 +138,7 @@ impl Uri {
     /// Normalize uri port.
     pub fn normalized_port(&self, flags: &mut u64) -> Option<u16> {
         if let Some(port) = self.port.clone() {
-            if let Some(port) = convert_port(&port.as_slice()) {
+            if let Some(port) = convert_port(port.as_slice()) {
                 Some(port)
             } else {
                 // Failed to parse the port number.
@@ -409,114 +384,144 @@ fn normalize_uri_path_inplace(s: &mut Bstr) {
 
 #[test]
 fn ParseUri() {
+    let cfg = DecoderConfig::default();
     let tests = [
         (
             Some(Bstr::from(
                 "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
             )),
-            Uri::new(
-                Some(Bstr::from("http")),
-                Some(Bstr::from("user")),
-                Some(Bstr::from("pass")),
-                Some(Bstr::from("www.example.com")),
-                Some(Bstr::from("1234")),
-                None,
-                Some(Bstr::from("/path1/path2")),
-                Some(Bstr::from("a=b&c=d")),
-                Some(Bstr::from("frag")),
-            ),
+            Uri {
+                cfg,
+                scheme: Some(Bstr::from("http")),
+                username: Some(Bstr::from("user")),
+                password: Some(Bstr::from("pass")),
+                hostname: Some(Bstr::from("www.example.com")),
+                port: Some(Bstr::from("1234")),
+                port_number: None,
+                path: Some(Bstr::from("/path1/path2")),
+                query: Some(Bstr::from("a=b&c=d")),
+                fragment: Some(Bstr::from("frag")),
+            },
         ),
         (
             Some(Bstr::from("http://host.com/path")),
-            Uri::new(
-                Some(Bstr::from("http")),
-                None,
-                None,
-                Some(Bstr::from("host.com")),
-                None,
-                None,
-                Some(Bstr::from("/path")),
-                None,
-                None,
-            ),
+            Uri {
+                cfg,
+                scheme: Some(Bstr::from("http")),
+                username: None,
+                password: None,
+                hostname: Some(Bstr::from("host.com")),
+                port: None,
+                port_number: None,
+                path: Some(Bstr::from("/path")),
+                query: None,
+                fragment: None,
+            },
         ),
         (
             Some(Bstr::from("http://host.com")),
-            Uri::new(
-                Some(Bstr::from("http")),
-                None,
-                None,
-                Some(Bstr::from("host.com")),
-                None,
-                None,
-                None,
-                None,
-                None,
-            ),
+            Uri {
+                cfg,
+                scheme: Some(Bstr::from("http")),
+                username: None,
+                password: None,
+                hostname: Some(Bstr::from("host.com")),
+                port: None,
+                port_number: None,
+                path: None,
+                query: None,
+                fragment: None,
+            },
         ),
         (
             Some(Bstr::from("http://")),
-            Uri::new(
-                Some(Bstr::from("http")),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(Bstr::from("//")),
-                None,
-                None,
-            ),
+            Uri {
+                cfg,
+                scheme: Some(Bstr::from("http")),
+                username: None,
+                password: None,
+                hostname: None,
+                port: None,
+                port_number: None,
+                path: Some(Bstr::from("//")),
+                query: None,
+                fragment: None,
+            },
         ),
         (
             Some(Bstr::from("/path")),
-            Uri::new(
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(Bstr::from("/path")),
-                None,
-                None,
-            ),
+            Uri {
+                cfg,
+                scheme: None,
+                username: None,
+                password: None,
+                hostname: None,
+                port: None,
+                port_number: None,
+                path: Some(Bstr::from("/path")),
+                query: None,
+                fragment: None,
+            },
         ),
         (
             Some(Bstr::from("://")),
-            Uri::new(
-                Some(Bstr::from("")),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(Bstr::from("//")),
-                None,
-                None,
-            ),
+            Uri {
+                cfg,
+                scheme: Some(Bstr::from("")),
+                username: None,
+                password: None,
+                hostname: None,
+                port: None,
+                port_number: None,
+                path: Some(Bstr::from("//")),
+                query: None,
+                fragment: None,
+            },
         ),
         (
             Some(Bstr::from("")),
-            Uri::new(None, None, None, None, None, None, None, None, None),
+            Uri {
+                cfg,
+                scheme: None,
+                username: None,
+                password: None,
+                hostname: None,
+                port: None,
+                port_number: None,
+                path: None,
+                query: None,
+                fragment: None,
+            },
         ),
         (
             Some(Bstr::from("http://user@host.com")),
-            Uri::new(
-                Some(Bstr::from("http")),
-                Some(Bstr::from("user")),
-                None,
-                Some(Bstr::from("host.com")),
-                None,
-                None,
-                None,
-                None,
-                None,
-            ),
+            Uri {
+                cfg,
+                scheme: Some(Bstr::from("http")),
+                username: Some(Bstr::from("user")),
+                password: None,
+                hostname: Some(Bstr::from("host.com")),
+                port: None,
+                port_number: None,
+                path: None,
+                query: None,
+                fragment: None,
+            },
         ),
         (
             None,
-            Uri::new(None, None, None, None, None, None, None, None, None),
+            Uri {
+                cfg,
+                scheme: None,
+                username: None,
+                password: None,
+                hostname: None,
+                port: None,
+                port_number: None,
+                path: None,
+                query: None,
+                fragment: None,
+            },
         ),
     ]
     .to_vec();
@@ -633,41 +638,41 @@ fn GenerateNormalizedUri8() {
 fn NormalizeUriPath() {
     let mut s = Bstr::from("/a/b/c/./../../g");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq("/a/g"));
+    assert!(s.eq_slice("/a/g"));
 
     let mut s = Bstr::from("mid/content=5/../6");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq("mid/6"));
+    assert!(s.eq_slice("mid/6"));
 
     let mut s = Bstr::from("./one");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq("one"));
+    assert!(s.eq_slice("one"));
 
     let mut s = Bstr::from("../one");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq("one"));
+    assert!(s.eq_slice("one"));
 
     let mut s = Bstr::from(".");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq(""));
+    assert!(s.eq_slice(""));
 
     let mut s = Bstr::from("..");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq(""));
+    assert!(s.eq_slice(""));
 
     let mut s = Bstr::from("one/.");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq("one"));
+    assert!(s.eq_slice("one"));
 
     let mut s = Bstr::from("one/..");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq(""));
+    assert!(s.eq_slice(""));
 
     let mut s = Bstr::from("one/../");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq(""));
+    assert!(s.eq_slice(""));
 
     let mut s = Bstr::from("/../../../images.gif");
     normalize_uri_path_inplace(&mut s);
-    assert!(s.eq("/images.gif"));
+    assert!(s.eq_slice("/images.gif"));
 }

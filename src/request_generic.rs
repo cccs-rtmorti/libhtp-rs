@@ -214,8 +214,7 @@ impl ConnectionParser {
             }
 
             if mstart {
-                self.request_mut().request_method =
-                    Some(Bstr::from([&ls[..], &method[..]].concat()));
+                self.request_mut().request_method = Some(Bstr::from([ls, method].concat()));
             } else {
                 self.request_mut().request_method = Some(Bstr::from(method));
             }

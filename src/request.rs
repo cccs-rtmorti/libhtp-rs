@@ -619,14 +619,14 @@ impl ConnectionParser {
             return Err(HtpStatus::DATA);
         }
         // Is this a line that should be ignored?
-        if is_line_ignorable(self.cfg.server_personality, &line) {
+        if is_line_ignorable(self.cfg.server_personality, line) {
             // We have an empty/whitespace line, which we'll note, ignore and move on.
             self.request_mut().request_ignored_lines =
                 self.request().request_ignored_lines.wrapping_add(1);
             return Ok(());
         }
         // Process request line.
-        let data = chomp(&line);
+        let data = chomp(line);
         self.request_mut().request_line = Some(Bstr::from(data));
         self.parse_request_line(data)?;
         // Finalize request line parsing.

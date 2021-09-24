@@ -25,8 +25,9 @@ impl<'a, T> Iterator for IntoIter<'a, T> {
     type Item = &'a T;
 
     /// Returns a reference to the next element.
+    #[allow(clippy::manual_flatten)]
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(next) = self.inner.next() {
+        for next in &mut self.inner {
             if let Some(next) = next {
                 return Some(next);
             }
@@ -55,8 +56,9 @@ impl<'a, T> Iterator for IterMut<'a, Option<T>> {
     type Item = &'a mut T;
 
     /// Returns a mutable reference to the next element
+    #[allow(clippy::manual_flatten)]
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(next) = self.inner.next() {
+        for next in &mut self.inner {
             if let Some(next) = next {
                 return next.as_mut();
             }
@@ -332,8 +334,7 @@ mod tests {
     fn iterator_empty() {
         let list: List<char> = List::with_capacity(4);
         for each in &list {
-            assert!(
-                false,
+            panic!(
                 "list had value when it should have been empty.  Value: {}",
                 each
             );
@@ -372,7 +373,7 @@ mod tests {
         let p = l.get(2).unwrap();
         assert_eq!(*p, "3");
 
-        drop(&l);
+        drop(l);
     }
 
     #[test]

@@ -71,7 +71,7 @@ pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option
             }
         }
         if let Ok(content_length) = std::str::from_utf8(content_length) {
-            if let Ok(content_length) = i64::from_str_radix(content_length, 10) {
+            if let Ok(content_length) = content_length.parse::<i64>() {
                 return Some(content_length);
             }
         }
@@ -279,11 +279,15 @@ pub fn fragment() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
         Ok((b"", input))
     }
 }
+
+type parsed_port<'a> = Option<(&'a [u8], Option<u16>)>;
+type parsed_hostport<'a> = (&'a [u8], parsed_port<'a>, bool);
+
 /// Parses an authority string, which consists of a hostname with an optional port number
 ///
 /// Returns a remaining unparsed data, parsed hostname, parsed port, converted port number,
 /// and a flag indicating whether the parsed data is valid.
-pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], (&[u8], Option<(&[u8], Option<u16>)>, bool)> {
+pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], parsed_hostport> {
     let (input, host) = hostname()(input)?;
     let mut valid = validate_hostname(host);
     if let Ok((_, p)) = port()(input) {
@@ -355,7 +359,7 @@ pub fn parse_status(status: &[u8]) -> HtpResponseNumber {
             return HtpResponseNumber::INVALID;
         }
         if let Ok(status_code) = std::str::from_utf8(status_code) {
-            if let Ok(status_code) = u16::from_str_radix(status_code, 10) {
+            if let Ok(status_code) = status_code.parse::<u16>() {
                 if (100..=999).contains(&status_code) {
                     return HtpResponseNumber::VALID(status_code);
                 }

@@ -162,7 +162,7 @@ macro_rules! assert_contains_param {
                 .as_ref(),
             )
             .1;
-        assert!(param.value.eq($val));
+        assert!(param.value.eq_slice($val));
     }};
 }
 
@@ -173,8 +173,8 @@ macro_rules! assert_contains_param {
 #[macro_export]
 macro_rules! assert_evader_request {
     ($tx:expr, $url:expr) => {{
-        assert!(($tx).request_method.as_ref().unwrap().eq("GET"));
-        assert!(($tx).request_uri.as_ref().unwrap().eq($url));
+        assert!(($tx).request_method.as_ref().unwrap().eq_slice("GET"));
+        assert!(($tx).request_uri.as_ref().unwrap().eq_slice($url));
         assert_eq!(HtpProtocol::V1_1, ($tx).request_protocol_number);
         assert_header_eq!($tx, request_headers, "host", "evader.example.com");
     }};
@@ -260,6 +260,6 @@ macro_rules! assert_contains_param_source {
                 .as_ref(),
             )
             .1;
-        assert!(param.value.eq($val));
+        assert!(param.value.eq_slice($val));
     }};
 }

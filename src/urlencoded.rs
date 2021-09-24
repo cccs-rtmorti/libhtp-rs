@@ -165,7 +165,7 @@ fn EmptyKey1() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"&");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -174,7 +174,7 @@ fn EmptyKey2() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"=&");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -183,7 +183,7 @@ fn EmptyKey3() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"=1&");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq("1"));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice("1"));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -192,7 +192,7 @@ fn EmptyKey4() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"&=");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -201,7 +201,7 @@ fn EmptyKey5() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"&&");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -210,7 +210,7 @@ fn EmptyKeyAndValue() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"=");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -219,7 +219,7 @@ fn OnePairEmptyValue() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p=");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -228,7 +228,7 @@ fn OnePairEmptyKey() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"=p");
 
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq("p"));
+    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice("p"));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -237,7 +237,7 @@ fn OnePair() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p=1");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice("1"));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -246,8 +246,8 @@ fn TwoPairs() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p=1&q=2");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq("1"));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice("1"));
+    assert!(urlenp.params.get_nocase("q").unwrap().1.eq_slice("2"));
     assert_eq!(2, urlenp.params.size());
 }
 
@@ -256,7 +256,7 @@ fn KeyNoValue1() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -265,7 +265,7 @@ fn KeyNoValue2() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p&");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -274,8 +274,8 @@ fn KeyNoValue3() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p&q");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
+    assert!(urlenp.params.get_nocase("q").unwrap().1.eq_slice(""));
     assert_eq!(2, urlenp.params.size());
 }
 
@@ -284,8 +284,8 @@ fn KeyNoValue4() {
     let mut urlenp = Parser::default();
     urlenp.parse_complete(b"p&q=2");
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq("2"));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
+    assert!(urlenp.params.get_nocase("q").unwrap().1.eq_slice("2"));
     assert_eq!(2, urlenp.params.size());
 }
 
@@ -295,7 +295,7 @@ fn Partial1() {
     urlenp.parse_partial(b"p");
     urlenp.finalize();
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -306,7 +306,7 @@ fn Partial2() {
     urlenp.parse_partial(b"x");
     urlenp.finalize();
 
-    assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("px").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -317,7 +317,7 @@ fn Partial3() {
     urlenp.parse_partial(b"x&");
     urlenp.finalize();
 
-    assert!(urlenp.params.get_nocase("px").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("px").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -328,7 +328,7 @@ fn Partial4() {
     urlenp.parse_partial(b"=");
     urlenp.finalize();
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -341,7 +341,7 @@ fn Partial5() {
     urlenp.parse_partial(b"");
     urlenp.finalize();
 
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq(""));
+    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
     assert_eq!(1, urlenp.params.size());
 }
 
@@ -364,7 +364,7 @@ fn Partial6() {
     urlenp.parse_partial(b"&");
     urlenp.finalize();
 
-    assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq("12"));
-    assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq("23"));
+    assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq_slice("12"));
+    assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq_slice("23"));
     assert_eq!(2, urlenp.params.size());
 }

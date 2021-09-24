@@ -12,6 +12,8 @@ use std::convert::TryFrom;
 /// ckey: Header name to match.
 ///
 /// Returns the header or NULL when not found or on error
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_headers_get(
     headers: *const Headers,
@@ -33,6 +35,8 @@ pub unsafe extern "C" fn htp_headers_get(
 /// index: Index into the table.
 ///
 /// Returns the header or NULL when not found or on error
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_headers_get_index(
     headers: *const Headers,
@@ -54,6 +58,8 @@ pub unsafe extern "C" fn htp_headers_get_index(
 /// headers: Headers table.
 ///
 /// Returns the size or -1 on error
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_headers_size(headers: *const Headers) -> isize {
     headers
@@ -67,6 +73,8 @@ pub unsafe extern "C" fn htp_headers_size(headers: *const Headers) -> isize {
 /// header: Header pointer.
 ///
 /// Returns the name or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_header_name(header: *const Header) -> *const Bstr {
     header
@@ -80,6 +88,8 @@ pub unsafe extern "C" fn htp_header_name(header: *const Header) -> *const Bstr {
 /// header: Header pointer.
 ///
 /// Returns the pointer or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_header_name_ptr(header: *const Header) -> *const u8 {
     header
@@ -93,6 +103,8 @@ pub unsafe extern "C" fn htp_header_name_ptr(header: *const Header) -> *const u8
 /// tx: Header pointer.
 ///
 /// Returns the length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_header_name_len(header: *const Header) -> isize {
     header
@@ -106,6 +118,8 @@ pub unsafe extern "C" fn htp_header_name_len(header: *const Header) -> isize {
 /// tx: Header pointer.
 ///
 /// Returns the value or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_header_value(header: *const Header) -> *const Bstr {
     header
@@ -119,6 +133,8 @@ pub unsafe extern "C" fn htp_header_value(header: *const Header) -> *const Bstr 
 /// tx: Header pointer.
 ///
 /// Returns the pointer or NULL on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_header_value_ptr(header: *const Header) -> *const u8 {
     header
@@ -132,6 +148,8 @@ pub unsafe extern "C" fn htp_header_value_ptr(header: *const Header) -> *const u
 /// tx: Header pointer.
 ///
 /// Returns the length or -1 on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_header_value_len(header: *const Header) -> isize {
     header

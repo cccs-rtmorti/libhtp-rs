@@ -239,7 +239,7 @@ impl File {
     ) -> Result<()> {
         self.len = self.len.wrapping_add(len);
         // Package data for the callbacks.
-        let mut file_data = FileData::new(&self, data, len);
+        let mut file_data = FileData::new(self, data, len);
         // Send data to callbacks
         hook.run_all(&mut file_data)
     }
@@ -452,7 +452,7 @@ pub fn convert_port(port: &[u8]) -> Option<u16> {
         return None;
     }
     if let Ok(res) = std::str::from_utf8(port) {
-        if let Ok(port_number) = u16::from_str_radix(res, 10) {
+        if let Ok(port_number) = res.parse::<u16>() {
             if port_number == 0 {
                 return None;
             }
@@ -517,8 +517,8 @@ fn decode_u_encoding_path<'a>(
 ) -> IResult<&'a [u8], (u8, u64, HtpUnwanted)> {
     let mut flags = 0;
     let mut expected_status_code = HtpUnwanted::IGNORE;
-    let (i, c1) = x2c(&i)?;
-    let (i, c2) = x2c(&i)?;
+    let (i, c1) = x2c(i)?;
+    let (i, c2) = x2c(i)?;
     let mut r = c2;
     if c1 == 0 {
         flags.set(HtpFlags::PATH_OVERLONG_U)
@@ -542,8 +542,8 @@ fn decode_u_encoding_path<'a>(
 ///
 /// Returns decoded byte
 fn decode_u_encoding_params<'a>(i: &'a [u8], cfg: &DecoderConfig) -> IResult<&'a [u8], (u8, u64)> {
-    let (i, c1) = x2c(&i)?;
-    let (i, c2) = x2c(&i)?;
+    let (i, c1) = x2c(i)?;
+    let (i, c2) = x2c(i)?;
     let mut flags = 0;
     // Check for overlong usage first.
     if c1 == 0 {
@@ -622,7 +622,7 @@ fn path_decode_invalid_uencoding(
                 // Do not place anything in output; consume the %.
                 return Ok((remaining_input, (byte, expected_status_code, flags, false)));
             } else if cfg.url_encoding_invalid_handling == HtpUrlEncodingHandling::PROCESS_INVALID {
-                let (_, (b, f, c)) = decode_u_encoding_path(&hex, cfg)?;
+                let (_, (b, f, c)) = decode_u_encoding_path(hex, cfg)?;
                 if c != HtpUnwanted::IGNORE {
                     expected_status_code = c;
                 }
@@ -652,7 +652,7 @@ fn path_decode_valid_hex(
         let (mut left, hex) = take_while_m_n(2, 2, |c: u8| c.is_ascii_hexdigit())(remaining_input)?;
         let mut flags = 0;
         // Convert from hex.
-        let (_, mut byte) = x2c(&hex)?;
+        let (_, mut byte) = x2c(hex)?;
         if byte == 0 {
             flags.set(HtpFlags::PATH_ENCODED_NUL);
             if cfg.nul_encoded_terminates {
@@ -693,7 +693,7 @@ fn path_decode_invalid_hex(
             return Ok((remaining_input, (byte, expected_status_code, flags, false)));
         } else if cfg.url_encoding_invalid_handling == HtpUrlEncodingHandling::PROCESS_INVALID {
             // Decode
-            let (_, b) = x2c(&hex)?;
+            let (_, b) = x2c(hex)?;
             remaining = left;
             byte = b;
         }
@@ -832,7 +832,7 @@ pub fn decode_uri_path_inplace(
     path: &mut Bstr,
 ) {
     if let Ok((_, (consumed, flags, expected_status_code))) =
-        path_decode(path.as_slice(), &decoder_cfg)
+        path_decode(path.as_slice(), decoder_cfg)
     {
         path.clear();
         path.add(consumed.as_slice());
@@ -1365,15 +1365,15 @@ mod test {
 
     #[test]
     fn TreatResponseLineAsBody() {
-        assert_eq!(false, treat_response_line_as_body(b"   http 1.1"));
-        assert_eq!(false, treat_response_line_as_body(b"\0 http 1.1"));
-        assert_eq!(false, treat_response_line_as_body(b"http"));
-        assert_eq!(false, treat_response_line_as_body(b"HTTP"));
-        assert_eq!(false, treat_response_line_as_body(b"    HTTP"));
-        assert_eq!(true, treat_response_line_as_body(b"test"));
-        assert_eq!(true, treat_response_line_as_body(b"     test"));
-        assert_eq!(true, treat_response_line_as_body(b""));
-        assert_eq!(true, treat_response_line_as_body(b"kfgjl  hTtp "));
+        assert!(!treat_response_line_as_body(b"   http 1.1"));
+        assert!(!treat_response_line_as_body(b"\0 http 1.1"));
+        assert!(!treat_response_line_as_body(b"http"));
+        assert!(!treat_response_line_as_body(b"HTTP"));
+        assert!(!treat_response_line_as_body(b"    HTTP"));
+        assert!(treat_response_line_as_body(b"test"));
+        assert!(treat_response_line_as_body(b"     test"));
+        assert!(treat_response_line_as_body(b""));
+        assert!(treat_response_line_as_body(b"kfgjl  hTtp "));
     }
 
     #[test]
@@ -1414,13 +1414,13 @@ mod test {
 
     #[test]
     fn IsWordToken() {
-        assert_eq!(true, is_word_token(b"allalpha"));
-        assert_eq!(true, is_word_token(b"alpha567numeric1234"));
-        assert_eq!(false, is_word_token(b"alpha{}"));
-        assert_eq!(false, is_word_token(b"\n"));
-        assert_eq!(true, is_word_token(b"234543"));
-        assert_eq!(false, is_word_token(b"abcdeg\t"));
-        assert_eq!(true, is_word_token(b"content-length"));
+        assert!(is_word_token(b"allalpha"));
+        assert!(is_word_token(b"alpha567numeric1234"));
+        assert!(!is_word_token(b"alpha{}"));
+        assert!(!is_word_token(b"\n"));
+        assert!(is_word_token(b"234543"));
+        assert!(!is_word_token(b"abcdeg\t"));
+        assert!(is_word_token(b"content-length"));
     }
 
     #[test]
@@ -1494,25 +1494,25 @@ mod test {
 
     #[test]
     fn Separator() {
-        assert_eq!(false, is_separator(b'a'));
-        assert_eq!(false, is_separator(b'^'));
-        assert_eq!(false, is_separator(b'-'));
-        assert_eq!(false, is_separator(b'_'));
-        assert_eq!(false, is_separator(b'&'));
-        assert_eq!(true, is_separator(b'('));
-        assert_eq!(true, is_separator(b'\\'));
-        assert_eq!(true, is_separator(b'/'));
-        assert_eq!(true, is_separator(b'='));
-        assert_eq!(true, is_separator(b'\t'));
+        assert!(!is_separator(b'a'));
+        assert!(!is_separator(b'^'));
+        assert!(!is_separator(b'-'));
+        assert!(!is_separator(b'_'));
+        assert!(!is_separator(b'&'));
+        assert!(is_separator(b'('));
+        assert!(is_separator(b'\\'));
+        assert!(is_separator(b'/'));
+        assert!(is_separator(b'='));
+        assert!(is_separator(b'\t'));
     }
 
     #[test]
     fn Token() {
-        assert_eq!(true, is_token(b'a'));
-        assert_eq!(true, is_token(b'&'));
-        assert_eq!(true, is_token(b'+'));
-        assert_eq!(false, is_token(b'\t'));
-        assert_eq!(false, is_token(b'\n'));
+        assert!(is_token(b'a'));
+        assert!(is_token(b'&'));
+        assert!(is_token(b'+'));
+        assert!(!is_token(b'\t'));
+        assert!(!is_token(b'\n'));
     }
 
     #[test]
@@ -1528,40 +1528,40 @@ mod test {
 
     #[test]
     fn Space() {
-        assert_eq!(false, is_space(0x61)); // a
-        assert_eq!(true, is_space(0x20)); // space
-        assert_eq!(true, is_space(0x0c)); // Form feed
-        assert_eq!(true, is_space(0x0a)); // newline
-        assert_eq!(true, is_space(0x0d)); // carriage return
-        assert_eq!(true, is_space(0x09)); // tab
-        assert_eq!(true, is_space(0x0b)); // Vertical tab
+        assert!(!is_space(0x61)); // a
+        assert!(is_space(0x20)); // space
+        assert!(is_space(0x0c)); // Form feed
+        assert!(is_space(0x0a)); // newline
+        assert!(is_space(0x0d)); // carriage return
+        assert!(is_space(0x09)); // tab
+        assert!(is_space(0x0b)); // Vertical tab
     }
 
     #[test]
     fn IsLineEmpty() {
         let data = b"arfarf";
-        assert_eq!(false, is_line_empty(data));
-        assert_eq!(true, is_line_empty(b"\x0d\x0a"));
-        assert_eq!(true, is_line_empty(b"\x0d"));
-        assert_eq!(true, is_line_empty(b"\x0a"));
-        assert_eq!(false, is_line_empty(b"\x0a\x0d"));
-        assert_eq!(false, is_line_empty(b"\x0dabc"));
+        assert!(!is_line_empty(data));
+        assert!(is_line_empty(b"\x0d\x0a"));
+        assert!(is_line_empty(b"\x0d"));
+        assert!(is_line_empty(b"\x0a"));
+        assert!(!is_line_empty(b"\x0a\x0d"));
+        assert!(!is_line_empty(b"\x0dabc"));
     }
 
     #[test]
     fn IsLineWhitespace() {
         let data = b"arfarf";
-        assert_eq!(false, is_line_whitespace(data));
-        assert_eq!(true, is_line_whitespace(b"\x0d\x0a"));
-        assert_eq!(true, is_line_whitespace(b"\x0d"));
-        assert_eq!(false, is_line_whitespace(b"\x0dabc"));
+        assert!(!is_line_whitespace(data));
+        assert!(is_line_whitespace(b"\x0d\x0a"));
+        assert!(is_line_whitespace(b"\x0d"));
+        assert!(!is_line_whitespace(b"\x0dabc"));
     }
 
     #[test]
     fn IsLineFolded() {
-        assert_eq!(true, is_line_folded(b"\tline"));
-        assert_eq!(true, is_line_folded(b" line"));
-        assert_eq!(false, is_line_folded(b"line "));
+        assert!(is_line_folded(b"\tline"));
+        assert!(is_line_folded(b" line"));
+        assert!(!is_line_folded(b"line "));
     }
 
     #[test]
@@ -2402,7 +2402,7 @@ mod test {
             &mut response_status_expected_number,
             &mut i,
         );
-        assert!(i.eq("?.?}abcd"));
+        assert!(i.eq_slice("?.?}abcd"));
     }
 
     #[test]

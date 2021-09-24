@@ -23,11 +23,14 @@ pub mod uri;
 
 /// Returns the LibHTP version string.
 #[no_mangle]
-pub unsafe extern "C" fn htp_get_version() -> *const libc::c_char {
+pub extern "C" fn htp_get_version() -> *const libc::c_char {
     get_version()
 }
 
 /// Free rust allocated cstring
+///
+/// # Safety
+/// This should only ever be called with a pointer that was earlier obtained by calling [CString::into_raw].
 #[no_mangle]
 pub unsafe extern "C" fn htp_free_cstring(input: *mut libc::c_char) {
     input.as_mut().map(|input| CString::from_raw(input));

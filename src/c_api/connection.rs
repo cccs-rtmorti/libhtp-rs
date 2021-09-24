@@ -2,6 +2,8 @@
 use crate::{connection::Connection, log::Log};
 
 /// Returns the request_data_counter
+/// # Safety
+/// When calling this method, you have to ensure that conn is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_request_data_counter(conn: *const Connection) -> i64 {
     conn.as_ref()
@@ -10,6 +12,8 @@ pub unsafe extern "C" fn htp_conn_request_data_counter(conn: *const Connection) 
 }
 
 /// Returns the response_data_counter
+/// # Safety
+/// When calling this method, you have to ensure that conn is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_response_data_counter(conn: *const Connection) -> i64 {
     conn.as_ref()
@@ -21,6 +25,8 @@ pub unsafe extern "C" fn htp_conn_response_data_counter(conn: *const Connection)
 ///
 /// Returns the next log or NULL on error.
 /// The caller must free this result with htp_log_free
+/// # Safety
+/// When calling this method, you have to ensure that conn is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_conn_next_log(conn: *const Connection) -> *mut Log {
     conn.as_ref()

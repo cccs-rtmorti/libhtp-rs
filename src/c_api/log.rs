@@ -6,6 +6,8 @@ use std::{ffi::CString, os::raw::c_char};
 ///
 /// Returns the log message as a cstring or NULL on error
 /// The caller must free this result with htp_free_cstring
+/// # Safety
+/// When calling this method, you have to ensure that log is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_message(log: *const Log) -> *mut c_char {
     log.as_ref()
@@ -18,6 +20,8 @@ pub unsafe extern "C" fn htp_log_message(log: *const Log) -> *mut c_char {
 ///
 /// Returns the file as a cstring or NULL on error
 /// The caller must free this result with htp_free_cstring
+/// # Safety
+/// When calling this method, you have to ensure that log is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_file(log: *const Log) -> *mut c_char {
     log.as_ref()
@@ -29,6 +33,8 @@ pub unsafe extern "C" fn htp_log_file(log: *const Log) -> *mut c_char {
 /// Get a log's message code
 ///
 /// Returns a code or HTP_LOG_CODE_ERROR on error
+/// # Safety
+/// When calling this method, you have to ensure that log is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_code(log: *const Log) -> HtpLogCode {
     log.as_ref()
@@ -37,6 +43,8 @@ pub unsafe extern "C" fn htp_log_code(log: *const Log) -> HtpLogCode {
 }
 
 /// Free log
+/// # Safety
+/// This function is unsafe because improper use may lead to memory problems. For example, a double-free may occur if the function is called twice on the same raw pointer.
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_free(log: *mut Log) {
     if !log.is_null() {
