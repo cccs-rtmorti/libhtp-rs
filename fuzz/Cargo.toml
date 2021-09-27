@@ -21,5 +21,5 @@ chrono = "0.4.19"
 members = ["."]
 
 [[bin]]
-name = "fuzz_htp"
+name = "fuzz_htp_rs"
 path = "fuzz_targets/fuzz_htp.rs"
