@@ -7,10 +7,7 @@ use crate::{
     parsers::{parse_content_length, parse_protocol},
     request::HtpMethod,
     transaction::{Header, HtpProtocol},
-    util::{
-        is_space, take_ascii_whitespace, take_is_space, take_not_is_space, take_until_null,
-        FlagOperations, HtpFlags,
-    },
+    util::{is_space, take_is_space, take_not_is_space, take_until_null, FlagOperations, HtpFlags},
 };
 use nom::{bytes::complete::take_while, error::ErrorKind, sequence::tuple};
 use std::cmp::Ordering;
@@ -191,7 +188,7 @@ impl ConnectionParser {
                                  // for only one SP, but then suggests any number of SP and HT
                                  // should be permitted. Apache uses isspace(), which is even
                                  // more permitting, so that's what we use here.
-                               take_ascii_whitespace()
+                               take_is_space
                                ));
 
         if let Ok((remaining, (ls, method, ws))) = method_parser(data) {
