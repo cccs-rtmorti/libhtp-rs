@@ -8,8 +8,8 @@ use crate::{
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
     util::{
         chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
-        take_is_space, take_not_is_space, take_till_eol, take_till_lf, take_till_lf_null,
-        FlagOperations, HtpFlags,
+        take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
+        HtpFlags,
     },
     HtpStatus,
 };
@@ -642,8 +642,8 @@ impl ConnectionParser {
         let mut data = take(&mut self.request_buf);
         let data_len = data.len();
         data.add(input);
-        match take_till_eol(data.as_slice()) {
-            Ok((_, (line, _))) => {
+        match take_till_lf(data.as_slice()) {
+            Ok((_, line)) => {
                 if data_len > line.len() {
                     // Store the peeked ahead data
                     self.request_buf.add(&data[line.len()..data_len]);
