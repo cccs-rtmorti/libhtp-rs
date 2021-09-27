@@ -768,7 +768,10 @@ impl ConnectionParser {
         // new structures even if there's no more data on the
         // connection.
         if self.request_curr_data.position() as i64 >= self.request_curr_len() {
-            return Err(HtpStatus::DATA);
+            // we may have buffered some data, if we are closing, we want to process it
+            if self.request_status != HtpStreamState::CLOSED || self.request_buf.is_empty() {
+                return Err(HtpStatus::DATA);
+            }
         }
         self.request_reset();
         // Change state to TRANSACTION_START
