@@ -2285,12 +2285,12 @@ fn ResponseHeaderDeformedEOL() {
     assert_response_header_eq!(tx, "content-length", "6");
     let logs = t.connp.conn.get_logs();
     let log_message_count = logs.len();
-    assert_eq!(log_message_count, 1);
+    assert_eq!(log_message_count, 2);
     assert_eq!(logs.get(0).unwrap().msg.code, HtpLogCode::DEFORMED_EOL);
 
     let user_data = tx.user_data::<MainUserData>().unwrap();
     assert!(user_data.request_data.is_empty());
-    assert_eq!(1, user_data.response_data.len());
+    assert_eq!(2, user_data.response_data.len());
     assert_eq!(b"abcdef".as_ref(), (&user_data.response_data[0]).as_slice());
 }
 
