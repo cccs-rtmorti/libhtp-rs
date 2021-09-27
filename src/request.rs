@@ -847,17 +847,6 @@ impl ConnectionParser {
             self.request_timestamp = timestamp;
         }
 
-        // Store the current chunk information
-        if chunk.is_gap() {
-            // Gap
-            self.request_mut()
-                .flags
-                .set(HtpFlags::REQUEST_MISSING_BYTES);
-            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
-                // Force the parser to start if it hasn't already
-                self.request_mut().request_progress = HtpRequestProgress::GAP;
-            }
-        }
         self.request_curr_data = Cursor::new(chunk.as_slice().to_vec());
         self.request_current_receiver_offset = 0;
         self.request_chunk_count = self.request_chunk_count.wrapping_add(1);
@@ -882,6 +871,17 @@ impl ConnectionParser {
                 "Gaps are not allowed during this state"
             );
             return HtpStreamState::CLOSED;
+        }
+        // Store the current chunk information
+        if chunk.is_gap() {
+            // Gap
+            self.request_mut()
+                .flags
+                .set(HtpFlags::REQUEST_MISSING_BYTES);
+            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
+                // Force the parser to start if it hasn't already
+                self.request_mut().request_progress = HtpRequestProgress::GAP;
+            }
         }
         loop
         // Invoke a processor, in a loop, until an error
