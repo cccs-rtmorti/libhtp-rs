@@ -309,6 +309,8 @@ fn request_body_data(d: &mut Data) -> Result<()> {
 
 #[no_mangle]
 /// Creates a Fuzz test runner, and runs a byte slice on it
+/// # Safety
+/// Input pointer must be non-null.
 pub unsafe extern "C" fn libhtprsFuzzRun(
     input: *const u8,
     input_len: u32,
@@ -318,14 +320,15 @@ pub unsafe extern "C" fn libhtprsFuzzRun(
         .unwrap();
     let mut t = Test::new(cfg);
     let data = std::slice::from_raw_parts(input as *const u8, input_len as usize);
-    t.run_slice(data);
+    t.run_slice(data).ok();
     let boxed = Box::new(t);
-    let r = Box::into_raw(boxed) as *mut _;
-    return r;
+    Box::into_raw(boxed) as *mut _
 }
 
 #[no_mangle]
 /// Frees a Fuzz test runner
+/// # Safety
+/// Input pointer must be non-null.
 pub unsafe extern "C" fn libhtprsFreeFuzzRun(state: *mut std::os::raw::c_void) {
     //just unbox
     std::mem::drop(Box::from_raw(state as *mut Test));
@@ -333,7 +336,9 @@ pub unsafe extern "C" fn libhtprsFreeFuzzRun(state: *mut std::os::raw::c_void) {
 
 #[no_mangle]
 /// Gets connection parser out of a test runner
+/// # Safety
+/// Input pointer must be non-null.
 pub unsafe extern "C" fn libhtprsFuzzConnp(t: *mut std::os::raw::c_void) -> *mut ConnectionParser {
     let state = t as *mut Test;
-    return &mut (*state).connp;
+    &mut (*state).connp
 }
