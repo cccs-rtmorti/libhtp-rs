@@ -68,12 +68,16 @@ impl From<&[u8]> for TestInput {
         let mut current = Vec::<u8>::new();
         let mut client = true;
         let mut is_gap = false;
-        for line in input.split(|c| *c == b'\n') {
-            if line.len() >= 3
+        let mut start = true;
+        for line in input.split_inclusive(|c| *c == b'\n') {
+            if line.len() >= 4
+                && line.len() <= 5
                 && (&line[0..3] == b"<<<"
                     || &line[0..3] == b"<><"
                     || &line[0..3] == b">>>"
                     || &line[0..3] == b"><>")
+                && (line.len() == 4 || line[3] == b'\r')
+                && line[line.len() - 1] == b'\n'
             {
                 if !current.is_empty() {
                     // Pop off the CRLF from the last line, which
@@ -92,13 +96,15 @@ impl From<&[u8]> for TestInput {
                 client = line[0] == b'>';
                 // Gaps represented by <>< or ><>
                 is_gap = line[0] != line[1];
+                start = false;
             } else {
+                if start {
+                    // we need to start with an indicated direction
+                    return test_input;
+                }
                 current.append(&mut line.to_vec());
-                current.push(b'\n');
             }
         }
-        // Remove the '\n' we would have appended for EOF
-        current.pop();
         test_input.append(client, current, is_gap);
         test_input
     }
@@ -299,4 +305,35 @@ fn request_body_data(d: &mut Data) -> Result<()> {
     };
     user_data.request_data.push(bstr);
     Ok(())
+}
+
+#[no_mangle]
+/// Creates a Fuzz test runner, and runs a byte slice on it
+pub unsafe extern "C" fn libhtprsFuzzRun(
+    input: *const u8,
+    input_len: u32,
+) -> *mut std::os::raw::c_void {
+    let mut cfg = TestConfig();
+    cfg.set_server_personality(HtpServerPersonality::IDS)
+        .unwrap();
+    let mut t = Test::new(cfg);
+    let data = std::slice::from_raw_parts(input as *const u8, input_len as usize);
+    t.run_slice(data);
+    let boxed = Box::new(t);
+    let r = Box::into_raw(boxed) as *mut _;
+    return r;
+}
+
+#[no_mangle]
+/// Frees a Fuzz test runner
+pub unsafe extern "C" fn libhtprsFreeFuzzRun(state: *mut std::os::raw::c_void) {
+    //just unbox
+    std::mem::drop(Box::from_raw(state as *mut Test));
+}
+
+#[no_mangle]
+/// Gets connection parser out of a test runner
+pub unsafe extern "C" fn libhtprsFuzzConnp(t: *mut std::os::raw::c_void) -> *mut ConnectionParser {
+    let state = t as *mut Test;
+    return &mut (*state).connp;
 }

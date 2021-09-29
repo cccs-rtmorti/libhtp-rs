@@ -8,8 +8,8 @@ use crate::{
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
     util::{
         chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
-        take_is_space, take_not_is_space, take_till_eol, take_till_lf, take_till_lf_null,
-        FlagOperations, HtpFlags,
+        take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
+        HtpFlags,
     },
     HtpStatus,
 };
@@ -642,8 +642,8 @@ impl ConnectionParser {
         let mut data = take(&mut self.request_buf);
         let data_len = data.len();
         data.add(input);
-        match take_till_eol(data.as_slice()) {
-            Ok((_, (line, _))) => {
+        match take_till_lf(data.as_slice()) {
+            Ok((_, line)) => {
                 if data_len > line.len() {
                     // Store the peeked ahead data
                     self.request_buf.add(&data[line.len()..data_len]);
@@ -768,7 +768,10 @@ impl ConnectionParser {
         // new structures even if there's no more data on the
         // connection.
         if self.request_curr_data.position() as i64 >= self.request_curr_len() {
-            return Err(HtpStatus::DATA);
+            // we may have buffered some data, if we are closing, we want to process it
+            if self.request_status != HtpStreamState::CLOSED || self.request_buf.is_empty() {
+                return Err(HtpStatus::DATA);
+            }
         }
         self.request_reset();
         // Change state to TRANSACTION_START
@@ -847,17 +850,6 @@ impl ConnectionParser {
             self.request_timestamp = timestamp;
         }
 
-        // Store the current chunk information
-        if chunk.is_gap() {
-            // Gap
-            self.request_mut()
-                .flags
-                .set(HtpFlags::REQUEST_MISSING_BYTES);
-            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
-                // Force the parser to start if it hasn't already
-                self.request_mut().request_progress = HtpRequestProgress::GAP;
-            }
-        }
         self.request_curr_data = Cursor::new(chunk.as_slice().to_vec());
         self.request_current_receiver_offset = 0;
         self.request_chunk_count = self.request_chunk_count.wrapping_add(1);
@@ -882,6 +874,17 @@ impl ConnectionParser {
                 "Gaps are not allowed during this state"
             );
             return HtpStreamState::CLOSED;
+        }
+        // Store the current chunk information
+        if chunk.is_gap() {
+            // Gap
+            self.request_mut()
+                .flags
+                .set(HtpFlags::REQUEST_MISSING_BYTES);
+            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
+                // Force the parser to start if it hasn't already
+                self.request_mut().request_progress = HtpRequestProgress::GAP;
+            }
         }
         loop
         // Invoke a processor, in a loop, until an error
