@@ -893,7 +893,7 @@ impl Transaction {
                                 if layers > limit {
                                     htp_warn!(
                                         self.logger,
-                                        HtpLogCode::REQUEST_TOO_MANY_ENCODING_LAYERS,
+                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
                                         "Too many request content encoding layers"
                                     );
                                     break;
@@ -1733,7 +1733,7 @@ impl Transaction {
                                 if layers > limit {
                                     htp_warn!(
                                         self.logger,
-                                        HtpLogCode::RESPONSE_TOO_MANY_ENCODING_LAYERS,
+                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
                                         "Too many response content encoding layers"
                                     );
                                     break;

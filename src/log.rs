@@ -68,12 +68,10 @@ pub enum HtpLogCode {
     REQUEST_LINE_LEADING_WHITESPACE,
     /// Response content encoding lzma layers is greater than limit.
     RESPONSE_TOO_MANY_LZMA_LAYERS,
-    /// Response content encoding layers is greater than limit.
-    RESPONSE_TOO_MANY_ENCODING_LAYERS,
     /// Request content encoding lzma layers is greater than limit.
     REQUEST_TOO_MANY_LZMA_LAYERS,
-    /// Request content encoding layers is greater than limit.
-    REQUEST_TOO_MANY_ENCODING_LAYERS,
+    /// Too many request or response encoding layers
+    TOO_MANY_ENCODING_LAYERS,
     /// Response header content-encoding header is invalid
     ABNORMAL_CE_HEADER,
     /// Request authorization header unrecognized
