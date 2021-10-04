@@ -55,9 +55,8 @@ impl IntoIterator for TestInput {
 
 impl From<PathBuf> for TestInput {
     fn from(file: PathBuf) -> Self {
-        let input = std::fs::read(file);
-        assert!(input.is_ok());
-        let input = input.unwrap();
+        let input = std::fs::read(file)
+            .expect("Could not read file {:?}. Do you need to set a base dir in env('srcdir')?");
         TestInput::from(input.as_slice())
     }
 }
@@ -134,11 +133,12 @@ pub enum TestError {
 }
 
 /// Test harness
+#[derive(Debug)]
 pub struct Test {
     /// The connection parse
     pub connp: ConnectionParser,
     /// The base directory for the crate - used to find files.
-    pub basedir: PathBuf,
+    pub basedir: Option<PathBuf>,
 }
 
 /// Return a default Config to use with tests
@@ -158,14 +158,14 @@ impl Test {
     /// Make a new test with the given config
     pub fn new(cfg: Config) -> Self {
         let basedir = if let Ok(dir) = std::env::var("srcdir") {
-            PathBuf::from(dir)
-        } else {
-            let mut base = PathBuf::from(
-                env::var("CARGO_MANIFEST_DIR").expect("Could not determine test file directory"),
-            );
+            Some(PathBuf::from(dir))
+        } else if let Ok(dir) = env::var("CARGO_MANIFEST_DIR") {
+            let mut base = PathBuf::from(dir);
             base.push("tests");
             base.push("files");
-            base
+            Some(base)
+        } else {
+            None
         };
 
         let connp = ConnectionParser::new(cfg);
@@ -279,9 +279,15 @@ impl Test {
 
     /// Run on a file path. Used in integration tests.
     pub fn run_file(&mut self, file: &str) -> std::result::Result<(), TestError> {
-        let mut path = self.basedir.clone();
-        path.push(file);
-        self.run(TestInput::from(path))
+        let testfile = if let Some(base) = &self.basedir {
+            let mut path = base.clone();
+            path.push(file);
+            path
+        } else {
+            PathBuf::from(file)
+        };
+
+        self.run(TestInput::from(testfile))
     }
 }
 
