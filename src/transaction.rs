@@ -163,7 +163,7 @@ impl HtpResponseNumber {
 }
 
 /// Represents a single request or response header.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Header {
     /// Header name.
     pub name: Bstr,
@@ -526,6 +526,80 @@ pub struct Transaction {
 
 /// Type alias for list of transactions.
 pub type Transactions = List<Transaction>;
+
+impl std::fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transaction")
+            .field("request_line", &self.request_line)
+            .field("request_method", &self.request_method)
+            .field("request_method_number", &self.request_method_number)
+            .field("request_uri", &self.request_uri)
+            .field("request_protocol", &self.request_protocol)
+            .field("request_protocol_number", &self.request_protocol_number)
+            .field("is_protocol_0_9", &self.is_protocol_0_9)
+            .field("parsed_uri", &self.parsed_uri)
+            .field("parsed_uri_raw", &self.parsed_uri_raw)
+            .field("complete_normalized_uri", &self.complete_normalized_uri)
+            .field("partial_normalized_uri", &self.partial_normalized_uri)
+            .field("request_message_len", &self.request_message_len)
+            .field("request_entity_len", &self.request_entity_len)
+            .field("request_headers", &self.request_headers)
+            .field("request_transfer_coding", &self.request_transfer_coding)
+            .field("request_content_encoding", &self.request_content_encoding)
+            .field(
+                "request_content_encoding_processing",
+                &self.request_content_encoding_processing,
+            )
+            .field("request_content_type", &self.request_content_type)
+            .field("request_content_length", &self.request_content_length)
+            .field("request_params", &self.request_params)
+            .field("request_cookies", &self.request_cookies)
+            .field("request_auth_type", &self.request_auth_type)
+            .field("request_auth_username", &self.request_auth_username)
+            .field("request_auth_password", &self.request_auth_password)
+            .field("request_auth_token", &self.request_auth_token)
+            .field("request_hostname", &self.request_hostname)
+            .field("request_port_number", &self.request_port_number)
+            .field("request_ignored_lines", &self.request_ignored_lines)
+            .field("response_ignored_lines", &self.response_ignored_lines)
+            .field("response_line", &self.response_line)
+            .field("response_protocol", &self.response_protocol)
+            .field("response_protocol_number", &self.response_protocol_number)
+            .field("response_status", &self.response_status)
+            .field("response_status_number", &self.response_status_number)
+            .field(
+                "response_status_expected_number",
+                &self.response_status_expected_number,
+            )
+            .field("response_message", &self.response_message)
+            .field("seen_100continue", &self.seen_100continue)
+            .field("response_headers", &self.response_headers)
+            .field("is_http_2_upgrade", &self.is_http_2_upgrade)
+            .field("response_message_len", &self.response_message_len)
+            .field("response_entity_len", &self.response_entity_len)
+            .field("response_content_length", &self.response_content_length)
+            .field("response_transfer_coding", &self.response_transfer_coding)
+            .field("response_content_encoding", &self.response_content_encoding)
+            .field(
+                "response_content_encoding_processing",
+                &self.response_content_encoding_processing,
+            )
+            .field("response_content_type", &self.response_content_type)
+            .field("flags", &self.flags)
+            .field("request_progress", &self.request_progress)
+            .field("response_progress", &self.response_progress)
+            .field("index", &self.index)
+            .field(
+                "request_header_repetitions",
+                &self.request_header_repetitions,
+            )
+            .field(
+                "response_header_repetitions",
+                &self.response_header_repetitions,
+            )
+            .finish()
+    }
+}
 
 impl Transaction {
     /// Construct a new transaction.
