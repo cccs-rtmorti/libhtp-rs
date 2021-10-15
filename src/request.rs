@@ -851,16 +851,6 @@ impl ConnectionParser {
         }
 
         // Store the current chunk information
-        if chunk.is_gap() {
-            // Gap
-            self.request_mut()
-                .flags
-                .set(HtpFlags::REQUEST_MISSING_BYTES);
-            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
-                // Force the parser to start if it hasn't already
-                self.request_mut().request_progress = HtpRequestProgress::GAP;
-            }
-        }
         self.request_curr_data = Cursor::new(chunk.as_slice().to_vec());
         self.request_current_receiver_offset = 0;
         self.request_chunk_count = self.request_chunk_count.wrapping_add(1);
@@ -874,18 +864,35 @@ impl ConnectionParser {
             self.response_status = HtpStreamState::DATA
         }
         //handle gap
-        if chunk.is_gap()
-            && self.request_state != State::BODY_IDENTITY
-            && self.request_state != State::IGNORE_DATA_AFTER_HTTP_0_9
-        {
-            // go to request_connect_probe_data ?
-            htp_error!(
-                self.logger,
-                HtpLogCode::INVALID_GAP,
-                "Gaps are not allowed during this state"
-            );
-            return HtpStreamState::CLOSED;
+        if chunk.is_gap() {
+            // Mark the transaction as having a gap
+            self.request_mut()
+                .flags
+                .set(HtpFlags::REQUEST_MISSING_BYTES);
+
+            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
+                // Force the parser to start if it hasn't already
+                self.request_mut().request_progress = HtpRequestProgress::GAP;
+                if self.request_index() == 0 {
+                    // We have a leading gap on the first transaction.
+                    self.request_status = HtpStreamState::ERROR;
+                    return HtpStreamState::ERROR;
+                }
+            }
+
+            if self.request_state != State::BODY_IDENTITY
+                && self.request_state != State::IGNORE_DATA_AFTER_HTTP_0_9
+            {
+                // go to request_connect_probe_data ?
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_GAP,
+                    "Gaps are not allowed during this state"
+                );
+                return HtpStreamState::CLOSED;
+            }
         }
+
         loop
         // Invoke a processor, in a loop, until an error
         // occurs or until we run out of data. Many processors
