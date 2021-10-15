@@ -31,6 +31,7 @@ resources:
 
 jobs:
 - job: test_libhtp2
+  timeoutInMinutes: 180
   displayName: Test Libhtp2
   pool: libhtp-builders
   steps:
