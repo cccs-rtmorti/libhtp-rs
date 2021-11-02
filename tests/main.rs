@@ -137,7 +137,7 @@ fn ApacheHeaderParsing() {
         ("Empty-Value-Header", ""),
         ("", "8, "),
         ("Header-With-LWS-After", "9"),
-        ("Header-With-NUL", "BEFORE"),
+        ("Header-With-NUL", "BEFORE\0AFTER"),
     ]
     .iter()
     .map(|(key, val)| (key.as_bytes(), val.as_bytes()))
@@ -1549,7 +1549,7 @@ fn InvalidRequestHeader() {
 
     let tx = t.connp.tx(0).expect("expected at least one transaction");
 
-    assert_request_header_eq!(tx, "Header-With-NUL", "BEFORE");
+    assert_request_header_eq!(tx, "Header-With-NUL", "BEFORE  \0AFTER");
 }
 
 #[test]

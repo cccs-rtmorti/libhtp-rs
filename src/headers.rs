@@ -1,4 +1,4 @@
-use crate::util::{is_token, take_until_null, FlagOperations};
+use crate::util::{is_token, FlagOperations};
 use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,
@@ -309,16 +309,7 @@ impl Parser {
     }
 
     /// Removes trailing unwanted characaters from input.
-    /// If null terminates is set to true, it will remove all characters before the null character
-    fn remove_trailing(&self, input: &mut Vec<u8>, flags: &mut u64) {
-        if self.side == Side::Request {
-            if let Ok((trailing_data, data)) = take_until_null(input) {
-                if trailing_data.first() == Some(&b'\0') {
-                    flags.set(Flags::NULL_TERMINATED);
-                }
-                *input = data.to_vec();
-            }
-        }
+    fn remove_trailing(&self, input: &mut Vec<u8>) {
         while let Some(end) = input.last() {
             if is_space(*end) {
                 input.pop();
@@ -361,7 +352,7 @@ impl Parser {
                                 if value.is_empty() {
                                     flags.set(Flags::VALUE_EMPTY);
                                 } else {
-                                    self.remove_trailing(&mut value, &mut flags);
+                                    self.remove_trailing(&mut value);
                                 }
                                 return Ok((rest, Value { value, flags }));
                             }
@@ -381,7 +372,7 @@ impl Parser {
                             }
                             value.extend(val_bytes);
                             if fold.is_none() {
-                                self.remove_trailing(&mut value, &mut flags);
+                                self.remove_trailing(&mut value);
                                 return Ok((rest, Value { value, flags }));
                             }
                         }
@@ -392,7 +383,7 @@ impl Parser {
                 if value.is_empty() {
                     flags.set(Flags::VALUE_EMPTY);
                 } else {
-                    self.remove_trailing(&mut value, &mut flags);
+                    self.remove_trailing(&mut value);
                 }
                 Ok((rest, Value { value, flags }))
             }
@@ -885,11 +876,11 @@ mod test {
             ),
         ));
         let req_result = Ok((
-            b!("\r\n"),
+            b!(""),
             (
                 vec![
                     header!(b"k1", 0, b"v1", 0),
-                    header!(b"k2", 0, b"v2 before", Flags::NULL_TERMINATED),
+                    header!(b"k2", 0, b"v2 before\0v2 after", 0),
                 ],
                 true,
             ),
@@ -955,11 +946,8 @@ mod test {
             Ok((
                 b!("k3:v3\r"),
                 (
-                    vec![
-                        header!(b"k1", 0, b"v1", 0),
-                        header!(b"k2", 0, b"v2", Flags::NULL_TERMINATED),
-                    ],
-                    true,
+                    vec![header!(b"k1", 0, b"v1", 0), header!(b"k2", 0, b"v2\0v2", 0),],
+                    false,
                 ),
             )),
             input,
@@ -1124,10 +1112,7 @@ mod test {
         );
         assert_eq!(
             parser.header_with_colon()(b"K: V before\0 V after\r\n\r\n"),
-            Ok((
-                b!("\r\n"),
-                header!(b"K", 0, b"V before", Flags::NULL_TERMINATED),
-            ))
+            Ok((b!("\r\n"), header!(b"K", 0, b"V before\0 V after", 0),))
         );
         assert_eq!(
             parser.header_with_colon()(b"K: V\r\n a\r\n l\r\n u\r\n\te\r\n\r\n"),
@@ -1244,10 +1229,7 @@ mod test {
 
         let input = b"K: V before\0 V after\r\n\r\n";
         assert_header_result_eq!(
-            Ok((
-                b!("\r\n"),
-                header!(b"K", 0, b"V before", Flags::NULL_TERMINATED),
-            )),
+            Ok((b!("\r\n"), header!(b"K", 0, b"V before\0 V after", 0),)),
             input,
             req_parser
         );
@@ -2124,6 +2106,29 @@ mod test {
         assert!(!res_parser.is_terminator(b'\t'));
         assert!(!res_parser.is_terminator(b' '));
         assert!(!res_parser.is_terminator(b'\r'));
+    }
+
+    #[test]
+    fn NullDoesNotTerminateHeaders() {
+        let req_parser = Parser::new(Side::Request);
+        let res_parser = Parser::new(Side::Response);
+        let input = b"a: b\r\nkey: before\0after\r\nlast: value\r\n\r\n";
+        let expected = Ok((
+            b!(""),
+            (
+                vec![
+                    header!(b"a", 0, b"b", 0),
+                    header!(b"key", 0, b"before\0after", 0),
+                    header!(b"last", 0, b"value", 0),
+                ],
+                true,
+            ),
+        ));
+
+        let headers = res_parser.headers()(input);
+        assert_eq!(headers, expected,);
+        let headers = req_parser.headers()(input);
+        assert_eq!(headers, expected,);
     }
 
     #[test]
