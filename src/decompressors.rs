@@ -735,7 +735,7 @@ impl InnerDecompressor {
     /// `self.writer` to avoid holding multiple mutable references.
     fn flush_writer(&mut self, writer: &mut Box<dyn BufWriter>) -> std::io::Result<()> {
         if let Some(mut inner) = self.inner.take() {
-            while {
+            loop {
                 let result = writer.flush();
 
                 // Flush all of the bytes the writer has written to our temporary
@@ -750,16 +750,16 @@ impl InnerDecompressor {
                 // to our temporary buffer, likely because it was full.
                 if let Err(e) = result {
                     match e.kind() {
-                        std::io::ErrorKind::WriteZero => true,
+                        std::io::ErrorKind::WriteZero => {}
                         _ => {
                             self.restart()?;
-                            false
+                            break;
                         }
                     }
                 } else {
-                    false
+                    break;
                 }
-            } {}
+            }
             self.inner.replace(inner);
             Ok(())
         } else {

@@ -338,7 +338,7 @@ pub fn parse_protocol(input: &[u8], logger: &mut Logger) -> HtpProtocol {
                     logger,
                     HtpLogCode::PROTOCOL_CONTAINS_EXTRA_DATA,
                     "HtpProtocol version contains leading and/or trailing whitespace and/or leading zeros"
-                )
+                );
         }
         match version {
             b".9" => HtpProtocol::V0_9,
