@@ -444,11 +444,9 @@ impl Parser {
         }
     }
 
-    /// Check if the byte is LF or, if is a request parser, null
-    ///
-    ///
+    /// Check if the byte is a line ending character
     fn is_terminator(&self, c: u8) -> bool {
-        c == b'\n' || (self.side == Side::Request && c == b'\0')
+        c == b'\n'
     }
 
     /// Handles accepted deformed separators
@@ -1043,12 +1041,12 @@ mod test {
         assert_eq!(
             parser.header_sans_colon()(b"K V\0alue\r\n"),
             Ok((
-                b!("alue\r\n"),
+                b!(""),
                 header!(
                     b"",
-                    Flags::MISSING_COLON | Flags::NULL_TERMINATED,
-                    b"K V",
-                    Flags::MISSING_COLON | Flags::NULL_TERMINATED
+                    Flags::MISSING_COLON,
+                    b"K V\0alue",
+                    Flags::MISSING_COLON
                 ),
             ))
         );
@@ -1079,7 +1077,7 @@ mod test {
         assert!(parser.header_with_colon()(b"K: V\r\n").is_err());
         assert!(parser.header_with_colon()(b"K V\r\n").is_err());
         assert!(parser.header_with_colon()(b"K V\r\nK:V\r\n").is_err());
-        assert!(parser.header_with_colon()(b"K\0ey:Value\r\nK:V\r\n").is_err());
+        assert!(parser.header_with_colon()(b"K\0ey:Value\r\nK:V\r\n").is_ok());
         assert_eq!(
             parser.header_with_colon()(b"K1:V1\nK2:V2\n\r\n"),
             Ok((b!("K2:V2\n\r\n"), header!(b"K1", 0, b"V1", 0),))
@@ -2096,7 +2094,7 @@ mod test {
         let req_parser = Parser::new(Side::Request);
         let res_parser = Parser::new(Side::Response);
         assert!(req_parser.is_terminator(b'\n'));
-        assert!(req_parser.is_terminator(b'\0'));
+        assert!(!req_parser.is_terminator(b'\0'));
         assert!(!req_parser.is_terminator(b'\t'));
         assert!(!req_parser.is_terminator(b' '));
         assert!(!req_parser.is_terminator(b'\r'));
