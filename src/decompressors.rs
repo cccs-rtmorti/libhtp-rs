@@ -628,11 +628,11 @@ impl BufWriter for LzmaBufWriter {
 
     fn finish(self: Box<Self>) -> std::io::Result<Cursor<Box<[u8]>>> {
         self.0.finish().map_err(|e| match e {
-            lzma_rs::error::Error::IOError(e) => e,
+            lzma_rs::error::Error::IoError(e) => e,
             lzma_rs::error::Error::HeaderTooShort(e) => {
                 std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e))
             }
-            lzma_rs::error::Error::LZMAError(e) | lzma_rs::error::Error::XZError(e) => {
+            lzma_rs::error::Error::LzmaError(e) | lzma_rs::error::Error::XzError(e) => {
                 std::io::Error::new(std::io::ErrorKind::Other, e)
             }
         })
