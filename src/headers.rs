@@ -308,17 +308,6 @@ impl Parser {
         }
     }
 
-    /// Removes trailing unwanted characaters from input.
-    fn remove_trailing(&self, input: &mut Vec<u8>) {
-        while let Some(end) = input.last() {
-            if is_space(*end) {
-                input.pop();
-            } else {
-                break;
-            }
-        }
-    }
-
     /// Parse a header value.
     /// Returns the bytes and the value terminator; null, eol or folding
     /// eg. (bytes, (eol_bytes, Option<fold_bytes>))
@@ -351,8 +340,6 @@ impl Parser {
                                 flags.unset(Flags::FOLDING_SPECIAL_CASE);
                                 if value.is_empty() {
                                     flags.set(Flags::VALUE_EMPTY);
-                                } else {
-                                    self.remove_trailing(&mut value);
                                 }
                                 return Ok((rest, Value { value, flags }));
                             }
@@ -372,7 +359,6 @@ impl Parser {
                             }
                             value.extend(val_bytes);
                             if fold.is_none() {
-                                self.remove_trailing(&mut value);
                                 return Ok((rest, Value { value, flags }));
                             }
                         }
@@ -382,8 +368,6 @@ impl Parser {
             } else {
                 if value.is_empty() {
                     flags.set(Flags::VALUE_EMPTY);
-                } else {
-                    self.remove_trailing(&mut value);
                 }
                 Ok((rest, Value { value, flags }))
             }
@@ -2736,7 +2720,7 @@ mod test {
             Ok((
                 b!("next:"),
                 Value {
-                    value: b"value".to_vec(),
+                    value: b"value    ".to_vec(),
                     flags: Flags::FOLDING
                 }
             )),

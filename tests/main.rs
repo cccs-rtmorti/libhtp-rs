@@ -7,7 +7,7 @@ use htp::{
     log::{HtpLogCode, HtpLogLevel},
     transaction::{
         Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
-        HtpResponseProgress,
+        HtpResponseProgress, HtpTransferCoding,
     },
     util::{FlagOperations, HtpFileSource, HtpFlags},
 };
@@ -2700,7 +2700,7 @@ fn HttpEvader059() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/chunkednl-");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2710,7 +2710,7 @@ fn HttpEvader060() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/nl-nl-chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2720,7 +2720,7 @@ fn HttpEvader061() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/chunked/eicar.txt/nl-nl-chunked-nl-");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 #[test]
 fn HttpEvader078() {
@@ -2788,7 +2788,7 @@ fn HttpEvader274() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/somehdr;space;chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2798,7 +2798,7 @@ fn HttpEvader284() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/cr;chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2808,7 +2808,7 @@ fn HttpEvader286() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/crcronly;chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2818,7 +2818,7 @@ fn HttpEvader287() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/cr-cronly;chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2828,7 +2828,7 @@ fn HttpEvader297() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%5C015%5C040%3Achunked;do_chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2838,7 +2838,7 @@ fn HttpEvader300() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%5C015%5C012%5C040%5C015%5C012%5C040%3A%5C015%5C012%5C040chunked;do_chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2848,7 +2848,7 @@ fn HttpEvader303() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%3A%5C000chunked;do_chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "\0chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2858,7 +2858,7 @@ fn HttpEvader307() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/te%3A%5C012%5C000chunked;do_chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "\0chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2909,7 +2909,7 @@ fn HttpEvader390() {
         "/broken/eicar.txt/status%3A%5C000HTTP/1.1%28space%29200%28space%29ok;chunked"
     );
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2919,7 +2919,7 @@ fn HttpEvader402() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/chunked;cr-no-crlf;end-crlflf");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2929,7 +2929,7 @@ fn HttpEvader405() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/chunked;lfcr-no-crlf;end-crlfcrlf");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2939,7 +2939,7 @@ fn HttpEvader411() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/end-lfcrcrlf;chunked");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]
@@ -2971,7 +2971,7 @@ fn HttpEvader419() {
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/chunked;end-lf%5C040lf");
     assert_evader_response!(tx);
-    assert_evader_chunked!(tx, "chunked");
+    assert_evader_chunked!(tx);
 }
 
 #[test]

@@ -1801,5 +1801,5 @@ fn HeaderValueTrim() {
         .get_nocase_nozero("content-disposition")
         .unwrap()
         .1;
-    assert_eq!(header.value, "form-data; name=\"field1\"");
+    assert_eq!(header.value, "form-data; name=\"field1\" ");
 }
