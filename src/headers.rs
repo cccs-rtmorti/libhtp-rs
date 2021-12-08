@@ -392,31 +392,25 @@ impl Parser {
     fn non_token_name(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], u64)> + '_ {
         move |input| {
             map(
-                tuple((
-                    space0,
-                    alt((
-                        tuple((
-                            take_till(|c| c == b':' || self.is_terminator(c) || c == b'\r'),
-                            peek(self.separator()),
-                        )),
-                        tuple((
-                            take_till(|c| c == b':' || self.is_terminator(c)),
-                            peek(self.separator()),
-                        )),
+                alt((
+                    tuple((
+                        take_till(|c| c == b':' || self.is_terminator(c) || c == b'\r'),
+                        peek(self.separator()),
+                    )),
+                    tuple((
+                        take_till(|c| c == b':' || self.is_terminator(c)),
+                        peek(self.separator()),
                     )),
                 )),
-                |(leading_spaces, (mut name, _)): (&[u8], (&[u8], _))| {
+                |(name, _): (&[u8], _)| {
                     let mut flags = Flags::NAME_NON_TOKEN_CHARS;
                     if !name.is_empty() {
-                        if !leading_spaces.is_empty() {
+                        if is_space(name[0]) {
                             flags.set(Flags::NAME_LEADING_WHITESPACE)
                         }
-                        while let Some(end) = name.last() {
+                        if let Some(end) = name.last() {
                             if is_space(*end) {
                                 flags.set(Flags::NAME_TRAILING_WHITESPACE);
-                                name = &name[..name.len() - 1];
-                            } else {
-                                break;
                             }
                         }
                     } else {
@@ -499,7 +493,8 @@ impl Parser {
                     } else {
                         flags.set(Flags::NAME_EMPTY)
                     }
-                    (name, flags)
+                    let slice_len = leading_spaces.len() + name.len() + trailing_spaces.len();
+                    (&input[..slice_len], flags)
                 },
             )(input)
         }
@@ -1309,7 +1304,7 @@ mod test {
             Ok((
                 b!("\r\n"),
                 header!(
-                    b"K\r \r",
+                    b"K\r \r ",
                     Flags::NAME_NON_TOKEN_CHARS | Flags::NAME_TRAILING_WHITESPACE,
                     b"\r V",
                     0
@@ -1456,7 +1451,7 @@ mod test {
             Ok((
                 b!("\r\n"),
                 header!(
-                    b"K\r",
+                    b"K\r ",
                     Flags::NAME_TRAILING_WHITESPACE | Flags::NAME_NON_TOKEN_CHARS,
                     b"Value V",
                     Flags::FOLDING
@@ -1538,7 +1533,10 @@ mod test {
             res_parser
         );
         assert_token_name_result_eq!(
-            Ok((b!(": world"), (b!("Hello"), Flags::NAME_LEADING_WHITESPACE))),
+            Ok((
+                b!(": world"),
+                (b!(" Hello"), Flags::NAME_LEADING_WHITESPACE)
+            )),
             b" Hello: world",
             req_parser,
             res_parser
@@ -1546,7 +1544,7 @@ mod test {
         assert_token_name_result_eq!(
             Ok((
                 b!(": world"),
-                (b!("Hello"), Flags::NAME_TRAILING_WHITESPACE)
+                (b!("Hello "), Flags::NAME_TRAILING_WHITESPACE)
             )),
             b"Hello : world",
             req_parser,
@@ -1556,7 +1554,7 @@ mod test {
             Ok((
                 b!(": world"),
                 (
-                    b!("Hello"),
+                    b!(" Hello "),
                     Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE
                 )
             )),
@@ -1569,7 +1567,7 @@ mod test {
             Ok((
                 b!("\r\n \n:\n world"),
                 (
-                    b!("Hello"),
+                    b!(" Hello "),
                     Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE
                 )
             )),
@@ -1587,7 +1585,7 @@ mod test {
             Ok((
                 b!("\n\r \n:\n world"),
                 (
-                    b!("Hello"),
+                    b!(" Hello "),
                     Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE
                 )
             )),
@@ -1658,7 +1656,7 @@ mod test {
             Ok((
                 b!(": world"),
                 (
-                    b!("Hello"),
+                    b!(" Hello"),
                     Flags::NAME_LEADING_WHITESPACE | Flags::NAME_NON_TOKEN_CHARS
                 )
             )),
@@ -1670,7 +1668,7 @@ mod test {
             Ok((
                 b!(": world"),
                 (
-                    b!("Hello"),
+                    b!("Hello "),
                     Flags::NAME_TRAILING_WHITESPACE | Flags::NAME_NON_TOKEN_CHARS
                 )
             )),
@@ -1682,7 +1680,7 @@ mod test {
             Ok((
                 b!(": world"),
                 (
-                    b!("Hello"),
+                    b!(" Hello "),
                     Flags::NAME_LEADING_WHITESPACE
                         | Flags::NAME_TRAILING_WHITESPACE
                         | Flags::NAME_NON_TOKEN_CHARS
@@ -1696,7 +1694,7 @@ mod test {
             Ok((
                 b!("\r\n \r\n: \r\nworld"),
                 (
-                    b!("Hello"),
+                    b!(" Hello "),
                     Flags::NAME_LEADING_WHITESPACE
                         | Flags::NAME_TRAILING_WHITESPACE
                         | Flags::NAME_NON_TOKEN_CHARS
@@ -1793,7 +1791,7 @@ mod test {
             Ok((
                 b!(": world"),
                 Name {
-                    name: b"Hello".to_vec(),
+                    name: b"Hello ".to_vec(),
                     flags: Flags::NAME_TRAILING_WHITESPACE
                 }
             )),
@@ -1805,7 +1803,7 @@ mod test {
             Ok((
                 b!(": world"),
                 Name {
-                    name: b"Hello".to_vec(),
+                    name: b" Hello ".to_vec(),
                     flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE
                 }
             )),
@@ -1841,7 +1839,7 @@ mod test {
             Ok((
                 b!(": world"),
                 Name {
-                    name: b"Hello Invalid".to_vec(),
+                    name: b" Hello Invalid ".to_vec(),
                     flags: Flags::NAME_LEADING_WHITESPACE
                         | Flags::NAME_TRAILING_WHITESPACE
                         | Flags::NAME_NON_TOKEN_CHARS
@@ -1855,7 +1853,7 @@ mod test {
             Ok((
                 b!(": world"),
                 Name {
-                    name: b"".to_vec(),
+                    name: b"  ".to_vec(),
                     flags: Flags::NAME_EMPTY
                 }
             )),
@@ -1867,7 +1865,7 @@ mod test {
             Ok((
                 b!("\r\n \r\n:\r\n world"),
                 Name {
-                    name: b"".to_vec(),
+                    name: b"  ".to_vec(),
                     flags: Flags::NAME_EMPTY
                 }
             )),
@@ -1878,7 +1876,7 @@ mod test {
             Ok((
                 b!("\r\n \n: \nworld"),
                 Name {
-                    name: b"Hello".to_vec(),
+                    name: b" Hello ".to_vec(),
                     flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE
                 }
             )),
