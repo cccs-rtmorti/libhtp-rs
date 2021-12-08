@@ -79,7 +79,7 @@ pub enum HtpStreamState {
     DATA,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 /// This structure is used to pass data (for example
 /// request and response body buffers or gaps) to parsers.
 pub struct Data<'a> {
@@ -161,20 +161,10 @@ impl<'a> Data<'a> {
     }
 }
 
-impl<'a> Default for Data<'a> {
-    fn default() -> Self {
-        Data {
-            data: None,
-            gap_len: None,
-            position: 0,
-        }
-    }
-}
-
 impl<'a> From<Option<&'a [u8]>> for Data<'a> {
     fn from(data: Option<&'a [u8]>) -> Self {
         Data {
-            data: data.map(|d| Cow::Borrowed(d)),
+            data: data.map(Cow::Borrowed),
             gap_len: None,
             position: 0,
         }
