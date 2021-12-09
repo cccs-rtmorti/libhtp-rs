@@ -60,6 +60,15 @@ impl Bstr {
         left.cmp(right)
     }
 
+    /// Compare trimmed bstr with the given slice, ingnoring ascii case.
+    pub fn cmp_nocase_trimmed<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
+        let lefts = &self.trim();
+        let rights = &other.as_ref();
+        let left = LowercaseIterator::new(lefts);
+        let right = LowercaseIterator::new(rights);
+        left.cmp(right)
+    }
+
     /// Return true if self is equal to other ignoring ascii case
     pub fn eq_nocase<B: AsRef<[u8]>>(&self, other: B) -> bool {
         self.cmp_nocase(other) == Ordering::Equal
@@ -68,6 +77,15 @@ impl Bstr {
     /// Case insensitive comparison between self and other, ignoring any zeros in self
     pub fn cmp_nocase_nozero<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
         let lefts = &self.as_slice();
+        let rights = &other.as_ref();
+        let left = LowercaseNoZeroIterator::new(lefts);
+        let right = LowercaseIterator::new(rights);
+        left.cmp(right)
+    }
+
+    /// Case insensitive comparison between trimmed self and other, ignoring any zeros in self
+    pub fn cmp_nocase_nozero_trimmed<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
+        let lefts = &self.trim();
         let rights = &other.as_ref();
         let left = LowercaseNoZeroIterator::new(lefts);
         let right = LowercaseIterator::new(rights);

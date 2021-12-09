@@ -77,7 +77,7 @@ impl<T> Table<T> {
     pub fn get_nocase<K: AsRef<[u8]>>(&self, key: K) -> Option<&(Bstr, T)> {
         self.elements
             .iter()
-            .find(|x| x.0.cmp_nocase(key.as_ref()) == Ordering::Equal)
+            .find(|x| x.0.cmp_nocase_trimmed(key.as_ref()) == Ordering::Equal)
     }
 
     /// Search the table for the first tuple with a key matching the given slice, ingnoring ascii case in self
@@ -86,7 +86,7 @@ impl<T> Table<T> {
     pub fn get_nocase_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut (Bstr, T)> {
         self.elements
             .iter_mut()
-            .find(|x| x.0.cmp_nocase(key.as_ref()) == Ordering::Equal)
+            .find(|x| x.0.cmp_nocase_trimmed(key.as_ref()) == Ordering::Equal)
     }
 
     /// Search the table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
@@ -95,7 +95,7 @@ impl<T> Table<T> {
     pub fn get_nocase_nozero<K: AsRef<[u8]>>(&self, key: K) -> Option<&(Bstr, T)> {
         self.elements
             .iter()
-            .find(|x| x.0.cmp_nocase_nozero(key.as_ref()) == Ordering::Equal)
+            .find(|x| x.0.cmp_nocase_nozero_trimmed(key.as_ref()) == Ordering::Equal)
     }
 
     /// Search the table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
@@ -104,7 +104,7 @@ impl<T> Table<T> {
     pub fn get_nocase_nozero_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut (Bstr, T)> {
         self.elements
             .iter_mut()
-            .find(|x| x.0.cmp_nocase_nozero(key.as_ref()) == Ordering::Equal)
+            .find(|x| x.0.cmp_nocase_nozero_trimmed(key.as_ref()) == Ordering::Equal)
     }
 
     /// Returns the number of elements in the table

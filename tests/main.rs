@@ -1093,8 +1093,8 @@ fn InvalidResponseHeaders1() {
     assert_response_header_flag_contains!(tx, "", HtpFlags::FIELD_INVALID);
     assert_response_header_flag_contains!(tx, "", HtpFlags::FIELD_UNPARSEABLE);
 
-    assert_response_header_eq!(tx, "Lws ", "After Header Name");
-    assert_response_header_flag_contains!(tx, "Lws ", HtpFlags::FIELD_INVALID);
+    assert_response_header_eq!(tx, "Lws", "After Header Name");
+    assert_response_header_flag_contains!(tx, "Lws", HtpFlags::FIELD_INVALID);
 
     assert_response_header_eq!(tx, "Header@Name", "Not Token");
     assert_response_header_flag_contains!(tx, "Header@Name", HtpFlags::FIELD_INVALID);
