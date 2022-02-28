@@ -82,7 +82,7 @@ pub enum HtpStreamState {
 #[derive(Debug, Default, Clone)]
 /// This structure is used to pass data (for example
 /// request and response body buffers or gaps) to parsers.
-pub struct Data<'a> {
+pub struct ParserData<'a> {
     /// Ref to the data buffer.
     data: Option<Cow<'a, [u8]>>,
     // Length of data gap. Only set if is a gap.
@@ -91,7 +91,7 @@ pub struct Data<'a> {
     position: usize,
 }
 
-impl<'a> Data<'a> {
+impl<'a> ParserData<'a> {
     /// Returns a pointer to the raw data associated with Data.
     pub fn data_ptr(&self) -> *const u8 {
         self.data()
@@ -152,8 +152,8 @@ impl<'a> Data<'a> {
     }
 
     /// Make an owned version of this data.
-    pub fn into_owned(self) -> Data<'static> {
-        Data {
+    pub fn into_owned(self) -> ParserData<'static> {
+        ParserData {
             data: self.data.map(|d| Cow::Owned(d.into_owned())),
             gap_len: self.gap_len,
             position: self.position,
@@ -161,9 +161,9 @@ impl<'a> Data<'a> {
     }
 }
 
-impl<'a> From<Option<&'a [u8]>> for Data<'a> {
+impl<'a> From<Option<&'a [u8]>> for ParserData<'a> {
     fn from(data: Option<&'a [u8]>) -> Self {
-        Data {
+        ParserData {
             data: data.map(Cow::Borrowed),
             gap_len: None,
             position: 0,
@@ -171,9 +171,9 @@ impl<'a> From<Option<&'a [u8]>> for Data<'a> {
     }
 }
 
-impl<'a> From<&'a [u8]> for Data<'a> {
+impl<'a> From<&'a [u8]> for ParserData<'a> {
     fn from(data: &'a [u8]) -> Self {
-        Data {
+        ParserData {
             data: Some(Cow::Borrowed(data)),
             gap_len: None,
             position: 0,
@@ -181,9 +181,9 @@ impl<'a> From<&'a [u8]> for Data<'a> {
     }
 }
 
-impl From<Vec<u8>> for Data<'static> {
+impl From<Vec<u8>> for ParserData<'static> {
     fn from(data: Vec<u8>) -> Self {
-        Data {
+        ParserData {
             data: Some(Cow::Owned(data)),
             gap_len: None,
             position: 0,
@@ -191,9 +191,9 @@ impl From<Vec<u8>> for Data<'static> {
     }
 }
 
-impl<'a> From<&'a Vec<u8>> for Data<'a> {
+impl<'a> From<&'a Vec<u8>> for ParserData<'a> {
     fn from(data: &'a Vec<u8>) -> Self {
-        Data {
+        ParserData {
             data: Some(Cow::Borrowed(data.as_slice())),
             gap_len: None,
             position: 0,
@@ -201,9 +201,9 @@ impl<'a> From<&'a Vec<u8>> for Data<'a> {
     }
 }
 
-impl<'a> From<usize> for Data<'a> {
+impl<'a> From<usize> for ParserData<'a> {
     fn from(gap_len: usize) -> Self {
-        Data {
+        ParserData {
             data: None,
             gap_len: Some(gap_len),
             position: 0,
@@ -211,16 +211,16 @@ impl<'a> From<usize> for Data<'a> {
     }
 }
 
-impl<'a> From<(*const u8, usize)> for Data<'a> {
+impl<'a> From<(*const u8, usize)> for ParserData<'a> {
     fn from((data, len): (*const u8, usize)) -> Self {
         if data.is_null() {
             if len > 0 {
-                Data::from(len)
+                ParserData::from(len)
             } else {
-                Data::from(b"".as_ref())
+                ParserData::from(b"".as_ref())
             }
         } else {
-            unsafe { Data::from(std::slice::from_raw_parts(data, len)) }
+            unsafe { ParserData::from(std::slice::from_raw_parts(data, len)) }
         }
     }
 }
@@ -431,7 +431,7 @@ impl ConnectionParser {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_request_state(&mut self, data: &mut Data) -> Result<()> {
+    pub fn handle_request_state(&mut self, data: &mut ParserData) -> Result<()> {
         data.set_position(self.request_curr_data.position() as usize);
         match self.request_state {
             State::NONE => Err(HtpStatus::ERROR),
@@ -455,7 +455,7 @@ impl ConnectionParser {
     }
 
     /// Handle the current state to be processed.
-    pub fn handle_response_state(&mut self, data: &mut Data) -> Result<()> {
+    pub fn handle_response_state(&mut self, data: &mut ParserData) -> Result<()> {
         data.set_position(self.response_curr_data.position() as usize);
         match self.response_state {
             State::NONE => Err(HtpStatus::ERROR),
@@ -508,7 +508,7 @@ impl ConnectionParser {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.request_data(Data::default(), timestamp);
+        self.request_data(ParserData::default(), timestamp);
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -524,8 +524,8 @@ impl ConnectionParser {
         }
         // Call the parsers one last time, which will allow them
         // to process the events that depend on stream closure
-        self.request_data(Data::default(), timestamp);
-        self.response_data(Data::default(), timestamp);
+        self.request_data(ParserData::default(), timestamp);
+        self.response_data(ParserData::default(), timestamp);
     }
 
     /// This function is most likely not used and/or not needed.

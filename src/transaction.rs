@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     config::{Config, HtpUnwanted},
-    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState, State},
+    connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::Result,
     headers::{Parser as HeaderParser, Side},

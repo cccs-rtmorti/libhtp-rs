@@ -1,6 +1,6 @@
 use crate::{
     bstr::Bstr,
-    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState, State},
+    connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
     decompressors::HtpContentEncoding,
     error::Result,
     hook::DataHook,

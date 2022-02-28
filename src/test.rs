@@ -2,7 +2,7 @@
 use crate::{
     bstr::Bstr,
     config::{Config, HtpServerPersonality},
-    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState},
+    connection_parser::{ConnectionParser, HtpStreamState, ParserData},
     error::Result,
     transaction::Data,
 };

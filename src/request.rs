@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     connection::Flags as ConnectionFlags,
-    connection_parser::{ConnectionParser, Data as ParserData, HtpStreamState, State},
+    connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
     error::Result,
     hook::DataHook,
     parsers::parse_chunked_length,

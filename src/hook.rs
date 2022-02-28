@@ -192,7 +192,7 @@ pub enum Callback<E, N> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{config::Config, connection_parser::Data as ParserData};
+    use crate::{config::Config, connection_parser::ParserData};
 
     #[test]
     fn test_callback() {

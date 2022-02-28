@@ -2,7 +2,7 @@
 use htp::{
     bstr::*,
     config::{Config, HtpServerPersonality},
-    connection_parser::{ConnectionParser, Data as ParserData},
+    connection_parser::{ConnectionParser, ParserData},
     decompressors::{Decompressor, HtpContentEncoding},
     transaction::{Data, Transaction},
     HtpStatus,
