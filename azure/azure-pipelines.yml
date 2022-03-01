@@ -169,7 +169,7 @@ jobs:
         mkdir cyberdeck_build
         cd cyberdeck_build
         source /opt/gcc-9/enable
-        cmake3 -DTARGET_NATIVE_ARCH=Off -DCMAKE_BUILD_TYPE=Release -DENABLE_MANPAGES=Off -DENABLE_STREAMMAP=Off -DENABLE_SNF=Off $(Agent.BuildDirectory)/cyberdeck
+        cmake3 -DTARGET_NATIVE_ARCH=Off -DCMAKE_BUILD_TYPE=Release -DENABLE_SAWP=Off -DENABLE_MANPAGES=Off -DENABLE_STREAMMAP=Off -DENABLE_SNF=Off $(Agent.BuildDirectory)/cyberdeck
       displayName: "cyberdeck: configure" 
       workingDirectory: $(Agent.BuildDirectory)
     

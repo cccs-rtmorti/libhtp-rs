@@ -2747,7 +2747,7 @@ fn HttpEvader078() {
 #[test]
 fn HttpEvader130() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run_file("http-evader-130.t").is_ok());
+    assert!(t.run_file("http-evader-130.t").is_err());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(
         tx,
@@ -2864,7 +2864,7 @@ fn HttpEvader307() {
 #[test]
 fn HttpEvader318() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run_file("http-evader-318.t").is_ok());
+    assert!(t.run_file("http-evader-318.t").is_err());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/ce%5C015%5C012%5C040%3Agzip;do_gzip");
     assert_evader_response!(tx);
@@ -2876,7 +2876,7 @@ fn HttpEvader318() {
 #[test]
 fn HttpEvader320() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run_file("http-evader-320.t").is_ok());
+    assert!(t.run_file("http-evader-320.t").is_err());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/ce%5C013%3Agzip;do_gzip");
     assert_evader_response!(tx);
@@ -2889,7 +2889,7 @@ fn HttpEvader320() {
 #[test]
 fn HttpEvader321() {
     let mut t = Test::new(TestConfig());
-    assert!(!t.run_file("http-evader-321.t").is_ok());
+    assert!(t.run_file("http-evader-321.t").is_err());
     let tx = t.connp.tx(0).unwrap();
     assert_evader_request!(tx, "/broken/eicar.txt/ce%5C014%3Agzip;do_gzip");
     assert_evader_response!(tx);

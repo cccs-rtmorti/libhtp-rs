@@ -577,7 +577,7 @@ fn ParseScheme_1() {
 #[test]
 fn ParseInvalidScheme() {
     let i: &[u8] = b"/http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    assert!(!scheme()(i).is_ok());
+    assert!(scheme()(i).is_err());
 }
 
 #[test]
@@ -607,7 +607,7 @@ fn ParseCredentials_2() {
 fn ParseInvalidCredentials() {
     //Must have already parsed the scheme!
     let i: &[u8] = b"http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    assert!(!credentials()(i).is_ok());
+    assert!(credentials()(i).is_err());
 }
 
 #[test]
@@ -695,7 +695,7 @@ fn ParseHostname_8() {
 fn ParseInvalidHostname() {
     //If it starts with '/' we treat it as a path
     let i: &[u8] = b"/www.example.com/path1/path2?a=b&c=d#frag";
-    assert!(!hostname()(i).is_ok());
+    assert!(hostname()(i).is_err());
 }
 
 #[test]

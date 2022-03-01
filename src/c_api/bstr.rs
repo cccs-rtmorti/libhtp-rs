@@ -204,8 +204,7 @@ mod test {
     #[test]
     fn Bstr_Alloc() {
         unsafe {
-            let p1: *mut Bstr;
-            p1 = bstr_alloc(10);
+            let p1 = bstr_alloc(10);
             assert_eq!(10, bstr_size(p1));
             assert_eq!(0, bstr_len(p1));
             bstr_free(p1);

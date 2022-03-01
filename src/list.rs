@@ -109,14 +109,14 @@ impl<T> List<T> {
     /// at the given index.  The value at the given index can also be `None` if it has
     /// been removed.
     pub fn get(&self, idx: usize) -> Option<&T> {
-        self.elements.get(idx).map(|val| val.as_ref()).flatten()
+        self.elements.get(idx).and_then(|val| val.as_ref())
     }
 
     /// Find the element at the given index.
     ///
     /// Functions much like [`get`](crate::list::List::get) but returns a mutable reference.
     pub fn get_mut(&mut self, idx: usize) -> Option<&mut T> {
-        self.elements.get_mut(idx).map(|val| val.as_mut()).flatten()
+        self.elements.get_mut(idx).and_then(|val| val.as_mut())
     }
 
     /// Retrieve the last element in the list.
@@ -124,7 +124,7 @@ impl<T> List<T> {
     /// The element returned will always be the last element. The returned element can be
     /// `None` if the element as been removed.
     pub fn get_last(&self) -> Option<&T> {
-        self.elements.last().map(|val| val.as_ref()).flatten()
+        self.elements.last().and_then(|val| val.as_ref())
     }
 
     /// Retrieve a mutable reference to the last element in the list.
@@ -133,7 +133,7 @@ impl<T> List<T> {
     /// mutable reference.
     pub fn get_last_mut(&mut self) -> Option<&mut T> {
         let idx = self.elements.len() - 1; //Works around borrowing twice as mut/immut
-        self.elements.get_mut(idx).map(|val| val.as_mut()).flatten()
+        self.elements.get_mut(idx).and_then(|val| val.as_mut())
     }
 
     /// Remove one element from the end of the list.
