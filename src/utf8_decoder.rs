@@ -81,7 +81,8 @@ impl Utf8Decoder {
     }
 
     /// Decode utf8 byte using best-fit map.
-    fn decode_byte(&mut self, encoded_byte: u8) {
+    #[allow(clippy::branches_sharing_code)]
+    fn decode_byte(&mut self, encoded_byte: u8, is_last_byte: bool) {
         self.seq = self.seq.wrapping_add(1);
         self.decode_byte_allow_overlong(encoded_byte as u32);
         match self.state {
@@ -130,12 +131,21 @@ impl Utf8Decoder {
                 self.codepoint = 0;
                 self.decoded_bytes.push(self.bestfit_map.replacement_byte);
                 if self.seq != 1 {
-                    self.decode_byte(encoded_byte);
+                    self.seq = 0;
+                    self.decode_byte(encoded_byte, is_last_byte);
+                } else {
+                    self.seq = 0;
                 }
-                self.seq = 0;
             }
             _ => {
                 // The character is not yet formed.
+                if is_last_byte {
+                    // If the last input chunk ended with an incomplete byte sequence for a code point,
+                    // this is an error and a replacement character is emitted hence starting from 1 not 0
+                    for _ in 1..self.seq {
+                        self.decoded_bytes.push(self.bestfit_map.replacement_byte);
+                    }
+                }
             }
         }
     }
@@ -154,8 +164,12 @@ impl Utf8Decoder {
         self.decoded_bytes.clear();
         self.decoded_bytes.reserve(input.len());
         self.seen_valid = false;
-        for byte in input {
-            self.decode_byte(*byte);
+        for (byte, is_last) in input
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (b, i + 1 == input.len()))
+        {
+            self.decode_byte(*byte, is_last);
         }
         // Did the input stream seem like a valid UTF-8 string?
         if self.seen_valid && !self.flags.is_set(HtpFlags::PATH_UTF8_INVALID) {

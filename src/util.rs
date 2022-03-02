@@ -2406,6 +2406,74 @@ mod test {
     }
 
     #[test]
+    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence() {
+        let mut cfg = Config::default();
+        cfg.set_utf8_convert_bestfit(true);
+        //1111 0000 1001 0000 1000 1101 1111 1111
+        let mut i = Bstr::from(b"\xf0\x90\x8d\xff".to_vec());
+        let mut flags = 0;
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        utf8_decode_and_validate_uri_path_inplace(
+            &cfg.decoder_cfg,
+            &mut flags,
+            &mut response_status_expected_number,
+            &mut i,
+        );
+        assert!(i.eq_slice("??"));
+    }
+
+    #[test]
+    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence2() {
+        let mut cfg = Config::default();
+        cfg.set_utf8_convert_bestfit(true);
+        //1110 0010 1000 0010
+        let mut i = Bstr::from(b"\xe2\x82".to_vec());
+        let mut flags = 0;
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        utf8_decode_and_validate_uri_path_inplace(
+            &cfg.decoder_cfg,
+            &mut flags,
+            &mut response_status_expected_number,
+            &mut i,
+        );
+        assert!(i.eq_slice("?"));
+    }
+
+    #[test]
+    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence3() {
+        let mut cfg = Config::default();
+        cfg.set_utf8_convert_bestfit(true);
+        //1100 0010 1111 1111 1111 0000
+        let mut i = Bstr::from(b"\xc2\xff\xf0".to_vec());
+        let mut flags = 0;
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        utf8_decode_and_validate_uri_path_inplace(
+            &cfg.decoder_cfg,
+            &mut flags,
+            &mut response_status_expected_number,
+            &mut i,
+        );
+        assert!(i.eq_slice("??"));
+    }
+
+    #[test]
+    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence4() {
+        let mut cfg = Config::default();
+        cfg.set_utf8_convert_bestfit(true);
+        //1111 0000 1001 0000 0010 1000 1011 1100
+        let mut i = Bstr::from(b"\xf0\x90\x28\xbc".to_vec());
+        let mut flags = 0;
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        utf8_decode_and_validate_uri_path_inplace(
+            &cfg.decoder_cfg,
+            &mut flags,
+            &mut response_status_expected_number,
+            &mut i,
+        );
+        assert!(i.eq_slice("?(?"));
+    }
+
+    #[test]
     fn UrlDecode() {
         let mut cfg = Config::default();
         cfg.set_u_encoding_decode(true);
