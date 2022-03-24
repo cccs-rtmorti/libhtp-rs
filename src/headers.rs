@@ -222,11 +222,11 @@ impl Parser {
     fn terminator_special_case(&self) -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], u64)> + '_ {
         move |input| {
             //Treat the empty folding as a single EOL when it is followed by another eol.
-            if let Ok((remaining, ((eol, flags), _))) =
-                tuple((self.folding_empty(), peek(self.complete_eol_regular())))(input)
-            {
-                Ok((remaining, (eol, Flags::TERMINATOR_SPECIAL_CASE | flags)))
-            } else {
+            alt((
+                map(
+                    tuple((self.folding_empty(), peek(self.complete_eol_regular()))),
+                    |((eol, flags), _)| (eol, Flags::TERMINATOR_SPECIAL_CASE | flags),
+                ),
                 map(
                     tuple((
                         self.complete_eol_regular(),
@@ -242,8 +242,8 @@ impl Parser {
                             Flags::TERMINATOR_SPECIAL_CASE,
                         )
                     },
-                )(input)
-            }
+                ),
+            ))(input)
         }
     }
 
@@ -349,20 +349,16 @@ impl Parser {
                             _ => {}
                         }
                     }
-                    match self.value_bytes()(i) {
-                        Ok((rest, (val_bytes, ((_eol, other_flags), fold)))) => {
-                            i = rest;
-                            flags.set(other_flags);
-                            //If the value is empty, the value started with a fold and we don't want to push back a space
-                            if !value.is_empty() {
-                                value.push(b' ');
-                            }
-                            value.extend(val_bytes);
-                            if fold.is_none() {
-                                return Ok((rest, Value { value, flags }));
-                            }
-                        }
-                        Err(e) => return Err(e),
+                    let (rest, (val_bytes, ((_eol, other_flags), fold))) = self.value_bytes()(i)?;
+                    i = rest;
+                    flags.set(other_flags);
+                    //If the value is empty, the value started with a fold and we don't want to push back a space
+                    if !value.is_empty() {
+                        value.push(b' ');
+                    }
+                    value.extend(val_bytes);
+                    if fold.is_none() {
+                        return Ok((rest, Value { value, flags }));
                     }
                 }
             } else {

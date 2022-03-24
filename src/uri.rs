@@ -4,7 +4,7 @@ use crate::{
     log::Logger,
     parsers::{credentials, fragment, hostname, parse_hostport, path, port, query, scheme},
     util::{
-        convert_port, decode_uri_path_inplace, urldecode_inplace, urldecode_uri_inplace,
+        convert_port, decode_uri_path_inplace, urldecode_inplace, urldecode_uri,
         utf8_decode_and_validate_uri_path_inplace, FlagOperations, HtpFlags,
     },
 };
@@ -102,9 +102,8 @@ impl Uri {
 
     /// Normalize uri username.
     pub fn normalized_username(&self, flags: &mut u64) -> Option<Bstr> {
-        if let Some(mut username) = self.username.clone() {
-            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut username);
-            Some(username)
+        if let Some(username) = self.username.as_ref() {
+            urldecode_uri(&self.cfg, flags, username.as_slice()).ok()
         } else {
             None
         }
@@ -112,9 +111,8 @@ impl Uri {
 
     /// Normalize uri password.
     pub fn normalized_password(&self, flags: &mut u64) -> Option<Bstr> {
-        if let Some(mut password) = self.password.clone() {
-            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut password);
-            Some(password)
+        if let Some(password) = self.password.as_ref() {
+            urldecode_uri(&self.cfg, flags, password.as_slice()).ok()
         } else {
             None
         }
@@ -122,14 +120,15 @@ impl Uri {
 
     /// Normalize uri hostname.
     pub fn normalized_hostname(&self, flags: &mut u64) -> Option<Bstr> {
-        if let Some(mut hostname) = self.hostname.clone() {
-            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut hostname);
-            hostname.make_ascii_lowercase();
+        if let Some(hostname) = self.hostname.as_ref() {
+            let mut normalized_hostname =
+                urldecode_uri(&self.cfg, flags, hostname.as_slice()).ok()?;
+            normalized_hostname.make_ascii_lowercase();
             // Remove dots from the end of the string.
-            while hostname.last() == Some(&(b'.')) {
-                hostname.pop();
+            while normalized_hostname.last() == Some(&(b'.')) {
+                normalized_hostname.pop();
             }
-            Some(hostname)
+            Some(normalized_hostname)
         } else {
             None
         }
@@ -137,14 +136,13 @@ impl Uri {
 
     /// Normalize uri port.
     pub fn normalized_port(&self, flags: &mut u64) -> Option<u16> {
-        if let Some(port) = self.port.clone() {
-            if let Some(port) = convert_port(port.as_slice()) {
-                Some(port)
-            } else {
+        if let Some(port) = self.port.as_ref() {
+            let normalized_port = convert_port(port.as_slice());
+            if normalized_port.is_none() {
                 // Failed to parse the port number.
                 flags.set(HtpFlags::HOSTU_INVALID);
-                None
             }
+            normalized_port
         } else {
             None
         }
@@ -152,9 +150,8 @@ impl Uri {
 
     /// Normalize uri fragment.
     pub fn normalized_fragment(&self, flags: &mut u64) -> Option<Bstr> {
-        if let Some(mut fragment) = self.fragment.clone() {
-            let _ = urldecode_uri_inplace(&self.cfg, flags, &mut fragment);
-            Some(fragment)
+        if let Some(fragment) = self.fragment.as_ref() {
+            urldecode_uri(&self.cfg, flags, fragment).ok()
         } else {
             None
         }

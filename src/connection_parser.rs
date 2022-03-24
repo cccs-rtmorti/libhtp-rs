@@ -102,12 +102,9 @@ impl<'a> ParserData<'a> {
 
     /// Returns the data
     pub fn data(&self) -> Option<&[u8]> {
-        if let Some(data) = &self.data {
-            if self.position <= data.len() {
-                Some(&data[self.position..])
-            } else {
-                None
-            }
+        let data = self.data.as_ref()?;
+        if self.position <= data.len() {
+            Some(&data[self.position..])
         } else {
             None
         }
@@ -120,15 +117,12 @@ impl<'a> ParserData<'a> {
 
     /// Return an immutable slice view of the data.
     pub fn as_slice(&self) -> &[u8] {
-        if let Some(data) = &self.data {
+        if let Some(data) = self.data.as_ref() {
             if self.position <= data.len() {
-                &data[self.position..]
-            } else {
-                b""
+                return &data[self.position..];
             }
-        } else {
-            b""
         }
+        b""
     }
 
     /// Determines if this chunk is a gap or not
@@ -477,11 +471,10 @@ impl ConnectionParser {
     /// The function used for request line parsing. Depends on the personality.
     pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
         self.request_mut().request_line = Some(Bstr::from(request_line));
-        if self.cfg.server_personality == HtpServerPersonality::APACHE_2 {
-            self.parse_request_line_generic_ex(request_line, true)
-        } else {
-            self.parse_request_line_generic_ex(request_line, false)
-        }
+        self.parse_request_line_generic_ex(
+            request_line,
+            self.cfg.server_personality == HtpServerPersonality::APACHE_2,
+        )
     }
 
     /// The function is used for response line parsing.

@@ -9,7 +9,6 @@ use crate::{
         take_ascii_whitespace, take_is_space, take_is_space_or_null, take_not_is_space,
         FlagOperations, HtpFlags,
     },
-    HtpStatus,
 };
 use nom::{error::ErrorKind, sequence::tuple};
 use std::cmp::Ordering;
@@ -31,33 +30,29 @@ impl ConnectionParser {
             take_ascii_whitespace(),
         ));
 
-        if let Ok((message, (_ls, response_protocol, ws1, status_code, ws2))) =
-            response_line_parser(response_line)
-        {
-            if response_protocol.is_empty() {
-                return Ok(());
-            }
-
-            response_tx.response_protocol = Some(Bstr::from(response_protocol));
-            self.response_mut().response_protocol_number =
-                parse_protocol(response_protocol, &mut self.logger);
-
-            if ws1.is_empty() || status_code.is_empty() {
-                return Ok(());
-            }
-
-            let response_tx = self.response_mut();
-            response_tx.response_status = Some(Bstr::from(status_code));
-            response_tx.response_status_number = parse_status(status_code);
-
-            if ws2.is_empty() {
-                return Ok(());
-            }
-
-            response_tx.response_message = Some(Bstr::from(message));
-        } else {
-            return Err(HtpStatus::ERROR);
+        let (message, (_ls, response_protocol, ws1, status_code, ws2)) =
+            response_line_parser(response_line)?;
+        if response_protocol.is_empty() {
+            return Ok(());
         }
+
+        response_tx.response_protocol = Some(Bstr::from(response_protocol));
+        self.response_mut().response_protocol_number =
+            parse_protocol(response_protocol, &mut self.logger);
+
+        if ws1.is_empty() || status_code.is_empty() {
+            return Ok(());
+        }
+
+        let response_tx = self.response_mut();
+        response_tx.response_status = Some(Bstr::from(status_code));
+        response_tx.response_status_number = parse_status(status_code);
+
+        if ws2.is_empty() {
+            return Ok(());
+        }
+
+        response_tx.response_message = Some(Bstr::from(message));
         Ok(())
     }
 

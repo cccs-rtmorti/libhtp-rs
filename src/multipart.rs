@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     config::{Config, MultipartConfig},
-    error::Result,
+    error::{NomError, Result},
     headers::{Flags as HeaderFlags, Parser as HeadersParser, Side},
     hook::FileDataHook,
     list::List,
@@ -524,11 +524,10 @@ impl Parser {
     /// Handle part data. This function will also buffer a CR character if
     /// it is the last byte in the buffer.
     fn parse_state_data<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        if let Ok((remaining, mut consumed)) = take_till::<_, _, (&[u8], nom::error::ErrorKind)>(
-            |c: u8| c == b'\r' || c == b'\n',
-        )(input)
+        if let Ok((remaining, mut consumed)) =
+            take_till::<_, _, NomError<&[u8]>>(|c: u8| c == b'\r' || c == b'\n')(input)
         {
-            if let Ok((left, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(remaining) {
+            if let Ok((left, _)) = tag::<_, _, NomError<&[u8]>>("\r\n")(remaining) {
                 consumed = &input[..consumed.len() + 2];
                 self.multipart.flags.set(Flags::CRLF_LINE);
                 // Prepare to switch to boundary testing.
@@ -536,8 +535,7 @@ impl Parser {
                 self.boundary_match_pos = 0;
                 self.to_consume.add(consumed);
                 return left;
-            } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\r')(remaining)
-            {
+            } else if let Ok((left, _)) = char::<_, NomError<&[u8]>>('\r')(remaining) {
                 if left.is_empty() {
                     // We have CR as the last byte in input. We are going to process
                     // what we have in the buffer as data, except for the CR byte,
@@ -553,8 +551,7 @@ impl Parser {
                 }
                 self.to_consume.add(consumed);
                 return left;
-            } else if let Ok((left, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('\n')(remaining)
-            {
+            } else if let Ok((left, _)) = char::<_, NomError<&[u8]>>('\n')(remaining) {
                 // Check for a LF-terminated line.
                 // Advance over LF.
                 // Did we have a CR in the previous input chunk?
@@ -598,7 +595,7 @@ impl Parser {
             self.multipart.boundary.len() - self.boundary_match_pos,
             input.len(),
         );
-        if let Ok((remaining, consumed)) = tag::<&[u8], _, (&[u8], nom::error::ErrorKind)>(
+        if let Ok((remaining, consumed)) = tag::<&[u8], _, NomError<&[u8]>>(
             &self.multipart.boundary[self.boundary_match_pos..self.boundary_match_pos + len]
                 .to_vec(),
         )(input)
@@ -638,7 +635,7 @@ impl Parser {
     /// a dash, then we maybe processing the last boundary in the payload. If
     /// it is not, move to eat all bytes until the end of the line.
     fn parse_state_last1<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
+        if let Ok((remaining, _)) = char::<_, NomError<&[u8]>>('-')(input) {
             // Found one dash, now go to check the next position.
             self.parser_state = HtpMultipartState::BOUNDARY_IS_LAST2;
             remaining
@@ -655,7 +652,7 @@ impl Parser {
     /// Examine the byte after the first dash; expected to be another dash.
     /// If not, eat all bytes until the end of the line.
     fn parse_state_last2<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        if let Ok((remaining, _)) = char::<_, (&[u8], nom::error::ErrorKind)>('-')(input) {
+        if let Ok((remaining, _)) = char::<_, NomError<&[u8]>>('-')(input) {
             // This is indeed the last boundary in the payload.
             self.multipart.flags.set(Flags::SEEN_LAST_BOUNDARY);
             self.parser_state = HtpMultipartState::BOUNDARY_EAT_LWS;
@@ -673,12 +670,12 @@ impl Parser {
     /// Determines state of boundary parsing. Advances state if we're done with boundary
     /// processing.
     fn parse_state_lws<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
-        if let Ok((remaining, _)) = tag::<_, _, (&[u8], nom::error::ErrorKind)>("\r\n")(input) {
+        if let Ok((remaining, _)) = tag::<_, _, NomError<&[u8]>>("\r\n")(input) {
             // CRLF line ending; we're done with boundary processing; data bytes follow.
             self.multipart.flags.set(Flags::CRLF_LINE);
             self.parser_state = HtpMultipartState::DATA;
             remaining
-        } else if let Ok((remaining, byte)) = be_u8::<(&[u8], nom::error::ErrorKind)>(input) {
+        } else if let Ok((remaining, byte)) = be_u8::<NomError<&[u8]>>(input) {
             if byte == b'\n' {
                 // LF line ending; we're done with boundary processing; data bytes follow.
                 self.multipart.flags.set(Flags::LF_LINE);

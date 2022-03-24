@@ -46,11 +46,7 @@ impl Options {
     /// A value of 0 indicates that lzma is disabled.
     pub fn get_lzma_memlimit(&self) -> usize {
         if let Some(options) = self.lzma {
-            if let Some(memlimit) = options.memlimit {
-                memlimit
-            } else {
-                0
-            }
+            options.memlimit.unwrap_or(0)
         } else {
             0
         }

@@ -36,13 +36,10 @@ fn content_type() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
 /// Parses the content type header from the given header value, lowercases it, and stores it in the provided ct bstr.
 /// Finds the end of the MIME type, using the same approach PHP 5.4.3 uses.
 pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
-    if let Ok((_, content_type)) = content_type()(header) {
-        let mut ct = Bstr::from(content_type);
-        ct.make_ascii_lowercase();
-        Ok(ct)
-    } else {
-        Err(HtpStatus::ERROR)
-    }
+    let (_, content_type) = content_type()(header)?;
+    let mut ct = Bstr::from(content_type);
+    ct.make_ascii_lowercase();
+    Ok(ct)
 }
 
 /// Parses Content-Length string (positive decimal number). White space is
@@ -50,51 +47,47 @@ pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
 ///
 /// Returns content length, or None if input is not valid.
 pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option<i64> {
-    if let Ok((trailing_data, (leading_data, content_length))) = ascii_digits()(input) {
-        if let Some(logger) = logger {
-            if !leading_data.is_empty() {
-                // Contains invalid characters! But still attempt to process
-                htp_warn!(
-                    logger,
-                    HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_START,
-                    "C-L value with extra data in the beginning"
-                );
-            }
-
-            if !trailing_data.is_empty() {
-                // Ok to have junk afterwards
-                htp_warn!(
-                    logger,
-                    HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_END,
-                    "C-L value with extra data in the end"
-                );
-            }
+    let (trailing_data, (leading_data, content_length)) = ascii_digits()(input).ok()?;
+    if let Some(logger) = logger {
+        if !leading_data.is_empty() {
+            // Contains invalid characters! But still attempt to process
+            htp_warn!(
+                logger,
+                HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_START,
+                "C-L value with extra data in the beginning"
+            );
         }
-        if let Ok(content_length) = std::str::from_utf8(content_length) {
-            if let Ok(content_length) = content_length.parse::<i64>() {
-                return Some(content_length);
-            }
+
+        if !trailing_data.is_empty() {
+            // Ok to have junk afterwards
+            htp_warn!(
+                logger,
+                HtpLogCode::CONTENT_LENGTH_EXTRA_DATA_END,
+                "C-L value with extra data in the end"
+            );
         }
     }
-    None
+    std::str::from_utf8(content_length)
+        .ok()?
+        .parse::<i64>()
+        .ok()
 }
 
 /// Parses chunked length (positive hexadecimal number). White space is allowed before
 /// and after the number.
-pub fn parse_chunked_length(input: &[u8]) -> std::result::Result<Option<i32>, &'static str> {
-    if let Ok((rest, _)) = take_chunked_ctl_chars(input) {
-        if let Ok((trailing_data, chunked_length)) = hex_digits()(rest) {
-            if trailing_data.is_empty() && chunked_length.is_empty() {
-                return Ok(None);
-            }
-            if let Ok(chunked_length) = std::str::from_utf8(chunked_length) {
-                if let Ok(chunked_length) = i32::from_str_radix(chunked_length, 16) {
-                    return Ok(Some(chunked_length));
-                }
-            }
-        }
+pub fn parse_chunked_length(input: &[u8]) -> Result<Option<i32>> {
+    let (rest, _) = take_chunked_ctl_chars(input)?;
+    let (trailing_data, chunked_length) = hex_digits()(rest)?;
+    if trailing_data.is_empty() && chunked_length.is_empty() {
+        return Ok(None);
     }
-    Err("Invalid Chunk Length")
+    Ok(Some(
+        i32::from_str_radix(
+            std::str::from_utf8(chunked_length).map_err(|_| HtpStatus::ERROR)?,
+            16,
+        )
+        .map_err(|_| HtpStatus::ERROR)?,
+    ))
 }
 
 /// Attempts to extract the scheme from a given input URI.
@@ -164,7 +157,7 @@ pub fn credentials() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Option<&[u8]>)>
 /// Returns a tuple of the remaining unconsumed data and the matched ipv6 hostname.
 pub fn ipv6() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     move |input| -> IResult<&[u8], &[u8]> {
-        let (rest, (_, _, _)) = tuple((tag("["), is_not("/?#]"), opt(tag("]"))))(input)?;
+        let (rest, _) = tuple((tag("["), is_not("/?#]"), opt(tag("]"))))(input)?;
         Ok((rest, &input[..input.len() - rest.len()]))
     }
 }
@@ -307,19 +300,20 @@ pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], parsed_hostport> {
 ///
 /// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains trailing and/or leading whitespace and/or leading zeros))
 pub fn protocol_version(input: &[u8]) -> IResult<&[u8], (&[u8], bool)> {
-    let (remaining, (_, _, leading, _, trailing, version, _)) = tuple((
-        take_ascii_whitespace(),
-        tag_no_case("HTTP"),
-        take_ascii_whitespace(),
-        tag("/"),
-        take_while(|c: u8| c.is_ascii_whitespace() || c == b'0'),
-        alt((tag(".9"), tag("1.0"), tag("1.1"))),
-        take_ascii_whitespace(),
-    ))(input)?;
-    Ok((
-        remaining,
-        (version, !leading.is_empty() || !trailing.is_empty()),
-    ))
+    map(
+        tuple((
+            take_ascii_whitespace(),
+            tag_no_case("HTTP"),
+            take_ascii_whitespace(),
+            tag("/"),
+            take_while(|c: u8| c.is_ascii_whitespace() || c == b'0'),
+            alt((tag(".9"), tag("1.0"), tag("1.1"))),
+            take_ascii_whitespace(),
+        )),
+        |(_, _, leading, _, trailing, version, _)| {
+            (version, !leading.is_empty() || !trailing.is_empty())
+        },
+    )(input)
 }
 
 /// Determines protocol number from a textual representation (i.e., "HTTP/1.1"). This
@@ -431,16 +425,14 @@ pub fn parse_authorization(request_tx: &mut Transaction) -> Result<()> {
     } else if auth_header.value.starts_with_nocase("digest") {
         // Digest authentication
         request_tx.request_auth_type = HtpAuthType::DIGEST;
-        if let Ok((_, auth_username)) = parse_authorization_digest(auth_header.value.as_slice()) {
-            if let Some(username) = &mut request_tx.request_auth_username {
-                username.clear();
-                username.add(auth_username);
-            } else {
-                request_tx.request_auth_username = Some(Bstr::from(auth_username));
-            }
-            return Ok(());
+        let (_, auth_username) = parse_authorization_digest(auth_header.value.as_slice())
+            .map_err(|_| HtpStatus::DECLINED)?;
+        if let Some(username) = &mut request_tx.request_auth_username {
+            username.clear();
+            username.add(auth_username);
+        } else {
+            request_tx.request_auth_username = Some(Bstr::from(auth_username));
         }
-        return Err(HtpStatus::DECLINED);
     } else if auth_header.value.starts_with_nocase("bearer") {
         request_tx.request_auth_type = HtpAuthType::BEARER;
         let (token, _) = tuple((

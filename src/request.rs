@@ -349,7 +349,7 @@ impl ConnectionParser {
         // Adjust counters.
         self.request_curr_data
             .seek(SeekFrom::Current(bytes_to_consume as i64))?;
-        if let Some(len) = &mut self.request_chunked_length {
+        if let Some(len) = self.request_chunked_length.as_mut() {
             *len = len.wrapping_sub(bytes_to_consume as i32);
             if *len == 0 {
                 // End of the chunk.
@@ -386,38 +386,30 @@ impl ConnectionParser {
                     .wrapping_add(data.len() as u64)
                     as i64;
                 // Handle chunk length.
-                match parse_chunked_length(&data) {
-                    Ok(len) => {
-                        self.request_chunked_length = len;
-                        if let Some(len) = len {
-                            match len.cmp(&0) {
-                                Ordering::Equal => {
-                                    // End of data
-                                    self.request_state = State::HEADERS;
-                                    self.request_mut().request_progress =
-                                        HtpRequestProgress::TRAILER
-                                }
-                                Ordering::Greater => {
-                                    // More data available.
-                                    self.request_state = State::BODY_CHUNKED_DATA
-                                }
-                                _ => {}
-                            }
-                            return Ok(());
-                        } else {
-                            // Invalid chunk length
-                            htp_error!(
-                                self.logger,
-                                HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
-                                "Request chunk encoding: Invalid chunk length"
-                            );
-                            return Err(HtpStatus::ERROR);
-                        }
+                let len = parse_chunked_length(&data)?;
+                self.request_chunked_length = len;
+                let len = len.as_ref().ok_or(HtpStatus::ERROR).map_err(|e| {
+                    // Invalid chunk length
+                    htp_error!(
+                        self.logger,
+                        HtpLogCode::INVALID_REQUEST_CHUNK_LEN,
+                        "Request chunk encoding: Invalid chunk length"
+                    );
+                    e
+                })?;
+                match len.cmp(&0) {
+                    Ordering::Equal => {
+                        // End of data
+                        self.request_state = State::HEADERS;
+                        self.request_mut().request_progress = HtpRequestProgress::TRAILER
                     }
-                    Err(_) => {
-                        return Err(HtpStatus::ERROR);
+                    Ordering::Greater => {
+                        // More data available.
+                        self.request_state = State::BODY_CHUNKED_DATA
                     }
+                    _ => {}
                 }
+                return Ok(());
             } else {
                 // Check if the data we have seen so far is invalid
                 return if !is_valid_chunked_length_data(data) {

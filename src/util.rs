@@ -3,10 +3,9 @@
 use crate::{
     bstr::Bstr,
     config::{DecoderConfig, HtpServerPersonality, HtpUnwanted, HtpUrlEncodingHandling},
-    error::Result,
+    error::{NomError, Result},
     hook::FileDataHook,
     utf8_decoder::Utf8Decoder,
-    HtpStatus,
 };
 use nom::{
     branch::alt,
@@ -26,6 +25,7 @@ use nom::{
     Err::Incomplete,
     IResult, Needed,
 };
+
 use std::{io::Write, rc::Rc, sync::Mutex};
 use tempfile::{Builder, NamedTempFile};
 
@@ -335,16 +335,14 @@ pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
         let mut new_input = input;
         let mut bytes_consumed: usize = 0;
         while !new_input.is_empty() {
-            let (left, consumed) = take_till::<_, _, (&[u8], nom::error::ErrorKind)>(|c: u8| {
+            let (left, consumed) = take_till::<_, _, NomError<&[u8]>>(|c: u8| {
                 c.to_ascii_lowercase() == tag[0] || c.to_ascii_uppercase() == tag[0]
             })(new_input)?;
             new_input = left;
             bytes_consumed = bytes_consumed.wrapping_add(consumed.len());
-            if tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>(tag)(new_input).is_ok() {
+            if tag_no_case::<_, _, NomError<&[u8]>>(tag)(new_input).is_ok() {
                 return Ok((new_input, &input[..bytes_consumed]));
-            } else if let Ok((left, consumed)) =
-                take::<_, _, (&[u8], nom::error::ErrorKind)>(1usize)(new_input)
-            {
+            } else if let Ok((left, consumed)) = take::<_, _, NomError<&[u8]>>(1usize)(new_input) {
                 bytes_consumed = bytes_consumed.wrapping_add(consumed.len());
                 new_input = left;
             }
@@ -451,15 +449,12 @@ pub fn convert_port(port: &[u8]) -> Option<u16> {
     if port.is_empty() {
         return None;
     }
-    if let Ok(res) = std::str::from_utf8(port) {
-        if let Ok(port_number) = res.parse::<u16>() {
-            if port_number == 0 {
-                return None;
-            }
-            return Some(port_number);
-        }
+    let port_number = std::str::from_utf8(port).ok()?.parse::<u16>().ok()?;
+    if port_number == 0 {
+        None
+    } else {
+        Some(port_number)
     }
-    None
 }
 
 /// Convert two input bytes, pointed to by the pointer parameter,
@@ -843,40 +838,28 @@ pub fn decode_uri_path_inplace(
 
 /// Performs decoding of the uri string, according to the configuration specified
 /// by cfg. Various flags might be set.
-pub fn urldecode_uri_inplace(
-    decoder_cfg: &DecoderConfig,
-    flags: &mut u64,
-    input: &mut Bstr,
-) -> Result<()> {
-    if let Ok((_, (consumed, f, _))) = urldecode_ex(input.as_slice(), decoder_cfg) {
-        (*input).clear();
-        input.add(consumed.as_slice());
-        if f.is_set(HtpFlags::URLEN_INVALID_ENCODING) {
-            flags.set(HtpFlags::PATH_INVALID_ENCODING)
-        }
-        if f.is_set(HtpFlags::URLEN_ENCODED_NUL) {
-            flags.set(HtpFlags::PATH_ENCODED_NUL)
-        }
-        if f.is_set(HtpFlags::URLEN_RAW_NUL) {
-            flags.set(HtpFlags::PATH_RAW_NUL);
-        }
-        Ok(())
-    } else {
-        Err(HtpStatus::ERROR)
+pub fn urldecode_uri(decoder_cfg: &DecoderConfig, flags: &mut u64, input: &[u8]) -> Result<Bstr> {
+    let (_, (consumed, f, _)) = urldecode_ex(input, decoder_cfg)?;
+    if f.is_set(HtpFlags::URLEN_INVALID_ENCODING) {
+        flags.set(HtpFlags::PATH_INVALID_ENCODING)
     }
+    if f.is_set(HtpFlags::URLEN_ENCODED_NUL) {
+        flags.set(HtpFlags::PATH_ENCODED_NUL)
+    }
+    if f.is_set(HtpFlags::URLEN_RAW_NUL) {
+        flags.set(HtpFlags::PATH_RAW_NUL);
+    }
+    Ok(Bstr::from(consumed))
 }
 
 /// Performs in-place decoding of the input string, according to the configuration specified by cfg and ctx.
 ///
 /// Returns OK on success, ERROR on failure.
 pub fn urldecode_inplace(cfg: &DecoderConfig, input: &mut Bstr) -> Result<()> {
-    if let Ok((_, (consumed, _, _))) = urldecode_ex(input.as_slice(), cfg) {
-        (*input).clear();
-        input.add(consumed.as_slice());
-        Ok(())
-    } else {
-        Err(HtpStatus::ERROR)
-    }
+    let (_, (consumed, _, _)) = urldecode_ex(input.as_slice(), cfg)?;
+    (*input).clear();
+    input.add(consumed.as_slice());
+    Ok(())
 }
 
 /// Decodes valid uencoded hex bytes according to the given cfg settings.
@@ -1122,15 +1105,15 @@ pub fn validate_hostname(input: &[u8]) -> bool {
     if input.is_empty() || input.len() > 255 {
         return false;
     }
-    if char::<_, (&[u8], nom::error::ErrorKind)>('[')(input).is_ok() {
-        if let Ok((input, _)) = is_not::<_, _, (&[u8], nom::error::ErrorKind)>("#?/]")(input) {
-            return char::<_, (&[u8], nom::error::ErrorKind)>(']')(input).is_ok();
+    if char::<_, NomError<&[u8]>>('[')(input).is_ok() {
+        if let Ok((input, _)) = is_not::<_, _, NomError<&[u8]>>("#?/]")(input) {
+            return char::<_, NomError<&[u8]>>(']')(input).is_ok();
         } else {
             return false;
         }
     }
-    if tag::<_, _, (&[u8], nom::error::ErrorKind)>(".")(input).is_ok()
-        || take_until::<_, _, (&[u8], nom::error::ErrorKind)>("..")(input).is_ok()
+    if tag::<_, _, NomError<&[u8]>>(".")(input).is_ok()
+        || take_until::<_, _, NomError<&[u8]>>("..")(input).is_ok()
     {
         return false;
     }
@@ -1138,11 +1121,9 @@ pub fn validate_hostname(input: &[u8]) -> bool {
         if section.len() > 63 {
             return false;
         }
-        if take_while_m_n::<_, _, (&[u8], nom::error::ErrorKind)>(
-            section.len(),
-            section.len(),
-            |c| c == b'-' || (c as char).is_alphanumeric(),
-        )(section)
+        if take_while_m_n::<_, _, NomError<&[u8]>>(section.len(), section.len(), |c| {
+            c == b'-' || (c as char).is_alphanumeric()
+        })(section)
         .is_err()
         {
             return false;
@@ -1206,23 +1187,15 @@ pub fn is_word_token(data: &[u8]) -> bool {
 /// Returns all data up to and including the first new line or null
 /// Returns Err if not found
 pub fn take_till_lf_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let res = streaming_take_till(|c| c == b'\n' || c == 0)(data);
-    if let Ok((_, line)) = res {
-        Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
-    } else {
-        res
-    }
+    let (_, line) = streaming_take_till(|c| c == b'\n' || c == 0)(data)?;
+    Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
 }
 
 /// Returns all data up to and including the first new line
 /// Returns Err if not found
 pub fn take_till_lf(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let res = streaming_take_till(|c| c == b'\n')(data);
-    if let Ok((_, line)) = res {
-        Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
-    } else {
-        res
-    }
+    let (_, line) = streaming_take_till(|c| c == b'\n')(data)?;
+    Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
 }
 
 /// Returns all data up to and including the first EOL and which EOL was seen
@@ -1265,12 +1238,8 @@ pub fn take_till_eol(data: &[u8]) -> IResult<&[u8], (&[u8], Eol)> {
 /// Returns all data up to and including the first lf or cr character
 /// Returns Err if not found
 pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let res = streaming_take_while(|c: u8| c != b'\n' && c != b'\r')(data);
-    if let Ok((_, line)) = res {
-        Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
-    } else {
-        res
-    }
+    let (_, line) = streaming_take_while(|c: u8| c != b'\n' && c != b'\r')(data)?;
+    Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
 }
 
 /// Skip control characters
@@ -1722,24 +1691,21 @@ mod test {
             b"Tag, but what about this TaG, or this TAG, or another tag. GO FISH.";
         assert_eq!(res_consumed, consumed);
         assert_eq!(res_remaining, remaining);
-        let (remaining, _) =
-            tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
 
         res_consumed = b", but what about this ";
         res_remaining = b"TaG, or this TAG, or another tag. GO FISH.";
         let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
         assert_eq!(res_consumed, consumed);
         assert_eq!(res_remaining, remaining);
-        let (remaining, _) =
-            tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
 
         res_consumed = b", or this ";
         res_remaining = b"TAG, or another tag. GO FISH.";
         let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
         assert_eq!(res_consumed, consumed);
         assert_eq!(res_remaining, remaining);
-        let (remaining, _) =
-            tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
 
         res_consumed = b", or another ";
         res_remaining = b"tag. GO FISH.";
@@ -1752,8 +1718,7 @@ mod test {
         let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
         assert_eq!(res_consumed, consumed);
         assert_eq!(res_remaining, remaining);
-        let (remaining, _) =
-            tag_no_case::<_, _, (&[u8], nom::error::ErrorKind)>("TAG")(remaining).unwrap();
+        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
 
         res_consumed = b". GO FISH.";
         res_remaining = b"";
