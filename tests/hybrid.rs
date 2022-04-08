@@ -333,7 +333,7 @@ fn GetTest() {
     assert_response_header_eq!(tx, "content-type", "text/html");
     assert_response_header_eq!(tx, "server", "Apache");
 
-    t.connp.state_response_complete_ex(1).unwrap();
+    t.connp.state_response_complete().unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_COMPLETE_invoked);
@@ -425,7 +425,7 @@ fn CompressedResponse() {
         .response_process_body_data_ex(Some(body.as_slice()))
         .unwrap();
 
-    t.connp.state_response_complete_ex(1).unwrap();
+    t.connp.state_response_complete().unwrap();
 
     let tx = t.connp.tx(tx_id).unwrap();
     assert_eq!(187, tx.response_message_len);
@@ -736,7 +736,7 @@ fn TestRepeatCallbacks() {
     assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
 
     // Response complete
-    t.connp.state_response_complete_ex(1).unwrap();
+    t.connp.state_response_complete().unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_START_invoked);
@@ -763,7 +763,7 @@ fn ResponseLineIncomplete() {
     assert!(tx.response_status.is_none());
     assert_eq!(HtpResponseNumber::INVALID, tx.response_status_number);
     assert!(tx.response_message.is_none());
-    t.connp.state_response_complete_ex(1).unwrap();
+    t.connp.state_response_complete().unwrap();
 }
 
 /// Try response line with missing response message
@@ -779,5 +779,5 @@ fn ResponseLineIncomplete1() {
     assert!(tx.response_status.as_ref().unwrap().eq_slice("200"));
     assert!(tx.response_status_number.eq_num(200));
     assert!(tx.response_message.is_none());
-    t.connp.state_response_complete_ex(1).unwrap();
+    t.connp.state_response_complete().unwrap();
 }

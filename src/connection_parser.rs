@@ -644,6 +644,14 @@ impl ConnectionParser {
         let connp_ptr: *mut Self = self as *mut Self;
         self.request_mut()
             .state_request_complete(unsafe { &mut *connp_ptr })?;
+        // Determine what happens next, and remove this transaction from the parser.
+        self.request_state = if self.request().is_protocol_0_9 {
+            State::IGNORE_DATA_AFTER_HTTP_0_9
+        } else {
+            State::IDLE
+        };
+        // Check if the entire transaction is complete.
+        let _ = self.request_mut().finalize(unsafe { &mut *connp_ptr })?;
         self.request_next();
         Ok(())
     }
@@ -694,12 +702,48 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
-    pub fn state_response_complete_ex(&mut self, hybrid_mode: i32) -> Result<()> {
+    pub fn state_response_complete(&mut self) -> Result<()> {
         let connp_ptr: *mut Self = self as *mut Self;
         self.response_mut()
-            .state_response_complete_ex(unsafe { &mut *connp_ptr }, hybrid_mode)?;
+            .state_response_complete(unsafe { &mut *connp_ptr })?;
+        // Check if we want to signal the caller to send request data
+        self.request_parser_check_waiting()?;
+        // Otherwise finalize the transaction
+        self.response_mut().finalize(unsafe { &mut *connp_ptr })?;
         self.response_next();
         self.response_state = State::IDLE;
+        Ok(())
+    }
+
+    /// Check if we had previously signalled the caller to give us response
+    /// data, and now we are ready to receive it
+    fn request_parser_check_waiting(&mut self) -> Result<()> {
+        // Check if the inbound parser is waiting on us. If it is, that means that
+        // there might be request data that the inbound parser hasn't consumed yet.
+        // If we don't stop parsing we might encounter a response without a request,
+        // which is why we want to return straight away before processing any data.
+        //
+        // This situation will occur any time the parser needs to see the server
+        // respond to a particular situation before it can decide how to proceed. For
+        // example, when a CONNECT is sent, different paths are used when it is accepted
+        // and when it is not accepted.
+        //
+        // It is not enough to check only in_status here. Because of pipelining, it's possible
+        // that many inbound transactions have been processed, and that the parser is
+        // waiting on a response that we have not seen yet.
+        if self.response_status == HtpStreamState::DATA_OTHER
+            && self.response_index() == self.request_index()
+        {
+            return Err(HtpStatus::DATA_OTHER);
+        }
+
+        // Do we have a signal to yield to inbound processing at
+        // the end of the next transaction?
+        if self.response_data_other_at_tx_end {
+            // We do. Let's yield then.
+            self.response_data_other_at_tx_end = false;
+            return Err(HtpStatus::DATA_OTHER);
+        }
         Ok(())
     }
 

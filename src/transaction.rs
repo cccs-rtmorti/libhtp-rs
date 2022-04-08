@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     config::{Config, HtpUnwanted},
-    connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
+    connection_parser::{ConnectionParser, ParserData, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::Result,
     headers::{Parser as HeaderParser, Side},
@@ -1302,34 +1302,20 @@ impl Transaction {
         Ok(())
     }
 
-    /// Process any final request body data and complete request.
-    pub fn state_request_complete_partial(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        // Finalize request body.
-        if self.request_has_body() {
-            self.request_process_body_data(connp, None)?;
-        }
-        self.request_progress = HtpRequestProgress::COMPLETE;
-        // Run hook REQUEST_COMPLETE.
-        connp.cfg.hook_request_complete.run_all(connp, self)?;
-        Ok(())
-    }
-
     /// Change transaction state to REQUEST and invoke registered callbacks.
     ///
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_request_complete(&mut self, connp: &mut ConnectionParser) -> Result<()> {
         if self.request_progress != HtpRequestProgress::COMPLETE {
-            self.state_request_complete_partial(connp)?;
+            // Finalize request body.
+            if self.request_has_body() {
+                self.request_process_body_data(connp, None)?;
+            }
+            self.request_progress = HtpRequestProgress::COMPLETE;
+            // Run hook REQUEST_COMPLETE.
+            connp.cfg.hook_request_complete.run_all(connp, self)?;
         }
-        // Determine what happens next, and remove this transaction from the parser.
-        if self.is_protocol_0_9 {
-            connp.request_state = State::IGNORE_DATA_AFTER_HTTP_0_9;
-        } else {
-            connp.request_state = State::IDLE;
-        }
-        // Check if the entire transaction is complete.
-        let _ = self.finalize(connp);
         Ok(())
     }
 
@@ -1452,26 +1438,6 @@ impl Transaction {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_response_complete(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        self.state_response_complete_ex(connp, 1)
-    }
-
-    /// Determine if the transaction is complete. This may destroy the transaction
-    /// if its completed and tx_auto_destroy is enabled.
-    pub fn finalize(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        if !self.is_complete() {
-            return Ok(());
-        }
-        // Run hook TRANSACTION_COMPLETE.
-        connp.cfg.hook_transaction_complete.run_all(connp, self)?;
-        Ok(())
-    }
-
-    /// Change transaction state to RESPONSE and invoke registered callbacks.
-    pub fn state_response_complete_ex(
-        &mut self,
-        connp: &mut ConnectionParser,
-        hybrid_mode: i32,
-    ) -> Result<()> {
         if self.response_progress != HtpResponseProgress::COMPLETE {
             self.response_progress = HtpResponseProgress::COMPLETE;
             // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
@@ -1481,34 +1447,17 @@ impl Transaction {
             // Run hook RESPONSE_COMPLETE.
             connp.cfg.hook_response_complete.run_all(connp, self)?;
         }
-        if hybrid_mode == 0 {
-            // Check if the inbound parser is waiting on us. If it is, that means that
-            // there might be request data that the inbound parser hasn't consumed yet.
-            // If we don't stop parsing we might encounter a response without a request,
-            // which is why we want to return straight away before processing any data.
-            //
-            // This situation will occur any time the parser needs to see the server
-            // respond to a particular situation before it can decide how to proceed. For
-            // example, when a CONNECT is sent, different paths are used when it is accepted
-            // and when it is not accepted.
-            //
-            // It is not enough to check only request_status here. Because of pipelining, it's possible
-            // that many inbound transactions have been processed, and that the parser is
-            // waiting on a response that we have not seen yet.
-            if connp.request_status == HtpStreamState::DATA_OTHER
-                && connp.request_index() == connp.response_index()
-            {
-                return Err(HtpStatus::DATA_OTHER);
-            }
-            // Do we have a signal to yield to inbound processing at
-            // the end of the next transaction?
-            if connp.response_data_other_at_tx_end {
-                // We do. Let's yield then.
-                connp.response_data_other_at_tx_end = false;
-                return Err(HtpStatus::DATA_OTHER);
-            }
+        Ok(())
+    }
+
+    /// Determine if the transaction is complete and run any hooks.
+    pub fn finalize(&mut self, connp: &mut ConnectionParser) -> Result<()> {
+        if !self.is_complete() {
+            return Ok(());
         }
-        self.finalize(connp)?;
+        // Disconnect transaction from the parser.
+        // Run hook TRANSACTION_COMPLETE.
+        connp.cfg.hook_transaction_complete.run_all(connp, self)?;
         Ok(())
     }
 

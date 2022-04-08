@@ -750,7 +750,7 @@ impl ConnectionParser {
     /// Finalizes response parsing.
     pub fn response_finalize(&mut self, data: &ParserData) -> Result<()> {
         if data.is_gap() {
-            return self.state_response_complete_ex(0);
+            return self.state_response_complete();
         }
         let mut work = data.as_slice();
         if self.response_status != HtpStreamState::CLOSED {
@@ -759,7 +759,7 @@ impl ConnectionParser {
                 .get_ref()
                 .get(self.response_curr_data.position() as usize);
             if response_next_byte.is_none() {
-                return self.state_response_complete_ex(0);
+                return self.state_response_complete();
             }
             let lf = response_next_byte
                 .map(|byte| *byte == b'\n')
@@ -786,7 +786,7 @@ impl ConnectionParser {
 
         if data.is_empty() {
             //closing
-            return self.state_response_complete_ex(0);
+            return self.state_response_complete();
         }
         if treat_response_line_as_body(&data) {
             // Interpret remaining bytes as body data
@@ -806,7 +806,7 @@ impl ConnectionParser {
             self.response_curr_data
                 .seek(SeekFrom::Current(-(data.len() as i64)))?;
         }
-        self.state_response_complete_ex(0)
+        self.state_response_complete()
     }
 
     /// The response idle state will initialize response processing, as well as
