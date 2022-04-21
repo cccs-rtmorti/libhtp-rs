@@ -345,114 +345,138 @@ impl<T: AsRef<[u8]>> SubIterator for LowercaseIterator<'_, T> {
     }
 }
 
-// Tests
+#[cfg(test)]
+mod tests {
+    use crate::bstr::*;
+    use core::cmp::Ordering;
+    use rstest::rstest;
 
-#[test]
-fn Compare() {
-    let b = Bstr::from("ABCDefgh");
-    // direct equality
-    assert_eq!(Ordering::Equal, b.cmp_slice("ABCDefgh"));
-    // case sensitive
-    assert_ne!(Ordering::Equal, b.cmp_slice("abcdefgh"));
-    // src shorter than dst
-    assert_eq!(Ordering::Less, b.cmp_slice("ABCDefghi"));
-    // src longer than dst
-    assert_eq!(Ordering::Greater, b.cmp_slice("ABCDefg"));
-    // case less
-    assert_eq!(Ordering::Less, b.cmp_slice("abcdefgh"));
-    // case greater
-    assert_eq!(Ordering::Greater, b.cmp_slice("ABCDEFGH"));
-}
+    #[test]
+    fn Compare() {
+        let b = Bstr::from("ABCDefgh");
+        // direct equality
+        assert_eq!(Ordering::Equal, b.cmp_slice("ABCDefgh"));
+        // case sensitive
+        assert_ne!(Ordering::Equal, b.cmp_slice("abcdefgh"));
+        // src shorter than dst
+        assert_eq!(Ordering::Less, b.cmp_slice("ABCDefghi"));
+        // src longer than dst
+        assert_eq!(Ordering::Greater, b.cmp_slice("ABCDefg"));
+        // case less
+        assert_eq!(Ordering::Less, b.cmp_slice("abcdefgh"));
+        // case greater
+        assert_eq!(Ordering::Greater, b.cmp_slice("ABCDEFGH"));
+    }
 
-#[test]
-fn CompareNocase() {
-    let b = Bstr::from("ABCDefgh");
-    assert_eq!(Ordering::Equal, b.cmp_nocase("ABCDefgh"));
-    assert_eq!(Ordering::Equal, b.cmp_nocase("abcdefgh"));
-    assert_eq!(Ordering::Equal, b.cmp_nocase("ABCDEFGH"));
-    assert_eq!(Ordering::Less, b.cmp_nocase("ABCDefghi"));
-    assert_eq!(Ordering::Greater, b.cmp_nocase("ABCDefg"));
-}
+    #[test]
+    fn CompareNocase() {
+        let b = Bstr::from("ABCDefgh");
+        assert_eq!(Ordering::Equal, b.cmp_nocase("ABCDefgh"));
+        assert_eq!(Ordering::Equal, b.cmp_nocase("abcdefgh"));
+        assert_eq!(Ordering::Equal, b.cmp_nocase("ABCDEFGH"));
+        assert_eq!(Ordering::Less, b.cmp_nocase("ABCDefghi"));
+        assert_eq!(Ordering::Greater, b.cmp_nocase("ABCDefg"));
+    }
 
-#[test]
-fn CompareNocaseNozero() {
-    // nocase_nozero only applies to the source string. The caller
-    // is not expected to pass in a search string with nulls in it.
-    let b = Bstr::from("A\x00B\x00\x00C\x00Defg\x00h");
-    assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("ABCDefgh"));
-    assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("abcdefgh"));
-    assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("ABCDEFGH"));
-    assert_eq!(Ordering::Less, b.cmp_nocase_nozero("ABCDefghi"));
-    assert_eq!(Ordering::Greater, b.cmp_nocase_nozero("ABCDefg"));
-}
+    #[test]
+    fn CompareNocaseNozero() {
+        // nocase_nozero only applies to the source string. The caller
+        // is not expected to pass in a search string with nulls in it.
+        let b = Bstr::from("A\x00B\x00\x00C\x00Defg\x00h");
+        assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("ABCDefgh"));
+        assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("abcdefgh"));
+        assert_eq!(Ordering::Equal, b.cmp_nocase_nozero("ABCDEFGH"));
+        assert_eq!(Ordering::Less, b.cmp_nocase_nozero("ABCDefghi"));
+        assert_eq!(Ordering::Greater, b.cmp_nocase_nozero("ABCDefg"));
+    }
 
-#[test]
-fn Add() {
-    let mut b = Bstr::from("ABCD");
-    b.add("efgh");
-    assert_eq!(Ordering::Equal, b.cmp_slice("ABCDefgh"));
-}
+    #[rstest]
+    #[case("abc", "defgh", "abcdefgh")]
+    #[case("ABC", "DEFGH", "ABCDEFGH")]
+    #[case("aBc", "Defgh", "aBcDefgh")]
+    #[case(
+        "TestLongerDataBc",
+        "Defghikjlmnopqrstuvwxyz",
+        "TestLongerDataBcDefghikjlmnopqrstuvwxyz"
+    )]
+    fn test_add(#[case] input: &str, #[case] input_add: &str, #[case] expected: &str) {
+        let mut b = Bstr::from(input);
+        b.add(input_add);
+        assert_eq!(b.cmp_slice(expected), Ordering::Equal);
+    }
 
-#[test]
-fn AddNoEx() {
-    let mut b = Bstr::from("ABCD");
-    b.add_noex("efghijklmnopqrstuvwxyz");
-    assert_eq!(4, b.len());
+    #[rstest]
+    #[case(10, "abcd", "efghij", "abcdefghij")]
+    #[case(5, "ABcd", "efgh", "ABcde")]
+    #[case(4, "AbCd", "EFGH", "AbCd")]
+    #[case(20, "abcd", "efGHij", "abcdefGHij")]
+    fn test_add_no_ex(
+        #[case] capacity: usize,
+        #[case] input: &str,
+        #[case] input_add: &str,
+        #[case] expected: &str,
+    ) {
+        let mut b = Bstr::with_capacity(capacity);
+        b.add_noex(input);
+        b.add_noex(input_add);
+        assert_eq!(b.cmp_slice(expected), Ordering::Equal);
+    }
 
-    let mut c = Bstr::with_capacity(10);
-    c.add_noex("ABCD");
-    assert_eq!(4, c.len());
-    c.add_noex("efghijklmnopqrstuvwxyz");
-    assert_eq!(10, c.len());
-    assert_eq!(Ordering::Equal, c.cmp_slice("ABCDefghij"))
-}
+    #[test]
+    fn StartsWith() {
+        let b = Bstr::from("ABCD");
+        assert!(b.starts_with("AB"));
+        assert!(!b.starts_with("ab"));
+        assert!(!b.starts_with("Ab"));
+        assert!(!b.starts_with("aB"));
+        assert!(!b.starts_with("CD"));
+    }
 
-#[test]
-fn StartsWith() {
-    let b = Bstr::from("ABCD");
-    assert!(b.starts_with("AB"));
-}
+    #[test]
+    fn StartsWithNocase() {
+        let b = Bstr::from("ABCD");
+        assert!(b.starts_with_nocase("AB"));
+        assert!(b.starts_with_nocase("ab"));
+        assert!(b.starts_with_nocase("Ab"));
+        assert!(b.starts_with_nocase("aB"));
+        assert!(!b.starts_with_nocase("CD"));
+    }
 
-#[test]
-fn StartsWithNocase() {
-    let b = Bstr::from("ABCD");
-    assert!(b.starts_with_nocase("Ab"));
-}
+    #[test]
+    fn IndexOf() {
+        let b = Bstr::from("ABCDefgh");
+        assert_eq!(Some(4), b.index_of("e"));
+        assert_eq!(Some(0), b.index_of("A"));
+        assert_eq!(Some(7), b.index_of("h"));
+        assert_eq!(Some(3), b.index_of("De"));
+        assert_eq!(None, b.index_of("z"));
+        assert_eq!(None, b.index_of("a"));
+        assert_eq!(None, b.index_of("hi"));
+    }
 
-#[test]
-fn IndexOf() {
-    let b = Bstr::from("ABCDefgh");
-    assert_eq!(Some(4), b.index_of("e"));
-    assert_eq!(Some(0), b.index_of("A"));
-    assert_eq!(Some(7), b.index_of("h"));
-    assert_eq!(Some(3), b.index_of("De"));
-    assert_eq!(None, b.index_of("z"));
-    assert_eq!(None, b.index_of("a"));
-    assert_eq!(None, b.index_of("hi"));
-}
+    #[test]
+    fn IndexOfNocase() {
+        let b = Bstr::from("ABCDefgh");
+        assert_eq!(Some(4), b.index_of_nocase("E"));
+        assert_eq!(Some(0), b.index_of_nocase("a"));
+        assert_eq!(Some(0), b.index_of_nocase("A"));
+        assert_eq!(Some(7), b.index_of_nocase("H"));
+        assert_eq!(Some(3), b.index_of_nocase("dE"));
+        assert_eq!(None, b.index_of_nocase("z"));
+        assert_eq!(None, b.index_of_nocase("Hi"));
+    }
 
-#[test]
-fn IndexOfNocase() {
-    let b = Bstr::from("ABCDefgh");
-    assert_eq!(Some(4), b.index_of_nocase("E"));
-    assert_eq!(Some(0), b.index_of_nocase("a"));
-    assert_eq!(Some(0), b.index_of_nocase("A"));
-    assert_eq!(Some(7), b.index_of_nocase("H"));
-    assert_eq!(Some(3), b.index_of_nocase("dE"));
-    assert_eq!(None, b.index_of_nocase("z"));
-    assert_eq!(None, b.index_of_nocase("Hi"));
-}
-
-#[test]
-fn IndexOfNocaseNozero() {
-    let b = Bstr::from("A\x00B\x00\x00C\x00Defg\x00h");
-    assert_eq!(Some(8), b.index_of_nocase_nozero("E"));
-    assert_eq!(Some(0), b.index_of_nocase_nozero("a"));
-    assert_eq!(Some(0), b.index_of_nocase_nozero("A"));
-    assert_eq!(Some(12), b.index_of_nocase_nozero("H"));
-    assert_eq!(Some(7), b.index_of_nocase_nozero("dE"));
-    assert_eq!(Some(2), b.index_of_nocase_nozero("bc"));
-    assert_eq!(None, b.index_of_nocase_nozero("z"));
-    assert_eq!(None, b.index_of_nocase_nozero("Hi"));
-    assert_eq!(None, b.index_of_nocase_nozero("ghi"));
+    #[test]
+    fn IndexOfNocaseNozero() {
+        let b = Bstr::from("A\x00B\x00\x00C\x00Defg\x00h");
+        assert_eq!(Some(8), b.index_of_nocase_nozero("E"));
+        assert_eq!(Some(0), b.index_of_nocase_nozero("a"));
+        assert_eq!(Some(0), b.index_of_nocase_nozero("A"));
+        assert_eq!(Some(12), b.index_of_nocase_nozero("H"));
+        assert_eq!(Some(7), b.index_of_nocase_nozero("dE"));
+        assert_eq!(Some(2), b.index_of_nocase_nozero("bc"));
+        assert_eq!(None, b.index_of_nocase_nozero("z"));
+        assert_eq!(None, b.index_of_nocase_nozero("Hi"));
+        assert_eq!(None, b.index_of_nocase_nozero("ghi"));
+    }
 }

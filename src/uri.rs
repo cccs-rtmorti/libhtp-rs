@@ -378,17 +378,16 @@ fn normalize_uri_path_inplace(s: &mut Bstr) {
 }
 
 //Tests
-
-#[test]
-fn ParseUri() {
-    let cfg = DecoderConfig::default();
-    let tests = [
-        (
-            Some(Bstr::from(
-                "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
-            )),
-            Uri {
-                cfg,
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rstest::rstest;
+    #[rstest]
+    #[case::no_port(b"http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
+    Some("http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"),
+    Some("/path1/path2?a=b&c=d#frag"),
+        Uri {
+                cfg: DecoderConfig::default(),
                 scheme: Some(Bstr::from("http")),
                 username: Some(Bstr::from("user")),
                 password: Some(Bstr::from("pass")),
@@ -398,12 +397,12 @@ fn ParseUri() {
                 path: Some(Bstr::from("/path1/path2")),
                 query: Some(Bstr::from("a=b&c=d")),
                 fragment: Some(Bstr::from("frag")),
-            },
-        ),
-        (
-            Some(Bstr::from("http://host.com/path")),
+        })]
+    #[case::scheme_hostname_path(b"http://host.com/path",
+    Some("http://host.com/path"),
+    Some("/path"),
             Uri {
-                cfg,
+                cfg: DecoderConfig::default(),
                 scheme: Some(Bstr::from("http")),
                 username: None,
                 password: None,
@@ -413,12 +412,12 @@ fn ParseUri() {
                 path: Some(Bstr::from("/path")),
                 query: None,
                 fragment: None,
-            },
-        ),
-        (
-            Some(Bstr::from("http://host.com")),
+            })]
+    #[case::scheme_hostname(b"http://host.com",
+    Some("http://host.com"),
+    None,
             Uri {
-                cfg,
+                cfg: DecoderConfig::default(),
                 scheme: Some(Bstr::from("http")),
                 username: None,
                 password: None,
@@ -428,12 +427,12 @@ fn ParseUri() {
                 path: None,
                 query: None,
                 fragment: None,
-            },
-        ),
-        (
-            Some(Bstr::from("http://")),
+            })]
+    #[case::scheme_path(b"http://",
+    Some("http:////"),
+    Some("//"),
             Uri {
-                cfg,
+                cfg: DecoderConfig::default(),
                 scheme: Some(Bstr::from("http")),
                 username: None,
                 password: None,
@@ -443,12 +442,12 @@ fn ParseUri() {
                 path: Some(Bstr::from("//")),
                 query: None,
                 fragment: None,
-            },
-        ),
-        (
-            Some(Bstr::from("/path")),
+            })]
+    #[case::path(b"/path",
+    Some("/path"),
+    Some("/path"),
             Uri {
-                cfg,
+                cfg: DecoderConfig::default(),
                 scheme: None,
                 username: None,
                 password: None,
@@ -458,12 +457,12 @@ fn ParseUri() {
                 path: Some(Bstr::from("/path")),
                 query: None,
                 fragment: None,
-            },
-        ),
-        (
-            Some(Bstr::from("://")),
+            })]
+    #[case::empty_scheme_path(b"://",
+    Some(":////"),
+    Some("//"),
             Uri {
-                cfg,
+                cfg: DecoderConfig::default(),
                 scheme: Some(Bstr::from("")),
                 username: None,
                 password: None,
@@ -473,27 +472,13 @@ fn ParseUri() {
                 path: Some(Bstr::from("//")),
                 query: None,
                 fragment: None,
-            },
-        ),
-        (
-            Some(Bstr::from("")),
+            })]
+    #[case::empty(b"", None, None, Uri::default())]
+    #[case::scheme_user_host(b"http://user@host.com",
+    Some("http://user:@host.com"),
+    None,
             Uri {
-                cfg,
-                scheme: None,
-                username: None,
-                password: None,
-                hostname: None,
-                port: None,
-                port_number: None,
-                path: None,
-                query: None,
-                fragment: None,
-            },
-        ),
-        (
-            Some(Bstr::from("http://user@host.com")),
-            Uri {
-                cfg,
+                cfg: DecoderConfig::default(),
                 scheme: Some(Bstr::from("http")),
                 username: Some(Bstr::from("user")),
                 password: None,
@@ -503,173 +488,46 @@ fn ParseUri() {
                 path: None,
                 query: None,
                 fragment: None,
-            },
-        ),
-        (
-            None,
-            Uri {
-                cfg,
-                scheme: None,
-                username: None,
-                password: None,
-                hostname: None,
-                port: None,
-                port_number: None,
-                path: None,
-                query: None,
-                fragment: None,
-            },
-        ),
-    ]
-    .to_vec();
-    for test in tests {
+            })]
+    fn test_parse_uri(
+        #[case] input: &[u8],
+        #[case] expected_normalized: Option<&str>,
+        #[case] expected_partial: Option<&str>,
+        #[case] expected: Uri,
+    ) {
         let mut uri = Uri::default();
-        if test.0.is_some() {
-            uri.parse_uri(test.0.as_ref().unwrap().as_slice())
-        };
-        assert_eq!(test.1.scheme, uri.scheme);
-        assert_eq!(test.1.username, uri.username);
-        assert_eq!(test.1.password, uri.password);
-        assert_eq!(test.1.hostname, uri.hostname);
-        assert_eq!(test.1.port, uri.port);
-        assert_eq!(test.1.path, uri.path);
-        assert_eq!(test.1.query, uri.query);
-        assert_eq!(test.1.fragment, uri.fragment);
+        uri.parse_uri(input);
+        assert_eq!(uri.scheme, expected.scheme);
+        assert_eq!(uri.username, expected.username);
+        assert_eq!(uri.password, expected.password);
+        assert_eq!(uri.hostname, expected.hostname);
+        assert_eq!(uri.port, expected.port);
+        assert_eq!(uri.path, expected.path);
+        assert_eq!(uri.query, expected.query);
+        assert_eq!(uri.fragment, expected.fragment);
+        assert_eq!(
+            uri.generate_normalized_uri(None),
+            (
+                expected_partial.map(Bstr::from),
+                expected_normalized.map(Bstr::from)
+            )
+        );
     }
-}
 
-#[test]
-fn GenerateNormalizedUri1() {
-    let mut uri = Uri::default();
-    uri.scheme = Some(Bstr::from("http"));
-    uri.username = Some(Bstr::from("user"));
-    uri.password = Some(Bstr::from("pass"));
-    uri.hostname = Some(Bstr::from("www.example.com"));
-    uri.port = Some(Bstr::from("1234"));
-    uri.path = Some(Bstr::from("/path1/path2"));
-    uri.query = Some(Bstr::from("a=b&c=d"));
-    uri.fragment = Some(Bstr::from("frag"));
-
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(
-        partial_normalized_uri,
-        Some(Bstr::from("/path1/path2?a=b&c=d#frag"))
-    );
-    assert_eq!(
-        normalized_uri,
-        Some(Bstr::from(
-            "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
-        ))
-    );
-}
-
-#[test]
-fn GenerateNormalizedUri2() {
-    let mut uri = Uri::default();
-    uri.scheme = Some(Bstr::from("http"));
-    uri.hostname = Some(Bstr::from("host.com"));
-    uri.path = Some(Bstr::from("/path"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, Some(Bstr::from("/path")));
-    assert_eq!(normalized_uri, Some(Bstr::from("http://host.com/path")));
-}
-
-#[test]
-fn GenerateNormalizedUri3() {
-    let mut uri = Uri::default();
-    uri.scheme = Some(Bstr::from("http"));
-    uri.hostname = Some(Bstr::from("host.com"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, None);
-    assert_eq!(normalized_uri, Some(Bstr::from("http://host.com")));
-}
-
-#[test]
-fn GenerateNormalizedUri4() {
-    let mut uri = Uri::default();
-    uri.scheme = Some(Bstr::from("http"));
-    uri.path = Some(Bstr::from("//"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, Some(Bstr::from("//")));
-    assert_eq!(normalized_uri, Some(Bstr::from("http:////")));
-}
-
-#[test]
-fn GenerateNormalizedUri5() {
-    let mut uri = Uri::default();
-    uri.path = Some(Bstr::from("/path"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, Some(Bstr::from("/path")));
-    assert_eq!(normalized_uri, Some(Bstr::from("/path")));
-}
-
-#[test]
-fn GenerateNormalizedUri6() {
-    let mut uri = Uri::default();
-    uri.scheme = Some(Bstr::from(""));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, None);
-    assert_eq!(normalized_uri, Some(Bstr::from("://")));
-}
-
-#[test]
-fn GenerateNormalizedUri7() {
-    let uri = Uri::default();
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, None);
-    assert_eq!(normalized_uri, None);
-}
-
-#[test]
-fn GenerateNormalizedUri8() {
-    let mut uri = Uri::default();
-    uri.scheme = Some(Bstr::from("http"));
-    uri.username = Some(Bstr::from("user"));
-    uri.hostname = Some(Bstr::from("host.com"));
-    let (partial_normalized_uri, normalized_uri) = uri.generate_normalized_uri(None);
-    assert_eq!(partial_normalized_uri, None);
-    assert_eq!(normalized_uri, Some(Bstr::from("http://user:@host.com")));
-}
-
-#[test]
-fn NormalizeUriPath() {
-    let mut s = Bstr::from("/a/b/c/./../../g");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice("/a/g"));
-
-    let mut s = Bstr::from("mid/content=5/../6");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice("mid/6"));
-
-    let mut s = Bstr::from("./one");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice("one"));
-
-    let mut s = Bstr::from("../one");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice("one"));
-
-    let mut s = Bstr::from(".");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice(""));
-
-    let mut s = Bstr::from("..");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice(""));
-
-    let mut s = Bstr::from("one/.");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice("one"));
-
-    let mut s = Bstr::from("one/..");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice(""));
-
-    let mut s = Bstr::from("one/../");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice(""));
-
-    let mut s = Bstr::from("/../../../images.gif");
-    normalize_uri_path_inplace(&mut s);
-    assert!(s.eq_slice("/images.gif"));
+    #[rstest]
+    #[case(b"/a/b/c/./../../g", b"/a/g")]
+    #[case(b"mid/content=5/../6", b"mid/6")]
+    #[case(b"./one", b"one")]
+    #[case(b"../one", b"one")]
+    #[case(b".", b"")]
+    #[case(b"..", b"")]
+    #[case(b"one/.", b"one")]
+    #[case(b"one/..", b"")]
+    #[case(b"one/../", b"")]
+    #[case(b"/../../../images.gif", b"/images.gif")]
+    fn test_normalize_uri_path(#[case] input: &[u8], #[case] expected: &[u8]) {
+        let mut s = Bstr::from(input);
+        normalize_uri_path_inplace(&mut s);
+        assert!(s.eq_slice(expected))
+    }
 }

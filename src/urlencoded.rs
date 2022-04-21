@@ -151,220 +151,67 @@ impl Default for Parser {
     }
 }
 
-// Tests
-#[test]
-fn Empty() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"");
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rstest::rstest;
 
-    assert_eq!(0, urlenp.params.size());
-}
+    #[rstest]
+    #[case::empty("", &[])]
+    #[case::empty_key_value("&", &[("", "")])]
+    #[case::empty_key_value("=&", &[("", "")])]
+    #[case::empty_key_value("&=", &[("", "")])]
+    #[case::empty_key_value("&&", &[("", "")])]
+    #[case::empty_key_value("=", &[("", "")])]
+    #[case::empty_key("=1&", &[("", "1")])]
+    #[case::empty_key("=p", &[("", "p")])]
+    #[case::empty_value("p", &[("p", "")])]
+    #[case::empty_value("p=", &[("p", "")])]
+    #[case::empty_value("p&", &[("p", "")])]
+    #[case::pair("p=1", &[("p", "1")])]
+    #[case::two_pair("p=1&q=2", &[("p", "1"), ("q", "2")])]
+    #[case::two_keys("p&q", &[("p", ""), ("q", "")])]
+    #[case::two_keys_one_value("p&q=2", &[("p", ""), ("q", "2")])]
+    fn test_parse_complete(#[case] input: &str, #[case] expected: &[(&str, &str)]) {
+        let mut urlenp = Parser::default();
+        urlenp.parse_complete(input.as_bytes());
+        for (key, value) in expected {
+            assert!(urlenp.params.get_nocase(key).unwrap().1.eq_slice(value));
+        }
+        assert_eq!(
+            expected.len(),
+            urlenp.params.size(),
+            "Test case expected {} params. parse_complete resulted in {} params.",
+            expected.len(),
+            urlenp.params.size()
+        );
+    }
 
-#[test]
-fn EmptyKey1() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn EmptyKey2() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"=&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn EmptyKey3() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"=1&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice("1"));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn EmptyKey4() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"&=");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn EmptyKey5() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"&&");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn EmptyKeyAndValue() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"=");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn OnePairEmptyValue() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p=");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn OnePairEmptyKey() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"=p");
-
-    assert!(urlenp.params.get_nocase("").unwrap().1.eq_slice("p"));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn OnePair() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p=1");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice("1"));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn TwoPairs() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p=1&q=2");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice("1"));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq_slice("2"));
-    assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn KeyNoValue1() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn KeyNoValue2() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p&");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn KeyNoValue3() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p&q");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq_slice(""));
-    assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn KeyNoValue4() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_complete(b"p&q=2");
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert!(urlenp.params.get_nocase("q").unwrap().1.eq_slice("2"));
-    assert_eq!(2, urlenp.params.size());
-}
-
-#[test]
-fn Partial1() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_partial(b"p");
-    urlenp.finalize();
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn Partial2() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_partial(b"p");
-    urlenp.parse_partial(b"x");
-    urlenp.finalize();
-
-    assert!(urlenp.params.get_nocase("px").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn Partial3() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_partial(b"p");
-    urlenp.parse_partial(b"x&");
-    urlenp.finalize();
-
-    assert!(urlenp.params.get_nocase("px").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn Partial4() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_partial(b"p");
-    urlenp.parse_partial(b"=");
-    urlenp.finalize();
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn Partial5() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_partial(b"p");
-    urlenp.parse_partial(b"");
-    urlenp.parse_partial(b"");
-    urlenp.parse_partial(b"");
-    urlenp.finalize();
-
-    assert!(urlenp.params.get_nocase("p").unwrap().1.eq_slice(""));
-    assert_eq!(1, urlenp.params.size());
-}
-
-#[test]
-fn Partial6() {
-    let mut urlenp = Parser::default();
-    urlenp.parse_partial(b"px");
-    urlenp.parse_partial(b"n");
-    urlenp.parse_partial(b"");
-    urlenp.parse_partial(b"=");
-    urlenp.parse_partial(b"1");
-    urlenp.parse_partial(b"2");
-    urlenp.parse_partial(b"&");
-    urlenp.parse_partial(b"qz");
-    urlenp.parse_partial(b"n");
-    urlenp.parse_partial(b"");
-    urlenp.parse_partial(b"=");
-    urlenp.parse_partial(b"2");
-    urlenp.parse_partial(b"3");
-    urlenp.parse_partial(b"&");
-    urlenp.finalize();
-
-    assert!(urlenp.params.get_nocase("pxn").unwrap().1.eq_slice("12"));
-    assert!(urlenp.params.get_nocase("qzn").unwrap().1.eq_slice("23"));
-    assert_eq!(2, urlenp.params.size());
+    #[rstest]
+    #[case::empty_value(&["p"], &[("p", "")])]
+    #[case::empty_value(&["p", "x"], &[("px", "")])]
+    #[case::empty_value(&["p", "x&"], &[("px", "")])]
+    #[case::empty_value(&["p", "="], &[("p", "")])]
+    #[case::empty_value(&["p", "", "", ""], &[("p", "")])]
+    #[case::two_pairs(
+            &["px", "n", "", "=", "1", "2", "&", "qz", "n", "", "=", "2", "3", "&"],
+            &[("pxn", "12"), ("qzn", "23")]
+        )]
+    fn test_parse_partial(#[case] input: &[&str], #[case] expected: &[(&str, &str)]) {
+        let mut urlenp = Parser::default();
+        for i in input {
+            urlenp.parse_partial(i.as_bytes());
+        }
+        urlenp.finalize();
+        for (key, value) in expected {
+            assert!(urlenp.params.get_nocase(key).unwrap().1.eq_slice(value));
+        }
+        assert_eq!(
+            expected.len(),
+            urlenp.params.size(),
+            "Test case expected {} params. parse_complete resulted in {} params.",
+            expected.len(),
+            urlenp.params.size()
+        );
+    }
 }

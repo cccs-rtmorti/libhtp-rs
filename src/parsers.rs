@@ -113,6 +113,9 @@ pub fn scheme() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
+/// Helper for parsed credentials (username, Option<password>)
+pub type ParsedCredentials<'a> = (&'a [u8], Option<&'a [u8]>);
+
 /// Attempts to extract the credentials from a given input URI, assuming the scheme has already been extracted.
 /// # Example
 /// ```
@@ -126,7 +129,7 @@ pub fn scheme() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
 /// ```
 ///
 /// Returns a tuple of the remaining unconsumed data and a tuple of the matched username and password.
-pub fn credentials() -> impl Fn(&[u8]) -> IResult<&[u8], (&[u8], Option<&[u8]>)> {
+pub fn credentials() -> impl Fn(&[u8]) -> IResult<&[u8], ParsedCredentials> {
     move |input| {
         // Authority test: two forward slash characters and it's an authority.
         // One, three or more slash characters, and it's a path.
@@ -483,495 +486,250 @@ pub fn parse_cookies_v0(request_tx: &mut Transaction) -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn ParseSingleCookieV0() {
-    assert_eq!(
-        (b"yummy_cookie".as_ref(), b"choco".as_ref()),
-        single_cookie_v0(b"yummy_cookie=choco")
-    );
-    assert_eq!(
-        (b"".as_ref(), b"choco".as_ref()),
-        single_cookie_v0(b"=choco")
-    );
-    assert_eq!(
-        (b"yummy_cookie".as_ref(), b"".as_ref()),
-        single_cookie_v0(b"yummy_cookie=")
-    );
-    assert_eq!((b"".as_ref(), b"".as_ref()), single_cookie_v0(b"="));
-    assert_eq!((b"".as_ref(), b"".as_ref()), single_cookie_v0(b""));
-}
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rstest::rstest;
 
-#[test]
-fn AuthDigest() {
-    assert_eq!(
-        b"ivan\"r\"".to_vec(),
-        parse_authorization_digest(b"   username=   \"ivan\\\"r\\\"\"")
-            .unwrap()
-            .1
-    );
-    assert_eq!(
-        b"ivan\"r\"".to_vec(),
-        parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"")
-            .unwrap()
-            .1
-    );
-    assert_eq!(
-        b"ivan\"r\"".to_vec(),
-        parse_authorization_digest(b"username=\"ivan\\\"r\\\"\"   ")
-            .unwrap()
-            .1
-    );
-    assert_eq!(
-        b"ivanr".to_vec(),
-        parse_authorization_digest(b"username=\"ivanr\"   ")
-            .unwrap()
-            .1
-    );
-    assert_eq!(
-        b"ivanr".to_vec(),
-        parse_authorization_digest(b"username=   \"ivanr\"   ")
-            .unwrap()
-            .1
-    );
-    assert!(parse_authorization_digest(b"username=ivanr\"   ").is_err()); //Missing opening quote
-    assert!(parse_authorization_digest(b"username=\"ivanr   ").is_err()); //Missing closing quote
-}
-#[test]
-fn ParseStatus() {
-    assert!(parse_status(&Bstr::from("   200    ")).eq_num(200u16));
-    assert!(parse_status(&Bstr::from("  \t 404    ")).eq_num(404u16));
-    assert!(parse_status(&Bstr::from("123")).eq_num(123u16));
-    assert_eq!(parse_status(&Bstr::from("99")), HtpResponseNumber::INVALID);
-    assert_eq!(
-        parse_status(&Bstr::from("1000")),
-        HtpResponseNumber::INVALID
-    );
-    assert_eq!(
-        parse_status(&Bstr::from("200 OK")),
-        HtpResponseNumber::INVALID
-    );
-    assert_eq!(
-        parse_status(&Bstr::from("NOT 200")),
-        HtpResponseNumber::INVALID
-    );
-}
+    #[rstest]
+    #[case("yummy_cookie=choco", "yummy_cookie", "choco")]
+    #[case("yummy_cookie=", "yummy_cookie", "")]
+    #[case("=choco", "", "choco")]
+    #[case("=", "", "")]
+    #[case("", "", "")]
+    fn test_single_cookie_v0(#[case] input: &str, #[case] name: &str, #[case] value: &str) {
+        assert_eq!(
+            single_cookie_v0(input.as_bytes()),
+            (name.as_bytes(), value.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseScheme_1() {
-    let i: &[u8] = b"http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let e: &[u8] = b"http";
-    let (left, scheme) = scheme()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(scheme, e);
-}
+    #[rstest]
+    #[case("   username=   \"ivan\\\"r\\\"\"", "ivan\"r\"", "")]
+    #[case("username=\"ivan\\\"r\\\"\"", "ivan\"r\"", "")]
+    #[case("username=\"ivan\\\"r\\\"\"   ", "ivan\"r\"", "   ")]
+    #[case("username=\"ivanr\"   ", "ivanr", "   ")]
+    #[case("username=   \"ivanr\"   ", "ivanr", "   ")]
+    #[should_panic]
+    #[case("username=ivanr\"   ", "", "")]
+    #[should_panic]
+    #[case("username=\"ivanr   ", "", "")]
+    fn test_parse_authorization_digest(
+        #[case] input: &str,
+        #[case] username: &str,
+        #[case] remaining: &str,
+    ) {
+        assert_eq!(
+            parse_authorization_digest(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), username.as_bytes().to_vec())
+        );
+    }
 
-#[test]
-fn ParseInvalidScheme() {
-    let i: &[u8] = b"/http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    assert!(scheme()(i).is_err());
-}
+    #[rstest]
+    #[case("   200    ", HtpResponseNumber::VALID(200))]
+    #[case("  \t 404    ", HtpResponseNumber::VALID(404))]
+    #[case("123", HtpResponseNumber::VALID(123))]
+    #[case("99", HtpResponseNumber::INVALID)]
+    #[case("1000", HtpResponseNumber::INVALID)]
+    #[case("200 OK", HtpResponseNumber::INVALID)]
+    #[case("NOT 200", HtpResponseNumber::INVALID)]
+    fn test_parse_status(#[case] input: &str, #[case] expected: HtpResponseNumber) {
+        assert_eq!(parse_status(&Bstr::from(input)), expected);
+    }
 
-#[test]
-fn ParseCredentials_1() {
-    let i: &[u8] = b"//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let u: &[u8] = b"user";
-    let p: &[u8] = b"pass";
-    let (left, (user, pass)) = credentials()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(user, u);
-    assert_eq!(pass.unwrap(), p);
-}
+    #[rstest]
+    #[case(
+        "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
+        "http",
+        "//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag"
+    )]
+    #[should_panic]
+    #[case(
+        "/http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
+        "",
+        ""
+    )]
+    fn test_scheme(#[case] input: &str, #[case] s: &str, #[case] remaining: &str) {
+        assert_eq!(
+            scheme()(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), s.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseCredentials_2() {
-    let i: &[u8] = b"//user@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let u: &[u8] = b"user";
-    let (left, (user, pass)) = credentials()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(user, u);
-    assert!(pass.is_none());
-}
+    #[rstest]
+    #[case(
+        "//user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
+        "user",
+        Some("pass"),
+        "www.example.com:1234/path1/path2?a=b&c=d#frag"
+    )]
+    #[case(
+        "//user@www.example.com:1234/path1/path2?a=b&c=d#frag",
+        "user",
+        None,
+        "www.example.com:1234/path1/path2?a=b&c=d#frag"
+    )]
+    #[should_panic]
+    #[case(
+        "http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag",
+        "",
+        None,
+        ""
+    )]
+    fn test_credentials(
+        #[case] input: &str,
+        #[case] username: &str,
+        #[case] password: Option<&str>,
+        #[case] remaining: &str,
+    ) {
+        assert_eq!(
+            credentials()(input.as_bytes()).unwrap(),
+            (
+                remaining.as_bytes(),
+                (username.as_bytes(), password.map(|i| i.as_bytes()))
+            )
+        );
+    }
 
-#[test]
-fn ParseInvalidCredentials() {
-    //Must have already parsed the scheme!
-    let i: &[u8] = b"http://user:pass@www.example.com:1234/path1/path2?a=b&c=d#frag";
-    assert!(credentials()(i).is_err());
-}
+    #[rstest]
+    #[case(
+        "www.example.com:1234/path1/path2?a=b&c=d#frag",
+        "www.example.com",
+        ":1234/path1/path2?a=b&c=d#frag"
+    )]
+    #[case(
+        "www.example.com/path1/path2?a=b&c=d#frag",
+        "www.example.com",
+        "/path1/path2?a=b&c=d#frag"
+    )]
+    #[case("www.example.com?a=b&c=d#frag", "www.example.com", "?a=b&c=d#frag")]
+    #[case("www.example.com#frag", "www.example.com", "#frag")]
+    #[case("[::1]:8080", "[::1]", ":8080")]
+    #[case("[::1", "[::1", "")]
+    #[case("[::1/path1[0]", "[::1", "/path1[0]")]
+    #[case("[::1]xxxx", "[::1]", "xxxx")]
+    #[should_panic]
+    #[case("/www.example.com/path1/path2?a=b&c=d#frag", "", "")]
+    fn test_hostname(#[case] input: &str, #[case] host: &str, #[case] remaining: &str) {
+        assert_eq!(
+            hostname()(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), host.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseHostname_1() {
-    let i: &[u8] = b"www.example.com:1234/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b":1234/path1/path2?a=b&c=d#frag";
-    let e: &[u8] = b"www.example.com";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
+    #[rstest]
+    #[case(":1234/path1/path2?a=b&c=d#frag", "1234", "/path1/path2?a=b&c=d#frag")]
+    #[case(":1234?a=b&c=d#frag", "1234", "?a=b&c=d#frag")]
+    #[case(":1234#frag", "1234", "#frag")]
+    #[should_panic]
+    #[case("1234/path1/path2?a=b&c=d#frag", "", "")]
+    fn test_port(#[case] input: &str, #[case] p: &str, #[case] remaining: &str) {
+        assert_eq!(
+            port()(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), p.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseHostname_2() {
-    let i: &[u8] = b"www.example.com/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"/path1/path2?a=b&c=d#frag";
-    let e: &[u8] = b"www.example.com";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
+    #[rstest]
+    #[case("/path1/path2?a=b&c=d#frag", "/path1/path2", "?a=b&c=d#frag")]
+    #[case("/path1/path2#frag", "/path1/path2", "#frag")]
+    #[case("path1/path2?a=b&c=d#frag", "path1/path2", "?a=b&c=d#frag")]
+    #[case("//", "//", "")]
+    fn test_path(#[case] input: &str, #[case] p: &str, #[case] remaining: &str) {
+        assert_eq!(
+            path()(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), p.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseHostname_3() {
-    let i: &[u8] = b"www.example.com?a=b&c=d#frag";
-    let o: &[u8] = b"?a=b&c=d#frag";
-    let e: &[u8] = b"www.example.com";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
+    #[rstest]
+    #[case("?a=b&c=d#frag", "a=b&c=d", "#frag")]
+    #[case("?a=b&c=d", "a=b&c=d", "")]
+    fn test_query(#[case] input: &str, #[case] q: &str, #[case] remaining: &str) {
+        assert_eq!(
+            query()(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), q.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseHostname_4() {
-    let i: &[u8] = b"www.example.com#frag";
-    let o: &[u8] = b"#frag";
-    let e: &[u8] = b"www.example.com";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
+    #[rstest]
+    #[case("#frag", "frag")]
+    #[case("##frag", "#frag")]
+    #[should_panic]
+    #[case("frag", "")]
+    #[should_panic]
+    #[case("/path#frag", "")]
+    fn test_fragment(#[case] input: &str, #[case] frag: &str) {
+        assert_eq!(
+            fragment()(input.as_bytes()).unwrap(),
+            ("".as_bytes(), frag.as_bytes())
+        );
+    }
 
-#[test]
-fn ParseHostname_5() {
-    let i: &[u8] = b"[::1]:8080";
-    let o: &[u8] = b":8080";
-    let e: &[u8] = b"[::1]";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
+    #[rstest]
+    #[case("www.example.com", "www.example.com", None, true, "")]
+    #[case(" www.example.com ", "www.example.com", None, true, "")]
+    #[case(" www.example.com:8001 ", "www.example.com", Some(("8001", Some(8001))), true, ":8001 ")]
+    #[case(" www.example.com :  8001 ", "www.example.com", Some(("8001", Some(8001))), true, ":  8001 ")]
+    #[case("www.example.com.", "www.example.com.", None, true, "")]
+    #[case("www.example.com.", "www.example.com.", None, true, "")]
+    #[case("www.example.com:", "www.example.com", None, false, ":")]
+    #[case("www.example.com:ff", "www.example.com", Some(("ff", None)), false, ":ff")]
+    #[case("www.example.com:0", "www.example.com", Some(("0", None)), false, ":0")]
+    #[case("www.example.com:65536", "www.example.com", Some(("65536", None)), false, ":65536")]
+    #[case("[::1]:8080", "[::1]", Some(("8080", Some(8080))), true, ":8080")]
+    #[case("[::1]:", "[::1]", None, false, ":")]
+    #[case("[::1]x", "[::1]", None, false, "x")]
+    #[case("[::1", "[::1", None, false, "")]
+    fn test_parse_hostport(
+        #[case] input: &str,
+        #[case] hostname: &str,
+        #[case] parsed_port: Option<(&str, Option<u16>)>,
+        #[case] valid: bool,
+        #[case] remaining: &str,
+    ) {
+        assert_eq!(
+            parse_hostport(input.as_bytes()).unwrap(),
+            (
+                remaining.as_bytes(),
+                (
+                    hostname.as_bytes(),
+                    parsed_port.map(|(port, port_nmb)| (port.as_bytes(), port_nmb)),
+                    valid
+                )
+            )
+        );
+    }
 
-#[test]
-fn ParseHostname_6() {
-    let i: &[u8] = b"[::1";
-    let o: &[u8] = b"";
-    let e: &[u8] = b"[::1";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
+    #[rstest]
+    #[case("134", Some(134))]
+    #[case("    \t134    ", Some(134))]
+    #[case("abcd134    ", Some(134))]
+    #[case("abcd    ", None)]
+    fn test_parse_content_length(#[case] input: &str, #[case] expected: Option<i64>) {
+        assert_eq!(parse_content_length(input.as_bytes(), None), expected);
+    }
 
-#[test]
-fn ParseHostname_7() {
-    let i: &[u8] = b"[::1/path1[0]";
-    let o: &[u8] = b"/path1[0]";
-    let e: &[u8] = b"[::1";
-    let (left, hostname) = hostname()(i).unwrap();
+    #[rstest]
+    #[case("12a5", Some(0x12a5))]
+    #[case("    \t12a5    ", Some(0x12a5))]
+    #[case("    \t    ", None)]
+    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: Option<i32>) {
+        assert_eq!(parse_chunked_length(input.as_bytes()).unwrap(), expected);
+    }
 
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
-
-#[test]
-fn ParseHostname_8() {
-    let i: &[u8] = b"[::1]xxxx";
-    let o: &[u8] = b"xxxx";
-    let e: &[u8] = b"[::1]";
-    let (left, hostname) = hostname()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(hostname, e);
-}
-
-#[test]
-fn ParseInvalidHostname() {
-    //If it starts with '/' we treat it as a path
-    let i: &[u8] = b"/www.example.com/path1/path2?a=b&c=d#frag";
-    assert!(hostname()(i).is_err());
-}
-
-#[test]
-fn ParsePort_1() {
-    let i: &[u8] = b":1234/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"/path1/path2?a=b&c=d#frag";
-    let e: &[u8] = b"1234";
-    let (left, path) = port()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParsePort_2() {
-    let i: &[u8] = b":1234?a=b&c=d#frag";
-    let o: &[u8] = b"?a=b&c=d#frag";
-    let e: &[u8] = b"1234";
-    let (left, path) = port()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParsePort_3() {
-    let i: &[u8] = b":1234#frag";
-    let o: &[u8] = b"#frag";
-    let e: &[u8] = b"1234";
-    let (left, path) = port()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParsePath_1() {
-    let i: &[u8] = b"/path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"?a=b&c=d#frag";
-    let e: &[u8] = b"/path1/path2";
-    let (left, path) = path()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParsePath_2() {
-    let i: &[u8] = b"/path1/path2#frag";
-    let o: &[u8] = b"#frag";
-    let e: &[u8] = b"/path1/path2";
-    let (left, path) = path()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParsePath_3() {
-    let i: &[u8] = b"path1/path2?a=b&c=d#frag";
-    let o: &[u8] = b"?a=b&c=d#frag";
-    let e: &[u8] = b"path1/path2";
-    let (left, path) = path()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParsePath_4() {
-    let i: &[u8] = b"//";
-    let o: &[u8] = b"";
-    let e: &[u8] = b"//";
-    let (left, path) = path()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(path, e);
-}
-
-#[test]
-fn ParseQuery_1() {
-    let i: &[u8] = b"?a=b&c=d#frag";
-    let o: &[u8] = b"#frag";
-    let e: &[u8] = b"a=b&c=d";
-    let (left, query) = query()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(query, e);
-}
-
-#[test]
-fn ParseQuery_2() {
-    let i: &[u8] = b"?a=b&c=d";
-    let o: &[u8] = b"";
-    let e: &[u8] = b"a=b&c=d";
-    let (left, query) = query()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(query, e);
-}
-
-#[test]
-fn ParseFragment() {
-    let i: &[u8] = b"#frag";
-    let o: &[u8] = b"";
-    let e: &[u8] = b"frag";
-    let (left, fragment) = fragment()(i).unwrap();
-    assert_eq!(left, o);
-    assert_eq!(fragment, e);
-}
-
-#[test]
-fn ParseHostPort_1() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_2() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b" www.example.com ").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_3() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b" www.example.com:8001 ").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert_eq!(8001, port.unwrap().1.unwrap());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_4() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b" www.example.com :  8001 ").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert_eq!(8001, port.unwrap().1.unwrap());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_5() {
-    let e = Bstr::from("www.example.com.");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com.").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_6() {
-    let e = Bstr::from("www.example.com.");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com.:8001").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert_eq!(8001, port.unwrap().1.unwrap());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_7() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com:").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseHostPort_8() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com:ff").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.unwrap().1.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseHostPort_9() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com:0").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.unwrap().1.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseHostPort_10() {
-    let e = Bstr::from("www.example.com");
-    let (_, (host, port, valid)) = parse_hostport(b"www.example.com:65536").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.unwrap().1.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseHostPort_11() {
-    let e = Bstr::from("[::1]");
-    let (_, (host, port, valid)) = parse_hostport(b"[::1]:8080").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert_eq!(8080, port.unwrap().1.unwrap());
-    assert!(valid);
-}
-
-#[test]
-fn ParseHostPort_12() {
-    let e = Bstr::from("[::1]");
-    let (_, (host, port, valid)) = parse_hostport(b"[::1]:").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseHostPort_13() {
-    let e = Bstr::from("[::1]");
-    let (_, (host, port, valid)) = parse_hostport(b"[::1]x").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseHostPort_14() {
-    let e = Bstr::from("[::1");
-    let (_, (host, port, valid)) = parse_hostport(b"[::1").unwrap();
-
-    assert!(e.eq_nocase(host));
-    assert!(port.is_none());
-    assert!(!valid);
-}
-
-#[test]
-fn ParseContentLength() {
-    assert_eq!(134, parse_content_length(b"134", None).unwrap());
-    assert_eq!(134, parse_content_length(b"    \t134    ", None).unwrap());
-    assert_eq!(134, parse_content_length(b"abcd134    ", None).unwrap());
-    assert!(parse_content_length(b"abcd    ", None).is_none());
-}
-
-#[test]
-fn ParseChunkedLength() {
-    assert_eq!(Ok(Some(0x12a5)), parse_chunked_length(b"12a5"));
-    assert_eq!(Ok(Some(0x12a5)), parse_chunked_length(b"    \t12a5    "));
-}
-
-#[test]
-fn ParseContentType() {
-    assert_eq!(
-        Bstr::from("multipart/form-data"),
-        parse_content_type(b"multipart/form-data").unwrap()
-    );
-    assert_eq!(
-        Bstr::from("multipart/form-data"),
-        parse_content_type(b"multipart/form-data;boundary=X").unwrap()
-    );
-    assert_eq!(
-        Bstr::from("multipart/form-data"),
-        parse_content_type(b"multipart/form-data boundary=X").unwrap()
-    );
-    assert_eq!(
-        Bstr::from("multipart/form-data"),
-        parse_content_type(b"multipart/form-data,boundary=X").unwrap()
-    );
-    assert_eq!(
-        Bstr::from("multipart/form-data"),
-        parse_content_type(b"multipart/FoRm-data").unwrap()
-    );
-    assert_eq!(
-        Bstr::from("multipart/form-data\t"),
-        parse_content_type(b"multipart/form-data\t boundary=X").unwrap()
-    );
-    assert_eq!(
-        Bstr::from("multipart/form-data"),
-        parse_content_type(b"   \tmultipart/form-data boundary=X").unwrap()
-    );
+    #[rstest]
+    #[case("multipart/form-data", "multipart/form-data")]
+    #[case("multipart/form-data;boundary=X", "multipart/form-data")]
+    #[case("multipart/form-data boundary=X", "multipart/form-data")]
+    #[case("multipart/form-data,boundary=X", "multipart/form-data")]
+    #[case("multipart/FoRm-data", "multipart/form-data")]
+    #[case("multipart/form-data\t boundary=X", "multipart/form-data\t")]
+    #[case("   \tmultipart/form-data boundary=X", "multipart/form-data")]
+    fn test_parse_content_type(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(
+            parse_content_type(input.as_bytes()).unwrap(),
+            Bstr::from(expected)
+        );
+    }
 }

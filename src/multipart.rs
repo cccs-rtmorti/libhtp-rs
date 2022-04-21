@@ -1272,101 +1272,82 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a 
     }
 }
 
-#[test]
-fn Boundary() {
-    let inputs: Vec<&[u8]> = vec![
-        b"multipart/form-data; boundary=myboundarydata",
-        b"multipart/form-data; BounDary=myboundarydata",
-        b"multipart/form-data; boundary   =myboundarydata",
-        b"multipart/form-data; boundary=   myboundarydata",
-        b"multipart/form-data; boundary=myboundarydata ",
-        b"multipart/form-data; boundary=myboundarydata, ",
-        b"multipart/form-data; boundary=myboundarydata, boundary=secondboundarydata",
-        b"multipart/form-data; boundary=myboundarydata; ",
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(b"multipart/form-data; boundary=myboundarydata", b"myboundarydata")]
+    #[case(b"multipart/form-data; boundary   =myboundarydata", b"myboundarydata")]
+    #[case(b"multipart/form-data; boundary=   myboundarydata", b"myboundarydata")]
+    #[case(b"multipart/form-data; boundary=myboundarydata ", b"myboundarydata")]
+    #[case(b"multipart/form-data; boundary=myboundarydata, ", b"myboundarydata")]
+    #[case(b"multipart/form-data; boundary=myboundarydata; ", b"myboundarydata")]
+    #[case(
         b"multipart/form-data; boundary=myboundarydata; boundary=secondboundarydata",
-        b"multipart/form-data; boundary=\"myboundarydata\"",
+        b"myboundarydata"
+    )]
+    #[case(
+        b"multipart/form-data; boundary=myboundarydata, boundary=secondboundarydata",
+        b"myboundarydata"
+    )]
+    #[case(b"multipart/form-data; boundary=\"myboundarydata\"", b"myboundarydata")]
+    #[case(
         b"multipart/form-data; boundary=   \"myboundarydata\"",
+        b"myboundarydata"
+    )]
+    #[case(
         b"multipart/form-data; boundary=\"myboundarydata\"  ",
-    ];
-
-    for input in inputs {
+        b"myboundarydata"
+    )]
+    #[case(b"multipart/form-data; boundary=\"myboundarydata", b"\"myboundarydata")]
+    #[case(
+        b"multipart/form-data; boundary=   myboundarydata\"",
+        b"myboundarydata\""
+    )]
+    fn test_boundary(#[case] input: &[u8], #[case] expected: &[u8]) {
         let (_, (_, _, _, _, b, _, _, _)) = boundary()(input).unwrap();
-        assert_eq!(b, b"myboundarydata");
+        assert_eq!(b, expected);
     }
 
-    let (_, (_, _, _, _, b, _, _, _)) =
-        boundary()(b"multipart/form-data; boundary=\"myboundarydata").unwrap();
-    assert_eq!(b, b"\"myboundarydata");
-
-    let (_, (_, _, _, _, b, _, _, _)) =
-        boundary()(b"multipart/form-data; boundary=   myboundarydata\"").unwrap();
-    assert_eq!(b, b"myboundarydata\"");
-}
-
-#[test]
-fn ValidateBoundary() {
-    let inputs: Vec<&[u8]> = vec![
-        b"Unusual\'Boundary",
-        b"Unusual(Boundary",
-        b"Unusual)Boundary",
-        b"Unusual+Boundary",
-        b"Unusual_Boundary",
-        b"Unusual,Boundary",
-        b"Unusual.Boundary",
-        b"Unusual/Boundary",
-        b"Unusual:Boundary",
-        b"Unusual=Boundary",
-        b"Unusual?Boundary",
-        b"Invalid>Boundary",
-        b"InvalidBoundaryTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOLONG",
-        b"", //Invalid...Need at least one byte
-        b"InvalidUnusual.~Boundary",
-    ];
-    let outputs: Vec<u64> = vec![
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_UNUSUAL,
-        Flags::HBOUNDARY_INVALID,
-        Flags::HBOUNDARY_INVALID,
-        Flags::HBOUNDARY_INVALID,
-        Flags::HBOUNDARY_INVALID | Flags::HBOUNDARY_UNUSUAL,
-    ];
-
-    for i in 0..inputs.len() {
+    #[rstest]
+    #[case(b"Unusual\'Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual(Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual)Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual+Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual_Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual,Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual.Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual/Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual:Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual=Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual?Boundary", Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Invalid>Boundary", Flags::HBOUNDARY_INVALID)]
+    #[case::too_long(b"InvalidBoundaryTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOLONG", Flags::HBOUNDARY_INVALID)]
+    #[case::empty(b"", Flags::HBOUNDARY_INVALID)]
+    #[case::invalid_unusual(b"InvalidUnusual.~Boundary", Flags::HBOUNDARY_INVALID | Flags::HBOUNDARY_UNUSUAL)]
+    fn test_validate_boundary(#[case] input: &[u8], #[case] expected: u64) {
         let mut flags = 0;
-        validate_boundary(inputs[i], &mut flags);
-        assert_eq!(outputs[i], flags);
+        validate_boundary(input, &mut flags);
+        assert_eq!(flags, expected);
     }
-}
 
-#[test]
-fn ValidateContentType() {
-    let inputs: Vec<&[u8]> = vec![
+    #[rstest]
+    #[case(
         b"multipart/form-data; boundary   = stuff, boundary=stuff",
+        Flags::HBOUNDARY_INVALID
+    )]
+    #[case(
         b"multipart/form-data; boundary=stuffm BounDary=stuff",
-        b"multipart/form-data; Boundary=stuff",
-        b"multipart/form-data; bouNdary=stuff",
-        b"multipart/form-data; boundary=stuff",
-    ];
-    let outputs: Vec<u64> = vec![
-        Flags::HBOUNDARY_INVALID,
-        Flags::HBOUNDARY_INVALID,
-        Flags::HBOUNDARY_INVALID,
-        Flags::HBOUNDARY_INVALID,
-        0,
-    ];
-
-    for i in 0..inputs.len() {
+        Flags::HBOUNDARY_INVALID
+    )]
+    #[case(b"multipart/form-data; Boundary=stuff", Flags::HBOUNDARY_INVALID)]
+    #[case(b"multipart/form-data; bouNdary=stuff", Flags::HBOUNDARY_INVALID)]
+    #[case(b"multipart/form-data; boundary=stuff", 0)]
+    fn test_validate_content_type(#[case] input: &[u8], #[case] expected: u64) {
         let mut flags = 0;
-        validate_content_type(inputs[i], &mut flags);
-        assert_eq!(outputs[i], flags);
+        validate_content_type(input, &mut flags);
+        assert_eq!(flags, expected);
     }
 }

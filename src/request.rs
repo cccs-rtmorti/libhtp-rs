@@ -944,8 +944,19 @@ impl ConnectionParser {
     }
 }
 
-#[test]
-fn Method() {
-    let method = b"GET";
-    assert_eq!(HtpMethod::GET, HtpMethod::new(method));
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(b"GET", HtpMethod::GET)]
+    #[case(b"PUT", HtpMethod::PUT)]
+    #[case(b"POST", HtpMethod::POST)]
+    #[case(b"PoST", HtpMethod::UNKNOWN)]
+    #[case(b"post", HtpMethod::UNKNOWN)]
+    #[case(b"NOT_METHOD", HtpMethod::UNKNOWN)]
+    fn test_method(#[case] input: &[u8], #[case] expected: HtpMethod) {
+        assert_eq!(HtpMethod::new(input), expected);
+    }
 }

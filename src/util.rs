@@ -1263,1018 +1263,607 @@ fn is_chunked_ctl_char(c: u8) -> bool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{config::Config, util::*};
-    use nom::{
-        error::ErrorKind::TakeUntil,
-        Err::{Error, Incomplete},
-        Needed,
-    };
+    use rstest::rstest;
 
-    #[test]
-    fn TakeUntilNull() {
+    #[rstest]
+    #[case("", "", "")]
+    #[case("hello world", "", "hello world")]
+    #[case("\0", "\0", "")]
+    #[case("hello_world  \0   ", "\0   ", "hello_world  ")]
+    #[case("hello\0\0\0\0", "\0\0\0\0", "hello")]
+    fn test_take_until_null(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Ok(("\0   ".as_bytes(), "hello_world  ".as_bytes())),
-            take_until_null(b"hello_world  \0   ")
-        );
-        assert_eq!(
-            Ok(("\0\0\0\0".as_bytes(), "hello".as_bytes())),
-            take_until_null(b"hello\0\0\0\0")
-        );
-        assert_eq!(Ok(("\0".as_bytes(), "".as_bytes())), take_until_null(b"\0"));
-    }
-
-    #[test]
-    fn TakeIsSpaceTrailing() {
-        assert_eq!(
-            Ok(("w0rd".as_bytes(), "   ".as_bytes())),
-            take_is_space_trailing(b"w0rd   ")
-        );
-        assert_eq!(
-            Ok(("word".as_bytes(), "   \t".as_bytes())),
-            take_is_space_trailing(b"word   \t")
-        );
-        assert_eq!(
-            Ok(("w0rd".as_bytes(), "".as_bytes())),
-            take_is_space_trailing(b"w0rd")
-        );
-        assert_eq!(
-            Ok(("\t  w0rd".as_bytes(), "   ".as_bytes())),
-            take_is_space_trailing(b"\t  w0rd   ")
-        );
-        assert_eq!(
-            Ok(("".as_bytes(), "     ".as_bytes())),
-            take_is_space_trailing(b"     ")
+            take_until_null(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
     }
 
-    #[test]
-    fn TakeIsSpace() {
+    #[rstest]
+    #[case("", "", "")]
+    #[case("word   \t", "word", "   \t")]
+    #[case("word", "word", "")]
+    #[case("\t  word   ", "\t  word", "   ")]
+    #[case("     ", "", "     ")]
+    fn test_is_space_trailing(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Ok(("hello".as_bytes(), "   ".as_bytes())),
-            take_is_space(b"   hello")
-        );
-        assert_eq!(
-            Ok(("hell o".as_bytes(), "   \t".as_bytes())),
-            take_is_space(b"   \thell o")
-        );
-        assert_eq!(
-            Ok(("hell o".as_bytes(), "".as_bytes())),
-            take_is_space(b"hell o")
-        );
-        assert_eq!(
-            Ok(("hell o".as_bytes(), "\r\x0b".as_bytes())),
-            take_is_space(b"\r\x0bhell o")
-        );
-        assert_eq!(
-            Ok(("hell \to".as_bytes(), "\r\x0b  \t".as_bytes())),
-            take_is_space(b"\r\x0b  \thell \to")
-        )
-    }
-
-    #[test]
-    fn TreatResponseLineAsBody() {
-        assert!(!treat_response_line_as_body(b"   http 1.1"));
-        assert!(!treat_response_line_as_body(b"\0 http 1.1"));
-        assert!(!treat_response_line_as_body(b"http"));
-        assert!(!treat_response_line_as_body(b"HTTP"));
-        assert!(!treat_response_line_as_body(b"    HTTP"));
-        assert!(treat_response_line_as_body(b"test"));
-        assert!(treat_response_line_as_body(b"     test"));
-        assert!(treat_response_line_as_body(b""));
-        assert!(treat_response_line_as_body(b"kfgjl  hTtp "));
-    }
-
-    #[test]
-    fn RemoveLWS() {
-        assert_eq!(
-            Ok(("hello".as_bytes(), "   ".as_bytes())),
-            take_is_space(b"   hello")
-        );
-        assert_eq!(
-            Ok(("hell o".as_bytes(), "   \t".as_bytes())),
-            take_is_space(b"   \thell o")
-        );
-        assert_eq!(
-            Ok(("hell o".as_bytes(), "".as_bytes())),
-            take_is_space(b"hell o")
+            take_is_space_trailing(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
     }
 
-    #[test]
-    fn SplitByColon() {
+    #[rstest]
+    #[case("", "", "")]
+    #[case("   hell o", "hell o", "   ")]
+    #[case("   \thell o", "hell o", "   \t")]
+    #[case("hell o", "hell o", "")]
+    #[case("\r\x0b  \thell \to", "hell \to", "\r\x0b  \t")]
+    fn test_take_is_space(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Ok(("Content-Length".as_bytes(), "230".as_bytes())),
-            split_by_colon(b"Content-Length: 230")
-        );
-        assert_eq!(
-            Ok(("".as_bytes(), "No header name".as_bytes())),
-            split_by_colon(b":No header name")
-        );
-        assert_eq!(
-            Ok(("Header@Name".as_bytes(), "Not Token".as_bytes())),
-            split_by_colon(b"Header@Name: Not Token")
-        );
-        assert_eq!(
-            Err(Error(("No colon".as_bytes(), TakeUntil))),
-            split_by_colon(b"No colon")
+            take_is_space(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
     }
 
-    #[test]
-    fn IsWordToken() {
-        assert!(is_word_token(b"allalpha"));
-        assert!(is_word_token(b"alpha567numeric1234"));
-        assert!(!is_word_token(b"alpha{}"));
-        assert!(!is_word_token(b"\n"));
-        assert!(is_word_token(b"234543"));
-        assert!(!is_word_token(b"abcdeg\t"));
-        assert!(is_word_token(b"content-length"));
+    #[rstest]
+    #[case("   http 1.1", false)]
+    #[case("\0 http 1.1", false)]
+    #[case("http", false)]
+    #[case("HTTP", false)]
+    #[case("    HTTP", false)]
+    #[case("test", true)]
+    #[case("     test", true)]
+    #[case("", true)]
+    #[case("kfgjl  hTtp ", true)]
+    fn test_treat_response_line_as_body(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(treat_response_line_as_body(input.as_bytes()), expected);
     }
 
-    #[test]
-    fn TakeNotEol() {
+    #[rstest]
+    #[should_panic(
+        expected = "called `Result::unwrap()` on an `Err` value: Error(([], TakeUntil))"
+    )]
+    #[case("", "", "")]
+    #[should_panic(
+        expected = "called `Result::unwrap()` on an `Err` value: Error(([78, 111, 32, 99, 111, 108, 111, 110], TakeUntil))"
+    )]
+    #[case("No colon", "", "")]
+    #[case("Content-Length: 230", "Content-Length", "230")]
+    #[case(":No header name", "", "No header name")]
+    fn test_split_by_colon(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Ok(("\n".as_bytes(), "header:value\r".as_bytes())),
-            take_not_eol(b"header:value\r\n")
+            split_by_colon(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
+    }
+
+    #[rstest]
+    #[case("", true)]
+    #[case("allalpha", true)]
+    #[case("alpha567numeric1234", true)]
+    #[case("234543", true)]
+    #[case("content-length", true)]
+    #[case("alpha{}", false)]
+    #[case("\n", false)]
+    #[case("abcdeg\t", false)]
+    fn test_is_word_token(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(is_word_token(input.as_bytes()), expected);
+    }
+
+    #[rstest]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("header:value", "", "")]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("", "", "")]
+    #[case("\nheader:value\r\n", "header:value\r\n", "\n")]
+    #[case("header:value\r\n", "\n", "header:value\r")]
+    #[case("header:value\n\r", "\r", "header:value\n")]
+    #[case("header:value\n\n", "\n", "header:value\n")]
+    #[case("header:value\r\r", "\r", "header:value\r")]
+    #[case("abcdefg\nhijk", "hijk", "abcdefg\n")]
+    fn test_take_not_eol(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Err(Incomplete(Needed::Size(1))),
-            take_not_eol(b"header:value")
+            take_not_eol(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
     }
 
-    #[test]
-    fn TakeTillLF() {
+    #[rstest]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("", "", "")]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("header:value\r\r", "", "")]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("header:value", "", "")]
+    #[case("\nheader:value\r\n", "header:value\r\n", "\n")]
+    #[case("header:value\r\n", "", "header:value\r\n")]
+    #[case("header:value\n\r", "\r", "header:value\n")]
+    #[case("header:value\n\n", "\n", "header:value\n")]
+    #[case("abcdefg\nhijk", "hijk", "abcdefg\n")]
+    fn test_take_till_lf(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Ok(("hijk".as_bytes(), "abcdefg\n".as_bytes())),
-            take_till_lf(b"abcdefg\nhijk")
+            take_till_lf(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
-        assert_eq!(Err(Incomplete(Needed::Size(1))), take_till_lf(b"abcdefg"));
     }
 
-    #[test]
-    fn TakeTillEol() {
+    #[rstest]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("", "", "", Eol::CR)]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(2))")]
+    #[case("abcdefg\n", "", "", Eol::CR)]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("abcdefg\n\r", "", "", Eol::CR)]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(2))")]
+    #[case("abcdefg\r", "", "", Eol::CR)]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
+    #[case("abcdefg", "", "", Eol::CR)]
+    #[case("abcdefg\nhijk", "hijk", "abcdefg\n", Eol::LF)]
+    #[case("abcdefg\n\r\nhijk", "\r\nhijk", "abcdefg\n", Eol::LF)]
+    #[case("abcdefg\rhijk", "hijk", "abcdefg\r", Eol::CR)]
+    #[case("abcdefg\r\nhijk", "hijk", "abcdefg\r\n", Eol::CRLF)]
+    #[case("abcdefg\r\n", "", "abcdefg\r\n", Eol::CRLF)]
+    #[case("abcdefg\n\rhijk", "hijk", "abcdefg\n\r", Eol::LFCR)]
+    #[case("abcdefg\n\r\r\nhijk", "\r\nhijk", "abcdefg\n\r", Eol::LFCR)]
+    fn test_take_till_eol(
+        #[case] input: &str,
+        #[case] remaining: &str,
+        #[case] parsed: &str,
+        #[case] eol: Eol,
+    ) {
         assert_eq!(
-            Ok(("hijk".as_bytes(), ("abcdefg\n".as_bytes(), Eol::LF))),
-            take_till_eol(b"abcdefg\nhijk")
+            take_till_eol(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), (parsed.as_bytes(), eol))
         );
-        assert_eq!(
-            Ok(("\r\nhijk".as_bytes(), ("abcdefg\n".as_bytes(), Eol::LF))),
-            take_till_eol(b"abcdefg\n\r\nhijk")
-        );
-        assert_eq!(
-            Ok(("hijk".as_bytes(), ("abcdefg\r".as_bytes(), Eol::CR))),
-            take_till_eol(b"abcdefg\rhijk")
-        );
-
-        assert_eq!(
-            Ok(("hijk".as_bytes(), ("abcdefg\r\n".as_bytes(), Eol::CRLF))),
-            take_till_eol(b"abcdefg\r\nhijk")
-        );
-        assert_eq!(
-            Ok(("".as_bytes(), ("abcdefg\r\n".as_bytes(), Eol::CRLF))),
-            take_till_eol(b"abcdefg\r\n")
-        );
-
-        assert_eq!(
-            Ok(("hijk".as_bytes(), ("abcdefg\n\r".as_bytes(), Eol::LFCR))),
-            take_till_eol(b"abcdefg\n\rhijk")
-        );
-        assert_eq!(
-            Ok(("\r\nhijk".as_bytes(), ("abcdefg\n\r".as_bytes(), Eol::LFCR))),
-            take_till_eol(b"abcdefg\n\r\r\nhijk")
-        );
-        assert_eq!(
-            Err(Incomplete(Needed::Size(2))),
-            take_till_eol(b"abcdefg\n")
-        );
-
-        assert_eq!(
-            Err(Incomplete(Needed::Size(1))),
-            take_till_eol(b"abcdefg\n\r")
-        );
-        assert_eq!(
-            Err(Incomplete(Needed::Size(2))),
-            take_till_eol(b"abcdefg\r")
-        );
-        assert_eq!(Err(Incomplete(Needed::Size(1))), take_till_eol(b"abcdefg"));
     }
 
-    #[test]
-    fn Separator() {
-        assert!(!is_separator(b'a'));
-        assert!(!is_separator(b'^'));
-        assert!(!is_separator(b'-'));
-        assert!(!is_separator(b'_'));
-        assert!(!is_separator(b'&'));
-        assert!(is_separator(b'('));
-        assert!(is_separator(b'\\'));
-        assert!(is_separator(b'/'));
-        assert!(is_separator(b'='));
-        assert!(is_separator(b'\t'));
+    #[rstest]
+    #[case(b'a', false)]
+    #[case(b'^', false)]
+    #[case(b'-', false)]
+    #[case(b'_', false)]
+    #[case(b'&', false)]
+    #[case(b'(', true)]
+    #[case(b'\\', true)]
+    #[case(b'/', true)]
+    #[case(b'=', true)]
+    #[case(b'\t', true)]
+    fn test_is_separator(#[case] input: u8, #[case] expected: bool) {
+        assert_eq!(is_separator(input), expected);
     }
 
-    #[test]
-    fn Token() {
-        assert!(is_token(b'a'));
-        assert!(is_token(b'&'));
-        assert!(is_token(b'+'));
-        assert!(!is_token(b'\t'));
-        assert!(!is_token(b'\n'));
+    #[rstest]
+    #[case(b'a', true)]
+    #[case(b'&', true)]
+    #[case(b'+', true)]
+    #[case(b'\t', false)]
+    #[case(b'\n', false)]
+    fn test_is_token(#[case] input: u8, #[case] expected: bool) {
+        assert_eq!(is_token(input), expected);
     }
 
-    #[test]
-    fn Chomp() {
-        assert_eq!(chomp(b"test\r\n"), b"test");
-        assert_eq!(chomp(b"test\r\n\n"), b"test");
-        assert_eq!(chomp(b"test\r\n\r\n"), b"test");
-        assert_eq!(chomp(b"te\nst"), b"te\nst");
-        assert_eq!(chomp(b"foo\n"), b"foo");
-        assert_eq!(chomp(b"arfarf"), b"arfarf");
-        assert_eq!(chomp(b""), b"");
+    #[rstest]
+    #[case("", "")]
+    #[case("test\n", "test")]
+    #[case("test\r\n", "test")]
+    #[case("test\r\n\n", "test")]
+    #[case("test\n\r\r\n\r", "test")]
+    #[case("test", "test")]
+    #[case("te\nst", "te\nst")]
+    fn test_chomp(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(chomp(input.as_bytes()), expected.as_bytes());
     }
 
-    #[test]
-    fn Space() {
-        assert!(!is_space(0x61)); // a
-        assert!(is_space(0x20)); // space
-        assert!(is_space(0x0c)); // Form feed
-        assert!(is_space(0x0a)); // newline
-        assert!(is_space(0x0d)); // carriage return
-        assert!(is_space(0x09)); // tab
-        assert!(is_space(0x0b)); // Vertical tab
+    #[rstest]
+    #[case::non_space(0x61, false)]
+    #[case::space(0x20, true)]
+    #[case::form_feed(0x0c, true)]
+    #[case::newline(0x0a, true)]
+    #[case::carriage_return(0x0d, true)]
+    #[case::tab(0x09, true)]
+    #[case::vertical_tab(0x0b, true)]
+    fn test_is_space(#[case] input: u8, #[case] expected: bool) {
+        assert_eq!(is_space(input), expected);
     }
 
-    #[test]
-    fn IsLineEmpty() {
-        let data = b"arfarf";
-        assert!(!is_line_empty(data));
-        assert!(is_line_empty(b"\x0d\x0a"));
-        assert!(is_line_empty(b"\x0d"));
-        assert!(is_line_empty(b"\x0a"));
-        assert!(!is_line_empty(b"\x0a\x0d"));
-        assert!(!is_line_empty(b"\x0dabc"));
+    #[rstest]
+    #[case("", false)]
+    #[case("arfarf", false)]
+    #[case("\n\r", false)]
+    #[case("\rabc", false)]
+    #[case("\r\n", true)]
+    #[case("\r", true)]
+    #[case("\n", true)]
+    fn test_is_line_empty(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(is_line_empty(input.as_bytes()), expected);
     }
 
-    #[test]
-    fn IsLineWhitespace() {
-        let data = b"arfarf";
-        assert!(!is_line_whitespace(data));
-        assert!(is_line_whitespace(b"\x0d\x0a"));
-        assert!(is_line_whitespace(b"\x0d"));
-        assert!(!is_line_whitespace(b"\x0dabc"));
+    #[rstest]
+    #[case("", false)]
+    #[case("\tline", true)]
+    #[case(" \t  line", true)]
+    #[case(" line", true)]
+    #[case("line ", false)]
+    fn test_is_line_folded(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(is_line_folded(input.as_bytes()), expected);
     }
 
-    #[test]
-    fn IsLineFolded() {
-        assert!(is_line_folded(b"\tline"));
-        assert!(is_line_folded(b" line"));
-        assert!(!is_line_folded(b"line "));
+    #[rstest]
+    #[case("", false)]
+    #[case("www.ExAmplE-1984.com", true)]
+    #[case("[:::]", true)]
+    #[case("www.example.com", true)]
+    #[case(".www.example.com", false)]
+    #[case("www..example.com", false)]
+    #[case("www.example.com..", false)]
+    #[case("www example com", false)]
+    #[case("[:::", false)]
+    #[case("[:::/path[0]", false)]
+    #[case("[:::#garbage]", false)]
+    #[case("[:::?]", false)]
+    #[case::over64_char(
+        "www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com",
+        false
+    )]
+    fn test_validate_hostname(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(validate_hostname(input.as_bytes()), expected);
     }
 
-    #[test]
-    fn ValidateHostname_1() {
-        assert!(validate_hostname(b"www.example.com"));
-    }
-
-    #[test]
-    fn ValidateHostname_2() {
-        assert!(!validate_hostname(b".www.example.com"));
-    }
-
-    #[test]
-    fn ValidateHostname_3() {
-        assert!(!validate_hostname(b"www..example.com"));
-    }
-
-    #[test]
-    fn ValidateHostname_4() {
-        assert!(!validate_hostname(b"www.example.com.."));
-    }
-
-    #[test]
-    fn ValidateHostname_5() {
-        assert!(!validate_hostname(b"www example com"));
-    }
-
-    #[test]
-    fn ValidateHostname_6() {
-        assert!(!validate_hostname(b""));
-    }
-
-    #[test]
-    fn ValidateHostname_7() {
-        // Label over 63 characters.
-        assert!(!validate_hostname(
-            b"www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com"
-        ));
-    }
-
-    #[test]
-    fn ValidateHostname_8() {
-        assert!(validate_hostname(b"www.ExAmplE-1984.com"));
-    }
-
-    #[test]
-    fn ValidateHostname_9() {
-        assert!(validate_hostname(b"[:::]"));
-    }
-
-    #[test]
-    fn ValidateHostname_10() {
-        assert!(!validate_hostname(b"[:::"));
-    }
-
-    #[test]
-    fn ValidateHostname_11() {
-        assert!(!validate_hostname(b"[:::/path[0]"));
-    }
-
-    #[test]
-    fn ValidateHostname_12() {
-        assert!(!validate_hostname(b"[:::#garbage]"));
-    }
-
-    #[test]
-    fn ValidateHostname_13() {
-        assert!(!validate_hostname(b"[:::?]"));
-    }
-
-    #[test]
-    fn AsciiDigits() {
+    #[rstest]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Error(([], Digit))")]
+    #[case("   garbage no ascii ", "", "", "")]
+    #[case("    a200 \t  bcd ", "bcd ", "a", "200")]
+    #[case("   555555555    ", "", "", "555555555")]
+    #[case("   555555555    500", "500", "", "555555555")]
+    fn test_ascii_digits(
+        #[case] input: &str,
+        #[case] remaining: &str,
+        #[case] leading: &str,
+        #[case] digits: &str,
+    ) {
         // Returns (any trailing non-LWS characters, (non-LWS leading characters, ascii digits))
         assert_eq!(
-            Ok((b"bcd ".as_ref(), (b"a".as_ref(), b"200".as_ref()))),
-            ascii_digits()(b"    a200 \t  bcd ")
+            ascii_digits()(input.as_bytes()).unwrap(),
+            (
+                remaining.as_bytes(),
+                (leading.as_bytes(), digits.as_bytes())
+            )
         );
-        assert_eq!(
-            Ok((b"".as_ref(), (b"".as_ref(), b"555555555".as_ref()))),
-            ascii_digits()(b"   555555555    ")
-        );
-        assert_eq!(
-            Ok((b"500".as_ref(), (b"".as_ref(), b"555555555".as_ref()))),
-            ascii_digits()(b"   555555555    500")
-        );
-        assert!(ascii_digits()(b"   garbage no ascii ").is_err());
     }
 
-    #[test]
-    fn HexDigits() {
+    #[rstest]
+    #[case("", "", "")]
+    #[case("12a5", "", "12a5")]
+    #[case("12a5   .....", ".....", "12a5")]
+    #[case("    \t12a5.....    ", ".....    ", "12a5")]
+    #[case(" 68656c6c6f   12a5", "12a5", "68656c6c6f")]
+    #[case("  .....", ".....", "")]
+    fn test_hex_digits(#[case] input: &str, #[case] remaining: &str, #[case] digits: &str) {
         //(trailing non-LWS characters, found hex digits)
-        assert_eq!(Ok((b"".as_ref(), b"12a5".as_ref())), hex_digits()(b"12a5"));
         assert_eq!(
-            Ok((b"".as_ref(), b"12a5".as_ref())),
-            hex_digits()(b"    \t12a5    ")
-        );
-        assert_eq!(
-            Ok((b".....".as_ref(), b"12a5".as_ref())),
-            hex_digits()(b"12a5   .....")
-        );
-        assert_eq!(
-            Ok((b".....    ".as_ref(), b"12a5".as_ref())),
-            hex_digits()(b"    \t12a5.....    ")
-        );
-        assert_eq!(
-            Ok((b"12a5".as_ref(), b"68656c6c6f".as_ref())),
-            hex_digits()(b"68656c6c6f   12a5")
-        );
-        assert_eq!(
-            Ok((b".....".as_ref(), b"".as_ref())),
-            hex_digits()(b"  .....")
+            hex_digits()(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), digits.as_bytes())
         );
     }
 
-    #[test]
-    fn TakeChunkedCtlChars() {
+    #[rstest]
+    #[case("", "", "")]
+    #[case("no chunked ctl chars here", "no chunked ctl chars here", "")]
+    #[case(
+        "\x0d\x0a\x20\x09\x0b\x0cno chunked ctl chars here",
+        "no chunked ctl chars here",
+        "\x0d\x0a\x20\x09\x0b\x0c"
+    )]
+    #[case(
+        "no chunked ctl chars here\x20\x09\x0b\x0c",
+        "no chunked ctl chars here\x20\x09\x0b\x0c",
+        ""
+    )]
+    #[case(
+        "\x20\x09\x0b\x0cno chunked ctl chars here\x20\x09\x0b\x0c",
+        "no chunked ctl chars here\x20\x09\x0b\x0c",
+        "\x20\x09\x0b\x0c"
+    )]
+    fn test_take_chunked_ctl_chars(
+        #[case] input: &str,
+        #[case] remaining: &str,
+        #[case] hex_digits: &str,
+    ) {
+        //(trailing non-LWS characters, found hex digits)
         assert_eq!(
-            Ok((b"no chunked ctl chars here".as_ref(), b"".as_ref())),
-            take_chunked_ctl_chars(b"no chunked ctl chars here")
+            take_chunked_ctl_chars(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), hex_digits.as_bytes())
         );
+    }
+
+    #[rstest]
+    #[case("", true)]
+    #[case("68656c6c6f", true)]
+    #[case("\x0d\x0a\x20\x09\x0b\x0c68656c6c6f", true)]
+    #[case("X5O!P%@AP", false)]
+    #[case("\x0d\x0a\x20\x09\x0b\x0cX5O!P%@AP", false)]
+    fn test_is_valid_chunked_length_data(#[case] input: &str, #[case] expected: bool) {
+        assert_eq!(is_valid_chunked_length_data(input.as_bytes()), expected);
+    }
+
+    #[rstest]
+    #[case(
+        "Let's fish for a Tag, but what about this TaG, or this TAG, or another tag. GO FISH.",
+        "Tag, but what about this TaG, or this TAG, or another tag. GO FISH.",
+        "Let's fish for a "
+    )]
+    #[case(
+        ", but what about this TaG, or this TAG, or another tag. GO FISH.",
+        "TaG, or this TAG, or another tag. GO FISH.",
+        ", but what about this "
+    )]
+    #[case(
+        ", or this TAG, or another tag. GO FISH.",
+        "TAG, or another tag. GO FISH.",
+        ", or this "
+    )]
+    #[case(", or another tag. GO FISH.", "tag. GO FISH.", ", or another ")]
+    #[case(". GO FISH.", "", ". GO FISH.")]
+    fn test_take_until_no_case(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
         assert_eq!(
-            Ok((
-                b"no chunked ctl chars here".as_ref(),
-                b"\x0d\x0a\x20\x09\x0b\x0c".as_ref()
-            )),
-            take_chunked_ctl_chars(b"\x0d\x0a\x20\x09\x0b\x0cno chunked ctl chars here")
-        );
-        assert_eq!(
-            Ok((
-                b"no chunked ctl chars here\x0d\x0a".as_ref(),
-                b"\x20\x09\x0b\x0c".as_ref()
-            )),
-            take_chunked_ctl_chars(b"\x20\x09\x0b\x0cno chunked ctl chars here\x0d\x0a")
+            take_until_no_case(b"TAG")(input.as_bytes()).unwrap(),
+            (remaining.as_bytes(), parsed.as_bytes())
         );
     }
 
-    #[test]
-    fn IsValidChunkedLengthData() {
-        assert!(is_valid_chunked_length_data(b"68656c6c6f"));
-        assert!(is_valid_chunked_length_data(
-            b"\x0d\x0a\x20\x09\x0b\x0c68656c6c6f"
-        ));
-        assert!(!is_valid_chunked_length_data(b"X5O!P%@AP"));
-        assert!(!is_valid_chunked_length_data(
-            b"\x0d\x0a\x20\x09\x0b\x0cX5O!P%@AP"
-        ));
-    }
-
-    #[test]
-    fn TakeUntilNoCase() {
-        let (remaining, consumed) = take_until_no_case(b"TAG")(
-            b"Let's fish for a Tag, but what about this TaG, or this TAG, or another tag. GO FISH.",
-        )
-        .unwrap();
-
-        let mut res_consumed: &[u8] = b"Let's fish for a ";
-        let mut res_remaining: &[u8] =
-            b"Tag, but what about this TaG, or this TAG, or another tag. GO FISH.";
-        assert_eq!(res_consumed, consumed);
-        assert_eq!(res_remaining, remaining);
-        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
-
-        res_consumed = b", but what about this ";
-        res_remaining = b"TaG, or this TAG, or another tag. GO FISH.";
-        let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
-        assert_eq!(res_consumed, consumed);
-        assert_eq!(res_remaining, remaining);
-        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
-
-        res_consumed = b", or this ";
-        res_remaining = b"TAG, or another tag. GO FISH.";
-        let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
-        assert_eq!(res_consumed, consumed);
-        assert_eq!(res_remaining, remaining);
-        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
-
-        res_consumed = b", or another ";
-        res_remaining = b"tag. GO FISH.";
-        let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
-        assert_eq!(res_consumed, consumed);
-        assert_eq!(res_remaining, remaining);
-
-        res_consumed = b"";
-        res_remaining = b"tag. GO FISH.";
-        let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
-        assert_eq!(res_consumed, consumed);
-        assert_eq!(res_remaining, remaining);
-        let (remaining, _) = tag_no_case::<_, _, NomError<&[u8]>>("TAG")(remaining).unwrap();
-
-        res_consumed = b". GO FISH.";
-        res_remaining = b"";
-        let (remaining, consumed) = take_until_no_case(b"TAG")(remaining).unwrap();
-        assert_eq!(res_consumed, consumed);
-        assert_eq!(res_remaining, remaining);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx1_Identity() {
-        let i = Bstr::from("/dest");
-        let e = "/dest".as_bytes();
-        let cfg = DecoderConfig::default();
-        assert_eq!(e, urldecode_ex(&i, &cfg).unwrap().1 .0);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx2_Urlencoded() {
-        let i = Bstr::from("/%64est");
-        let e = "/dest".as_bytes();
-        let cfg = DecoderConfig::default();
-        assert_eq!(e, urldecode_ex(&i, &cfg).unwrap().1 .0);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx3_UrlencodedInvalidPreserve() {
+    #[rstest]
+    #[case("/dest", "/dest", "/dest", "/dest")]
+    #[case("/%64est", "/dest", "/dest", "/dest")]
+    #[case("/%xxest", "/1est", "/%xxest", "/xxest")]
+    #[case("/%a", "/%a", "/%a", "/a")]
+    #[case("/%00ABC", "/\0ABC", "/\0ABC", "/\0ABC")]
+    #[case("/%u0064", "/%u0064", "/%u0064", "/%u0064")]
+    #[case("/%u006", "/%u006", "/%u006", "/%u006")]
+    #[case("/%uXXXX", "/%uXXXX", "/%uXXXX", "/%uXXXX")]
+    #[case("/%u0000ABC", "/%u0000ABC", "/%u0000ABC", "/%u0000ABC")]
+    #[case("/\0ABC", "/\0ABC", "/\0ABC", "/\0ABC")]
+    #[case("/one%2ftwo", "/one/two", "/one/two", "/one/two")]
+    fn test_urldecode_ex(
+        #[case] input: &str,
+        #[case] expected_process: &str,
+        #[case] expected_preserve: &str,
+        #[case] expected_remove: &str,
+    ) {
+        let i = Bstr::from(input);
         let mut cfg = Config::default();
+
+        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
+        assert_eq!(
+            urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0,
+            expected_process.as_bytes()
+        );
+
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let i = Bstr::from("/%xxest");
-        let e = "/%xxest".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
+        assert_eq!(
+            urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0,
+            expected_preserve.as_bytes()
+        );
 
-    #[test]
-    fn DecodeUrlencodedEx4_UrlencodedInvalidRemove() {
-        let mut cfg = Config::default();
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        let i = Bstr::from("/%xxest");
-        let e = "/xxest".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
+        assert_eq!(
+            urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0,
+            expected_remove.as_bytes()
+        );
     }
 
-    #[test]
-    fn DecodeUrlencodedEx5_UrlencodedInvalidDecode() {
+    #[rstest]
+    #[case("/dest", "/dest", "/dest", "/dest")]
+    #[case("/%64est", "/dest", "/dest", "/dest")]
+    #[case("/%xxest", "/1est", "/%xxest", "/xxest")]
+    #[case("/%a", "/%a", "/%a", "/a")]
+    #[case("/%00ABC", "/\0ABC", "/\0ABC", "/\0ABC")]
+    #[case("/%u0064", "/d", "/d", "/d")]
+    #[case("/%U0064", "/d", "/d", "/d")]
+    #[case("/%u006", "/%u006", "/%u006", "/u006")]
+    #[case("/%uXXXX", "/?", "/%uXXXX", "/uXXXX")]
+    #[case("/%u0000ABC", "/\0ABC", "/\0ABC", "/\0ABC")]
+    #[case("/\0ABC", "/\0ABC", "/\0ABC", "/\0ABC")]
+    #[case("/one%2ftwo", "/one/two", "/one/two", "/one/two")]
+    fn test_urldecode_ex_decode(
+        #[case] input: &str,
+        #[case] expected_process: &str,
+        #[case] expected_preserve: &str,
+        #[case] expected_remove: &str,
+    ) {
+        let i = Bstr::from(input);
         let mut cfg = Config::default();
+        cfg.set_u_encoding_decode(true);
+
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        let i = Bstr::from("/%}9est");
-        let e = "/iest".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
+        assert_eq!(
+            urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0,
+            expected_process.as_bytes()
+        );
 
-    #[test]
-    fn DecodeUrlencodedEx6_UrlencodedInvalidNotEnoughBytes() {
-        let cfg = DecoderConfig::default();
-        let i = Bstr::from("/%a");
-        let e = "/%a".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx7_UrlencodedInvalidNotEnoughBytes() {
-        let cfg = DecoderConfig::default();
-        let i = Bstr::from("/%");
-        let e = "/%".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx8_Uencoded() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        let i = Bstr::from("/%u0064");
-        let e = "/d".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx9_UencodedDoNotDecode() {
-        let mut cfg = Config::default();
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        cfg.set_u_encoding_decode(false);
-        let i = Bstr::from("/%u0064");
-        let e = "/%u0064".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
+        assert_eq!(
+            urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0,
+            expected_preserve.as_bytes()
+        );
 
-    #[test]
-    fn DecodeUrlencodedEx10_UencodedInvalidNotEnoughBytes() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        let i = Bstr::from("/%u006");
-        let e = "/%u006".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx11_UencodedInvalidPreserve() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let i = Bstr::from("/%u006");
-        let e = "/%u006".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx12_UencodedInvalidRemove() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        let i = Bstr::from("/%uXXXX");
-        let e = "/uXXXX".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
+        assert_eq!(
+            urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0,
+            expected_remove.as_bytes()
+        );
     }
 
-    #[test]
-    fn DecodeUrlencodedEx13_UencodedInvalidDecode() {
+    #[rstest]
+    #[case("/%u0000ABC")]
+    #[case("/%00ABC")]
+    #[case("/\0ABC")]
+    fn test_urldecode_ex_nul_terminates(#[case] input: &str) {
+        let i = Bstr::from(input);
         let mut cfg = Config::default();
         cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        let i = Bstr::from("/%u00}9");
-        let e = "/i".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx14_UencodedInvalidPreserve() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let i = Bstr::from("/%u00");
-        let e = "/%u00".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx15_UencodedInvalidPreserve() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let i = Bstr::from("/%u0");
-        let e = "/%u0".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx16_UencodedInvalidPreserve() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let i = Bstr::from("/%u");
-        let e = "/%u".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx17_UrlencodedNul() {
-        let cfg = DecoderConfig::default();
-        let i = Bstr::from("/%00");
-        let e = "/\0".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx18_UrlencodedNulTerminates() {
-        let mut cfg = Config::default();
         cfg.set_nul_encoded_terminates(true);
-        let i = Bstr::from("/%00ABC");
-        let e = "/".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodeUrlencodedEx19_RawNulTerminates() {
-        let mut cfg = Config::default();
         cfg.set_nul_raw_terminates(true);
-        let i = Bstr::from("/\0ABC");
-        let e = "/".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
+        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, b"/");
     }
 
-    #[test]
-    fn DecodeUrlencodedEx20_UencodedBestFit() {
+    #[rstest]
+    #[case("/dest", "/dest", "/dest", "/dest", 0)]
+    #[case("/%64est", "/dest", "/dest", "/dest", 0)]
+    #[case(
+        "/%xxest",
+        "/1est",
+        "/%xxest",
+        "/xxest",
+        HtpFlags::PATH_INVALID_ENCODING
+    )]
+    #[case("/%a", "/%a", "/%a", "/a", HtpFlags::PATH_INVALID_ENCODING)]
+    #[case("/%00ABC", "/\0ABC", "/\0ABC", "/\0ABC", HtpFlags::PATH_ENCODED_NUL)]
+    #[case("/%u0064", "/%u0064", "/%u0064", "/%u0064", 0)]
+    #[case("/%u006", "/%u006", "/%u006", "/%u006", 0)]
+    #[case("/%uXXXX", "/%uXXXX", "/%uXXXX", "/%uXXXX", 0)]
+    #[case("/%u0000ABC", "/%u0000ABC", "/%u0000ABC", "/%u0000ABC", 0)]
+    #[case("/\0ABC", "/\0ABC", "/\0ABC", "/\0ABC", 0)]
+    #[case(
+        "/one%2ftwo",
+        "/one%2ftwo",
+        "/one%2ftwo",
+        "/one%2ftwo",
+        HtpFlags::PATH_ENCODED_SEPARATOR
+    )]
+    fn test_decode_uri_path_inplace(
+        #[case] input: &str,
+        #[case] expected_process: &str,
+        #[case] expected_preserve: &str,
+        #[case] expected_remove: &str,
+        #[case] flags: u64,
+    ) {
         let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        let i = Bstr::from("/%u0107");
-        let e = "/c".as_bytes();
-        assert_eq!(urldecode_ex(&i, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
 
-    #[test]
-    fn DecodeUrlencodedEx21_UencodedCaseInsensitive() {
-        let mut cfg = Config::default();
-        cfg.set_u_encoding_decode(true);
-        let i_lower = Bstr::from("/%u0064");
-        let i_upper = Bstr::from("/%U0064");
-        let e = "/d".as_bytes();
-        assert_eq!(urldecode_ex(&i_upper, &cfg.decoder_cfg).unwrap().1 .0, e);
-        assert_eq!(urldecode_ex(&i_lower, &cfg.decoder_cfg).unwrap().1 .0, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace1_UrlencodedInvalidNotEnoughBytes() {
-        let mut cfg = Config::default();
+        let mut input_process = Bstr::from(input);
+        let mut flags_process = 0;
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        let mut i = Bstr::from("/%a");
-        let e = Bstr::from("/%a");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
         decode_uri_path_inplace(
             &cfg.decoder_cfg,
-            &mut flags,
+            &mut flags_process,
             &mut response_status_expected_number,
-            &mut i,
+            &mut input_process,
         );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
+        assert_eq!(input_process, Bstr::from(expected_process));
+        assert_eq!(flags_process, flags);
 
-    #[test]
-    fn DecodingTest_DecodePathInplace2_UencodedInvalidNotEnoughBytes() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%uX");
-        let e = Bstr::from("/%uX");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace3_UencodedValid() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%u0107");
-        let e = Bstr::from("/c");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace4_UencodedInvalidNotHexDigits_Remove() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%uXXXX");
-        let e = Bstr::from("/uXXXX");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace5_UencodedInvalidNotHexDigits_Preserve() {
-        let mut cfg = Config::default();
+        let mut input_preserve = Bstr::from(input);
+        let mut flags_preserve = 0;
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%uXXXX");
-        let e = Bstr::from("/%uXXXX");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
         decode_uri_path_inplace(
             &cfg.decoder_cfg,
-            &mut flags,
+            &mut flags_preserve,
             &mut response_status_expected_number,
-            &mut i,
+            &mut input_preserve,
         );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
+        assert_eq!(input_preserve, Bstr::from(expected_preserve));
+        assert_eq!(flags_preserve, flags);
 
-    #[test]
-    fn DecodingTest_DecodePathInplace6_UencodedInvalidNotHexDigits_Process() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%u00}9");
-        let e = Bstr::from("/i");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace7_UencodedNul() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%u0000");
-        let e = Bstr::from("/\0");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_ENCODED_NUL));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace8_UencodedNotEnough_Remove() {
-        let mut cfg = Config::default();
+        let mut input_remove = Bstr::from(input);
+        let mut flags_remove = 0;
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%uXXX");
-        let e = Bstr::from("/uXXX");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
         decode_uri_path_inplace(
             &cfg.decoder_cfg,
-            &mut flags,
+            &mut flags_remove,
             &mut response_status_expected_number,
-            &mut i,
+            &mut input_remove,
         );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
+        assert_eq!(input_remove, Bstr::from(expected_remove));
+        assert_eq!(flags_remove, flags);
     }
 
-    #[test]
-    fn DecodingTest_DecodePathInplace9_UencodedNotEnough_Preserve() {
+    #[rstest]
+    #[case("/dest", "/dest", "/dest", "/dest", 0)]
+    #[case("/%64est", "/dest", "/dest", "/dest", 0)]
+    #[case(
+        "/%xxest",
+        "/1est",
+        "/%xxest",
+        "/xxest",
+        HtpFlags::PATH_INVALID_ENCODING
+    )]
+    #[case("/%a", "/%a", "/%a", "/a", HtpFlags::PATH_INVALID_ENCODING)]
+    #[case("/%00ABC", "/\0ABC", "/\0ABC", "/\0ABC", HtpFlags::PATH_ENCODED_NUL)]
+    #[case("/%u0064", "/d", "/d", "/d", HtpFlags::PATH_OVERLONG_U)]
+    #[case("/%U0064", "/d", "/d", "/d", HtpFlags::PATH_OVERLONG_U)]
+    #[case("/%u006", "/%u006", "/%u006", "/u006", HtpFlags::PATH_INVALID_ENCODING)]
+    #[case("/%uXXXX", "/?", "/%uXXXX", "/uXXXX", HtpFlags::PATH_INVALID_ENCODING)]
+    #[case("/%u0000ABC", "/\0ABC", "/\0ABC", "/\0ABC", HtpFlags::PATH_ENCODED_NUL | HtpFlags::PATH_OVERLONG_U)]
+    #[case("/\0ABC", "/\0ABC", "/\0ABC", "/\0ABC", 0)]
+    #[case(
+        "/one%2ftwo",
+        "/one%2ftwo",
+        "/one%2ftwo",
+        "/one%2ftwo",
+        HtpFlags::PATH_ENCODED_SEPARATOR
+    )]
+    fn test_decode_uri_path_inplace_decode(
+        #[case] input: &str,
+        #[case] expected_process: &str,
+        #[case] expected_preserve: &str,
+        #[case] expected_remove: &str,
+        #[case] flags: u64,
+    ) {
         let mut cfg = Config::default();
+        cfg.set_u_encoding_decode(true);
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+
+        let mut input_process = Bstr::from(input);
+        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
+        let mut flags_process = 0;
+        decode_uri_path_inplace(
+            &cfg.decoder_cfg,
+            &mut flags_process,
+            &mut response_status_expected_number,
+            &mut input_process,
+        );
+        assert_eq!(input_process, Bstr::from(expected_process));
+        assert_eq!(flags_process, flags);
+
+        let mut input_preserve = Bstr::from(input);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        cfg.set_u_encoding_decode(true);
-        let mut i = Bstr::from("/%uXXX");
-        let e = Bstr::from("/%uXXX");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        let mut flags_preserve = 0;
         decode_uri_path_inplace(
             &cfg.decoder_cfg,
-            &mut flags,
+            &mut flags_preserve,
             &mut response_status_expected_number,
-            &mut i,
+            &mut input_preserve,
         );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
+        assert_eq!(input_preserve, Bstr::from(expected_preserve));
+        assert_eq!(flags_preserve, flags);
 
-    #[test]
-    fn DecodingTest_DecodePathInplace10_UrlencodedNul() {
-        let mut i = Bstr::from("/%00123");
-        let e = Bstr::from("/\x00123");
-        let cfg = DecoderConfig::default();
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        let mut input_remove = Bstr::from(input);
+        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
+        let mut flags_remove = 0;
         decode_uri_path_inplace(
-            &cfg,
-            &mut flags,
+            &cfg.decoder_cfg,
+            &mut flags_remove,
             &mut response_status_expected_number,
-            &mut i,
+            &mut input_remove,
         );
-        assert!(flags.is_set(HtpFlags::PATH_ENCODED_NUL));
-        assert_eq!(i, e);
+        assert_eq!(input_remove, Bstr::from(expected_remove));
+        assert_eq!(flags_remove, flags);
     }
 
-    #[test]
-    fn DecodingTest_DecodePathInplace11_UrlencodedNul_Terminates() {
+    #[rstest]
+    #[case("/%u0000ABC", HtpFlags::PATH_ENCODED_NUL | HtpFlags::PATH_OVERLONG_U)]
+    #[case("/%00ABC", HtpFlags::PATH_ENCODED_NUL)]
+    #[case("/\0ABC", 0)]
+    fn test_decode_uri_path_inplace_nul_terminates(
+        #[case] input: &str,
+        #[case] expected_flags: u64,
+    ) {
         let mut cfg = Config::default();
+        cfg.set_u_encoding_decode(true);
         cfg.set_nul_encoded_terminates(true);
-        let mut i = Bstr::from("/%00123");
-        let e = Bstr::from("/");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_ENCODED_NUL));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace12_EncodedSlash() {
-        let mut cfg = Config::default();
-        cfg.set_path_separators_decode(false);
-        let mut i = Bstr::from("/one%2ftwo");
-        let e = Bstr::from("/one%2ftwo");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_ENCODED_SEPARATOR));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace13_EncodedSlash_Decode() {
-        let mut cfg = Config::default();
-        cfg.set_path_separators_decode(true);
-        let mut i = Bstr::from("/one%2ftwo");
-        let e = Bstr::from("/one/two");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_ENCODED_SEPARATOR));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace14_Urlencoded_Invalid_Preserve() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let mut i = Bstr::from("/%HH");
-        let e = Bstr::from("/%HH");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace15_Urlencoded_Invalid_Remove() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        let mut i = Bstr::from("/%HH");
-        let e = Bstr::from("/HH");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace16_Urlencoded_Invalid_Process() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        let mut i = Bstr::from("/%}9");
-        let e = Bstr::from("/i");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace17_Urlencoded_NotEnough_Remove() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        let mut i = Bstr::from("/%H");
-        let e = Bstr::from("/H");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace18_Urlencoded_NotEnough_Preserve() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let mut i = Bstr::from("/%H");
-        let e = Bstr::from("/%H");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace19_Urlencoded_NotEnough_Process() {
-        let mut cfg = Config::default();
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        let mut i = Bstr::from("/%H");
-        let e = Bstr::from("/%H");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(flags.is_set(HtpFlags::PATH_INVALID_ENCODING));
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace20_RawNul1() {
-        let mut cfg = Config::default();
         cfg.set_nul_raw_terminates(true);
-        let mut i = Bstr::from("/\x00123");
-        let e = Bstr::from("/");
+        let mut i = Bstr::from(input);
         let mut flags = 0;
         let mut response_status_expected_number = HtpUnwanted::IGNORE;
         decode_uri_path_inplace(
@@ -2283,66 +1872,20 @@ mod test {
             &mut response_status_expected_number,
             &mut i,
         );
-        assert_eq!(i, e);
+        assert_eq!(i, Bstr::from("/"));
+        assert_eq!(flags, expected_flags);
     }
 
-    #[test]
-    fn DecodingTest_DecodePathInplace21_RawNul1() {
-        let mut cfg = Config::default();
-        cfg.set_nul_raw_terminates(false);
-        let mut i = Bstr::from("/\x00123");
-        let e = Bstr::from("/\x00123");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace22_ConvertBackslash1() {
+    #[rstest]
+    #[case::encoded("/one%2ftwo")]
+    #[case::convert("/one\\two")]
+    #[case::compress("/one//two")]
+    fn test_decode_uri_path_inplace_seps(#[case] input: &str) {
         let mut cfg = Config::default();
         cfg.set_backslash_convert_slashes(true);
-        let mut i = Bstr::from("/one\\two");
-        let e = Bstr::from("/one/two");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace23_ConvertBackslash2() {
-        let mut cfg = Config::default();
-        cfg.set_backslash_convert_slashes(false);
-        let mut i = Bstr::from("/one\\two");
-        let e = Bstr::from("/one\\two");
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        decode_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert_eq!(i, e);
-    }
-
-    #[test]
-    fn DecodingTest_DecodePathInplace24_CompressSeparators() {
-        let mut cfg = Config::default();
+        cfg.set_path_separators_decode(true);
         cfg.set_path_separators_compress(true);
-        let mut i = Bstr::from("/one//two");
-        let e = Bstr::from("/one/two");
+        let mut i = Bstr::from(input);
         let mut flags = 0;
         let mut response_status_expected_number = HtpUnwanted::IGNORE;
         decode_uri_path_inplace(
@@ -2351,14 +1894,26 @@ mod test {
             &mut response_status_expected_number,
             &mut i,
         );
-        assert_eq!(i, e);
+        assert_eq!(i, Bstr::from("/one/two"));
     }
 
-    #[test]
-    fn DecodingTest_InvalidUtf8() {
+    #[rstest]
+    #[case(b"\xf1.\xf1\xef\xbd\x9dabcd", "?.?}abcd")]
+    //1111 0000 1001 0000 1000 1101 1111 1111
+    #[case::invalid_incomplete_seq(b"\xf0\x90\x8d\xff", "??")]
+    //1110 0010 1000 0010
+    #[case::invalid_incomplete_seq(b"\xe2\x82", "?")]
+    //1100 0010 1111 1111 1111 0000
+    #[case::invalid_incomplete_seq(b"\xc2\xff\xf0", "??")]
+    //1111 0000 1001 0000 0010 1000 1011 1100
+    #[case::invalid_incomplete_seq(b"\xf0\x90\x28\xbc", "?(?")]
+    fn test_utf8_decode_and_validate_uri_path_inplace(
+        #[case] input: &[u8],
+        #[case] expected: &str,
+    ) {
         let mut cfg = Config::default();
         cfg.set_utf8_convert_bestfit(true);
-        let mut i = Bstr::from(b"\xf1.\xf1\xef\xbd\x9dabcd".to_vec());
+        let mut i = Bstr::from(input);
         let mut flags = 0;
         let mut response_status_expected_number = HtpUnwanted::IGNORE;
         utf8_decode_and_validate_uri_path_inplace(
@@ -2367,113 +1922,50 @@ mod test {
             &mut response_status_expected_number,
             &mut i,
         );
-        assert!(i.eq_slice("?.?}abcd"));
+        assert_eq!(i, Bstr::from(expected));
     }
 
-    #[test]
-    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence() {
-        let mut cfg = Config::default();
-        cfg.set_utf8_convert_bestfit(true);
-        //1111 0000 1001 0000 1000 1101 1111 1111
-        let mut i = Bstr::from(b"\xf0\x90\x8d\xff".to_vec());
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        utf8_decode_and_validate_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(i.eq_slice("??"));
-    }
-
-    #[test]
-    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence2() {
-        let mut cfg = Config::default();
-        cfg.set_utf8_convert_bestfit(true);
-        //1110 0010 1000 0010
-        let mut i = Bstr::from(b"\xe2\x82".to_vec());
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        utf8_decode_and_validate_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(i.eq_slice("?"));
-    }
-
-    #[test]
-    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence3() {
-        let mut cfg = Config::default();
-        cfg.set_utf8_convert_bestfit(true);
-        //1100 0010 1111 1111 1111 0000
-        let mut i = Bstr::from(b"\xc2\xff\xf0".to_vec());
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        utf8_decode_and_validate_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(i.eq_slice("??"));
-    }
-
-    #[test]
-    fn DecodingTest_InvalidUtf8_IncompleteInvalidSequence4() {
-        let mut cfg = Config::default();
-        cfg.set_utf8_convert_bestfit(true);
-        //1111 0000 1001 0000 0010 1000 1011 1100
-        let mut i = Bstr::from(b"\xf0\x90\x28\xbc".to_vec());
-        let mut flags = 0;
-        let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        utf8_decode_and_validate_uri_path_inplace(
-            &cfg.decoder_cfg,
-            &mut flags,
-            &mut response_status_expected_number,
-            &mut i,
-        );
-        assert!(i.eq_slice("?(?"));
-    }
-
-    #[test]
-    fn UrlDecode() {
+    #[rstest]
+    #[case(
+        "/one/tw%u006f/three/%u123",
+        "/one/two/three/%u123",
+        "/one/two/three/%u123",
+        "/one/two/three/u123"
+    )]
+    #[case(
+        "/one/tw%u006f/three/%3",
+        "/one/two/three/%3",
+        "/one/two/three/%3",
+        "/one/two/three/3"
+    )]
+    #[case(
+        "/one/tw%u006f/three/%uXXXX",
+        "/one/two/three/?",
+        "/one/two/three/%uXXXX",
+        "/one/two/three/uXXXX"
+    )]
+    fn test_urldecode_inplace(
+        #[case] input: &str,
+        #[case] expected_process: &str,
+        #[case] expected_preserve: &str,
+        #[case] expected_remove: &str,
+    ) {
         let mut cfg = Config::default();
         cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        let mut s = Bstr::from("/one/tw%u006f/three/%u123");
-        let mut e = Bstr::from("/one/two/three/%u123");
 
-        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
-        assert_eq!(e, s);
-
-        s = Bstr::from("/one/tw%u006f/three/%uXXXX");
-        e = Bstr::from("/one/two/three/%uXXXX");
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
-        assert_eq!(e, s);
-
-        s = Bstr::from("/one/tw%u006f/three/%u123");
-        e = Bstr::from("/one/two/three/u123");
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
-        assert_eq!(e, s);
-
-        s = Bstr::from("/one/tw%u006f/three/%3");
-        e = Bstr::from("/one/two/three/3");
-        cfg.set_u_encoding_decode(true);
-        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
-        assert_eq!(e, s);
-
-        s = Bstr::from("/one/tw%u006f/three/%3");
-        e = Bstr::from("/one/two/three/%3");
-        cfg.set_u_encoding_decode(true);
         cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PROCESS_INVALID);
-        urldecode_inplace(&cfg.decoder_cfg, &mut s).unwrap();
-        assert_eq!(e, s);
+        let mut input_process = Bstr::from(input);
+        urldecode_inplace(&cfg.decoder_cfg, &mut input_process).unwrap();
+        assert_eq!(input_process, Bstr::from(expected_process));
+
+        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::PRESERVE_PERCENT);
+        let mut input_preserve = Bstr::from(input);
+        urldecode_inplace(&cfg.decoder_cfg, &mut input_preserve).unwrap();
+        assert_eq!(input_preserve, Bstr::from(expected_preserve));
+
+        cfg.set_url_encoding_invalid_handling(HtpUrlEncodingHandling::REMOVE_PERCENT);
+        let mut input_remove = Bstr::from(input);
+        urldecode_inplace(&cfg.decoder_cfg, &mut input_remove).unwrap();
+        assert_eq!(input_remove, Bstr::from(expected_remove));
     }
 }
