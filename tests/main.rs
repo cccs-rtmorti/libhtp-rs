@@ -129,14 +129,14 @@ fn ApacheHeaderParsing() {
         .collect();
 
     let expected: Vec<(&[u8], &[u8])> = [
-        (" Invalid-Folding", "1"),
+        ("Invalid-Folding", "1"),
         ("Valid-Folding", "2 2"),
         ("Normal-Header", "3"),
         ("Invalid Header Name", "4"),
         ("Same-Name-Headers", "5, 6"),
         ("Empty-Value-Header", ""),
         ("", "8, "),
-        ("Header-With-LWS-After ", "9"),
+        ("Header-With-LWS-After", "9"),
         ("Header-With-NUL", "BEFORE\0AFTER"),
     ]
     .iter()

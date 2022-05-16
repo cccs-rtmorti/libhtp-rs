@@ -46,6 +46,37 @@ impl Flags {
     pub const FOLDING_EMPTY: u64 = (0x1000 | Self::DEFORMED_EOL);
 }
 
+/// Trim the leading whitespace
+fn trim_start(input: &[u8]) -> &[u8] {
+    let mut result = input;
+    while let Some(x) = result.first() {
+        if is_space(*x) {
+            result = &result[1..]
+        } else {
+            break;
+        }
+    }
+    result
+}
+
+/// Trim the trailing whitespace
+fn trim_end(input: &[u8]) -> &[u8] {
+    let mut result = input;
+    while let Some(x) = result.last() {
+        if is_space(*x) {
+            result = &result[..(result.len() - 1)]
+        } else {
+            break;
+        }
+    }
+    result
+}
+
+/// Trim the leading and trailing whitespace from this byteslice.
+fn trimmed(input: &[u8]) -> &[u8] {
+    trim_end(trim_start(input))
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Name {
     pub name: Vec<u8>,
@@ -55,7 +86,7 @@ pub struct Name {
 impl Name {
     pub fn new(name: &[u8], flags: u64) -> Self {
         Self {
-            name: name.to_vec(),
+            name: trimmed(name).to_vec(),
             flags,
         }
     }
@@ -70,7 +101,7 @@ pub struct Value {
 impl Value {
     pub fn new(value: &[u8], flags: u64) -> Self {
         Self {
-            value: value.to_vec(),
+            value: trimmed(value).to_vec(),
             flags,
         }
     }
@@ -386,7 +417,7 @@ impl Parser {
                                 if value.is_empty() {
                                     flags.set(Flags::VALUE_EMPTY);
                                 }
-                                return Ok((rest, Value { value, flags }));
+                                return Ok((rest, Value::new(&value, flags)));
                             }
                             Err(Incomplete(_)) => {
                                 return Err(Incomplete(Needed::Size(1)));
@@ -403,14 +434,14 @@ impl Parser {
                     }
                     value.extend(val_bytes);
                     if fold.is_none() {
-                        return Ok((rest, Value { value, flags }));
+                        return Ok((rest, Value::new(&value, flags)));
                     }
                 }
             } else {
                 if value.is_empty() {
                     flags.set(Flags::VALUE_EMPTY);
                 }
-                Ok((rest, Value { value, flags }))
+                Ok((rest, Value::new(&value, flags)))
             }
         }
     }
@@ -421,10 +452,7 @@ impl Parser {
             //We first attempt to parse a token name before we attempt a non token name
             map(
                 alt((self.token_name(), self.non_token_name())),
-                |(name, flags)| Name {
-                    name: name.into(),
-                    flags,
-                },
+                |(name, flags)| Name::new(name, flags),
             )(input)
         }
     }
@@ -675,6 +703,17 @@ mod test {
         ($b: literal) => {
             $b.as_bytes()
         };
+    }
+
+    #[rstest]
+    #[case::trimmed(b"notrim", b"notrim")]
+    #[case::trim_start(b"\t trim", b"trim")]
+    #[case::trim_both(b" trim ", b"trim")]
+    #[case::trim_both_ignore_middle(b" trim trim ", b"trim trim")]
+    #[case::trim_end(b"trim \t", b"trim")]
+    #[case::trim_empty(b"", b"")]
+    fn test_trim(#[case] input: &[u8], #[case] expected: &[u8]) {
+        assert_eq!(trimmed(input), expected);
     }
 
     #[rstest]
@@ -949,14 +988,14 @@ mod test {
     #[case::incomplete(b"Hello", Err(Incomplete(Needed::Size(1))), None)]
     #[case::name(b"Hello: world", Ok((b!(": world"), Name {name: b"Hello".to_vec(), flags: 0})), None)]
     #[case::name(b"Host:www.google.com\rName: Value", Ok((b!(":www.google.com\rName: Value"), Name {name: b"Host".to_vec(), flags: 0})), None)]
-    #[case::trailing_whitespace(b"Hello : world", Ok((b!(": world"), Name {name: b"Hello ".to_vec(), flags: Flags::NAME_TRAILING_WHITESPACE})), None)]
-    #[case::surrounding_whitespace(b" Hello : world", Ok((b!(": world"), Name {name: b" Hello ".to_vec(), flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE})), None)]
+    #[case::trailing_whitespace(b"Hello : world", Ok((b!(": world"), Name {name: b"Hello".to_vec(), flags: Flags::NAME_TRAILING_WHITESPACE})), None)]
+    #[case::surrounding_whitespace(b" Hello : world", Ok((b!(": world"), Name {name: b"Hello".to_vec(), flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE})), None)]
     #[case::semicolon(b"Hello;invalid: world", Ok((b!(": world"), Name {name: b"Hello;invalid".to_vec(), flags: Flags::NAME_NON_TOKEN_CHARS})), None)]
     #[case::space(b"Hello invalid: world", Ok((b!(": world"), Name {name: b"Hello invalid".to_vec(), flags: Flags::NAME_NON_TOKEN_CHARS})), None)]
-    #[case::surrounding_inernal_space(b" Hello invalid : world", Ok((b!(": world"), Name {name: b" Hello invalid ".to_vec(), flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE | Flags::NAME_NON_TOKEN_CHARS})), None)]
-    #[case::empty_name(b"   : world", Ok((b!(": world"), Name {name: b"   ".to_vec(), flags: Flags::NAME_EMPTY})), None)]
-    #[case::empty_name_response(b"  \r\n \r\n:\r\n world", Err(Error((b!("\n \r\n:\r\n world"), Tag))), Some(Ok((b!("\r\n \r\n:\r\n world"), Name {name: b"  ".to_vec(), flags : Flags::NAME_EMPTY}))))]
-    #[case::surrounding_whitespace_response(b" Hello \r\n \n: \nworld", Err(Error((b!("\n \n: \nworld"), Tag))), Some(Ok((b!("\r\n \n: \nworld"), Name {name: b" Hello ".to_vec(), flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE}))))]
+    #[case::surrounding_inernal_space(b" Hello invalid : world", Ok((b!(": world"), Name {name: b"Hello invalid".to_vec(), flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE | Flags::NAME_NON_TOKEN_CHARS})), None)]
+    #[case::empty_name(b"   : world", Ok((b!(": world"), Name {name: b"".to_vec(), flags: Flags::NAME_EMPTY})), None)]
+    #[case::empty_name_response(b"  \r\n \r\n:\r\n world", Err(Error((b!("\n \r\n:\r\n world"), Tag))), Some(Ok((b!("\r\n \r\n:\r\n world"), Name {name: b"".to_vec(), flags : Flags::NAME_EMPTY}))))]
+    #[case::surrounding_whitespace_response(b" Hello \r\n \n: \nworld", Err(Error((b!("\n \n: \nworld"), Tag))), Some(Ok((b!("\r\n \n: \nworld"), Name {name: b"Hello".to_vec(), flags: Flags::NAME_LEADING_WHITESPACE | Flags::NAME_TRAILING_WHITESPACE}))))]
     fn test_name(
         #[case] input: &[u8],
         #[case] expected: IResult<&[u8], Name>,
@@ -1209,7 +1248,7 @@ mod test {
     #[case::incomplete(b"value\r\n more", Err(Incomplete(Needed::Size(1))), None)]
     #[case::incomplete(b"value\r\n more\n", Err(Incomplete(Needed::Size(1))), None)]
     #[case::incomplete(b"value\n more\r\n", Err(Incomplete(Needed::Size(1))), None)]
-    #[case::fold(b"\r\n value    \r\nnext:", Ok((b!("next:"), Value {value: b"value    ".to_vec(), flags: Flags::FOLDING})), None)]
+    #[case::fold(b"\r\n value    \r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: Flags::FOLDING})), None)]
     #[case::fold(b"\r\n value\r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: Flags::FOLDING})), None)]
     #[case::fold(b"value\r\n more\r\n\r\n", Ok((b!("\r\n"), Value {value: b"value more".to_vec(), flags: Flags::FOLDING})), None)]
     #[case::fold(b"value\r\n more\r\n\tand more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: Flags::FOLDING})), None)]
