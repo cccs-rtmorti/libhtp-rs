@@ -120,7 +120,9 @@ jobs:
 
     #
     # Run the benchmarks
-    - script: cargo bench
+    - script: |
+        rustup override set stable
+        cargo bench
       displayName: bench
       workingDirectory: $(Agent.BuildDirectory)/libhtp2
 
