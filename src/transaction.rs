@@ -1322,11 +1322,11 @@ impl Transaction {
     /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
     /// and invoke all registered callbacks.
     pub fn state_request_start(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        // Run hook REQUEST_START.
-        connp.cfg.hook_request_start.run_all(connp, self)?;
         // Change state into request line parsing.
         connp.request_state = State::LINE;
         self.request_progress = HtpRequestProgress::LINE;
+        // Run hook REQUEST_START.
+        connp.cfg.hook_request_start.run_all(connp, self)?;
         Ok(())
     }
 
@@ -1834,8 +1834,6 @@ impl Transaction {
     /// Returns OK on success; ERROR on error, HTP_STOP if one of the
     ///         callbacks does not want to follow the transaction any more.
     pub fn state_response_start(&mut self, connp: &mut ConnectionParser) -> Result<()> {
-        // Run hook RESPONSE_START.
-        connp.cfg.hook_response_start.run_all(connp, self)?;
         // Change state into response line parsing, except if we're following
         // a HTTP/0.9 request (no status line or response headers).
         if self.is_protocol_0_9 {
@@ -1848,6 +1846,8 @@ impl Transaction {
             connp.response_state = State::LINE;
             self.response_progress = HtpResponseProgress::LINE
         }
+        // Run hook RESPONSE_START.
+        connp.cfg.hook_response_start.run_all(connp, self)?;
         // If at this point we have no method and no uri and our status
         // is still REQ_LINE, we likely have timed out request
         // or a overly long request
