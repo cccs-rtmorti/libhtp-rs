@@ -335,7 +335,7 @@ pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
         let mut new_input = input;
         let mut bytes_consumed: usize = 0;
         while !new_input.is_empty() {
-            let (left, consumed) = take_till::<_, _, NomError<&[u8]>>(|c: u8| {
+            let (left, consumed) = take_till(|c: u8| {
                 c.to_ascii_lowercase() == tag[0] || c.to_ascii_uppercase() == tag[0]
             })(new_input)?;
             new_input = left;
@@ -794,7 +794,7 @@ fn path_decode<'a>(
 ) -> IResult<&'a [u8], (Vec<u8>, u64, HtpUnwanted)> {
     fold_many0(
         alt((path_decode_percent(cfg), path_parse_other(cfg))),
-        (Vec::new(), 0, HtpUnwanted::IGNORE),
+        || (Vec::new(), 0, HtpUnwanted::IGNORE),
         |mut acc: (Vec<_>, u64, HtpUnwanted), (byte, code, flag, insert)| {
             // If we're compressing separators then we need
             // to check if the previous character was a separator
@@ -1069,7 +1069,7 @@ pub fn urldecode_ex<'a>(
             url_decode_plus(cfg),
             url_parse_unencoded_byte(cfg),
         )),
-        (Vec::new(), 0, HtpUnwanted::IGNORE),
+        || (Vec::new(), 0, HtpUnwanted::IGNORE),
         |mut acc: (Vec<_>, u64, HtpUnwanted), (byte, code, flag, insert)| {
             if insert {
                 acc.0.push(byte);
@@ -1231,7 +1231,7 @@ pub fn take_till_eol(data: &[u8]) -> IResult<&[u8], (&[u8], Eol)> {
             &data[line.len() + 2..],
             (&data[0..line.len() + 2], Eol::LFCR),
         )),
-        _ => Err(Incomplete(Needed::Size(1))),
+        _ => Err(Incomplete(Needed::new(1))),
     }
 }
 
@@ -1322,11 +1322,11 @@ mod tests {
 
     #[rstest]
     #[should_panic(
-        expected = "called `Result::unwrap()` on an `Err` value: Error(([], TakeUntil))"
+        expected = "called `Result::unwrap()` on an `Err` value: Error(Error { input: [], code: TakeUntil })"
     )]
     #[case("", "", "")]
     #[should_panic(
-        expected = "called `Result::unwrap()` on an `Err` value: Error(([78, 111, 32, 99, 111, 108, 111, 110], TakeUntil))"
+        expected = "called `Result::unwrap()` on an `Err` value: Error(Error { input: [78, 111, 32, 99, 111, 108, 111, 110], code: TakeUntil })"
     )]
     #[case("No colon", "", "")]
     #[case("Content-Length: 230", "Content-Length", "230")]
@@ -1391,11 +1391,11 @@ mod tests {
     #[rstest]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
     #[case("", "", "", Eol::CR)]
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(2))")]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
     #[case("abcdefg\n", "", "", Eol::CR)]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
     #[case("abcdefg\n\r", "", "", Eol::CR)]
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(2))")]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
     #[case("abcdefg\r", "", "", Eol::CR)]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
     #[case("abcdefg", "", "", Eol::CR)]
@@ -1511,7 +1511,9 @@ mod tests {
     }
 
     #[rstest]
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Error(([], Digit))")]
+    #[should_panic(
+        expected = "called `Result::unwrap()` on an `Err` value: Error(Error { input: [], code: Digit })"
+    )]
     #[case("   garbage no ascii ", "", "", "")]
     #[case("    a200 \t  bcd ", "bcd ", "a", "200")]
     #[case("   555555555    ", "", "", "555555555")]

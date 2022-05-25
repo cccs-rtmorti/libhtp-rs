@@ -10,7 +10,7 @@ use crate::{
         FlagOperations, HtpFlags,
     },
 };
-use nom::{error::ErrorKind, sequence::tuple};
+use nom::sequence::tuple;
 use std::cmp::Ordering;
 
 impl ConnectionParser {
@@ -22,7 +22,7 @@ impl ConnectionParser {
         response_tx.response_status_number = HtpResponseNumber::INVALID;
         response_tx.response_message = None;
 
-        let response_line_parser = tuple::<_, _, (_, ErrorKind), _>((
+        let mut response_line_parser = tuple((
             take_is_space_or_null,
             take_not_is_space,
             take_is_space,

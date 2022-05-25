@@ -9,7 +9,7 @@ use crate::{
     transaction::{Header, HtpProtocol},
     util::{is_space, take_is_space, take_not_is_space, take_until_null, FlagOperations, HtpFlags},
 };
-use nom::{bytes::complete::take_while, error::ErrorKind, sequence::tuple};
+use nom::{bytes::complete::take_while, sequence::tuple};
 use std::cmp::Ordering;
 
 impl ConnectionParser {
@@ -180,7 +180,7 @@ impl ConnectionParser {
         }
         // The request method starts at the beginning of the
         // line and ends with the first whitespace character.
-        let method_parser = tuple::<_, _, (_, ErrorKind), _>
+        let mut method_parser = tuple
                                 // skip past leading whitespace. IIS allows this
                                ((take_is_space,
                                take_not_is_space,
@@ -244,7 +244,7 @@ impl ConnectionParser {
                 return Ok(());
             }
 
-            let uri_protocol_parser = tuple::<_, _, (_, ErrorKind), _>
+            let mut uri_protocol_parser = tuple
             // The URI ends with the first whitespace.
             ((take_while(|c: u8| c != 0x20),
               // Ignore whitespace after URI.
@@ -260,8 +260,7 @@ impl ConnectionParser {
                         "Request line: URI contains non-compliant delimiter"
                     );
                     // if we've seen some 'bad' delimiters, we retry with those
-                    let uri_protocol_parser2 =
-                        tuple::<_, _, (_, ErrorKind), _>((take_not_is_space, take_is_space));
+                    let mut uri_protocol_parser2 = tuple((take_not_is_space, take_is_space));
                     if let Ok((protocol2, (uri2, _))) = uri_protocol_parser2(remaining) {
                         uri = uri2;
                         protocol = protocol2;

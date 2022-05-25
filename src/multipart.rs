@@ -675,7 +675,7 @@ impl Parser {
             self.multipart.flags.set(Flags::CRLF_LINE);
             self.parser_state = HtpMultipartState::DATA;
             remaining
-        } else if let Ok((remaining, byte)) = be_u8::<NomError<&[u8]>>(input) {
+        } else if let Ok((remaining, byte)) = be_u8::<_, NomError<&[u8]>>(input) {
             if byte == b'\n' {
                 // LF line ending; we're done with boundary processing; data bytes follow.
                 self.multipart.flags.set(Flags::LF_LINE);
@@ -1034,8 +1034,8 @@ fn content_disposition(input: &[u8]) -> IResult<&[u8], param_name_values> {
                     opt(tuple((tag(","), take_ascii_whitespace(), tag("form-data")))),
                     take_ascii_whitespace(),
                 )),
-                Vec::new(),
-                |mut acc: Vec<(&[u8], Vec<u8>)>, (param, _, _, _)| {
+                Vec::new,
+                |mut acc: Vec<_>, (param, _, _, _)| {
                     acc.push(param);
                     acc
                 },
@@ -1108,7 +1108,7 @@ fn validate_content_type(content_type: &[u8], flags: &mut u64) {
             take_until("="),
             tag("="),
         )),
-        (0, false),
+        || (0, false),
         |(mut flags, mut seen_prev): (u64, bool), (_, boundary, _, _): (_, &[u8], _, _)| {
             for byte in boundary {
                 if byte.is_ascii_uppercase() {

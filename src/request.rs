@@ -2,7 +2,7 @@ use crate::{
     bstr::Bstr,
     connection::Flags as ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
-    error::Result,
+    error::{NomError, Result},
     hook::DataHook,
     parsers::parse_chunked_length,
     transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
@@ -16,7 +16,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use nom::{
     branch::alt, bytes::complete::take_until, character::complete::char,
-    character::is_space as nom_is_space, error::ErrorKind, sequence::tuple,
+    character::is_space as nom_is_space, sequence::tuple,
 };
 use std::{
     cmp::{min, Ordering},
@@ -271,9 +271,7 @@ impl ConnectionParser {
         // The request method starts at the beginning of the
         // line and ends with the first whitespace character.
         // We skip leading whitespace as IIS allows this.
-        let res = tuple::<_, _, (_, ErrorKind), _>((take_is_space, take_not_is_space))(
-            buffered.as_slice(),
-        );
+        let res = tuple((take_is_space, take_not_is_space))(buffered.as_slice());
         if let Ok((_, (_, method))) = res {
             if HtpMethod::new(method) == HtpMethod::UNKNOWN {
                 self.request_status = HtpStreamState::TUNNEL;
@@ -567,8 +565,7 @@ impl ConnectionParser {
             self.request_state = State::HEADERS;
             self.request_mut().request_progress = HtpRequestProgress::HEADERS
         } else {
-            let parser =
-                tuple::<_, _, (_, ErrorKind), _>((take_until::<_, &[u8], _>(":"), char(':')));
+            let mut parser = tuple::<_, _, NomError<&[u8]>, _>((take_until(":"), char(':')));
             match parser(data) {
                 Ok((_, (hdr, _))) => {
                     if let Ok((_, space)) = alt((nom_take_is_space, take_is_space))(hdr) {
@@ -694,7 +691,7 @@ impl ConnectionParser {
             //closing
             return self.state_request_complete();
         }
-        let res = tuple::<_, _, (&[u8], ErrorKind), _>((take_is_space, take_not_is_space))(&data);
+        let res = tuple((take_is_space, take_not_is_space))(&data);
 
         if let Ok((_, (_, method))) = res {
             let connp_ptr: *mut Self = self as *mut Self;

@@ -2,7 +2,7 @@ use crate::HtpStatus;
 use nom::error::ErrorKind as NomErrorKind;
 
 /// Helper for nom's default error type
-pub type NomError<I> = (I, NomErrorKind);
+pub type NomError<I> = nom::error::Error<I>;
 
 /// Alias for libhtp Result type. Result types are classified by `HtpStatus`.
 pub type Result<T> = std::result::Result<T, HtpStatus>;
