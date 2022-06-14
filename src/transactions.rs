@@ -61,16 +61,13 @@ impl Transactions {
     }
 
     /// Get the current request transaction
-    #[allow(clippy::map_entry)]
     pub fn request_mut(&mut self) -> &mut Transaction {
-        //Cannot use or_insert_with without cloning due to the capture and to avoid, we use insert after contains check.
-        if !self.transactions.contains_key(&self.request) {
-            self.transactions.insert(
-                self.request,
-                Transaction::new(&self.config, &self.logger, self.request),
-            );
-        }
-        self.transactions.get_mut(&self.request).unwrap()
+        let cfg = &self.config;
+        let logger = &self.logger;
+        let request = self.request;
+        self.transactions
+            .entry(request)
+            .or_insert_with(|| Transaction::new(cfg, logger, request))
     }
 
     /// Get the current response transaction index
@@ -84,16 +81,13 @@ impl Transactions {
     }
 
     /// Get the current response transaction
-    #[allow(clippy::map_entry)]
     pub fn response_mut(&mut self) -> &mut Transaction {
-        //Cannot use or_insert_with without cloning due to the capture and to avoid, we use insert after contains check.
-        if !self.transactions.contains_key(&self.response) {
-            self.transactions.insert(
-                self.response,
-                Transaction::new(&self.config, &self.logger, self.response),
-            );
-        }
-        self.transactions.get_mut(&self.response).unwrap()
+        let cfg = &self.config;
+        let logger = &self.logger;
+        let response = self.response;
+        self.transactions
+            .entry(response)
+            .or_insert_with(|| Transaction::new(cfg, logger, response))
     }
 
     /// Increment the request transaction number.

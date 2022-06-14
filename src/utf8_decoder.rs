@@ -81,7 +81,6 @@ impl Utf8Decoder {
     }
 
     /// Decode utf8 byte using best-fit map.
-    #[allow(clippy::branches_sharing_code)]
     fn decode_byte(&mut self, encoded_byte: u8, is_last_byte: bool) {
         self.seq = self.seq.wrapping_add(1);
         self.decode_byte_allow_overlong(encoded_byte as u32);
@@ -94,23 +93,11 @@ impl Utf8Decoder {
                     // A valid UTF-8 character, which we need to convert.
                     self.seen_valid = true;
                     // Check for overlong characters and set the flag accordingly.
-                    match self.seq {
-                        2 => {
-                            if self.codepoint < 0x80 {
-                                self.flags.set(HtpFlags::PATH_UTF8_OVERLONG)
-                            }
-                        }
-                        3 => {
-                            if self.codepoint < 0x800 {
-                                self.flags.set(HtpFlags::PATH_UTF8_OVERLONG)
-                            }
-                        }
-                        4 => {
-                            if self.codepoint < 0x10000 {
-                                self.flags.set(HtpFlags::PATH_UTF8_OVERLONG)
-                            }
-                        }
-                        _ => {}
+                    if (self.seq == 2 && self.codepoint < 0x80)
+                        || (self.seq == 3 && self.codepoint < 0x800)
+                        || (self.seq == 4 && self.codepoint < 0x10000)
+                    {
+                        self.flags.set(HtpFlags::PATH_UTF8_OVERLONG);
                     }
                     // Special flag for half-width/full-width evasion.
                     if self.codepoint >= 0xff00 && self.codepoint <= 0xffef {

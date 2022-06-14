@@ -25,14 +25,8 @@ impl<'a, T> Iterator for IntoIter<'a, T> {
     type Item = &'a T;
 
     /// Returns a reference to the next element.
-    #[allow(clippy::manual_flatten)]
     fn next(&mut self) -> Option<Self::Item> {
-        for next in &mut self.inner {
-            if let Some(next) = next {
-                return Some(next);
-            }
-        }
-        None
+        self.inner.find_map(|next| next.as_ref())
     }
 }
 
@@ -56,14 +50,8 @@ impl<'a, T> Iterator for IterMut<'a, Option<T>> {
     type Item = &'a mut T;
 
     /// Returns a mutable reference to the next element
-    #[allow(clippy::manual_flatten)]
     fn next(&mut self) -> Option<Self::Item> {
-        for next in &mut self.inner {
-            if let Some(next) = next {
-                return next.as_mut();
-            }
-        }
-        None
+        (&mut self.inner).flatten().find_map(|next| next.as_mut())
     }
 }
 
