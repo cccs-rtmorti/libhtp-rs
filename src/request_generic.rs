@@ -79,7 +79,7 @@ impl ConnectionParser {
     }
 
     /// Generic request header parser.
-    pub fn process_request_headers_generic<'a>(
+    pub fn parse_request_headers_generic<'a>(
         &mut self,
         data: &'a [u8],
     ) -> Result<(&'a [u8], bool)> {

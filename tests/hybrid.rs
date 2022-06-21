@@ -295,6 +295,7 @@ fn GetTest() {
     t.connp.state_response_line().unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
+
     assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
 
     // Response header data
@@ -314,13 +315,9 @@ fn GetTest() {
     assert_response_header_eq!(tx, "server", "Apache");
 
     // Response body data
-    t.connp
-        .response_process_body_data_ex(Some(b"<h1>Hello"))
-        .unwrap();
-    t.connp.response_process_body_data_ex(Some(b" ")).unwrap();
-    t.connp
-        .response_process_body_data_ex(Some(b"World!</h1>"))
-        .unwrap();
+    t.connp.response_body_data(Some(b"<h1>Hello")).unwrap();
+    t.connp.response_body_data(Some(b" ")).unwrap();
+    t.connp.response_body_data(Some(b"World!</h1>")).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.response_body_correctly_received);
@@ -367,10 +364,10 @@ fn PostUrlecodedTest() {
     t.connp.state_request_headers().unwrap();
 
     // Send request body
-    t.connp.request_process_body_data_ex(Some(b"p=1")).unwrap();
-    t.connp.request_process_body_data_ex(Some(b"")).unwrap();
-    t.connp.request_process_body_data_ex(Some(b"&")).unwrap();
-    t.connp.request_process_body_data_ex(Some(b"q=2")).unwrap();
+    t.connp.request_body_data(Some(b"p=1")).unwrap();
+    t.connp.request_body_data(Some(b"")).unwrap();
+    t.connp.request_body_data(Some(b"&")).unwrap();
+    t.connp.request_body_data(Some(b"q=2")).unwrap();
 
     let tx = t.connp.tx_mut(tx_id).unwrap();
     tx_set_header!(tx.request_headers, "Host", "www.example.com");
@@ -421,9 +418,7 @@ fn CompressedResponse() {
 
     let body = Bstr::from(base64::decode(RESPONSE).unwrap());
 
-    t.connp
-        .response_process_body_data_ex(Some(body.as_slice()))
-        .unwrap();
+    t.connp.response_body_data(Some(body.as_slice())).unwrap();
 
     t.connp.state_response_complete().unwrap();
 
@@ -483,9 +478,9 @@ fn PostUrlecodedChunked() {
     t.connp.state_request_headers().unwrap();
 
     // Send request body.
-    t.connp.request_process_body_data_ex(Some(b"p=1")).unwrap();
-    t.connp.request_process_body_data_ex(Some(b"&")).unwrap();
-    t.connp.request_process_body_data_ex(Some(b"q=2")).unwrap();
+    t.connp.request_body_data(Some(b"p=1")).unwrap();
+    t.connp.request_body_data(Some(b"&")).unwrap();
+    t.connp.request_body_data(Some(b"q=2")).unwrap();
 
     // Request complete.
     t.connp.state_request_complete().unwrap();

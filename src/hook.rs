@@ -77,23 +77,26 @@ impl TxHook {
     ///
     /// This function will exit early if a callback fails to return HtpStatus::OK
     /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, connp: &ConnectionParser, tx: &mut Transaction) -> Result<()> {
-        for cbk_fn in &self.callbacks {
-            match cbk_fn {
-                Callback::External(cbk_fn) => {
-                    let result = unsafe { cbk_fn(connp, tx) };
-                    if result != HtpStatus::OK && result != HtpStatus::DECLINED {
-                        return Err(result);
-                    }
-                }
-                Callback::Native(cbk_fn) => {
-                    if let Err(e) = cbk_fn(tx) {
-                        if e != HtpStatus::DECLINED {
-                            return Err(e);
+    pub fn run_all(&self, connp: &mut ConnectionParser, tx_index: usize) -> Result<()> {
+        let connp_ptr: *mut ConnectionParser = connp as *mut ConnectionParser;
+        if let Some(tx) = connp.tx_mut(tx_index) {
+            for cbk_fn in &self.callbacks {
+                match cbk_fn {
+                    Callback::External(cbk_fn) => {
+                        let result = unsafe { cbk_fn(connp_ptr, tx) };
+                        if result != HtpStatus::OK && result != HtpStatus::DECLINED {
+                            return Err(result);
                         }
                     }
-                }
-            };
+                    Callback::Native(cbk_fn) => {
+                        if let Err(e) = cbk_fn(tx) {
+                            if e != HtpStatus::DECLINED {
+                                return Err(e);
+                            }
+                        }
+                    }
+                };
+            }
         }
         Ok(())
     }

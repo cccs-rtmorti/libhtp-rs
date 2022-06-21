@@ -2,12 +2,13 @@ use crate::{
     bstr::Bstr,
     config::{Config, HtpServerPersonality},
     connection::{Connection, Flags},
+    decompressors::HtpContentEncoding,
     error::Result,
     hook::DataHook,
     log::Logger,
-    transaction::Transaction,
+    transaction::{HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
     transactions::Transactions,
-    util::{File, FlagOperations},
+    util::{File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
@@ -484,13 +485,13 @@ impl ConnectionParser {
     }
 
     /// The function is used for request header parsing.
-    pub fn process_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
-        self.process_request_headers_generic(data)
+    pub fn parse_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
+        self.parse_request_headers_generic(data)
     }
 
     /// The function is used for response header parsing.
-    pub fn process_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
-        self.process_response_headers_generic(data)
+    pub fn parse_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
+        self.parse_response_headers_generic(data)
     }
 
     /// Closes the connection associated with the supplied parser.
@@ -591,49 +592,109 @@ impl ConnectionParser {
             .and_then(|ud| ud.downcast_mut::<T>())
     }
 
-    /// Consumes request body data.
-    ///
-    /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
-    /// is invalid or request body data hook fails.
-    pub fn request_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.request_mut()
-            .request_process_body_data(unsafe { &mut *connp_ptr }, data)
-    }
-
-    /// Initialize hybrid parsing mode, change state to TRANSACTION_START,
+    /// Initialize request parsing, change state to LINE,
     /// and invoke all registered callbacks.
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
     /// callbacks does not want to follow the transaction any more.
     pub fn state_request_start(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.request_mut()
-            .state_request_start(unsafe { &mut *connp_ptr })
+        // Change state into request line parsing.
+        self.request_state = State::LINE;
+        self.request_mut().request_progress = HtpRequestProgress::LINE;
+        // Run hook REQUEST_START.
+        self.cfg
+            .hook_request_start
+            .clone()
+            .run_all(self, self.request_index())?;
+        Ok(())
     }
 
-    /// Change transaction state to REQUEST_HEADERS and invoke all
+    /// Change transaction state to HEADERS and invoke all
     /// registered callbacks.
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
     /// callbacks does not want to follow the transaction any more.
     pub fn state_request_headers(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
         // Finalize sending raw header data
         self.request_receiver_finalize_clear()?;
-        self.request_mut()
-            .state_request_headers(unsafe { &mut *connp_ptr })
+        // If we're in HTP_REQ_HEADERS that means that this is the
+        // first time we're processing headers in a request. Otherwise,
+        // we're dealing with trailing headers.
+        let request_progress = self.request().request_progress;
+        if request_progress > HtpRequestProgress::HEADERS {
+            // Request trailers.
+            // Run hook HTP_REQUEST_TRAILER.
+            self.cfg
+                .hook_request_trailer
+                .clone()
+                .run_all(self, self.request_index())?;
+            // Completed parsing this request; finalize it now.
+            self.request_state = State::FINALIZE;
+        } else if request_progress >= HtpRequestProgress::LINE {
+            // Request headers.
+            // Did this request arrive in multiple data chunks?
+            if self.request_chunk_count != self.request_chunk_request_index {
+                self.request_mut().flags.set(HtpFlags::MULTI_PACKET_HEAD)
+            }
+            self.request_mut().process_request_headers()?;
+            // Check for body data to treat as file uploads.
+            if self.request().request_has_body() {
+                // Prepare to treat request body as a file.
+                self.request_file = Some(File::new(HtpFileSource::REQUEST_BODY, None));
+            }
+            // Run hook REQUEST_HEADERS.
+            self.cfg
+                .hook_request_headers
+                .clone()
+                .run_all(self, self.request_index())?;
+            self.request_initialize_decompressors()?;
+
+            // We cannot proceed if the request is invalid.
+            if self.request().flags.is_set(HtpFlags::REQUEST_INVALID) {
+                return Err(HtpStatus::ERROR);
+            }
+            self.request_state = State::CONNECT_CHECK;
+        } else {
+            htp_warn!(
+                self.logger,
+                HtpLogCode::RESPONSE_BODY_INTERNAL_ERROR,
+                format!(
+                    "[Internal Error] Invalid tx progress: {:?}",
+                    request_progress
+                )
+            );
+            return Err(HtpStatus::ERROR);
+        }
+        Ok(())
     }
 
-    /// Change transaction state to REQUEST_LINE and invoke all
+    /// Change transaction state to PROTOCOL and invoke all
     /// registered callbacks.
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
     /// callbacks does not want to follow the transaction any more.
     pub fn state_request_line(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.request_mut()
-            .state_request_line(unsafe { &mut *connp_ptr })
+        self.request_mut().parse_request_line()?;
+        // Run hook REQUEST_URI_NORMALIZE.
+        self.cfg
+            .hook_request_uri_normalize
+            .clone()
+            .run_all(self, self.request_index())?;
+        // Run hook REQUEST_LINE.
+        self.cfg
+            .hook_request_line
+            .clone()
+            .run_all(self, self.request_index())?;
+        let logger = self.logger.clone();
+        if let Some(parsed_uri) = self.request_mut().parsed_uri.as_mut() {
+            let (partial_normalized_uri, complete_normalized_uri) =
+                parsed_uri.generate_normalized_uri(Some(logger));
+            self.request_mut().partial_normalized_uri = partial_normalized_uri;
+            self.request_mut().complete_normalized_uri = complete_normalized_uri;
+        }
+        // Move on to the next phase.
+        self.request_state = State::PROTOCOL;
+        Ok(())
     }
 
     /// Advance state after processing request headers.
@@ -641,9 +702,18 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_request_complete(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.request_mut()
-            .state_request_complete(unsafe { &mut *connp_ptr })?;
+        if self.request().request_progress != HtpRequestProgress::COMPLETE {
+            // Finalize request body.
+            if self.request().request_has_body() {
+                self.request_body_data(None)?;
+            }
+            self.request_mut().request_progress = HtpRequestProgress::COMPLETE;
+            // Run hook REQUEST_COMPLETE.
+            self.cfg
+                .hook_request_complete
+                .clone()
+                .run_all(self, self.request_index())?;
+        }
         // Determine what happens next, and remove this transaction from the parser.
         self.request_state = if self.request().is_protocol_0_9 {
             State::IGNORE_DATA_AFTER_HTTP_0_9
@@ -651,19 +721,25 @@ impl ConnectionParser {
             State::IDLE
         };
         // Check if the entire transaction is complete.
-        let _ = self.request_mut().finalize(unsafe { &mut *connp_ptr })?;
+        let _ = self.finalize(self.request_index())?;
         self.request_next();
         Ok(())
     }
 
-    /// Consumes response body data.
-    ///
-    /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
-    /// is invalid or response body data hook fails.
-    pub fn response_process_body_data_ex(&mut self, data: Option<&[u8]>) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.response_mut()
-            .response_process_body_data(unsafe { &mut *connp_ptr }, data)
+    /// Determine if the transaction is complete and run any hooks.
+    pub fn finalize(&mut self, tx_index: usize) -> Result<()> {
+        if let Some(tx) = self.tx(tx_index) {
+            if !tx.is_complete() {
+                return Ok(());
+            }
+            // Disconnect transaction from the parser.
+            // Run hook TRANSACTION_COMPLETE.
+            self.cfg
+                .hook_transaction_complete
+                .clone()
+                .run_all(self, tx_index)?;
+        }
+        Ok(())
     }
 
     /// Advance state to LINE, or BODY if http version is 0.9.
@@ -671,9 +747,38 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_start(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.response_mut()
-            .state_response_start(unsafe { &mut *connp_ptr })
+        // Change state into response line parsing, except if we're following
+        // a HTTP/0.9 request (no status line or response headers).
+        if self.response().is_protocol_0_9 {
+            let tx = self.response_mut();
+            tx.response_transfer_coding = HtpTransferCoding::IDENTITY;
+            tx.response_content_encoding_processing = HtpContentEncoding::NONE;
+            tx.response_progress = HtpResponseProgress::BODY;
+            self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
+            self.response_body_data_left = -1
+        } else {
+            self.response_state = State::LINE;
+            self.response_mut().response_progress = HtpResponseProgress::LINE
+        }
+        // Run hook RESPONSE_START.
+        self.cfg
+            .hook_response_start
+            .clone()
+            .run_all(self, self.response_index())?;
+        // If at this point we have no method and no uri and our status
+        // is still REQ_LINE, we likely have timed out request
+        // or a overly long request
+        if self.response().request_method.is_none()
+            && self.response().request_uri.is_none()
+            && self.request_state == State::LINE
+        {
+            htp_warn!(
+                self.logger,
+                HtpLogCode::REQUEST_LINE_INCOMPLETE,
+                "Request line incomplete"
+            );
+        }
+        Ok(())
     }
 
     /// Advance state after processing response headers.
@@ -681,11 +786,14 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_headers(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
         // Finalize sending raw header data.
         self.response_receiver_finalize_clear()?;
-        self.response_mut()
-            .state_response_headers(unsafe { &mut *connp_ptr })
+        // Run hook RESPONSE_HEADERS.
+        self.cfg
+            .hook_response_headers
+            .clone()
+            .run_all(self, self.response_index())?;
+        self.response_initialize_decompressors()
     }
 
     /// Change transaction state to RESPONSE_LINE and invoke registered callbacks.
@@ -693,9 +801,12 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_line(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.response_mut()
-            .state_response_line(unsafe { &mut *connp_ptr })
+        // Is the response line valid?
+        let tx = self.response_mut();
+        tx.validate_response_line();
+        let index = tx.index;
+        // Run hook HTP_RESPONSE_LINE
+        self.cfg.hook_response_line.clone().run_all(self, index)
     }
 
     /// Change transaction state to COMPLETE and invoke registered callbacks.
@@ -703,13 +814,24 @@ impl ConnectionParser {
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
     pub fn state_response_complete(&mut self) -> Result<()> {
-        let connp_ptr: *mut Self = self as *mut Self;
-        self.response_mut()
-            .state_response_complete(unsafe { &mut *connp_ptr })?;
+        let response_index = self.response_index();
+        if self.response().response_progress != HtpResponseProgress::COMPLETE {
+            let tx = self.response_mut();
+            tx.response_progress = HtpResponseProgress::COMPLETE;
+            // Run the last RESPONSE_BODY_DATA HOOK, but only if there was a response body present.
+            if tx.response_transfer_coding != HtpTransferCoding::NO_BODY {
+                let _ = self.response_body_data(None);
+            }
+            // Run hook RESPONSE_COMPLETE.
+            self.cfg
+                .hook_response_complete
+                .clone()
+                .run_all(self, response_index)?;
+        }
         // Check if we want to signal the caller to send request data
         self.request_parser_check_waiting()?;
         // Otherwise finalize the transaction
-        self.response_mut().finalize(unsafe { &mut *connp_ptr })?;
+        self.finalize(response_index)?;
         self.response_next();
         self.response_state = State::IDLE;
         Ok(())
@@ -759,17 +881,17 @@ impl ConnectionParser {
     /// so any incomplete transactions can be processed by the caller.
     pub fn flush_incomplete_transactions(&mut self) {
         let mut to_remove = Vec::<usize>::new();
-        let connp_ptr: *mut Self = self as *mut Self;
         for tx in &mut self.transactions {
             if tx.is_started() && !tx.is_complete() {
                 to_remove.push(tx.index);
-                self.cfg
-                    .hook_transaction_complete
-                    .run_all(unsafe { &*connp_ptr }, tx)
-                    .ok();
             }
         }
         for index in to_remove {
+            self.cfg
+                .hook_transaction_complete
+                .clone()
+                .run_all(self, index)
+                .ok();
             self.transactions.remove(index);
         }
     }

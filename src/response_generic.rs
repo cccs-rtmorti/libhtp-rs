@@ -59,7 +59,7 @@ impl ConnectionParser {
     /// Generic response header parser.
     ///
     ///Returns a tuple of the unparsed data and a boolean indicating if the EOH was seen.
-    pub fn process_response_headers_generic<'a>(
+    pub fn parse_response_headers_generic<'a>(
         &mut self,
         data: &'a [u8],
     ) -> Result<(&'a [u8], bool)> {

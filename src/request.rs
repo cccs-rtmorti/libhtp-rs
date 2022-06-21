@@ -2,6 +2,7 @@ use crate::{
     bstr::Bstr,
     connection::Flags as ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
+    decompressors::{Decompressor, HtpContentEncoding},
     error::{NomError, Result},
     hook::DataHook,
     parsers::parse_chunked_length,
@@ -343,7 +344,7 @@ impl ConnectionParser {
             return Err(HtpStatus::DATA);
         }
         // Consume the data.
-        self.request_process_body_data_ex(Some(&data[0..bytes_to_consume]))?;
+        self.request_body_data(Some(&data[0..bytes_to_consume]))?;
         // Adjust counters.
         self.request_curr_data
             .seek(SeekFrom::Current(bytes_to_consume as i64))?;
@@ -447,7 +448,7 @@ impl ConnectionParser {
             self.request_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
-            self.request_process_body_data_ex(Some(&data.as_slice()[0..bytes_to_consume]))?;
+            self.request_body_data(Some(&data.as_slice()[0..bytes_to_consume]))?;
             self.request_curr_data
                 .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         }
@@ -459,7 +460,7 @@ impl ConnectionParser {
             // End of request body.
             self.request_state = State::FINALIZE;
             // Sends close signal to decompressors
-            return self.request_process_body_data_ex(None);
+            return self.request_body_data(None);
         }
         // Ask for more data.
         Err(HtpStatus::DATA)
@@ -508,7 +509,7 @@ impl ConnectionParser {
             self.request_mut().request_header_parser.set_complete(true);
             // Parse previous header, if any.
             if let Some(request_header) = self.request_header.take() {
-                self.process_request_headers(request_header.as_slice())?;
+                self.parse_request_headers(request_header.as_slice())?;
             }
             self.request_buf.clear();
             self.request_mut().request_progress = HtpRequestProgress::TRAILER;
@@ -522,7 +523,7 @@ impl ConnectionParser {
             Bstr::from(data)
         };
 
-        let (remaining, eoh) = self.process_request_headers(request_header.as_slice())?;
+        let (remaining, eoh) = self.parse_request_headers(request_header.as_slice())?;
         //TODO: Update the request state machine so that we don't have to have this EOL check
         let eol = remaining.len() == request_header.len()
             && (remaining.starts_with(b"\r\n") || remaining.starts_with(b"\n"));
@@ -653,6 +654,344 @@ impl ConnectionParser {
         }
     }
 
+    /// Consumes request body data.
+    /// This function assumes that handling of chunked encoding is implemented
+    /// by the container. When you're done submitting body data, invoke a state
+    /// change (to REQUEST) to finalize any processing that might be pending.
+    /// The supplied data is fully consumed and there is no expectation that it
+    /// will be available afterwards. The protocol parsing code makes no copies
+    /// of the data, but some parsers might.
+    ///
+    /// Returns HtpStatus::OK on success or HtpStatus::ERROR if the request transaction
+    /// is invalid or response body data hook fails.
+    pub fn request_body_data(&mut self, data: Option<&[u8]>) -> Result<()> {
+        // None data is used to indicate the end of request body.
+        // Keep track of body size before decompression.
+        self.request_mut().request_message_len += data.unwrap_or(b"").len() as i64;
+        match self.request().request_content_encoding_processing {
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => {
+                // Send data buffer to the decompressor if it exists
+                if self.request().request_decompressor.is_none() && data.is_none() {
+                    return Ok(());
+                }
+                let mut decompressor = self
+                    .request_mut()
+                    .request_decompressor
+                    .take()
+                    .ok_or(HtpStatus::ERROR)?;
+                if let Some(data) = data {
+                    decompressor
+                        .decompress(data)
+                        .map_err(|_| HtpStatus::ERROR)?;
+                    if decompressor.time_spent()
+                        > self.cfg.compression_options.get_time_limit() as u64
+                    {
+                        htp_log!(
+                            self.logger,
+                            HtpLogLevel::ERROR,
+                            HtpLogCode::COMPRESSION_BOMB,
+                            format!(
+                                "Compression bomb: spent {} us decompressing",
+                                decompressor.time_spent(),
+                            )
+                        );
+                        return Err(HtpStatus::ERROR);
+                    }
+                    // put the decompressor back in its slot
+                    self.request_mut()
+                        .request_decompressor
+                        .replace(decompressor);
+                } else {
+                    // don't put the decompressor back in its slot
+                    // ignore errors
+                    let _ = decompressor.finish();
+                }
+            }
+            HtpContentEncoding::NONE => {
+                // When there's no decompression, request_entity_len.
+                // is identical to request_message_len.
+                // None data is used to indicate the end of request body.
+                // Keep track of the body length.
+                self.request_mut().request_entity_len += data.unwrap_or(b"").len() as i64;
+                let _ = self.request_mut().request_process_multipart_data(data);
+                let _ = self.request_mut().request_process_urlencoded_data(data);
+                // Send data to the callbacks.
+                let data = ParserData::from(data);
+                let mut data = Data::new(self.request_mut(), &data, false);
+                self.request_run_hook_body_data(&mut data).map_err(|e| {
+                    htp_error!(
+                        self.logger,
+                        HtpLogCode::REQUEST_BODY_DATA_CALLBACK_ERROR,
+                        format!("Request body data callback returned error ({:?})", e)
+                    );
+                    e
+                })?
+            }
+            HtpContentEncoding::ERROR => {
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_CONTENT_ENCODING,
+                    "Expected a valid content encoding"
+                );
+                return Err(HtpStatus::ERROR);
+            }
+        }
+        Ok(())
+    }
+
+    /// Initialize the request decompression engine. We can deal with three
+    /// scenarios:
+    ///
+    /// 1. Decompression is enabled, compression indicated in headers, and we decompress.
+    ///
+    /// 2. As above, but the user disables decompression by setting response_content_encoding
+    ///    to COMPRESSION_NONE.
+    ///
+    /// 3. Decompression is disabled and we do not attempt to enable it, but the user
+    ///    forces decompression by setting response_content_encoding to one of the
+    ///    supported algorithms.
+    pub fn request_initialize_decompressors(&mut self) -> Result<()> {
+        let ce = (*self.request_mut())
+            .request_headers
+            .get_nocase_nozero("content-encoding")
+            .map(|(_, val)| (&val.value).clone());
+        // Process multiple encodings if there is no match on fast path
+        let mut slow_path = false;
+
+        // Fast path - try to match directly on the encoding value
+        self.request_mut().request_content_encoding = if let Some(ce) = &ce {
+            if ce.cmp_nocase_nozero(b"gzip") == Ordering::Equal
+                || ce.cmp_nocase_nozero(b"x-gzip") == Ordering::Equal
+            {
+                HtpContentEncoding::GZIP
+            } else if ce.cmp_nocase_nozero(b"deflate") == Ordering::Equal
+                || ce.cmp_nocase_nozero(b"x-deflate") == Ordering::Equal
+            {
+                HtpContentEncoding::DEFLATE
+            } else if ce.cmp_nocase_nozero(b"lzma") == Ordering::Equal {
+                HtpContentEncoding::LZMA
+            } else if ce.cmp_nocase_nozero(b"inflate") == Ordering::Equal {
+                HtpContentEncoding::NONE
+            } else {
+                slow_path = true;
+                HtpContentEncoding::NONE
+            }
+        } else {
+            HtpContentEncoding::NONE
+        };
+
+        // Configure decompression, if enabled in the configuration.
+        self.request_mut().request_content_encoding_processing =
+            if self.cfg.request_decompression_enabled {
+                self.request().request_content_encoding
+            } else {
+                slow_path = false;
+                HtpContentEncoding::NONE
+            };
+
+        let request_content_encoding_processing =
+            self.request_mut().request_content_encoding_processing;
+        let compression_options = self.cfg.compression_options;
+        match &request_content_encoding_processing {
+            HtpContentEncoding::GZIP
+            | HtpContentEncoding::DEFLATE
+            | HtpContentEncoding::ZLIB
+            | HtpContentEncoding::LZMA => {
+                self.request_prepend_decompressor(request_content_encoding_processing)?;
+            }
+            HtpContentEncoding::NONE => {
+                if slow_path {
+                    if let Some(ce) = &ce {
+                        let mut layers = 0;
+                        let mut lzma_layers = 0;
+                        for encoding in ce.split(|c| *c == b',' || *c == b' ') {
+                            if encoding.is_empty() {
+                                continue;
+                            }
+                            layers += 1;
+
+                            if let Some(limit) = compression_options.get_layer_limit() {
+                                // decompression layer depth check
+                                if layers > limit {
+                                    htp_warn!(
+                                        self.logger,
+                                        HtpLogCode::TOO_MANY_ENCODING_LAYERS,
+                                        "Too many request content encoding layers"
+                                    );
+                                    break;
+                                }
+                            }
+
+                            let encoding = Bstr::from(encoding);
+                            let encoding = if encoding.index_of_nocase(b"gzip").is_some() {
+                                if !(encoding.cmp_slice(b"gzip") == Ordering::Equal
+                                    || encoding.cmp_slice(b"x-gzip") == Ordering::Equal)
+                                {
+                                    htp_warn!(
+                                        self.logger,
+                                        HtpLogCode::ABNORMAL_CE_HEADER,
+                                        "C-E gzip has abnormal value"
+                                    );
+                                }
+                                HtpContentEncoding::GZIP
+                            } else if encoding.index_of_nocase(b"deflate").is_some() {
+                                if !(encoding.cmp_slice(b"deflate") == Ordering::Equal
+                                    || encoding.cmp_slice(b"x-deflate") == Ordering::Equal)
+                                {
+                                    htp_warn!(
+                                        self.logger,
+                                        HtpLogCode::ABNORMAL_CE_HEADER,
+                                        "C-E deflate has abnormal value"
+                                    );
+                                }
+                                HtpContentEncoding::DEFLATE
+                            } else if encoding.cmp_slice(b"lzma") == Ordering::Equal {
+                                lzma_layers += 1;
+                                if let Some(limit) = compression_options.get_lzma_layers() {
+                                    // LZMA decompression layer depth check
+                                    if lzma_layers > limit {
+                                        htp_warn!(
+                                            self.logger,
+                                            HtpLogCode::REQUEST_TOO_MANY_LZMA_LAYERS,
+                                            "Too many request content encoding lzma layers"
+                                        );
+                                        break;
+                                    }
+                                }
+                                HtpContentEncoding::LZMA
+                            } else if encoding.cmp_slice(b"inflate") == Ordering::Equal {
+                                HtpContentEncoding::NONE
+                            } else {
+                                htp_warn!(
+                                    self.logger,
+                                    HtpLogCode::ABNORMAL_CE_HEADER,
+                                    "C-E unknown setting"
+                                );
+                                HtpContentEncoding::NONE
+                            };
+                            self.request_prepend_decompressor(encoding)?;
+                        }
+                    }
+                }
+            }
+            HtpContentEncoding::ERROR => {
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_CONTENT_ENCODING,
+                    "Expected a valid content encoding"
+                );
+                return Err(HtpStatus::ERROR);
+            }
+        }
+        Ok(())
+    }
+
+    /// Prepend a decompressor to the request
+    pub fn request_prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
+        let compression_options = self.cfg.compression_options;
+        if encoding != HtpContentEncoding::NONE {
+            if let Some(decompressor) = self.request_mut().request_decompressor.take() {
+                self.request_mut()
+                    .request_decompressor
+                    .replace(decompressor.prepend(encoding, compression_options)?);
+            } else {
+                // The processing encoding will be the first one encountered
+                (*self.request_mut()).request_content_encoding_processing = encoding;
+
+                // Add the callback first because it will be called last in
+                // the chain of writers
+
+                // TODO: fix lifetime error and remove this line!
+                let connp_ptr: *mut ConnectionParser = self as *mut ConnectionParser;
+                let decompressor = unsafe {
+                    Decompressor::new_with_callback(
+                        encoding,
+                        Box::new(move |data: Option<&[u8]>| -> std::io::Result<usize> {
+                            (*connp_ptr).request_decompressor_callback(data)
+                        }),
+                        compression_options,
+                    )?
+                };
+                self.request_mut()
+                    .request_decompressor
+                    .replace(decompressor);
+            }
+        }
+        Ok(())
+    }
+
+    fn request_decompressor_callback(&mut self, data: Option<&[u8]>) -> std::io::Result<usize> {
+        // If no data is passed, call the hooks with NULL to signify the end of the
+        // request body.
+        let parser_data = ParserData::from(data);
+        let mut tx_data = Data::new(
+            self.request_mut(),
+            &parser_data,
+            // is_last is not used in this callback
+            false,
+        );
+
+        // Keep track of actual request body length.
+        self.request_mut().request_entity_len += tx_data.len() as i64;
+
+        // Invoke all callbacks.
+        self.request_run_hook_body_data(&mut tx_data)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
+
+        let compression_options = self.cfg.compression_options;
+        if let Some(decompressor) = &mut self.request_mut().request_decompressor {
+            if decompressor.callback_inc() % compression_options.get_time_test_freq() == 0 {
+                if let Some(time_spent) = decompressor.timer_reset() {
+                    if time_spent > compression_options.get_time_limit() as u64 {
+                        htp_log!(
+                            self.logger,
+                            HtpLogLevel::ERROR,
+                            HtpLogCode::COMPRESSION_BOMB,
+                            format!("Compression bomb: spent {} us decompressing", time_spent)
+                        );
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "compression_time_limit reached",
+                        ));
+                    }
+                }
+            }
+        }
+
+        // output > ratio * input ?
+        let ratio = compression_options.get_bomb_ratio();
+        let exceeds_ratio =
+            if let Some(ratio) = self.request_mut().request_message_len.checked_mul(ratio) {
+                self.request().request_entity_len > ratio
+            } else {
+                // overflow occured
+                true
+            };
+
+        let bomb_limit = compression_options.get_bomb_limit();
+        let request_entity_len = self.request().request_entity_len;
+        let request_message_len = self.request().request_message_len;
+        if request_entity_len > bomb_limit as i64 && exceeds_ratio {
+            htp_log!(
+                self.logger,
+                HtpLogLevel::ERROR,
+                HtpLogCode::COMPRESSION_BOMB,
+                format!(
+                    "Compression bomb: decompressed {} bytes out of {}",
+                    request_entity_len, request_message_len,
+                )
+            );
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "compression_bomb_limit reached",
+            ));
+        }
+        Ok(tx_data.len())
+    }
+
     /// Finalizes request.
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
@@ -694,12 +1033,9 @@ impl ConnectionParser {
         let res = tuple((take_is_space, take_not_is_space))(&data);
 
         if let Ok((_, (_, method))) = res {
-            let connp_ptr: *mut Self = self as *mut Self;
             if method.is_empty() {
                 // empty whitespace line
-                let rc = self
-                    .request_mut()
-                    .request_process_body_data(unsafe { &mut *connp_ptr }, Some(&data));
+                let rc = self.request_body_data(Some(&data));
                 self.request_buf.clear();
                 return rc;
             }
@@ -715,9 +1051,7 @@ impl ConnectionParser {
                     self.request_body_data_left = 1;
                 }
                 // Interpret remaining bytes as body data
-                let rc = self
-                    .request_mut()
-                    .request_process_body_data(unsafe { &mut *connp_ptr }, Some(&data));
+                let rc = self.request_body_data(Some(&data));
                 self.request_buf.clear();
                 return rc;
             } // else continue
