@@ -402,25 +402,33 @@ impl ConnectionParser {
             }
         }
         // Check for an interim "100 Continue" response. Ignore it if found, and revert back to RES_LINE.
-        else if self.response().response_status_number.eq_num(100)
-            && te_opt.is_none()
-            && cl_opt.is_none()
-        {
-            if self.response().seen_100continue {
-                htp_error!(
-                    self.logger,
-                    HtpLogCode::CONTINUE_ALREADY_SEEN,
-                    "Already seen 100-Continue."
-                );
-                return Err(HtpStatus::ERROR);
+        else if self.response().response_status_number.eq_num(100) && te_opt.is_none() {
+            match cl_opt
+                .as_ref()
+                .and_then(|cl| parse_content_length(cl.value.as_slice(), Some(&mut self.logger)))
+            {
+                // 100 Continue with a Content-Length > 0 isn't treated as a 100 Continue,
+                // so we do nothing here.
+                Some(x) if x > 0 => (),
+                // Otherwise we treat it as a continue and prep for the next response
+                _ => {
+                    if self.response().seen_100continue {
+                        htp_error!(
+                            self.logger,
+                            HtpLogCode::CONTINUE_ALREADY_SEEN,
+                            "Already seen 100-Continue."
+                        );
+                        return Err(HtpStatus::ERROR);
+                    }
+                    // Ignore any response headers seen so far.
+                    self.response_mut().response_headers.elements.clear();
+                    // Expecting to see another response line next.
+                    self.response_state = State::LINE;
+                    self.response_mut().response_progress = HtpResponseProgress::LINE;
+                    self.response_mut().seen_100continue = true;
+                    return Ok(());
+                }
             }
-            // Ignore any response headers seen so far.
-            self.response_mut().response_headers.elements.clear();
-            // Expecting to see another response line next.
-            self.response_state = State::LINE;
-            self.response_mut().response_progress = HtpResponseProgress::LINE;
-            self.response_mut().seen_100continue = true;
-            return Ok(());
         }
         // A request can indicate it waits for headers validation
         // before sending its body cf
