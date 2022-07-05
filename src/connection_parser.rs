@@ -721,7 +721,7 @@ impl ConnectionParser {
             State::IDLE
         };
         // Check if the entire transaction is complete.
-        let _ = self.finalize(self.request_index())?;
+        self.finalize(self.request_index())?;
         self.request_next();
         Ok(())
     }
