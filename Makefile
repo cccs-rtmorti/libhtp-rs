@@ -1,4 +1,4 @@
-$(eval CRATE_VERSION=$(shell (test -f Cargo.lock || cargo generate-lockfile) && cargo pkgid | cut -d: -f 3))
+$(eval CRATE_VERSION=$(shell (test -f Cargo.lock || cargo generate-lockfile) && cargo pkgid | cut -d@ -f 2))
 $(eval CRATE_VERSION_MAJOR=$(shell echo ${CRATE_VERSION} | cut -d. -f 1))
 
 .DEFAULT_GOAL := all
