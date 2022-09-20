@@ -6,34 +6,34 @@ trigger:
   batch: true
   branches:
     include:
-      - master
+      - main
 
 pr:
-- master
+- main
 
 resources:
   repositories:
   - repository: suricata
-    type: bitbucket
-    endpoint: rtmorti
-    name: cse-nbs/suricata
-    ref: 'refs/heads/libhtp-rs'
+    type: github
+    name: CybercentreCanada/suricata-internal
+    endpoint: CybercentreCanada
+    ref: refs/heads/libhtp-rs
   - repository: cyberdeck
-    type: bitbucket
-    endpoint: rtmorti
-    name: cse-nbs/cyberdeck
+    type: github
+    name: CybercentreCanada/cyberdeck
+    endpoint: CybercentreCanada
     ref: refs/heads/libhtp-rs-fixes
   - repository: suricata-verify
-    type: bitbucket
-    endpoint: rtmorti
-    name: cse-nbs/suricata-verify
-    ref: 'refs/heads/libhtp-rs'
+    type: github
+    name: CybercentreCanada/suricata-verify-internal
+    endpoint: CybercentreCanada
+    ref: refs/heads/libhtp-rs
 
 jobs:
 - job: test_libhtp2
   timeoutInMinutes: 180
   displayName: Test Libhtp2
-  pool: libhtp-builders
+  pool: nbs-gcc-9-autoscaling-builders
   steps:
     #
     # Libhtp2 Steps
@@ -41,16 +41,18 @@ jobs:
     - checkout: self
       path: libhtp2
 
+    # Use cargo install path
+    - script: echo "##vso[task.setvariable variable=PATH;]$PATH:/usr/local/cargo/bin"
+      displayName: set path
+
+    # Give builder access to cached rust install
+    - script: sudo chown -R AzDevOps /usr/local/cargo /usr/local/rustup
+      displayName: chown cargo dir
+
     #
-    # Install the dependencies required to build libhtp2
+    # Setup dependencies required to build libhtp2
     - script: |
-        echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable
         rustup override set stable
-        rustup install nightly
-        rustup component add rustfmt
-        rustup component add clippy
-        cargo install grcov
       displayName: setup
       workingDirectory: $(Agent.BuildDirectory)/libhtp2
     
