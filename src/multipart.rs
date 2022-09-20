@@ -596,6 +596,7 @@ impl Parser {
             input.len(),
         );
         if let Ok((remaining, consumed)) = tag::<&[u8], _, NomError<&[u8]>>(
+            #[allow(clippy::unnecessary_to_owned)]
             &self.multipart.boundary[self.boundary_match_pos..self.boundary_match_pos + len]
                 .to_vec(),
         )(input)
