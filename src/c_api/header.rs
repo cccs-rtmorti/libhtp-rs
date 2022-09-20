@@ -98,6 +98,18 @@ pub unsafe extern "C" fn htp_header_name_ptr(header: *const Header) -> *const u8
         .unwrap_or(std::ptr::null())
 }
 
+/// Get the header flags
+///
+/// header: Header pointer.
+///
+/// Returns the header flags or 0 on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_flags(header: *const Header) -> u64 {
+    header.as_ref().map(|header| header.flags).unwrap_or(0)
+}
+
 /// Get the length of a header name.
 ///
 /// tx: Header pointer.
