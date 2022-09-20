@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use std::ops::{Deref, DerefMut};
 
 /// Bstr is a convenience wrapper around binary data that adds string-like functions.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Bstr {
     // Wrap a BString under the hood. We want to be able to
     // implement behaviours on top of this if needed, so we wrap

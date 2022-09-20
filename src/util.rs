@@ -168,7 +168,7 @@ pub enum HtpFileSource {
 }
 
 /// Enumerates possible EOLs
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Eol {
     /// No specific EOL found
     None,

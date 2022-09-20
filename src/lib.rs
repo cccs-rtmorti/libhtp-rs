@@ -6,7 +6,7 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #[repr(C)]
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 
 /// Status codes used by LibHTP internally.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase

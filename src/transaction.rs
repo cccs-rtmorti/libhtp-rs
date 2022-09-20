@@ -26,7 +26,7 @@ use std::{any::Any, cmp::Ordering, mem::take, rc::Rc};
 /// A collection of possible data sources.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpDataSource {
     /// Embedded in the URL.
     URL,
@@ -114,7 +114,7 @@ impl<'a> Data<'a> {
 /// Enumerates the possible request and response body codings.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpTransferCoding {
     /// Body coding not determined yet.
     UNKNOWN,
@@ -131,7 +131,7 @@ pub enum HtpTransferCoding {
 }
 
 /// Enumerates the possible server personalities.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpResponseNumber {
     /// Default
     UNKNOWN,
@@ -194,7 +194,7 @@ impl Header {
 /// state will change from NOT_STARTED to LINE.*
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpResponseProgress {
     /// Default state.
     NOT_STARTED,
@@ -220,7 +220,7 @@ pub enum HtpResponseProgress {
 /// state will change from NOT_STARTED to LINE.*
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpRequestProgress {
     /// Default state.
     NOT_STARTED,
@@ -243,7 +243,7 @@ pub enum HtpRequestProgress {
 /// Enumerates the possible values for authentication type.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpAuthType {
     /// This is the default value that is used before
     /// the presence of authentication is determined (e.g.,
@@ -266,7 +266,7 @@ pub enum HtpAuthType {
 /// Protocol version constants.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpProtocol {
     /// Error with the transaction side.
     ERROR = -3,

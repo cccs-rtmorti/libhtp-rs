@@ -911,7 +911,7 @@ impl Drop for Part {
 /// Enumerates the current multipart mode.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 enum HtpMultipartMode {
     /// When in line mode, the parser is handling part headers.
@@ -923,7 +923,7 @@ enum HtpMultipartMode {
 /// Enumerates the multipart parsing state.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 enum HtpMultipartState {
     /// Processing data, waiting for a new line (which might indicate a new boundary).
@@ -941,7 +941,7 @@ enum HtpMultipartState {
 /// Enumerates the multipart type.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpMultipartType {
     /// Unknown part.
     UNKNOWN,
