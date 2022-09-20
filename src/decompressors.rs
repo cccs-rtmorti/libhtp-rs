@@ -204,7 +204,7 @@ impl Decompress for CallbackWriter {
 /// Type of compression.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpContentEncoding {
     /// No compression.
     NONE,
@@ -414,7 +414,7 @@ struct GzipBufWriter {
 }
 
 /// A structure holding a Gzip header
-#[derive(PartialEq, Clone, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
 pub struct GzHeader {
     extra: Option<Vec<u8>>,
     filename: Option<Vec<u8>>,

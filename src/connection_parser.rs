@@ -15,7 +15,7 @@ use chrono::{DateTime, Utc};
 use std::{any::Any, borrow::Cow, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
 
 /// Enumerates parsing state.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum State {
     /// Default state.
     NONE,
@@ -59,7 +59,7 @@ pub enum State {
 /// inbound and one outbound. Their states are tracked separately.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpStreamState {
     /// Default stream state.
     NEW,

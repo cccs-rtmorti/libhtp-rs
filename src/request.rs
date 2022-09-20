@@ -28,7 +28,7 @@ use std::{
 /// Enumerate HTTP methods.
 /// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpMethod {
     /// Used by default, until the method is determined (e.g., before
     /// the request line is processed.

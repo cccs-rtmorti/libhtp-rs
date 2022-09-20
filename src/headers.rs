@@ -27,7 +27,7 @@ pub type FoldingOrTerminator<'a> = (ParsedBytes<'a>, Option<&'a [u8]>);
 // Helper for value bytes and the value terminator
 pub type ValueBytes<'a> = (&'a [u8], FoldingOrTerminator<'a>);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Flags;
 
 impl Flags {
@@ -77,7 +77,7 @@ fn trimmed(input: &[u8]) -> &[u8] {
     trim_end(trim_start(input))
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Name {
     pub name: Vec<u8>,
     pub flags: u64,
@@ -92,7 +92,7 @@ impl Name {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Value {
     pub value: Vec<u8>,
     pub flags: u64,
@@ -107,7 +107,7 @@ impl Value {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Header {
     pub name: Name,
     pub value: Value,
@@ -132,7 +132,7 @@ impl Header {
 }
 
 /// Enumerates possible parser types
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Side {
     /// Request Parser: null terminates
     Request,
