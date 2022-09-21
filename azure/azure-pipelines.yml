@@ -174,7 +174,9 @@ jobs:
     #
     # Test suricata
     - script: |
-        mkdir -p /var/log/suricata
+        sudo mkdir -p /var/log/suricata
+        sudo chown root:adm /var/log/suricata
+        sudo chmod 775 /var/log/suricata
         rm -f /var/log/suricata/boo.txt
         ./src/suricata -u
       displayName: "suricata: test"
