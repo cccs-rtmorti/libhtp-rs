@@ -67,8 +67,6 @@ pub mod config;
 pub mod connection;
 /// Module for connection parser.
 pub mod connection_parser;
-/// Module for custom list.
-pub mod list;
 /// Module for multipart parsing.
 pub mod multipart;
 /// Module for extra utility parsers. (only public for doc tests)

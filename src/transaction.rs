@@ -6,7 +6,6 @@ use crate::{
     error::Result,
     headers::{Parser as HeaderParser, Side},
     hook::{DataHook, DataNativeCallbackFn},
-    list::List,
     log::Logger,
     multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
     parsers::{
@@ -523,9 +522,6 @@ pub struct Transaction {
     /// Response header parser
     pub response_header_parser: HeaderParser,
 }
-
-/// Type alias for list of transactions.
-pub type Transactions = List<Transaction>;
 
 impl std::fmt::Debug for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

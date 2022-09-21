@@ -4,7 +4,6 @@ use crate::{
     error::{NomError, Result},
     headers::{Flags as HeaderFlags, Parser as HeadersParser, Side},
     hook::FileDataHook,
-    list::List,
     parsers::parse_content_type,
     table::Table,
     transaction::{Header, Headers},
@@ -210,7 +209,7 @@ impl Parser {
                 boundary_len: boundary.len() + 2,
                 boundary: Bstr::from([b"--", boundary].concat()),
                 boundary_count: 0,
-                parts: List::with_capacity(64),
+                parts: Vec::with_capacity(64),
                 flags,
             },
             cfg: cfg.multipart_cfg.clone(),
@@ -966,7 +965,7 @@ pub struct Multipart {
     /// How many boundaries were there?
     pub boundary_count: i32,
     /// List of parts, in the order in which they appeared in the body.
-    pub parts: List<Part>,
+    pub parts: Vec<Part>,
     /// Parsing flags.
     pub flags: u64,
 }
