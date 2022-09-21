@@ -13,7 +13,7 @@ use std::convert::TryFrom;
 ///
 /// Returns the header or NULL when not found or on error
 /// # Safety
-/// When calling this method, you have to ensure that header is either properly initialized or NULL
+/// When calling this method, you have to ensure that headers is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_headers_get(
     headers: *const Headers,
@@ -27,6 +27,25 @@ pub unsafe extern "C" fn htp_headers_get(
     } else {
         std::ptr::null()
     }
+}
+
+/// Get all headers flags
+///
+/// headers: Header table.
+///
+/// Returns the accumulated header flags or 0 on error.
+/// # Safety
+/// When calling this method, you have to ensure that headers is either properly initialized or NULL
+#[no_mangle]
+pub unsafe extern "C" fn htp_headers_flags(headers: *const Headers) -> u64 {
+    headers
+        .as_ref()
+        .map(|headers| {
+            headers
+                .into_iter()
+                .fold(0, |flags, (_, header)| flags | header.flags)
+        })
+        .unwrap_or(0)
 }
 
 /// Get the header at a given index.
@@ -96,6 +115,18 @@ pub unsafe extern "C" fn htp_header_name_ptr(header: *const Header) -> *const u8
         .as_ref()
         .map(|header| bstr_ptr(&header.name) as *const u8)
         .unwrap_or(std::ptr::null())
+}
+
+/// Get the header flags
+///
+/// header: Header pointer.
+///
+/// Returns the header flags or 0 on error.
+/// # Safety
+/// When calling this method, you have to ensure that header is either properly initialized or NULL
+#[no_mangle]
+pub unsafe extern "C" fn htp_header_flags(header: *const Header) -> u64 {
+    header.as_ref().map(|header| header.flags).unwrap_or(0)
 }
 
 /// Get the length of a header name.
