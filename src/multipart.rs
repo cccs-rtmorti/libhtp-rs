@@ -328,7 +328,7 @@ impl Parser {
                     {
                         return Err(HtpStatus::ERROR);
                     }
-                    if self.parse_c_d() == Err(HtpStatus::ERROR) {
+                    if self.parse_content_disposition() == Err(HtpStatus::ERROR) {
                         return Err(HtpStatus::ERROR);
                     }
                     if let Some((_, header)) = self
@@ -788,7 +788,7 @@ impl Parser {
     ///
     /// Returns OK on success (header found and parsed), DECLINED if there is no C-D header or if
     ///         it could not be processed, and ERROR on fatal error.
-    pub fn parse_c_d(&mut self) -> Result<()> {
+    pub fn parse_content_disposition(&mut self) -> Result<()> {
         // Find the C-D header.
         let part = self.get_current_part()?;
         let header = {

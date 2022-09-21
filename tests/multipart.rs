@@ -1726,7 +1726,7 @@ fn InvalidContentDispositionSyntax() {
         let part = parser.get_current_part().unwrap();
         let header = Header::new(b"Content-Disposition".to_vec().into(), input.into());
         part.headers.add(header.name.clone(), header);
-        assert_err!(parser.parse_c_d(), HtpStatus::DECLINED);
+        assert_err!(parser.parse_content_disposition(), HtpStatus::DECLINED);
         assert!(parser.multipart.flags.is_set(Flags::CD_SYNTAX_INVALID));
         assert!(parser.multipart.flags.is_set(Flags::CD_INVALID));
     }
