@@ -1,5 +1,18 @@
-$(eval CRATE_VERSION=$(shell (test -f Cargo.lock || cargo generate-lockfile) && cargo pkgid | cut -d@ -f 2))
+# Use cargo to get the version or fallback to sed
+$(eval CRATE_VERSION=$(shell \
+	( \
+		(cargo 1> /dev/null 2> /dev/null) \
+		&& (test -f Cargo.lock || cargo generate-lockfile) \
+		&& (cargo pkgid | cut -d\# -f 2 | cut -d@ -f 2 | cut -d: -f 2) \
+	) \
+	|| (sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml) \
+))
 $(eval CRATE_VERSION_MAJOR=$(shell echo ${CRATE_VERSION} | cut -d. -f 1))
+
+.PHONY: env
+env:
+	@echo CRATE_VERSION: ${CRATE_VERSION}
+	@echo CRATE_VERSION_MAJOR: ${CRATE_VERSION_MAJOR}
 
 .DEFAULT_GOAL := all
 .PHONY: all
