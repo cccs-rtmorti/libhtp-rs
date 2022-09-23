@@ -808,7 +808,6 @@ impl ConnectionParser {
                 if slow_path {
                     if let Some(ce) = &ce {
                         let mut layers = 0;
-                        let mut lzma_layers = 0;
                         for encoding in ce.split(|c| *c == b',' || *c == b' ') {
                             if encoding.is_empty() {
                                 continue;
@@ -851,14 +850,13 @@ impl ConnectionParser {
                                 }
                                 HtpContentEncoding::DEFLATE
                             } else if encoding.cmp_slice(b"lzma") == Ordering::Equal {
-                                lzma_layers += 1;
                                 if let Some(limit) = compression_options.get_lzma_layers() {
                                     // LZMA decompression layer depth check
-                                    if lzma_layers > limit {
+                                    if layers > limit {
                                         htp_warn!(
                                             self.logger,
                                             HtpLogCode::REQUEST_TOO_MANY_LZMA_LAYERS,
-                                            "Too many request content encoding lzma layers"
+                                            "Compression bomb: multiple encoding with lzma"
                                         );
                                         break;
                                     }
