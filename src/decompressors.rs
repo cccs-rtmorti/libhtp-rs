@@ -354,6 +354,11 @@ impl Decompressor {
     pub fn finish(&mut self) -> std::io::Result<()> {
         self.inner.finish()
     }
+
+    /// Set this decompressor to passthrough
+    pub fn set_passthrough(&mut self, passthrough: bool) {
+        self.inner.set_passthrough(passthrough)
+    }
 }
 
 impl std::fmt::Debug for Decompressor {

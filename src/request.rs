@@ -699,7 +699,7 @@ impl ConnectionParser {
                                 decompressor.time_spent(),
                             )
                         );
-                        return Err(HtpStatus::ERROR);
+                        decompressor.set_passthrough(true);
                     }
                     // put the decompressor back in its slot
                     self.request_mut()
@@ -948,16 +948,13 @@ impl ConnectionParser {
             if decompressor.callback_inc() % compression_options.get_time_test_freq() == 0 {
                 if let Some(time_spent) = decompressor.timer_reset() {
                     if time_spent > compression_options.get_time_limit() as u64 {
+                        decompressor.set_passthrough(true);
                         htp_log!(
                             self.logger,
                             HtpLogLevel::ERROR,
                             HtpLogCode::COMPRESSION_BOMB,
                             format!("Compression bomb: spent {} us decompressing", time_spent)
                         );
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "compression_time_limit reached",
-                        ));
                     }
                 }
             }
