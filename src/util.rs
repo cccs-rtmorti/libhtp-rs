@@ -1127,8 +1127,10 @@ pub fn validate_hostname(input: &[u8]) -> bool {
         if section.len() > 63 {
             return false;
         }
+        // According to the RFC, an underscore it not allowed in the label, but
+        // we allow it here because we think it's often seen in practice.
         if take_while_m_n::<_, _, NomError<&[u8]>>(section.len(), section.len(), |c| {
-            c == b'-' || (c as char).is_alphanumeric()
+            c == b'_' || c == b'-' || (c as char).is_alphanumeric()
         })(section)
         .is_err()
         {
@@ -1501,6 +1503,8 @@ mod tests {
     #[case("[::]", true)]
     #[case("[2001:3db8:0000:0000:0000:ff00:d042:8530]", true)]
     #[case("www.example.com", true)]
+    #[case("www.exa-mple.com", true)]
+    #[case("www.exa_mple.com", true)]
     #[case(".www.example.com", false)]
     #[case("www..example.com", false)]
     #[case("www.example.com..", false)]
