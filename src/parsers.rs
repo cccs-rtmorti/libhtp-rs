@@ -151,9 +151,9 @@ pub fn credentials() -> impl Fn(&[u8]) -> IResult<&[u8], ParsedCredentials> {
 /// ```
 /// use htp::parsers::ipv6;
 ///
-/// let data: &[u8] = b"[:::]/path1?a=b&c=d#frag";
+/// let data: &[u8] = b"[::]/path1?a=b&c=d#frag";
 /// let (left, ipv6) = ipv6()(data).unwrap();
-/// assert_eq!(ipv6, b"[:::]");
+/// assert_eq!(ipv6, b"[::]");
 /// assert_eq!(left, b"/path1?a=b&c=d#frag");
 /// ```
 ///
