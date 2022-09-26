@@ -26,7 +26,7 @@ use nom::{
     IResult, Needed,
 };
 
-use std::{io::Write, rc::Rc, sync::Mutex};
+use std::{io::Write, rc::Rc, str::FromStr, sync::Mutex};
 use tempfile::{Builder, NamedTempFile};
 
 /// String for the libhtp version.
@@ -1105,13 +1105,19 @@ pub fn validate_hostname(input: &[u8]) -> bool {
     if input.is_empty() || input.len() > 255 {
         return false;
     }
-    if char::<_, NomError<&[u8]>>('[')(input).is_ok() {
-        if let Ok((input, _)) = is_not::<_, _, NomError<&[u8]>>("#?/]")(input) {
-            return char::<_, NomError<&[u8]>>(']')(input).is_ok();
-        } else {
-            return false;
+
+    // Check IPv6
+    if let Ok((_rest, (_left_br, addr, _right_br))) = tuple((
+        char::<_, NomError<&[u8]>>('['),
+        is_not::<_, _, NomError<&[u8]>>("#?/]"),
+        char::<_, NomError<&[u8]>>(']'),
+    ))(input)
+    {
+        if let Ok(str) = std::str::from_utf8(addr) {
+            return std::net::Ipv6Addr::from_str(str).is_ok();
         }
     }
+
     if tag::<_, _, NomError<&[u8]>>(".")(input).is_ok()
         || take_until::<_, _, NomError<&[u8]>>("..")(input).is_ok()
     {
@@ -1492,16 +1498,17 @@ mod tests {
     #[rstest]
     #[case("", false)]
     #[case("www.ExAmplE-1984.com", true)]
-    #[case("[:::]", true)]
+    #[case("[::]", true)]
+    #[case("[2001:3db8:0000:0000:0000:ff00:d042:8530]", true)]
     #[case("www.example.com", true)]
     #[case(".www.example.com", false)]
     #[case("www..example.com", false)]
     #[case("www.example.com..", false)]
     #[case("www example com", false)]
-    #[case("[:::", false)]
-    #[case("[:::/path[0]", false)]
-    #[case("[:::#garbage]", false)]
-    #[case("[:::?]", false)]
+    #[case("[::", false)]
+    #[case("[::/path[0]", false)]
+    #[case("[::#garbage]", false)]
+    #[case("[::?]", false)]
     #[case::over64_char(
         "www.exampleexampleexampleexampleexampleexampleexampleexampleexampleexample.com",
         false
