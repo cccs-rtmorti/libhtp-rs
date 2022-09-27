@@ -443,15 +443,17 @@ impl ConnectionParser {
                 .request()
                 .request_message_len
                 .wrapping_add(bytes_to_consume as i64);
+            // Create a new gap of the appropriate length
+            let parser_data = ParserData::from(bytes_to_consume);
             // Send the gap to the data hooks
-            let mut tx_data = Data::new(self.request_mut(), data, false);
+            let mut tx_data = Data::new(self.request_mut(), &parser_data, false);
             self.request_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
             self.request_body_data(Some(&data.as_slice()[0..bytes_to_consume]))?;
-            self.request_curr_data
-                .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         }
+        self.request_curr_data
+            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         // Adjust the counters.
         self.request_body_data_left =
             (self.request_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
