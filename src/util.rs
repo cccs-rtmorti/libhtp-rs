@@ -348,6 +348,47 @@ pub fn trimmed(input: &[u8]) -> &[u8] {
     trim_end(trim_start(input))
 }
 
+/// Splits the given input into two halves using the given predicate.
+/// The `reverse` parameter determines whether or not to split on the
+/// first match or the second match.
+/// The `do_trim` parameter will return results with leading and trailing
+/// whitespace trimmed.
+/// If the predicate does not match, then the entire input is returned
+/// in the first predicate element and an empty binary string is returned
+/// in the second element.
+pub fn split_on_predicate<F>(
+    input: &[u8],
+    reverse: bool,
+    do_trim: bool,
+    predicate: F,
+) -> (&[u8], &[u8])
+where
+    F: FnMut(&u8) -> bool,
+{
+    let (first, second) = if reverse {
+        let mut iter = input.rsplitn(2, predicate);
+        let mut second = iter.next();
+        let mut first = iter.next();
+        // If we do not get two results, then put the only result first
+        if first.is_none() {
+            first = second;
+            second = None;
+        }
+        (first.unwrap_or(b""), second.unwrap_or(b""))
+    } else {
+        let mut iter = input.splitn(2, predicate);
+        let first = iter.next();
+        let second = iter.next();
+        (first.unwrap_or(b""), second.unwrap_or(b""))
+    };
+
+    if do_trim {
+        (trimmed(first), trimmed(second))
+    } else {
+        (first, second)
+    }
+}
+
 /// Determines if character is a whitespace character.
 /// whitespace = ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c'
 pub fn is_space(c: u8) -> bool {
@@ -2022,5 +2063,25 @@ mod tests {
         let mut input_remove = Bstr::from(input);
         urldecode_inplace(&cfg.decoder_cfg, &mut input_remove).unwrap();
         assert_eq!(input_remove, Bstr::from(expected_remove));
+    }
+
+    #[rstest]
+    #[case("", false, true, ("", ""))]
+    #[case("ONE TWO THREE", false, true, ("ONE", "TWO THREE"))]
+    #[case("ONE TWO THREE", true, true, ("ONE TWO", "THREE"))]
+    #[case("ONE   TWO   THREE", false, true, ("ONE", "TWO   THREE"))]
+    #[case("ONE   TWO   THREE", true, true, ("ONE   TWO", "THREE"))]
+    #[case("ONE", false, true, ("ONE", ""))]
+    #[case("ONE", true, true, ("ONE", ""))]
+    fn test_split_on_predicate(
+        #[case] input: &str,
+        #[case] reverse: bool,
+        #[case] trim: bool,
+        #[case] expected: (&str, &str),
+    ) {
+        assert_eq!(
+            split_on_predicate(input.as_bytes(), reverse, trim, |c| *c == 0x20),
+            (expected.0.as_bytes(), expected.1.as_bytes())
+        );
     }
 }

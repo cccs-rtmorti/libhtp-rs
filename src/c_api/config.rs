@@ -457,6 +457,16 @@ pub unsafe extern "C" fn htp_config_set_decompression_layer_limit(
     }
 }
 
+/// Enable or disable allowing spaces in URIs. Disabled by default.
+/// # Safety
+/// When calling this method the given cfg must be initialized or NULL.
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_allow_space_uri(cfg: *mut Config, allow_space: bool) {
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.set_allow_space_uri(allow_space)
+    }
+}
+
 /// Configure desired server personality.
 /// # Safety
 /// When calling this method, you have to ensure that cfg is either properly initialized or NULL

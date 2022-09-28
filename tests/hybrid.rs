@@ -583,6 +583,49 @@ fn RequestLineParsing4() {
 }
 
 #[test]
+fn RequestLineParsing5() {
+    let mut cfg = TestConfig();
+    cfg.set_allow_space_uri(true);
+    let mut t = HybridParsingTest::new(cfg);
+    let tx_id = t.connp.request().index;
+
+    // Feed data to the parser.
+    t.connp.state_request_start().unwrap();
+    t.connp.parse_request_line(b"GET / HTTP  / 01.10").unwrap();
+    t.connp.state_request_line().unwrap();
+
+    // Check the results now.
+    let tx = t.connp.tx(tx_id).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq_slice("GET"));
+    assert_eq!(HtpProtocol::INVALID, tx.request_protocol_number);
+    assert!(tx.request_protocol.as_ref().unwrap().eq_slice("01.10"));
+    assert!(tx.request_uri.as_ref().unwrap().eq_slice("/ HTTP  /"));
+}
+
+#[test]
+fn RequestLineParsing6() {
+    let mut cfg = TestConfig();
+    cfg.set_allow_space_uri(true);
+    let mut t = HybridParsingTest::new(cfg);
+    let tx_id = t.connp.request().index;
+
+    // Feed data to the parser.
+    t.connp.state_request_start().unwrap();
+    // Test the parser's "found bad chars" path
+    t.connp
+        .parse_request_line(b"GET\t/\tHTTP\t\t/\t01.10")
+        .unwrap();
+    t.connp.state_request_line().unwrap();
+
+    // Check the results now.
+    let tx = t.connp.tx(tx_id).unwrap();
+    assert!(tx.request_method.as_ref().unwrap().eq_slice("GET"));
+    assert_eq!(HtpProtocol::INVALID, tx.request_protocol_number);
+    assert!(tx.request_protocol.as_ref().unwrap().eq_slice("01.10"));
+    assert!(tx.request_uri.as_ref().unwrap().eq_slice("/\tHTTP\t\t/"));
+}
+
+#[test]
 fn ParsedUriSupplied() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.request().index;
