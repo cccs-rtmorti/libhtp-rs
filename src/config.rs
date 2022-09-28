@@ -188,6 +188,8 @@ pub struct DecoderConfig {
     pub nul_raw_unwanted: HtpUnwanted,
     /// Reaction to control characters.
     pub control_chars_unwanted: HtpUnwanted,
+    /// Allow whitespace characters in request uri path
+    pub allow_space_uri: bool,
     // URL encoding options.
     /// Should we decode %u-encoded characters?
     pub u_encoding_decode: bool,
@@ -227,6 +229,7 @@ impl Default for DecoderConfig {
             nul_raw_terminates: false,
             nul_raw_unwanted: HtpUnwanted::IGNORE,
             control_chars_unwanted: HtpUnwanted::IGNORE,
+            allow_space_uri: false,
             u_encoding_decode: false,
             u_encoding_unwanted: HtpUnwanted::IGNORE,
             url_encoding_invalid_handling: HtpUrlEncodingHandling::PRESERVE_PERCENT,
@@ -463,6 +466,11 @@ impl Config {
     /// Enable or disable request cookie parsing. Enabled by default.
     pub fn set_parse_request_cookies(&mut self, parse_request_cookies: bool) {
         self.parse_request_cookies = parse_request_cookies;
+    }
+
+    /// Enable or disable spaces in URIs. Disabled by default.
+    pub fn set_allow_space_uri(&mut self, allow_space: bool) {
+        self.decoder_cfg.allow_space_uri = allow_space;
     }
 
     /// Configure desired server personality.

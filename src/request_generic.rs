@@ -7,9 +7,12 @@ use crate::{
     parsers::{parse_content_length, parse_protocol},
     request::HtpMethod,
     transaction::{Header, HtpProtocol},
-    util::{is_space, take_is_space, take_not_is_space, take_until_null, FlagOperations, HtpFlags},
+    util::{
+        is_space, split_on_predicate, take_is_space, take_not_is_space, take_until_null, trimmed,
+        FlagOperations, HtpFlags,
+    },
 };
-use nom::{bytes::complete::take_while, sequence::tuple};
+use nom::sequence::tuple;
 use std::cmp::Ordering;
 
 impl ConnectionParser {
@@ -244,56 +247,59 @@ impl ConnectionParser {
                 return Ok(());
             }
 
-            let mut uri_protocol_parser = tuple
-            // The URI ends with the first whitespace.
-            ((take_while(|c: u8| c != 0x20),
-              // Ignore whitespace after URI.
-              take_is_space)
-            );
+            let remaining = trimmed(remaining);
 
-            if let Ok((mut protocol, (mut uri, _))) = uri_protocol_parser(remaining) {
-                if uri.len() == remaining.len() && uri.iter().any(|&c| is_space(c)) {
-                    // warn regardless if we've seen non-compliant chars
+            let (mut uri, mut protocol) =
+                split_on_predicate(remaining, self.cfg.decoder_cfg.allow_space_uri, true, |c| {
+                    *c == 0x20
+                });
+
+            if uri.len() == remaining.len() && uri.iter().any(|&c| is_space(c)) {
+                // warn regardless if we've seen non-compliant chars
+                htp_warn!(
+                    self.logger,
+                    HtpLogCode::URI_DELIM_NON_COMPLIANT,
+                    "Request line: URI contains non-compliant delimiter"
+                );
+                // if we've seen some 'bad' delimiters, we retry with those
+                let uri_protocol = split_on_predicate(
+                    remaining,
+                    self.cfg.decoder_cfg.allow_space_uri,
+                    true,
+                    |c| is_space(*c),
+                );
+                uri = uri_protocol.0;
+                protocol = uri_protocol.1;
+            }
+
+            self.request_mut().request_uri = Some(Bstr::from(uri));
+
+            // Is there protocol information available?
+            if protocol.is_empty() {
+                // No, this looks like a HTTP/0.9 request.
+                self.request_mut().is_protocol_0_9 = true;
+                self.request_mut().request_protocol_number = HtpProtocol::V0_9;
+                if self.request().request_method_number == HtpMethod::UNKNOWN {
                     htp_warn!(
                         self.logger,
-                        HtpLogCode::URI_DELIM_NON_COMPLIANT,
-                        "Request line: URI contains non-compliant delimiter"
-                    );
-                    // if we've seen some 'bad' delimiters, we retry with those
-                    let mut uri_protocol_parser2 = tuple((take_not_is_space, take_is_space));
-                    if let Ok((protocol2, (uri2, _))) = uri_protocol_parser2(remaining) {
-                        uri = uri2;
-                        protocol = protocol2;
-                    }
-                }
-                self.request_mut().request_uri = Some(Bstr::from(uri));
-                // Is there protocol information available?
-                if protocol.is_empty() {
-                    // No, this looks like a HTTP/0.9 request.
-                    self.request_mut().is_protocol_0_9 = true;
-                    self.request_mut().request_protocol_number = HtpProtocol::V0_9;
-                    if self.request().request_method_number == HtpMethod::UNKNOWN {
-                        htp_warn!(
-                            self.logger,
-                            HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
-                            "Request line: unknown method and no protocol"
-                        );
-                    }
-                    return Ok(());
-                }
-                // The protocol information continues until the end of the line.
-                self.request_mut().request_protocol = Some(Bstr::from(protocol));
-                self.request_mut().request_protocol_number =
-                    parse_protocol(protocol, &mut self.logger);
-                if self.request().request_method_number == HtpMethod::UNKNOWN
-                    && self.request().request_protocol_number == HtpProtocol::INVALID
-                {
-                    htp_warn!(
-                        self.logger,
-                        HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
-                        "Request line: unknown method and invalid protocol"
+                        HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
+                        "Request line: unknown method and no protocol"
                     );
                 }
+                return Ok(());
+            }
+
+            // The protocol information continues until the end of the line.
+            self.request_mut().request_protocol = Some(Bstr::from(protocol));
+            self.request_mut().request_protocol_number = parse_protocol(protocol, &mut self.logger);
+            if self.request().request_method_number == HtpMethod::UNKNOWN
+                && self.request().request_protocol_number == HtpProtocol::INVALID
+            {
+                htp_warn!(
+                    self.logger,
+                    HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_INVALID_PROTOCOL,
+                    "Request line: unknown method and invalid protocol"
+                );
             }
         }
         Ok(())

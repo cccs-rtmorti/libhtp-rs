@@ -635,6 +635,11 @@ mod test {
     #[case("/path1/path2#frag", "/path1/path2", "#frag")]
     #[case("path1/path2?a=b&c=d#frag", "path1/path2", "?a=b&c=d#frag")]
     #[case("//", "//", "")]
+    #[case(
+        "/uid=0(root) gid=0(root) groups=0(root)asdf",
+        "/uid=0(root) gid=0(root) groups=0(root)asdf",
+        ""
+    )]
     fn test_path(#[case] input: &str, #[case] p: &str, #[case] remaining: &str) {
         assert_eq!(
             path()(input.as_bytes()).unwrap(),
