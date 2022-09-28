@@ -1,4 +1,4 @@
-use crate::util::{is_token, FlagOperations};
+use crate::util::{is_token, trimmed, FlagOperations};
 use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,
@@ -44,37 +44,6 @@ impl Flags {
     pub const TERMINATOR_SPECIAL_CASE: u64 = 0x0400;
     pub const DEFORMED_SEPARATOR: u64 = (0x0800 | Self::NAME_NON_TOKEN_CHARS);
     pub const FOLDING_EMPTY: u64 = (0x1000 | Self::DEFORMED_EOL);
-}
-
-/// Trim the leading whitespace
-fn trim_start(input: &[u8]) -> &[u8] {
-    let mut result = input;
-    while let Some(x) = result.first() {
-        if is_space(*x) {
-            result = &result[1..]
-        } else {
-            break;
-        }
-    }
-    result
-}
-
-/// Trim the trailing whitespace
-fn trim_end(input: &[u8]) -> &[u8] {
-    let mut result = input;
-    while let Some(x) = result.last() {
-        if is_space(*x) {
-            result = &result[..(result.len() - 1)]
-        } else {
-            break;
-        }
-    }
-    result
-}
-
-/// Trim the leading and trailing whitespace from this byteslice.
-fn trimmed(input: &[u8]) -> &[u8] {
-    trim_end(trim_start(input))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -704,17 +673,6 @@ mod test {
         ($b: literal) => {
             $b.as_bytes()
         };
-    }
-
-    #[rstest]
-    #[case::trimmed(b"notrim", b"notrim")]
-    #[case::trim_start(b"\t trim", b"trim")]
-    #[case::trim_both(b" trim ", b"trim")]
-    #[case::trim_both_ignore_middle(b" trim trim ", b"trim trim")]
-    #[case::trim_end(b"trim \t", b"trim")]
-    #[case::trim_empty(b"", b"")]
-    fn test_trim(#[case] input: &[u8], #[case] expected: &[u8]) {
-        assert_eq!(trimmed(input), expected);
     }
 
     #[rstest]
