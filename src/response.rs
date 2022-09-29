@@ -279,16 +279,18 @@ impl ConnectionParser {
             self.response_mut().response_message_len = self
                 .response()
                 .response_message_len
-                .wrapping_add(data.len() as i64);
+                .wrapping_add(bytes_to_consume as i64);
+            // Create a new gap of the appropriate length
+            let parser_data = ParserData::from(bytes_to_consume);
             // Send the gap to the data hooks
-            let mut tx_data = Data::new(self.response_mut(), data, false);
+            let mut tx_data = Data::new(self.response_mut(), &parser_data, false);
             self.response_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
             self.response_body_data(Some(&data.as_slice()[0..bytes_to_consume]))?;
-            self.response_curr_data
-                .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         }
+        self.response_curr_data
+            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         // Adjust the counters.
         self.response_body_data_left =
             (self.response_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;

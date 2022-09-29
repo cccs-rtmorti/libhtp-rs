@@ -113,7 +113,15 @@ impl<'a> ParserData<'a> {
 
     /// Returns the length of the data.
     pub fn len(&self) -> usize {
-        self.gap_len.unwrap_or(self.as_slice().len())
+        if let Some(gap_len) = self.gap_len {
+            if self.position >= gap_len {
+                0
+            } else {
+                gap_len - self.position
+            }
+        } else {
+            self.as_slice().len()
+        }
     }
 
     /// Return an immutable slice view of the data.
