@@ -721,6 +721,9 @@ impl ConnectionParser {
                 .hook_request_complete
                 .clone()
                 .run_all(self, self.request_index())?;
+
+            // Clear request data
+            self.request_receiver_finalize_clear()?;
         }
         // Determine what happens next, and remove this transaction from the parser.
         self.request_state = if self.request().is_protocol_0_9 {
@@ -835,6 +838,9 @@ impl ConnectionParser {
                 .hook_response_complete
                 .clone()
                 .run_all(self, response_index)?;
+
+            // Clear the data receivers hook if any
+            self.response_receiver_finalize_clear()?;
         }
         // Check if we want to signal the caller to send request data
         self.request_parser_check_waiting()?;
