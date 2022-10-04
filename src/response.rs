@@ -11,8 +11,8 @@ use crate::{
     },
     uri::Uri,
     util::{
-        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, take_till_eol,
-        take_till_lf, treat_response_line_as_body, FlagOperations, HtpFlags,
+        chomp, is_chunked_ctl_line, is_line_ignorable, is_space, is_valid_chunked_length_data,
+        take_till_eol, take_till_lf, treat_response_line_as_body, FlagOperations, HtpFlags,
     },
     HtpStatus,
 };
@@ -186,7 +186,7 @@ impl ConnectionParser {
                     if !self.response_buf.is_empty() {
                         self.check_response_buffer_limit(line.len())?;
                     }
-                    if line.eq(b"\n") {
+                    if is_chunked_ctl_line(line) {
                         self.response_mut().response_message_len =
                             (self.response().response_message_len as u64)
                                 .wrapping_add(line.len() as u64) as i64;

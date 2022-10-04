@@ -1342,6 +1342,16 @@ fn is_chunked_ctl_char(c: u8) -> bool {
     matches!(c, 0x0d | 0x0a | 0x20 | 0x09 | 0x0b | 0x0c)
 }
 
+/// Check if the entire input line is chunked control characters
+pub fn is_chunked_ctl_line(l: &[u8]) -> bool {
+    for c in l {
+        if !is_chunked_ctl_char(*c) {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{config::Config, util::*};
