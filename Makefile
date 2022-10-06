@@ -14,6 +14,10 @@ env:
 	@echo CRATE_VERSION: ${CRATE_VERSION}
 	@echo CRATE_VERSION_MAJOR: ${CRATE_VERSION_MAJOR}
 
+.PHONY: version
+version:
+	@echo ${CRATE_VERSION}
+
 .DEFAULT_GOAL := all
 .PHONY: all
 all: htp/.libs/libhtp.so
