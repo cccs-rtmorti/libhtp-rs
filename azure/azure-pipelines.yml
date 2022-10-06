@@ -1,4 +1,4 @@
-# Default pipeline to build, check and test libhtp2
+# Default pipeline to build, check and test libhtp-rs
 #
 # This will also run integration tests with cyberdeck and suricata.
 
@@ -30,16 +30,16 @@ resources:
     ref: refs/heads/libhtp-rs
 
 jobs:
-- job: test_libhtp2
+- job: test_libhtp
   timeoutInMinutes: 180
-  displayName: Test Libhtp2
+  displayName: Test Libhtp
   pool: nbs-gcc-9-autoscaling-builders
   steps:
     #
-    # Libhtp2 Steps
+    # Libhtp Steps
     # ==============
     - checkout: self
-      path: libhtp2
+      path: libhtp-rs
 
     # Use cargo install path
     - script: echo "##vso[task.setvariable variable=PATH;]$PATH:/usr/local/cargo/bin"
@@ -50,29 +50,29 @@ jobs:
       displayName: chown cargo dir
 
     #
-    # Setup dependencies required to build libhtp2
+    # Setup dependencies required to build libhtp-rs
     - script: |
         rustup override set stable
       displayName: setup
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
     
     #
     # Check code formatting differences
     - script: cargo fmt -- --check
       displayName: rustfmt
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
     
     #
     # Check linting warnings
     - script: cargo clippy --all-targets -- -D warnings
       displayName: Run Clippy
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
     
     #
     # Build the rust targets
     - script: make
       displayName: build
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
     
     #
     # Run the unit tests
@@ -81,7 +81,7 @@ jobs:
         rustup component add llvm-tools-preview
         RUSTFLAGS="-C instrument-coverage" LLVM_PROFILE_FILE="coverage-%p-%m.profraw" cargo test --workspace
       displayName: test
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
 
     #
     # Generate the code coverage
@@ -89,7 +89,7 @@ jobs:
         grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "*cargo*" -o ./coverage.lcov
         lcov_cobertura ./coverage.lcov --output ./coverage.xml
       displayName: code coverage
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
       continueOnError: True
 
     #
@@ -107,7 +107,7 @@ jobs:
          dotnet tool install -g dotnet-reportgenerator-globaltool
          reportgenerator -reports:./coverage.xml -targetdir:./coverage/ "-reporttypes:HtmlInline_AzurePipelines;Cobertura"
       displayName: generate code coverage report
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
       continueOnError: True
 
     #
@@ -117,8 +117,8 @@ jobs:
       continueOnError: True
       inputs:
        codeCoverageTool: Cobertura
-       summaryFileLocation: '$(Agent.BuildDirectory)/libhtp2/coverage.xml'
-       reportDirectory: '$(Agent.BuildDirectory)/libhtp2/coverage/'
+       summaryFileLocation: '$(Agent.BuildDirectory)/libhtp-rs/coverage.xml'
+       reportDirectory: '$(Agent.BuildDirectory)/libhtp-rs/coverage/'
 
     #
     # Run the benchmarks
@@ -126,23 +126,23 @@ jobs:
         rustup override set stable
         cargo bench
       displayName: bench
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
 
     #
     # Build rpm
     - script: make rpm
       displayName: rpm
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
     
     #
-    # Install libhtp2
+    # Install libhtp-rs
     #
     # TODO: Link to cyberdeck without installing RPM to avoid polluting the global environment
     - script: |
         sudo yum remove -y libhtp
         sudo yum install -y target/centos/RPMS/x86_64/libhtp*.rpm
       displayName: install
-      workingDirectory: $(Agent.BuildDirectory)/libhtp2
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
 
     #
     # Suricata Steps
@@ -156,9 +156,9 @@ jobs:
     #
     # Configure suricata
     #
-    # The symlink should prevent us from having to rebuild libhtp2.
+    # The symlink should prevent us from having to rebuild libhtp-rs.
     - script: |
-        ln -s $(Agent.BuildDirectory)/libhtp2 libhtp
+        ln -s $(Agent.BuildDirectory)/libhtp-rs libhtp
         ./autogen.sh
         $(Agent.BuildDirectory)/suricata/configure --enable-unittests
       displayName: "suricata: configure"
