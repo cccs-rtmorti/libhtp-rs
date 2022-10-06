@@ -67,7 +67,25 @@ jobs:
     - script: cargo clippy --all-targets -- -D warnings
       displayName: Run Clippy
       workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
-    
+
+    #
+    # Build project
+    #TODO: remove this when added to the main builder
+    - script: rustup update 1.56.0
+      displayName: Install msrv
+
+    #
+    # First, with the minimum supported rust version
+    - script: cargo +1.56.0 build --workspace --all-targets --all-features --release
+      displayName: build (msrv)
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
+
+    #
+    # Build stable version
+    - script: cargo build --workspace --all-targets --all-features --release
+      displayName: build (stable)
+      workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
+
     #
     # Build the rust targets
     - script: make
