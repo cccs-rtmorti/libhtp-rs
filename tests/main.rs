@@ -2359,7 +2359,7 @@ fn ResponseHeaderDeformedEOL() {
     let user_data = tx.user_data::<MainUserData>().unwrap();
     assert!(user_data.request_data.is_empty());
     assert_eq!(2, user_data.response_data.len());
-    assert_eq!(b"abcdef".as_ref(), (&user_data.response_data[0]).as_slice());
+    assert_eq!(b"abcdef".as_ref(), user_data.response_data[0].as_slice());
 }
 
 #[test]
@@ -2604,24 +2604,21 @@ fn HttpEvader017() {
     assert_eq!(5, user_data.response_data.len());
     assert_eq!(
         b"X5O!P%@AP[4\\PZX".as_ref(),
-        (&user_data.response_data[0]).as_slice()
+        user_data.response_data[0].as_slice()
     );
     assert_eq!(
         b"54(P^)7CC)7}$EI".as_ref(),
-        (&user_data.response_data[1]).as_slice()
+        user_data.response_data[1].as_slice()
     );
     assert_eq!(
         b"CAR-STANDARD-AN".as_ref(),
-        (&user_data.response_data[2]).as_slice()
+        user_data.response_data[2].as_slice()
     );
     assert_eq!(
         b"TIVIRUS-TEST-FI".as_ref(),
-        (&user_data.response_data[3]).as_slice()
+        user_data.response_data[3].as_slice()
     );
-    assert_eq!(
-        b"LE!$H+H*".as_ref(),
-        (&user_data.response_data[4]).as_slice()
-    );
+    assert_eq!(b"LE!$H+H*".as_ref(), user_data.response_data[4].as_slice());
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
@@ -2641,24 +2638,21 @@ fn HttpEvader018() {
     assert_eq!(5, user_data.response_data.len());
     assert_eq!(
         b"X5O!P%@AP[4\\PZX".as_ref(),
-        (&user_data.response_data[0]).as_slice()
+        user_data.response_data[0].as_slice()
     );
     assert_eq!(
         b"54(P^)7CC)7}$EI".as_ref(),
-        (&user_data.response_data[1]).as_slice()
+        user_data.response_data[1].as_slice()
     );
     assert_eq!(
         b"CAR-STANDARD-AN".as_ref(),
-        (&user_data.response_data[2]).as_slice()
+        user_data.response_data[2].as_slice()
     );
     assert_eq!(
         b"TIVIRUS-TEST-FI".as_ref(),
-        (&user_data.response_data[3]).as_slice()
+        user_data.response_data[3].as_slice()
     );
-    assert_eq!(
-        b"LE!$H+H*".as_ref(),
-        (&user_data.response_data[4]).as_slice()
-    );
+    assert_eq!(b"LE!$H+H*".as_ref(), user_data.response_data[4].as_slice());
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
@@ -2776,7 +2770,7 @@ fn HttpEvader195() {
     assert!(user_data.request_data.is_empty());
     assert_eq!(1, user_data.response_data.len());
     assert_eq!(
-        (&user_data.response_data[0]).as_slice(),
+        user_data.response_data[0].as_slice(),
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref()
     );
 }
@@ -2957,9 +2951,9 @@ fn HttpEvader416() {
     assert_eq!(2, user_data.response_data.len());
     assert_eq!(
         b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*".as_ref(),
-        (&user_data.response_data[0]).as_slice()
+        user_data.response_data[0].as_slice()
     );
-    assert_eq!(b"\n".as_ref(), (&user_data.response_data[1]).as_slice());
+    assert_eq!(b"\n".as_ref(), user_data.response_data[1].as_slice());
     assert_eq!(HtpRequestProgress::COMPLETE, tx.request_progress);
     assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
 }
@@ -3000,14 +2994,11 @@ fn RequestGap() {
 
     // The interim header from the 100 response should not be among the final headers.
     assert!(tx.request_headers.get_nocase_nozero("Header1").is_none());
-    assert_eq!(
-        (&user_data.request_data[1]).as_slice(),
-        b"<? echo ".as_ref()
-    );
+    assert_eq!(user_data.request_data[1].as_slice(), b"<? echo ".as_ref());
     // Next chunk is a gap of size 5
-    assert_eq!((&user_data.request_data[2]).as_slice(), b"".as_ref());
-    assert_eq!((&user_data.request_data[2]).capacity(), 5);
-    assert_eq!((&user_data.request_data[3]).as_slice(), b"; ?>".as_ref());
+    assert_eq!(user_data.request_data[2].as_slice(), b"".as_ref());
+    assert_eq!(user_data.request_data[2].capacity(), 5);
+    assert_eq!(user_data.request_data[3].as_slice(), b"; ?>".as_ref());
 }
 
 #[test]
@@ -3021,9 +3012,9 @@ fn ResponseGap() {
 
     assert!(tx.flags.is_set(HtpFlags::RESPONSE_MISSING_BYTES));
 
-    assert_eq!((&user_data.response_data[0]).as_slice(), b"Hell".as_ref());
+    assert_eq!(user_data.response_data[0].as_slice(), b"Hell".as_ref());
     // Next chunk is a gap of size 4
-    assert_eq!((&user_data.response_data[1]).as_slice(), b"".as_ref());
-    assert_eq!((&user_data.response_data[1]).capacity(), 4);
-    assert_eq!((&user_data.response_data[2]).as_slice(), b"rld!".as_ref());
+    assert_eq!(user_data.response_data[1].as_slice(), b"".as_ref());
+    assert_eq!(user_data.response_data[1].capacity(), 4);
+    assert_eq!(user_data.response_data[2].as_slice(), b"rld!".as_ref());
 }

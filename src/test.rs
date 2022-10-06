@@ -220,7 +220,8 @@ impl Test {
                 Chunk::Server(data) => {
                     // If we have leftover data from before then use it first
                     if let Some(response_remaining) = response_buf {
-                        let rc = (&mut self.connp)
+                        let rc = self
+                            .connp
                             .response_data(response_remaining.as_slice().into(), Some(tv_start));
                         response_buf = None;
                         if rc == HtpStreamState::ERROR {
@@ -229,7 +230,7 @@ impl Test {
                     }
 
                     // Now use up this data chunk
-                    let rc = (&mut self.connp).response_data(data.clone(), Some(tv_start));
+                    let rc = self.connp.response_data(data.clone(), Some(tv_start));
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
                     }
@@ -261,7 +262,8 @@ impl Test {
 
         // Clean up any remaining server data
         if let Some(response_remaining) = response_buf {
-            let rc = (&mut self.connp)
+            let rc = self
+                .connp
                 .response_data(response_remaining.as_slice().into(), Some(tv_start));
             if rc == HtpStreamState::ERROR {
                 return Err(TestError::StreamError);

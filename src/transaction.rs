@@ -771,7 +771,7 @@ impl Transaction {
             }
             // Get the body length.
             if let Some(content_length) =
-                parse_content_length((*(*cl).value).as_slice(), Some(&mut self.logger))
+                parse_content_length(cl.value.as_slice(), Some(&mut self.logger))
             {
                 // We have a request body of known length.
                 self.request_content_length = content_length;

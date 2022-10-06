@@ -31,7 +31,7 @@ fn main() {
     .write_to_file("htp/htp.h");
 
     // Write a version.h to include with the c_api
-    let mut hdr_path = PathBuf::from(crate_dir.clone());
+    let mut hdr_path = PathBuf::from(crate_dir);
     hdr_path.push("htp/version.h");
     std::fs::write(
         hdr_path,

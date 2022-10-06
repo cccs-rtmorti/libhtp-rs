@@ -756,10 +756,11 @@ impl ConnectionParser {
     ///    forces decompression by setting response_content_encoding to one of the
     ///    supported algorithms.
     pub fn request_initialize_decompressors(&mut self) -> Result<()> {
-        let ce = (*self.request_mut())
+        let ce = self
+            .request_mut()
             .request_headers
             .get_nocase_nozero("content-encoding")
-            .map(|(_, val)| (&val.value).clone());
+            .map(|(_, val)| val.value.clone());
         // Process multiple encodings if there is no match on fast path
         let mut slow_path = false;
 
@@ -901,7 +902,7 @@ impl ConnectionParser {
                     .replace(decompressor.prepend(encoding, compression_options)?);
             } else {
                 // The processing encoding will be the first one encountered
-                (*self.request_mut()).request_content_encoding_processing = encoding;
+                self.request_mut().request_content_encoding_processing = encoding;
 
                 // Add the callback first because it will be called last in
                 // the chain of writers
