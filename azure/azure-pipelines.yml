@@ -211,20 +211,32 @@ jobs:
     # Configure cyberdeck
     #
     # This will configure cyberdeck outside of its source tree.
-    #
-    # TODO: link to libhtp2
+    # TODO: install ninja-build on the box directly with its config environment
+    # TODO: link to libhtp-rs without installing RPM to avoid polluting the global environment
     - script: |
+        source /opt/gcc-9/enable
+        sudo rm -rf /opt/gcc-9/root/usr/include/htp/
+        sudo rm -rf /opt/gcc-9/root/usr/lib/libhtp*
+        sudo yum install -y ninja-build
         mkdir cyberdeck_build
         cd cyberdeck_build
-        source /opt/gcc-9/enable
-        cmake3 -DTARGET_NATIVE_ARCH=Off -DCMAKE_BUILD_TYPE=Release -DENABLE_SAWP=Off -DENABLE_MANPAGES=Off -DENABLE_STREAMMAP=Off -DENABLE_SNF=Off $(Agent.BuildDirectory)/cyberdeck
+        cmake3 -GNinja \
+        -DTARGET_NATIVE_ARCH=Off \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_SAWP=Off \
+        -DENABLE_MANPAGES=Off \
+        -DENABLE_STREAMMAP=Off \
+        -DENABLE_SNF=Off \
+        -DENABLE_HTP=On \
+        -DENABLE_TESTS=On \
+        $(Agent.BuildDirectory)/cyberdeck
       displayName: "cyberdeck: configure" 
       workingDirectory: $(Agent.BuildDirectory)
-    
+
     #
     # Build cyberdeck
     - script: |
-        make -j $(nproc)
+        ninja-build
       displayName: "cyberdeck: build" 
       workingDirectory: $(Agent.BuildDirectory)/cyberdeck_build
 
