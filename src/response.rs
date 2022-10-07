@@ -11,7 +11,7 @@ use crate::{
     },
     uri::Uri,
     util::{
-        chomp, is_chunked_ctl_line, is_line_ignorable, is_space, is_valid_chunked_length_data,
+        is_chunked_ctl_line, is_line_ignorable, is_space, is_valid_chunked_length_data,
         take_till_eol, take_till_lf, treat_response_line_as_body, FlagOperations, HtpFlags,
     },
     HtpStatus,
@@ -654,14 +654,14 @@ impl ConnectionParser {
         self.response_mut().response_protocol = None;
         self.response_mut().response_status = None;
         self.response_mut().response_message = None;
+
         // Process response line.
-        let data = chomp(line);
         // If the response line is invalid, determine if it _looks_ like
         // a response line. If it does not look like a line, process the
         // data as a response body because that is what browsers do.
-        if treat_response_line_as_body(data) {
+        if treat_response_line_as_body(line) {
             self.response_mut().response_content_encoding_processing = HtpContentEncoding::NONE;
-            self.response_body_data(Some(data))?;
+            self.response_body_data(Some(line))?;
             // Continue to process response body. Because we don't have
             // any headers to parse, we assume the body continues until
             // the end of the stream.
@@ -674,7 +674,7 @@ impl ConnectionParser {
             }
             return Ok(());
         }
-        self.parse_response_line(data)?;
+        self.parse_response_line(line)?;
         self.state_response_line()?;
         // Move on to the next phase.
         self.response_state = State::HEADERS;
