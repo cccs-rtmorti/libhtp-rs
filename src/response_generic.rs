@@ -6,7 +6,7 @@ use crate::{
     parsers::{parse_content_length, parse_protocol, parse_status},
     transaction::{Header, HtpProtocol, HtpResponseNumber},
     util::{
-        take_ascii_whitespace, take_is_space, take_is_space_or_null, take_not_is_space,
+        chomp, take_ascii_whitespace, take_is_space, take_is_space_or_null, take_not_is_space,
         FlagOperations, HtpFlags,
     },
 };
@@ -52,7 +52,7 @@ impl ConnectionParser {
             return Ok(());
         }
 
-        response_tx.response_message = Some(Bstr::from(message));
+        response_tx.response_message = Some(Bstr::from(chomp(message)));
         Ok(())
     }
 

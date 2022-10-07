@@ -3018,3 +3018,21 @@ fn ResponseGap() {
     assert_eq!(user_data.response_data[1].capacity(), 4);
     assert_eq!(user_data.response_data[2].as_slice(), b"rld!".as_ref());
 }
+
+#[test]
+fn ResponseBodyData() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run_file("122-response-body-data.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.is_complete());
+
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+    let response_data = &user_data.response_data;
+    assert_eq!(3, response_data.len());
+    assert_eq!(b"1\n", response_data[0].as_slice());
+    assert_eq!(b"23\n", response_data[1].as_slice());
+    assert_eq!(b"4", response_data[2].as_slice());
+}
