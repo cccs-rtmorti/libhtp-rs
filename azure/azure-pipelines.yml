@@ -190,6 +190,7 @@ jobs:
     # TODO: Link to cyberdeck without installing RPM to avoid polluting the global environment
     - script: |
         sudo yum remove -y libhtp
+        sudo yum remove -y gcc-9-libhtp
         sudo yum install -y target/centos/RPMS/x86_64/libhtp*.rpm
       displayName: install
       workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
@@ -261,13 +262,9 @@ jobs:
     # Configure cyberdeck
     #
     # This will configure cyberdeck outside of its source tree.
-    # TODO: install ninja-build on the box directly with its config environment
     # TODO: link to libhtp-rs without installing RPM to avoid polluting the global environment
     - script: |
         source /opt/gcc-9/enable
-        sudo rm -rf /opt/gcc-9/root/usr/include/htp/
-        sudo rm -rf /opt/gcc-9/root/usr/lib/libhtp*
-        sudo yum install -y ninja-build
         mkdir cyberdeck_build
         cd cyberdeck_build
         cmake3 -GNinja \
