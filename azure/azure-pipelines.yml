@@ -270,10 +270,6 @@ jobs:
         cmake3 -GNinja \
         -DTARGET_NATIVE_ARCH=Off \
         -DCMAKE_BUILD_TYPE=Release \
-        -DENABLE_SAWP=Off \
-        -DENABLE_MANPAGES=Off \
-        -DENABLE_STREAMMAP=Off \
-        -DENABLE_SNF=Off \
         -DENABLE_HTP=On \
         -DENABLE_TESTS=On \
         $(Agent.BuildDirectory)/cyberdeck
