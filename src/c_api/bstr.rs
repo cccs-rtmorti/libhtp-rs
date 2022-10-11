@@ -17,7 +17,7 @@ pub extern "C" fn bstr_alloc(len: libc::size_t) -> *mut Bstr {
 pub unsafe extern "C" fn bstr_free(b: *mut Bstr) {
     if !b.is_null() {
         // b will be dropped when this box goes out of scope
-        Box::from_raw(b);
+        let _ = Box::from_raw(b);
     }
 }
 

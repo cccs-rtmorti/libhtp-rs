@@ -4,13 +4,24 @@ members = [
 
 [package]
 name = "htp"
-authors = ["C2Rust"]
+authors = ["ivanr = Ivan Ristic <ivanr@webkreator.com>", "cccs = Canadian Centre for Cyber Security"]
 version = "2.0.0"
 publish = false
 edition = "2018"
 autobins = false
 license-file = "LICENSE"
-description = "libhtp-rs"
+description = "Security Aware HTP Protocol parsing library"
+readme = "README.md"
+repository = "https://github.com/CybercentreCanada/libhtp-rs-internal"
+homepage = "https://github.com/CybercentreCanada/libhtp-rs-internal"
+keywords = ["parser", "HTTP", "protocol", "network", "api"]
+categories = ["parsing", "network-programming"]
+include = [
+    "Cargo.toml",
+    "LICENSE",
+    "README.md",
+    "src/**/*.rs",
+]
 
 [lib]
 crate-type = ["staticlib", "rlib", "cdylib"]
