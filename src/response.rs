@@ -59,12 +59,11 @@ impl ConnectionParser {
         rc
     }
 
-    /// Configures the data receiver hook. If there is a previous hook, it will be finalized and cleared.
+    /// Configures the data receiver hook.
     fn response_receiver_set(&mut self, data_receiver_hook: Option<DataHook>) -> Result<()> {
-        let rc = self.response_receiver_finalize_clear();
         self.response_data_receiver_hook = data_receiver_hook;
         self.response_current_receiver_offset = self.response_curr_data.position();
-        rc
+        Ok(())
     }
 
     /// Handles request parser state changes. At the moment, this function is used only
