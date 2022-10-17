@@ -3,7 +3,7 @@
 use htp::{
     bstr::Bstr,
     config::{Config, HtpServerPersonality},
-    connection_parser::ConnectionParser,
+    connection_parser::{ConnectionParser, ParserData},
     error::Result,
     transaction::{Data, Header, HtpDataSource, HtpProtocol, HtpResponseNumber, Transaction},
     uri::Uri,
@@ -222,6 +222,9 @@ fn GetTest() {
     // We should be operating on the same transaction throughout
     let tx_id = tx.index;
 
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
+
     // Request begins
     t.connp.state_request_start().unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
@@ -258,7 +261,7 @@ fn GetTest() {
     tx_set_header!(tx.request_headers, "User-Agent", "Mozilla/5.0");
 
     // Request headers complete
-    t.connp.state_request_headers().unwrap();
+    t.connp.state_request_headers(&mut p).unwrap();
 
     // Check headers
     let tx = t.connp.tx(tx_id).unwrap();
@@ -271,7 +274,7 @@ fn GetTest() {
     assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
     // Request complete
-    t.connp.state_request_complete().unwrap();
+    t.connp.state_request_complete(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
@@ -342,6 +345,9 @@ fn PostUrlecodedTest() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.request().index;
 
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
+
     // Request begins
     t.connp.state_request_start().unwrap();
 
@@ -361,7 +367,7 @@ fn PostUrlecodedTest() {
     tx_set_header!(tx.request_headers, "Content-Length", "7");
 
     // Request headers complete
-    t.connp.state_request_headers().unwrap();
+    t.connp.state_request_headers(&mut p).unwrap();
 
     // Send request body
     t.connp.request_body_data(Some(b"p=1")).unwrap();
@@ -379,7 +385,7 @@ fn PostUrlecodedTest() {
     assert_request_header_eq!(tx, "user-agent", "Mozilla/5.0");
 
     // Request complete
-    t.connp.state_request_complete().unwrap();
+    t.connp.state_request_complete(&mut p).unwrap();
 
     let tx = t.connp.tx(tx_id).unwrap();
     // Check parameters
@@ -393,13 +399,16 @@ fn CompressedResponse() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.request().index;
 
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
+
     t.connp.state_request_start().unwrap();
 
     t.connp.parse_request_line(b"GET / HTTP/1.1").unwrap();
 
     t.connp.state_request_line().unwrap();
-    t.connp.state_request_headers().unwrap();
-    t.connp.state_request_complete().unwrap();
+    t.connp.state_request_headers(&mut p).unwrap();
+    t.connp.state_request_complete(&mut p).unwrap();
 
     t.connp.state_response_start().unwrap();
 
@@ -458,6 +467,9 @@ fn PostUrlecodedChunked() {
     let mut t = HybridParsingTest::new(TestConfig());
     let tx_id = t.connp.request().index;
 
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
+
     // Request begins.
     t.connp.state_request_start().unwrap();
 
@@ -475,7 +487,7 @@ fn PostUrlecodedChunked() {
     tx_set_header!(tx.request_headers, "Transfer-Encoding", "chunked");
 
     // Request headers complete.
-    t.connp.state_request_headers().unwrap();
+    t.connp.state_request_headers(&mut p).unwrap();
 
     // Send request body.
     t.connp.request_body_data(Some(b"p=1")).unwrap();
@@ -483,7 +495,7 @@ fn PostUrlecodedChunked() {
     t.connp.request_body_data(Some(b"q=2")).unwrap();
 
     // Request complete.
-    t.connp.state_request_complete().unwrap();
+    t.connp.state_request_complete(&mut p).unwrap();
 
     // Check the parameters.
     let tx = t.connp.tx(tx_id).unwrap();
@@ -717,6 +729,9 @@ fn TestRepeatCallbacks() {
     let tx = t.connp.tx_mut(tx_id).unwrap();
     tx.set_user_data(Box::new(HybridParsing_Get_User_Data::new()));
 
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
+
     // Request begins
     t.connp.state_request_start().unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
@@ -741,13 +756,13 @@ fn TestRepeatCallbacks() {
     assert!(parsed_uri.path.as_ref().unwrap().eq_slice("/"));
 
     // Request headers complete
-    t.connp.state_request_headers().unwrap();
+    t.connp.state_request_headers(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_HEADERS_invoked);
 
     // Request complete
-    t.connp.state_request_complete().unwrap();
+    t.connp.state_request_complete(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_COMPLETE_invoked);
