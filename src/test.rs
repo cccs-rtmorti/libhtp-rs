@@ -218,7 +218,7 @@ impl Test {
                             .request_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
-                        let mut remaining = data.clone().into_owned();
+                        let remaining = data.clone().into_owned();
                         remaining.consume(consumed);
                         request_buf = Some(remaining);
                     }
@@ -247,7 +247,7 @@ impl Test {
                             .response_data_consumed()
                             .try_into()
                             .expect("Error retrieving number of consumed bytes.");
-                        let mut remaining = data.clone().into_owned();
+                        let remaining = data.clone().into_owned();
                         remaining.consume(consumed);
                         response_buf = Some(remaining);
                     }

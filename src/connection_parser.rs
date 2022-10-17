@@ -12,7 +12,7 @@ use crate::{
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
-use std::{any::Any, borrow::Cow, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
+use std::{any::Any, borrow::Cow, cell::Cell, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
 
 /// Enumerates parsing state.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -89,11 +89,14 @@ pub struct ParserData<'a> {
     // Length of data gap. Only set if is a gap.
     gap_len: Option<usize>,
     // Current position offset of the data to parse
-    position: usize,
+    position: Cell<usize>,
+    // Current callback data position
+    callback_position: usize,
 }
 
 impl<'a> ParserData<'a> {
     /// Returns a pointer to the raw data associated with Data.
+    /// This returns a pointer to the entire data chunk.
     pub fn data_ptr(&self) -> *const u8 {
         self.data()
             .as_ref()
@@ -101,34 +104,39 @@ impl<'a> ParserData<'a> {
             .unwrap_or(std::ptr::null())
     }
 
-    /// Returns the data
+    /// Returns the unconsumed data
     pub fn data(&self) -> Option<&[u8]> {
         let data = self.data.as_ref()?;
-        if self.position <= data.len() {
-            Some(&data[self.position..])
+        if self.position.get() <= data.len() {
+            Some(&data[self.position.get()..])
         } else {
             None
         }
     }
 
-    /// Returns the length of the data.
+    /// Returns the length of the unconsumed data.
     pub fn len(&self) -> usize {
         if let Some(gap_len) = self.gap_len {
-            if self.position >= gap_len {
+            if self.position.get() >= gap_len {
                 0
             } else {
-                gap_len - self.position
+                gap_len - self.position.get()
             }
         } else {
             self.as_slice().len()
         }
     }
 
-    /// Return an immutable slice view of the data.
+    /// Returns how much data has been consumed so far
+    pub fn consumed_len(&self) -> usize {
+        self.position.get()
+    }
+
+    /// Return an immutable slice view of the unconsumed data.
     pub fn as_slice(&self) -> &[u8] {
         if let Some(data) = self.data.as_ref() {
-            if self.position <= data.len() {
-                return &data[self.position..];
+            if self.position.get() <= data.len() {
+                return &data[self.position.get()..];
             }
         }
         b""
@@ -139,19 +147,28 @@ impl<'a> ParserData<'a> {
         self.gap_len.is_some()
     }
 
-    /// Determine whether this data is empty.
+    /// Determine whether there is no more data to consume.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Set the position offset into the data for parsing
-    pub fn set_position(&mut self, position: usize) {
-        self.position = position;
+    pub fn set_position(&self, position: usize) {
+        self.position.set(position);
     }
 
     /// Advances the internal position where we are parsing
-    pub fn consume(&mut self, consumed: usize) {
-        self.set_position(self.position + consumed);
+    pub fn consume(&self, consumed: usize) {
+        self.set_position(self.position.get() + consumed);
+    }
+
+    /// Decrements the internal position where we are parsing
+    pub fn unconsume(&self, unconsume: usize) {
+        if unconsume < self.position.get() {
+            self.set_position(self.position.get() - unconsume);
+        } else {
+            self.set_position(0);
+        }
     }
 
     /// Make an owned version of this data.
@@ -160,7 +177,29 @@ impl<'a> ParserData<'a> {
             data: self.data.map(|d| Cow::Owned(d.into_owned())),
             gap_len: self.gap_len,
             position: self.position,
+            callback_position: self.callback_position,
         }
+    }
+
+    /// Callback data is raw data buffer content that is passed to the
+    /// application via the header and trailer data hooks.
+    ///
+    /// This function will return any data that has been consumed but not
+    /// yet returned from this function.
+    pub fn callback_data(&mut self) -> &[u8] {
+        if let Some(data) = self.data.as_ref() {
+            if self.position.get() <= data.len() && self.callback_position <= self.position.get() {
+                let d = &data[self.callback_position..self.position.get()];
+                self.callback_position = self.position.get();
+                return d;
+            }
+        }
+        b""
+    }
+
+    /// Sets the callback start location to the current parsing location
+    pub fn reset_callback_start(&mut self) {
+        self.callback_position = self.position.get();
     }
 }
 
@@ -169,7 +208,8 @@ impl<'a> From<Option<&'a [u8]>> for ParserData<'a> {
         ParserData {
             data: data.map(Cow::Borrowed),
             gap_len: None,
-            position: 0,
+            position: Cell::new(0),
+            callback_position: 0,
         }
     }
 }
@@ -179,7 +219,8 @@ impl<'a> From<&'a [u8]> for ParserData<'a> {
         ParserData {
             data: Some(Cow::Borrowed(data)),
             gap_len: None,
-            position: 0,
+            position: Cell::new(0),
+            callback_position: 0,
         }
     }
 }
@@ -189,7 +230,8 @@ impl From<Vec<u8>> for ParserData<'static> {
         ParserData {
             data: Some(Cow::Owned(data)),
             gap_len: None,
-            position: 0,
+            position: Cell::new(0),
+            callback_position: 0,
         }
     }
 }
@@ -199,7 +241,8 @@ impl<'a> From<&'a Vec<u8>> for ParserData<'a> {
         ParserData {
             data: Some(Cow::Borrowed(data.as_slice())),
             gap_len: None,
-            position: 0,
+            position: Cell::new(0),
+            callback_position: 0,
         }
     }
 }
@@ -209,7 +252,8 @@ impl<'a> From<usize> for ParserData<'a> {
         ParserData {
             data: None,
             gap_len: Some(gap_len),
-            position: 0,
+            position: Cell::new(0),
+            callback_position: 0,
         }
     }
 }
@@ -250,12 +294,10 @@ pub struct ConnectionParser {
     pub response_data_other_at_tx_end: bool,
     /// The time when the last request data chunk was received.
     pub request_timestamp: DateTime<Utc>,
-    /// Pointer to the current request data chunk.
-    pub request_curr_data: Cursor<Vec<u8>>,
-    /// Marks the starting point of raw data within the inbound data chunk. Raw
-    /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
-    /// request_header_data).
-    pub request_current_receiver_offset: u64,
+    /// How many bytes from the last input chunk have we consumed
+    /// This is mostly used from callbacks, where the caller
+    /// wants to know how far into the last chunk the parser is.
+    pub request_bytes_consumed: usize,
     /// How many data chunks does the inbound connection stream consist of?
     pub request_chunk_count: usize,
     /// The index of the first chunk used in the current request.
@@ -344,8 +386,7 @@ impl ConnectionParser {
             response_status: HtpStreamState::NEW,
             response_data_other_at_tx_end: false,
             request_timestamp: DateTime::<Utc>::from(SystemTime::now()),
-            request_curr_data: Cursor::new(Vec::new()),
-            request_current_receiver_offset: 0,
+            request_bytes_consumed: 0,
             request_chunk_count: 0,
             request_chunk_request_index: 0,
             request_buf: Bstr::new(),
@@ -435,21 +476,20 @@ impl ConnectionParser {
 
     /// Handle the current state to be processed.
     pub fn handle_request_state(&mut self, data: &mut ParserData) -> Result<()> {
-        data.set_position(self.request_curr_data.position() as usize);
         match self.request_state {
             State::NONE => Err(HtpStatus::ERROR),
-            State::IDLE => self.request_idle(),
-            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.request_ignore_data_after_http_0_9(),
-            State::LINE => self.request_line(data.as_slice()),
-            State::PROTOCOL => self.request_protocol(data.as_slice()),
-            State::HEADERS => self.request_headers(data.as_slice()),
+            State::IDLE => self.request_idle(data),
+            State::IGNORE_DATA_AFTER_HTTP_0_9 => self.request_ignore_data_after_http_0_9(data),
+            State::LINE => self.request_line(data),
+            State::PROTOCOL => self.request_protocol(data),
+            State::HEADERS => self.request_headers(data),
             State::CONNECT_WAIT_RESPONSE => self.request_connect_wait_response(),
             State::CONNECT_CHECK => self.request_connect_check(),
-            State::CONNECT_PROBE_DATA => self.request_connect_probe_data(data.as_slice()),
+            State::CONNECT_PROBE_DATA => self.request_connect_probe_data(data),
             State::BODY_DETERMINE => self.request_body_determine(),
-            State::BODY_CHUNKED_DATA => self.request_body_chunked_data(data.as_slice()),
-            State::BODY_CHUNKED_LENGTH => self.request_body_chunked_length(data.as_slice()),
-            State::BODY_CHUNKED_DATA_END => self.request_body_chunked_data_end(data.as_slice()),
+            State::BODY_CHUNKED_DATA => self.request_body_chunked_data(data),
+            State::BODY_CHUNKED_LENGTH => self.request_body_chunked_length(data),
+            State::BODY_CHUNKED_DATA_END => self.request_body_chunked_data_end(data),
             State::BODY_IDENTITY => self.request_body_identity(data),
             State::FINALIZE => self.request_finalize(data),
             // These are only used by response_state
@@ -539,7 +579,23 @@ impl ConnectionParser {
 
     /// Returns the number of bytes consumed from the current data chunks so far.
     pub fn request_data_consumed(&self) -> i64 {
-        self.request_curr_data.position() as i64
+        self.request_bytes_consumed as i64
+    }
+
+    /// Consume the given number of bytes from the ParserData and update
+    /// the internal counter for how many bytes consumed so far.
+    pub fn request_data_consume(&mut self, input: &ParserData, consumed: usize) {
+        input.consume(consumed);
+        self.request_bytes_consumed = input.consumed_len();
+    }
+
+    /// Unconsume the given number of bytes from the ParserData and update the
+    /// the internal counter for how many bytes are consumed.
+    /// If the requested number of bytes is larger than the number of bytes
+    /// already consumed then the parser will be unwound to the beginning.
+    pub fn request_data_unconsume(&mut self, input: &mut ParserData, unconsume: usize) {
+        input.unconsume(unconsume);
+        self.request_bytes_consumed = input.consumed_len();
     }
 
     /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
@@ -622,9 +678,9 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP if one of the
     /// callbacks does not want to follow the transaction any more.
-    pub fn state_request_headers(&mut self) -> Result<()> {
+    pub fn state_request_headers(&mut self, input: &mut ParserData) -> Result<()> {
         // Finalize sending raw header data
-        self.request_receiver_finalize_clear()?;
+        self.request_receiver_finalize_clear(input)?;
         // If we're in HTP_REQ_HEADERS that means that this is the
         // first time we're processing headers in a request. Otherwise,
         // we're dealing with trailing headers.
@@ -709,7 +765,7 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
-    pub fn state_request_complete(&mut self) -> Result<()> {
+    pub fn state_request_complete(&mut self, input: &mut ParserData) -> Result<()> {
         if self.request().request_progress != HtpRequestProgress::COMPLETE {
             // Finalize request body.
             if self.request().request_has_body() {
@@ -723,7 +779,7 @@ impl ConnectionParser {
                 .run_all(self, self.request_index())?;
 
             // Clear request data
-            self.request_receiver_finalize_clear()?;
+            self.request_receiver_finalize_clear(input)?;
         }
         // Determine what happens next, and remove this transaction from the parser.
         self.request_state = if self.request().is_protocol_0_9 {
