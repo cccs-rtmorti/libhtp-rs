@@ -3,6 +3,7 @@ use htp::{
     bstr::Bstr,
     config::HtpServerPersonality,
     connection::Flags as ConnectionFlags,
+    connection_parser::ParserData,
     error::Result,
     log::{HtpLogCode, HtpLogLevel},
     transaction::{
@@ -3035,4 +3036,21 @@ fn ResponseBodyData() {
     assert_eq!(b"1\n", response_data[0].as_slice());
     assert_eq!(b"23\n", response_data[1].as_slice());
     assert_eq!(b"4", response_data[2].as_slice());
+}
+
+#[test]
+fn RequestSingleBytes() {
+    // Test input fed in one byte at a time
+    let input = b" GET / HTTP/1.0\r\nUser-Agent: Test/1.0\r\n\r\n";
+    let mut t = Test::new_with_callbacks();
+    t.open_connection(None);
+    for x in 0..input.len() {
+        t.connp
+            .request_data(ParserData::from(&input[x..(x + 1)]), None);
+    }
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+    let h = tx.request_headers.get_nocase_nozero("User-Agent").unwrap();
+    assert!(h.1.value.eq_slice(b"Test/1.0"));
 }
