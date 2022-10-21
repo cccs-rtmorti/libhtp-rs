@@ -185,15 +185,21 @@ impl Test {
         t
     }
 
-    fn run(&mut self, test: TestInput) -> std::result::Result<(), TestError> {
-        let tv_start = DateTime::<Utc>::from(SystemTime::now());
+    /// Open a connection on the underlying ConnectionParser. Useful if you
+    /// want to send data directly to the ConnectionParser after.
+    pub fn open_connection(&mut self, tv_start: Option<DateTime<Utc>>) {
         self.connp.open(
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
             Some(10000),
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
             Some(80),
-            Some(tv_start),
+            tv_start,
         );
+    }
+
+    fn run(&mut self, test: TestInput) -> std::result::Result<(), TestError> {
+        let tv_start = DateTime::<Utc>::from(SystemTime::now());
+        self.open_connection(Some(tv_start));
 
         let mut request_buf: Option<ParserData> = None;
         let mut response_buf: Option<ParserData> = None;
