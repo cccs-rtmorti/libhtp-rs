@@ -4,7 +4,7 @@ Name: libhtp
 Summary: Security-aware HTTP protocol parsing library FFI package
 Version: %{version}
 Release: 1
-License: Copyright (c) 2009-2010 Open Information Security Foundation Copyright (c) 2010-2013 Qualys, Inc.
+License: BSD
 Source0: %{name}-%{version}.tar.gz
 
 %description
