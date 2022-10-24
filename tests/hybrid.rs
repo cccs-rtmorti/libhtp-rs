@@ -307,7 +307,7 @@ fn GetTest() {
     tx_set_header!(tx.response_headers, "Server", "Apache");
 
     // Response headers complete
-    t.connp.state_response_headers().unwrap();
+    t.connp.state_response_headers(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
@@ -333,7 +333,7 @@ fn GetTest() {
     assert_response_header_eq!(tx, "content-type", "text/html");
     assert_response_header_eq!(tx, "server", "Apache");
 
-    t.connp.state_response_complete().unwrap();
+    t.connp.state_response_complete(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_COMPLETE_invoked);
@@ -417,7 +417,7 @@ fn CompressedResponse() {
     tx_set_header!(tx.response_headers, "Content-Encoding", "gzip");
     tx_set_header!(tx.response_headers, "Content-Length", "187");
 
-    t.connp.state_response_headers().unwrap();
+    t.connp.state_response_headers(&mut p).unwrap();
 
     let RESPONSE: &[u8] =
         b"H4sIAAAAAAAAAG2PwQ6CMBBE73xFU++tXk2pASliAiEhPegRYUOJYEktEP5eqB6dy2ZnJ5O3LJFZ\
@@ -429,7 +429,7 @@ fn CompressedResponse() {
 
     t.connp.response_body_data(Some(body.as_slice())).unwrap();
 
-    t.connp.state_response_complete().unwrap();
+    t.connp.state_response_complete(&mut p).unwrap();
 
     let tx = t.connp.tx(tx_id).unwrap();
     assert_eq!(187, tx.response_message_len);
@@ -783,13 +783,13 @@ fn TestRepeatCallbacks() {
     assert_eq!(1, user_data.callback_RESPONSE_LINE_invoked);
 
     // Response headers complete
-    t.connp.state_response_headers().unwrap();
+    t.connp.state_response_headers(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_RESPONSE_HEADERS_invoked);
 
     // Response complete
-    t.connp.state_response_complete().unwrap();
+    t.connp.state_response_complete(&mut p).unwrap();
     let tx = t.connp.tx(tx_id).unwrap();
     let user_data = tx.user_data::<HybridParsing_Get_User_Data>().unwrap();
     assert_eq!(1, user_data.callback_REQUEST_START_invoked);
@@ -808,6 +808,9 @@ fn TestRepeatCallbacks() {
 fn ResponseLineIncomplete() {
     let mut t = HybridParsingTest::new(TestConfig());
 
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
+
     t.connp.state_response_start().unwrap();
     t.connp.parse_response_line(b"HTTP/1.1").unwrap();
     let tx = t.connp.response();
@@ -816,13 +819,16 @@ fn ResponseLineIncomplete() {
     assert!(tx.response_status.is_none());
     assert_eq!(HtpResponseNumber::INVALID, tx.response_status_number);
     assert!(tx.response_message.is_none());
-    t.connp.state_response_complete().unwrap();
+    t.connp.state_response_complete(&mut p).unwrap();
 }
 
 /// Try response line with missing response message
 #[test]
 fn ResponseLineIncomplete1() {
     let mut t = HybridParsingTest::new(TestConfig());
+
+    // Make dummy parser data to satisfy callbacks
+    let mut p = ParserData::from(b"" as &[u8]);
 
     t.connp.state_response_start().unwrap();
     t.connp.parse_response_line(b"HTTP/1.1 200").unwrap();
@@ -832,5 +838,5 @@ fn ResponseLineIncomplete1() {
     assert!(tx.response_status.as_ref().unwrap().eq_slice("200"));
     assert!(tx.response_status_number.eq_num(200));
     assert!(tx.response_message.is_none());
-    t.connp.state_response_complete().unwrap();
+    t.connp.state_response_complete(&mut p).unwrap();
 }

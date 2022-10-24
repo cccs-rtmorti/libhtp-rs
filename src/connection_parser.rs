@@ -12,7 +12,7 @@ use crate::{
     HtpStatus,
 };
 use chrono::{DateTime, Utc};
-use std::{any::Any, borrow::Cow, cell::Cell, io::Cursor, net::IpAddr, rc::Rc, time::SystemTime};
+use std::{any::Any, borrow::Cow, cell::Cell, net::IpAddr, rc::Rc, time::SystemTime};
 
 /// Enumerates parsing state.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -328,12 +328,10 @@ pub struct ConnectionParser {
     // Response parser fields
     /// The time when the last response data chunk was received.
     pub response_timestamp: DateTime<Utc>,
-    /// Pointer to the current response data chunk.
-    pub response_curr_data: Cursor<Vec<u8>>,
-    /// Marks the starting point of raw data within the outbound data chunk. Raw
-    /// data (e.g., complete headers) is sent to appropriate callbacks (e.g.,
-    /// response_header_data).
-    pub response_current_receiver_offset: u64,
+    /// How many bytes from the last input chunk have we consumed
+    /// This is mostly used from callbacks, where the caller
+    /// wants to know how far into the last chunk the parser is.
+    pub response_bytes_consumed: usize,
     /// Used to buffer a line of outbound data when buffering cannot be avoided.
     pub response_buf: Bstr,
     /// Stores the current value of a folded response header. Such headers span
@@ -398,8 +396,7 @@ impl ConnectionParser {
             request_state_previous: State::NONE,
             request_data_receiver_hook: None,
             response_timestamp: DateTime::<Utc>::from(SystemTime::now()),
-            response_curr_data: Cursor::new(Vec::new()),
-            response_current_receiver_offset: 0,
+            response_bytes_consumed: 0,
             response_buf: Bstr::new(),
             response_header: None,
             response_content_length: 0,
@@ -499,16 +496,15 @@ impl ConnectionParser {
 
     /// Handle the current state to be processed.
     pub fn handle_response_state(&mut self, data: &mut ParserData) -> Result<()> {
-        data.set_position(self.response_curr_data.position() as usize);
         match self.response_state {
             State::NONE => Err(HtpStatus::ERROR),
-            State::IDLE => self.response_idle(),
-            State::LINE => self.response_line(data.as_slice()),
-            State::HEADERS => self.response_headers(data.as_slice()),
-            State::BODY_DETERMINE => self.response_body_determine(),
-            State::BODY_CHUNKED_DATA => self.response_body_chunked_data(data.as_slice()),
-            State::BODY_CHUNKED_LENGTH => self.response_body_chunked_length(data.as_slice()),
-            State::BODY_CHUNKED_DATA_END => self.response_body_chunked_data_end(data.as_slice()),
+            State::IDLE => self.response_idle(data),
+            State::LINE => self.response_line(data),
+            State::HEADERS => self.response_headers(data),
+            State::BODY_DETERMINE => self.response_body_determine(data),
+            State::BODY_CHUNKED_DATA => self.response_body_chunked_data(data),
+            State::BODY_CHUNKED_LENGTH => self.response_body_chunked_length(data),
+            State::BODY_CHUNKED_DATA_END => self.response_body_chunked_data_end(data),
             State::FINALIZE => self.response_finalize(data),
             State::BODY_IDENTITY_STREAM_CLOSE => self.response_body_identity_stream_close(data),
             State::BODY_IDENTITY_CL_KNOWN => self.response_body_identity_cl_known(data),
@@ -598,13 +594,29 @@ impl ConnectionParser {
         self.request_bytes_consumed = input.consumed_len();
     }
 
+    /// Consume the given number of bytes from the ParserData and update
+    /// the internal counter for how many bytes consumed so far.
+    pub fn response_data_consume(&mut self, input: &ParserData, consumed: usize) {
+        input.consume(consumed);
+        self.response_bytes_consumed = input.consumed_len();
+    }
+
+    /// Unconsume the given number of bytes from the ParserData and update the
+    /// the internal counter for how many bytes are consumed.
+    /// If the requested number of bytes is larger than the number of bytes
+    /// already consumed then the parser will be unwound to the beginning.
+    pub fn response_data_unconsume(&mut self, input: &mut ParserData, unconsume: usize) {
+        input.unconsume(unconsume);
+        self.response_bytes_consumed = input.consumed_len();
+    }
+
     /// Returns the number of bytes consumed from the most recent outbound data chunk. Normally, an invocation
     /// of response_data() will consume all data from the supplied buffer, but there are circumstances
     /// where only partial consumption is possible. In such cases DATA_OTHER will be returned.
     /// Consumed bytes are no longer necessary, but the remainder of the buffer will be saved
     /// for later.
     pub fn response_data_consumed(&self) -> i64 {
-        self.response_curr_data.position() as i64
+        self.response_bytes_consumed as i64
     }
 
     /// Opens connection.
@@ -852,9 +864,9 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
-    pub fn state_response_headers(&mut self) -> Result<()> {
+    pub fn state_response_headers(&mut self, input: &mut ParserData) -> Result<()> {
         // Finalize sending raw header data.
-        self.response_receiver_finalize_clear()?;
+        self.response_receiver_finalize_clear(input)?;
         // Run hook RESPONSE_HEADERS.
         self.cfg
             .hook_response_headers
@@ -880,7 +892,7 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on success; HtpStatus::ERROR on error, HtpStatus::STOP
     /// if one of the callbacks does not want to follow the transaction any more.
-    pub fn state_response_complete(&mut self) -> Result<()> {
+    pub fn state_response_complete(&mut self, input: &mut ParserData) -> Result<()> {
         let response_index = self.response_index();
         if self.response().response_progress != HtpResponseProgress::COMPLETE {
             let tx = self.response_mut();
@@ -896,7 +908,7 @@ impl ConnectionParser {
                 .run_all(self, response_index)?;
 
             // Clear the data receivers hook if any
-            self.response_receiver_finalize_clear()?;
+            self.response_receiver_finalize_clear(input)?;
         }
         // Check if we want to signal the caller to send request data
         self.request_parser_check_waiting()?;
