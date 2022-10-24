@@ -20,41 +20,31 @@ use chrono::{DateTime, Utc};
 use nom::{bytes::streaming::take_till as streaming_take_till, error::ErrorKind};
 use std::{
     cmp::{min, Ordering},
-    io::{Cursor, Seek, SeekFrom},
     mem::take,
 };
 
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
-    fn response_receiver_send_data(&mut self, is_last: bool) -> Result<()> {
+    fn response_receiver_send_data(&mut self, data: &mut ParserData, is_last: bool) -> Result<()> {
         let tx = self.response_mut() as *mut Transaction;
         if let Some(hook) = &self.response_data_receiver_hook {
             hook.run_all(
                 self,
-                &mut Data::new(
-                    tx,
-                    &ParserData::from(
-                        &self.response_curr_data.get_ref()[self.response_current_receiver_offset
-                            as usize
-                            ..self.response_curr_data.position() as usize],
-                    ),
-                    is_last,
-                ),
+                &mut Data::new(tx, &ParserData::from(data.callback_data()), is_last),
             )?;
         } else {
             return Ok(());
         };
-        self.response_current_receiver_offset = self.response_curr_data.position();
         Ok(())
     }
 
     /// Finalizes an existing data receiver hook by sending any outstanding data to it. The
     /// hook is then removed so that it receives no more data.
-    pub fn response_receiver_finalize_clear(&mut self) -> Result<()> {
+    pub fn response_receiver_finalize_clear(&mut self, input: &mut ParserData) -> Result<()> {
         if self.response_data_receiver_hook.is_none() {
             return Ok(());
         }
-        let rc = self.response_receiver_send_data(true);
+        let rc = self.response_receiver_send_data(input, true);
         self.response_data_receiver_hook = None;
         rc
     }
@@ -62,19 +52,20 @@ impl ConnectionParser {
     /// Configures the data receiver hook.
     fn response_receiver_set(&mut self, data_receiver_hook: Option<DataHook>) -> Result<()> {
         self.response_data_receiver_hook = data_receiver_hook;
-        self.response_current_receiver_offset = self.response_curr_data.position();
         Ok(())
     }
 
-    /// Handles request parser state changes. At the moment, this function is used only
+    /// Handles response parser state changes. At the moment, this function is used only
     /// to configure data receivers, which are sent raw connection data.
-    fn response_handle_state_change(&mut self) -> Result<()> {
+    fn response_handle_state_change(&mut self, input: &mut ParserData) -> Result<()> {
         if self.response_state_previous == self.response_state {
             return Ok(());
         }
         if self.response_state == State::HEADERS {
             let header_fn = Some(self.response().cfg.hook_response_header_data.clone());
             let trailer_fn = Some(self.response().cfg.hook_response_trailer_data.clone());
+            input.reset_callback_start();
+
             match self.response().response_progress {
                 HtpResponseProgress::HEADERS => self.response_receiver_set(header_fn),
                 HtpResponseProgress::TRAILER => self.response_receiver_set(trailer_fn),
@@ -95,7 +86,7 @@ impl ConnectionParser {
     /// The maximum amount accepted for buffering is controlled
     /// by htp_config_t::field_limit.
     fn check_response_buffer_limit(&mut self, len: usize) -> Result<()> {
-        if self.response_curr_len() == 0 || len == 0 {
+        if len == 0 {
             return Ok(());
         }
         // Check the hard (buffering) limit.
@@ -124,23 +115,20 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::Error on error, or HtpStatus::DATA
     /// when more data is needed.
-    pub fn response_body_chunked_data_end(&mut self, data: &[u8]) -> Result<()> {
+    pub fn response_body_chunked_data_end(&mut self, input: &ParserData) -> Result<()> {
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
-        match take_till_lf(data) {
-            Ok((_, line)) => {
-                let len = line.len() as i64;
-                self.response_curr_data.seek(SeekFrom::Current(len))?;
-                self.response_mut().response_message_len += len;
-                self.response_state = State::BODY_CHUNKED_LENGTH;
-                Ok(())
-            }
-            _ => {
-                // Advance to end. Dont need to buffer
-                self.response_curr_data.seek(SeekFrom::End(0))?;
-                self.response_mut().response_message_len += data.len() as i64;
-                Err(HtpStatus::DATA_BUFFER)
-            }
+        if let Ok((_, line)) = take_till_lf(input.as_slice()) {
+            let len = line.len();
+            self.response_data_consume(input, len);
+            self.response_mut().response_message_len += len as i64;
+            self.response_state = State::BODY_CHUNKED_LENGTH;
+            Ok(())
+        } else {
+            // Advance to end. Dont need to buffer
+            self.response_mut().response_message_len += input.len() as i64;
+            self.response_data_consume(input, input.len());
+            Err(HtpStatus::DATA_BUFFER)
         }
     }
 
@@ -148,19 +136,18 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::Error on error, or
     /// HtpStatus::DATA when more data is needed.
-    pub fn response_body_chunked_data(&mut self, data: &[u8]) -> Result<()> {
+    pub fn response_body_chunked_data(&mut self, input: &ParserData) -> Result<()> {
         let bytes_to_consume = min(
-            data.len(),
+            input.len(),
             self.response_chunked_length.unwrap_or(0) as usize,
         );
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
         // Consume the data.
-        self.response_body_data(Some(&data[0..bytes_to_consume]))?;
+        self.response_body_data(Some(&input.as_slice()[0..bytes_to_consume]))?;
         // Adjust the counters.
-        self.response_curr_data
-            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
+        self.response_data_consume(input, bytes_to_consume);
         if let Some(len) = &mut self.response_chunked_length {
             *len = len.wrapping_sub(bytes_to_consume as i32);
             // Have we seen the entire chunk?
@@ -176,12 +163,12 @@ impl ConnectionParser {
     /// Extracts chunk length.
     ///
     /// Returns Ok(()) on success, Err(HTP_ERROR) on error, or Err(HTP_DATA) when more data is needed.
-    pub fn response_body_chunked_length(&mut self, mut data: &[u8]) -> Result<()> {
+    pub fn response_body_chunked_length(&mut self, input: &mut ParserData) -> Result<()> {
+        let mut data = input.as_slice();
         loop {
             match take_till_lf(data) {
                 Ok((remaining, line)) => {
-                    self.response_curr_data
-                        .seek(SeekFrom::Current(line.len() as i64))?;
+                    self.response_data_consume(input, line.len());
                     if !self.response_buf.is_empty() {
                         self.check_response_buffer_limit(line.len())?;
                     }
@@ -222,9 +209,8 @@ impl ConnectionParser {
                             }
                         }
                         Err(_) => {
-                            // reset cursor so response_body_identity_stream_close doesn't miss the first bytes
-                            self.response_curr_data
-                                .seek(SeekFrom::Current(-(line.len() as i64)))?;
+                            // unconsume so response_body_identity_stream_close doesn't miss the first bytes
+                            self.response_data_unconsume(input, line.len());
                             self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
                             self.response_mut().response_transfer_coding =
                                 HtpTransferCoding::IDENTITY;
@@ -251,7 +237,7 @@ impl ConnectionParser {
                         );
                         return Ok(());
                     } else {
-                        return self.handle_response_absent_lf(data);
+                        return self.handle_response_absent_lf(input);
                     }
                 }
             }
@@ -287,9 +273,8 @@ impl ConnectionParser {
             // Consume the data.
             self.response_body_data(Some(&data.as_slice()[0..bytes_to_consume]))?;
         }
-        self.response_curr_data
-            .seek(SeekFrom::Current(bytes_to_consume as i64))?;
         // Adjust the counters.
+        self.response_data_consume(data, bytes_to_consume);
         self.response_body_data_left =
             (self.response_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
         // Have we seen the entire response body?
@@ -316,7 +301,7 @@ impl ConnectionParser {
             // Consume all data from the input buffer.
             self.response_body_data(data.data())?;
             // Adjust the counters.
-            self.response_curr_data.seek(SeekFrom::End(0))?;
+            self.response_data_consume(data, data.len());
         }
         // Have we seen the entire response body?
         if self.response_status == HtpStreamState::CLOSED {
@@ -328,7 +313,7 @@ impl ConnectionParser {
     }
 
     /// Determines presence (and encoding) of a response body.
-    pub fn response_body_determine(&mut self) -> Result<()> {
+    pub fn response_body_determine(&mut self, input: &mut ParserData) -> Result<()> {
         // If the request uses the CONNECT method, then not only are we
         // to assume there's no body, but we need to ignore all
         // subsequent data in the stream.
@@ -341,7 +326,7 @@ impl ConnectionParser {
                 // side we wrap up the tx and wait.
                 self.response_state = State::FINALIZE;
                 // we may have response headers
-                return self.state_response_headers();
+                return self.state_response_headers(input);
             } else if self.response().response_status_number.eq_num(407) {
                 // proxy telling us to auth
                 if self.request_status != HtpStreamState::ERROR {
@@ -392,7 +377,7 @@ impl ConnectionParser {
                 }
                 self.response_status = HtpStreamState::TUNNEL;
                 // we may have response headers
-                return self.state_response_headers();
+                return self.state_response_headers(input);
             } else {
                 htp_warn!(
                     self.logger,
@@ -595,34 +580,31 @@ impl ConnectionParser {
         }
         // NOTE We do not need to check for short-style HTTP/0.9 requests here because
         //      that is done earlier, before response line parsing begins
-        self.state_response_headers()
+        self.state_response_headers(input)
     }
 
     /// Parses response line.
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
     /// when more data is needed.
-    pub fn response_line(&mut self, input: &[u8]) -> Result<()> {
-        let mut data = take(&mut self.response_buf);
-        let data_len = data.len();
-        data.add(input);
-        match take_till_eol(data.as_slice()) {
+    pub fn response_line(&mut self, input: &ParserData) -> Result<()> {
+        match take_till_eol(input.as_slice()) {
             Ok((_, (line, _))) => {
-                if data_len > line.len() {
-                    // Store the peeked ahead data
-                    self.response_buf.add(&data[line.len()..data_len]);
-                } else {
-                    self.response_curr_data
-                        .seek(SeekFrom::Current(line.len() as i64 - data_len as i64))?;
-                }
-                self.response_line_complete(line)
+                // We have a line ending, so consume the input
+                // and grab any buffered data.
+                let mut data = take(&mut self.response_buf);
+                data.add(line);
+                self.response_data_consume(input, line.len());
+                self.response_line_complete(data.as_slice(), input.is_empty())
             }
             _ => {
                 if self.response_status == HtpStreamState::CLOSED {
-                    self.response_curr_data.seek(SeekFrom::End(0))?;
-                    self.response_line_complete(data.as_slice())
+                    let mut data = take(&mut self.response_buf);
+                    data.add(input.as_slice());
+                    self.response_data_consume(input, input.len());
+                    self.response_line_complete(data.as_slice(), input.is_empty())
                 } else {
-                    self.handle_response_absent_lf(data.as_slice())
+                    self.handle_response_absent_lf(input)
                 }
             }
         }
@@ -632,7 +614,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    pub fn response_line_complete(&mut self, line: &[u8]) -> Result<()> {
+    pub fn response_line_complete(&mut self, line: &[u8], no_more_input: bool) -> Result<()> {
         self.check_response_buffer_limit(line.len())?;
         if line.is_empty() {
             return Err(HtpStatus::DATA);
@@ -665,7 +647,7 @@ impl ConnectionParser {
             // any headers to parse, we assume the body continues until
             // the end of the stream.
             // Have we seen the entire response body?
-            if self.response_curr_len() <= self.response_curr_data.position() as i64 {
+            if no_more_input {
                 self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
                 self.response_mut().response_progress = HtpResponseProgress::BODY;
                 self.response_body_data_left = -1;
@@ -684,7 +666,7 @@ impl ConnectionParser {
     /// Parses response headers.
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA when more data is needed.
-    pub fn response_headers(&mut self, data: &[u8]) -> Result<()> {
+    pub fn response_headers(&mut self, input: &mut ParserData) -> Result<()> {
         let response_index = self.response_index();
         if self.response_status == HtpStreamState::CLOSED {
             self.response_mut()
@@ -695,7 +677,7 @@ impl ConnectionParser {
                 self.parse_response_headers(response_header.as_slice())?;
             }
             // Finalize sending raw trailer data.
-            self.response_receiver_finalize_clear()?;
+            self.response_receiver_finalize_clear(input)?;
             // Run hook response_TRAILER
             self.cfg
                 .hook_response_trailer
@@ -705,10 +687,10 @@ impl ConnectionParser {
             return Ok(());
         }
         let response_header = if let Some(mut response_header) = self.response_header.take() {
-            response_header.add(data);
+            response_header.add(input.as_slice());
             response_header
         } else {
-            Bstr::from(data)
+            Bstr::from(input.as_slice())
         };
 
         let (remaining, eoh) = self.parse_response_headers(response_header.as_slice())?;
@@ -719,11 +701,9 @@ impl ConnectionParser {
         if eoh || eol {
             if eol {
                 //Consume the EOL so it isn't included in data processing
-                self.response_curr_data
-                    .seek(SeekFrom::Current(data.len() as i64))?;
-            } else if remaining.len() <= data.len() {
-                self.response_curr_data
-                    .seek(SeekFrom::Current((data.len() - remaining.len()) as i64))?;
+                self.response_data_consume(input, input.len());
+            } else if remaining.len() <= input.len() {
+                self.response_data_consume(input, input.len() - remaining.len());
             }
             // We've seen all response headers. At terminator.
             self.response_state =
@@ -734,7 +714,7 @@ impl ConnectionParser {
                 } else {
                     // Response trailer.
                     // Finalize sending raw trailer data.
-                    self.response_receiver_finalize_clear()?;
+                    self.response_receiver_finalize_clear(input)?;
                     // Run hook response_TRAILER.
                     self.cfg
                         .hook_response_trailer
@@ -745,8 +725,7 @@ impl ConnectionParser {
                 };
             Ok(())
         } else {
-            self.response_curr_data
-                .seek(SeekFrom::Current(data.len() as i64))?;
+            self.response_data_consume(input, input.len());
             self.check_response_buffer_limit(remaining.len())?;
             let remaining = Bstr::from(remaining);
             self.response_header.replace(remaining);
@@ -1087,33 +1066,28 @@ impl ConnectionParser {
     }
 
     /// Finalizes response parsing.
-    pub fn response_finalize(&mut self, data: &ParserData) -> Result<()> {
-        if data.is_gap() {
-            return self.state_response_complete();
+    pub fn response_finalize(&mut self, input: &mut ParserData) -> Result<()> {
+        if input.is_gap() {
+            return self.state_response_complete(input);
         }
-        let mut work = data.as_slice();
+        let mut work = input.as_slice();
         if self.response_status != HtpStreamState::CLOSED {
-            let response_next_byte = self
-                .response_curr_data
-                .get_ref()
-                .get(self.response_curr_data.position() as usize);
+            let response_next_byte = input.as_slice().first();
             if response_next_byte.is_none() {
-                return self.state_response_complete();
+                return self.state_response_complete(input);
             }
             let lf = response_next_byte
                 .map(|byte| *byte == b'\n')
                 .unwrap_or(false);
             if !lf {
                 if let Ok((_, line)) = take_till_lf(work) {
-                    self.response_curr_data
-                        .seek(SeekFrom::Current(line.len() as i64))?;
+                    self.response_data_consume(input, line.len());
                     work = line;
                 } else {
-                    return self.handle_response_absent_lf(work);
+                    return self.handle_response_absent_lf(input);
                 }
             } else {
-                self.response_curr_data
-                    .seek(SeekFrom::Current(work.len() as i64))?;
+                self.response_data_consume(input, work.len());
             }
         }
         if !self.response_buf.is_empty() {
@@ -1125,7 +1099,7 @@ impl ConnectionParser {
 
         if data.is_empty() {
             //closing
-            return self.state_response_complete();
+            return self.state_response_complete(input);
         }
         if treat_response_line_as_body(&data) {
             // Interpret remaining bytes as body data
@@ -1139,13 +1113,8 @@ impl ConnectionParser {
         // didnt use data, restore
         self.response_buf.add(&data[0..buf_len]);
         //unread last end of line so that RES_LINE works
-        if self.response_curr_data.position() < data.len() as u64 {
-            self.response_curr_data.seek(SeekFrom::Start(0))?;
-        } else {
-            self.response_curr_data
-                .seek(SeekFrom::Current(-(data.len() as i64)))?;
-        }
-        self.state_response_complete()
+        self.response_data_unconsume(input, data.len());
+        self.state_response_complete(input)
     }
 
     /// The response idle state will initialize response processing, as well as
@@ -1153,13 +1122,13 @@ impl ConnectionParser {
     ///
     /// Returns HtpStatus::OK on state change, HtpStatus::ERROR on error, or HtpStatus::DATA
     /// when more data is needed.
-    pub fn response_idle(&mut self) -> Result<()> {
+    pub fn response_idle(&mut self, input: &ParserData) -> Result<()> {
         // We want to start parsing the next response (and change
         // the state from IDLE) only if there's at least one
         // byte of data available. Otherwise we could be creating
         // new structures even if there's no more data on the
         // connection.
-        if self.response_curr_data.position() as i64 >= self.response_curr_len() {
+        if input.is_empty() {
             return Err(HtpStatus::DATA);
         }
 
@@ -1206,6 +1175,9 @@ impl ConnectionParser {
         mut chunk: ParserData,
         timestamp: Option<DateTime<Utc>>,
     ) -> HtpStreamState {
+        // Reset consumed data tracker
+        self.response_bytes_consumed = 0;
+
         // Return if the connection is in stop state
         if self.response_status == HtpStreamState::STOP {
             htp_info!(
@@ -1243,8 +1215,6 @@ impl ConnectionParser {
         }
 
         // Store the current chunk information
-        self.response_curr_data = Cursor::new(chunk.as_slice().to_vec());
-        self.response_current_receiver_offset = 0;
         self.conn.track_outbound_data(chunk.len());
         // Return without processing any data if the stream is in tunneling
         // mode (which it would be after an initial CONNECT transaction.
@@ -1295,7 +1265,7 @@ impl ConnectionParser {
                 if self.response_status == HtpStreamState::TUNNEL {
                     return HtpStreamState::TUNNEL;
                 }
-                rc = self.response_handle_state_change();
+                rc = self.response_handle_state_change(&mut chunk);
             }
             match rc {
                 // Continue looping.
@@ -1303,7 +1273,7 @@ impl ConnectionParser {
                 // Do we need more data?
                 Err(HtpStatus::DATA) | Err(HtpStatus::DATA_BUFFER) => {
                     // Ignore result.
-                    let _ = self.response_receiver_send_data(false);
+                    let _ = self.response_receiver_send_data(&mut chunk, false);
                     self.response_status = HtpStreamState::DATA;
                     return HtpStreamState::DATA;
                 }
@@ -1315,7 +1285,7 @@ impl ConnectionParser {
                 // Check for suspended parsing
                 Err(HtpStatus::DATA_OTHER) => {
                     // We might have actually consumed the entire data chunk?
-                    if self.response_curr_data.position() as i64 >= self.response_curr_len() {
+                    if chunk.is_empty() {
                         self.response_status = HtpStreamState::DATA;
                         // Do not send STREAM_DATE_DATA_OTHER if we've
                         // consumed the entire chunk
@@ -1336,15 +1306,10 @@ impl ConnectionParser {
     }
 
     /// Advance out buffer cursor and buffer data.
-    pub fn handle_response_absent_lf(&mut self, data: &[u8]) -> Result<()> {
-        self.response_curr_data.seek(SeekFrom::End(0))?;
+    pub fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
         self.check_response_buffer_limit(data.len())?;
-        self.response_buf.add(data);
+        self.response_buf.add(data.as_slice());
+        self.response_data_consume(data, data.len());
         Err(HtpStatus::DATA_BUFFER)
-    }
-
-    /// Return total length of out buffer data.
-    pub fn response_curr_len(&self) -> i64 {
-        self.response_curr_data.get_ref().len() as i64
     }
 }
