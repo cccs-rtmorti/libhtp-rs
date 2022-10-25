@@ -132,7 +132,6 @@ impl Flags {
 }
 
 /// Keeps track of multipart parsing.
-#[derive(Clone)]
 pub struct Parser {
     /// Contains information regarding multipart body.
     pub multipart: Multipart,
@@ -865,7 +864,6 @@ impl Parser {
 }
 
 /// Holds information related to a part.
-#[derive(Clone)]
 pub struct Part {
     /// Part type; see the * constants.
     pub type_0: HtpMultipartType,
@@ -956,7 +954,6 @@ pub enum HtpMultipartType {
 }
 
 /// Holds information related to a multipart body.
-#[derive(Clone)]
 pub struct Multipart {
     /// Multipart boundary.
     pub boundary: Bstr,

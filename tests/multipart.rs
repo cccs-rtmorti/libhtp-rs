@@ -931,14 +931,7 @@ fn WithFileExternallyStored() {
         assert_eq!(6, file.len);
 
         assert!(file.tmpfile.is_some());
-        let name = file
-            .tmpfile
-            .as_ref()
-            .unwrap()
-            .lock()
-            .unwrap()
-            .path()
-            .to_path_buf();
+        let name = file.tmpfile.as_ref().unwrap().path().to_path_buf();
 
         let contents = fs::read_to_string(&name).unwrap();
         assert_eq!(6, contents.chars().count());

@@ -26,7 +26,7 @@ use nom::{
     IResult, Needed,
 };
 
-use std::{io::Write, rc::Rc, str::FromStr, sync::Mutex};
+use std::{io::Write, str::FromStr};
 use tempfile::{Builder, NamedTempFile};
 
 /// String for the libhtp version.
@@ -185,7 +185,7 @@ pub enum Eol {
 /// Used to represent files that are seen during the processing of HTTP traffic. Most
 /// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
 /// request bodies can be treated as files.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct File {
     /// Where did this file come from? Possible values: MULTIPART and PUT.
     pub source: HtpFileSource,
@@ -194,8 +194,7 @@ pub struct File {
     /// File length.
     pub len: usize,
     /// The file used for external storage.
-    //TODO: Remove this mem management by making File not cloneable
-    pub tmpfile: Option<Rc<Mutex<NamedTempFile>>>,
+    pub tmpfile: Option<NamedTempFile>,
 }
 
 impl File {
@@ -211,21 +210,19 @@ impl File {
 
     /// Set new tmpfile.
     pub fn create(&mut self, tmpfile: &str) -> Result<()> {
-        self.tmpfile = Some(Rc::new(Mutex::new(
+        self.tmpfile = Some(
             Builder::new()
                 .prefix("libhtp-multipart-file-")
                 .rand_bytes(5)
                 .tempfile_in(tmpfile)?,
-        )));
+        );
         Ok(())
     }
 
     /// Write data to tmpfile.
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        if let Some(mutex) = &self.tmpfile {
-            if let Ok(mut tmpfile) = mutex.lock() {
-                tmpfile.write_all(data)?;
-            }
+        if let Some(tmpfile) = &mut self.tmpfile {
+            tmpfile.write_all(data)?;
         }
         Ok(())
     }
