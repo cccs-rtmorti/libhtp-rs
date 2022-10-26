@@ -24,7 +24,7 @@ pub mod uri;
 /// Returns the LibHTP version string.
 #[no_mangle]
 pub extern "C" fn htp_get_version() -> *const libc::c_char {
-    get_version()
+    get_version().as_ptr() as *const libc::c_char
 }
 
 /// Free rust allocated cstring

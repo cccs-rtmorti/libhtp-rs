@@ -1210,8 +1210,8 @@ pub fn validate_hostname(input: &[u8]) -> bool {
 }
 
 /// Returns the LibHTP version string.
-pub fn get_version() -> *const i8 {
-    HTP_VERSION_STRING_FULL.as_ptr() as *const i8
+pub fn get_version() -> &'static str {
+    HTP_VERSION_STRING_FULL
 }
 
 /// Splits by colon and removes leading whitespace from value
