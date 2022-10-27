@@ -46,7 +46,7 @@ pub fn parse_content_type(header: &[u8]) -> Result<Bstr> {
 /// allowed before and after the number.
 ///
 /// Returns content length, or None if input is not valid.
-pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option<i64> {
+pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option<u64> {
     let (trailing_data, (leading_data, content_length)) = ascii_digits()(input).ok()?;
     if let Some(logger) = logger {
         if !leading_data.is_empty() {
@@ -69,20 +69,20 @@ pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option
     }
     std::str::from_utf8(content_length)
         .ok()?
-        .parse::<i64>()
+        .parse::<u64>()
         .ok()
 }
 
 /// Parses chunked length (positive hexadecimal number). White space is allowed before
 /// and after the number.
-pub fn parse_chunked_length(input: &[u8]) -> Result<Option<i32>> {
+pub fn parse_chunked_length(input: &[u8]) -> Result<Option<u32>> {
     let (rest, _) = take_chunked_ctl_chars(input)?;
     let (trailing_data, chunked_length) = hex_digits()(rest)?;
     if trailing_data.is_empty() && chunked_length.is_empty() {
         return Ok(None);
     }
     Ok(Some(
-        i32::from_str_radix(
+        u32::from_str_radix(
             std::str::from_utf8(chunked_length).map_err(|_| HtpStatus::ERROR)?,
             16,
         )
@@ -711,7 +711,7 @@ mod test {
     #[case("    \t134    ", Some(134))]
     #[case("abcd134    ", Some(134))]
     #[case("abcd    ", None)]
-    fn test_parse_content_length(#[case] input: &str, #[case] expected: Option<i64>) {
+    fn test_parse_content_length(#[case] input: &str, #[case] expected: Option<u64>) {
         assert_eq!(parse_content_length(input.as_bytes(), None), expected);
     }
 
@@ -719,7 +719,7 @@ mod test {
     #[case("12a5", Some(0x12a5))]
     #[case("    \t12a5    ", Some(0x12a5))]
     #[case("    \t    ", None)]
-    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: Option<i32>) {
+    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: Option<u32>) {
         assert_eq!(parse_chunked_length(input.as_bytes()).unwrap(), expected);
     }
 

@@ -336,7 +336,7 @@ impl ConnectionParser {
         // Adjust counters.
         self.request_data_consume(input, bytes_to_consume);
         if let Some(len) = self.request_chunked_length.as_mut() {
-            *len = len.wrapping_sub(bytes_to_consume as i32);
+            *len -= bytes_to_consume as u32;
             if *len == 0 {
                 // End of the chunk.
                 self.request_state = State::BODY_CHUNKED_DATA_END;
@@ -419,8 +419,9 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
     pub fn request_body_identity(&mut self, data: &mut ParserData) -> Result<()> {
+        let left = self.request_body_data_left.ok_or(HtpStatus::ERROR)?;
         // Determine how many bytes we can consume.
-        let bytes_to_consume: usize = min(data.len(), self.request_body_data_left as usize);
+        let bytes_to_consume: usize = min(data.len(), left as usize);
         // If the input buffer is empty, ask for more data.
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
@@ -442,17 +443,17 @@ impl ConnectionParser {
 
         // Adjust the counters.
         self.request_data_consume(data, bytes_to_consume);
-        self.request_body_data_left =
-            (self.request_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
+        self.request_body_data_left = Some(left - bytes_to_consume as u64);
+
         // Have we seen the entire request body?
-        if self.request_body_data_left == 0 {
-            // End of request body.
-            self.request_state = State::FINALIZE;
-            // Sends close signal to decompressors
-            return self.request_body_data(None);
+        if self.request_body_data_left > Some(0) {
+            //Ask for more data;
+            return Err(HtpStatus::DATA);
         }
-        // Ask for more data.
-        Err(HtpStatus::DATA)
+        // End of request body.
+        self.request_state = State::FINALIZE;
+        // Sends close signal to decompressors, outputting any partially decompressed data
+        self.request_body_data(None)
     }
 
     /// Determines presence (and encoding) of a request body.
@@ -470,7 +471,7 @@ impl ConnectionParser {
             HtpTransferCoding::IDENTITY => {
                 self.request_content_length = self.request().request_content_length;
                 self.request_body_data_left = self.request_content_length;
-                if self.request_content_length != 0 {
+                if self.request_content_length > Some(0) {
                     self.request_state = State::BODY_IDENTITY;
                     self.request_mut().request_progress = HtpRequestProgress::BODY
                 } else {
@@ -1010,7 +1011,7 @@ impl ConnectionParser {
                 return rc;
             }
             if HtpMethod::new(method) == HtpMethod::UNKNOWN {
-                if self.request_body_data_left <= 0 {
+                if self.request_body_data_left.unwrap_or(0) == 0 {
                     // log only once per transaction
                     htp_warn!(
                         self.logger,
@@ -1018,14 +1019,14 @@ impl ConnectionParser {
                         "Unexpected request body"
                     );
                 } else {
-                    self.request_body_data_left = 1;
+                    self.request_body_data_left = Some(1);
                 }
                 // Interpret remaining bytes as body data
                 let rc = self.request_body_data(Some(&data));
                 self.request_buf.clear();
                 return rc;
             } // else continue
-            self.request_body_data_left = -1;
+            self.request_body_data_left = None;
         }
         // didnt use data, restore
         self.request_buf.add(&data[0..buf_len]);

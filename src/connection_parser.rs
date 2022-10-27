@@ -310,14 +310,14 @@ pub struct ConnectionParser {
     /// The request body length declared in a valid request header. The key here
     /// is "valid". This field will not be populated if the request contains both
     /// a Transfer-Encoding header and a Content-Length header.
-    pub request_content_length: i64,
+    pub request_content_length: Option<u64>,
     /// Holds the remaining request body length that we expect to read. This
     /// field will be available only when the length of a request body is known
     /// in advance, i.e. when request headers contain a Content-Length header.
-    pub request_body_data_left: i64,
+    pub request_body_data_left: Option<u64>,
     /// Holds the amount of data that needs to be read from the
     /// current data chunk. Only used with chunked request bodies.
-    pub request_chunked_length: Option<i32>,
+    pub request_chunked_length: Option<u32>,
     /// Current request parser state.
     pub request_state: State,
     /// Previous request parser state. Used to detect state changes.
@@ -339,12 +339,12 @@ pub struct ConnectionParser {
     pub response_header: Option<Bstr>,
     /// The length of the current response body as presented in the
     /// Content-Length response header.
-    pub response_content_length: i64,
-    /// The remaining length of the current response body, if known. Set to -1 otherwise.
-    pub response_body_data_left: i64,
+    pub response_content_length: Option<u64>,
+    /// The remaining length of the current response body, if known. Set to None otherwise.
+    pub response_body_data_left: Option<u64>,
     /// Holds the amount of data that needs to be read from the
     /// current response data chunk. Only used with chunked response bodies.
-    pub response_chunked_length: Option<i32>,
+    pub response_chunked_length: Option<u32>,
     /// Current response parser state.
     pub response_state: State,
     /// Previous response parser state.
@@ -389,8 +389,8 @@ impl ConnectionParser {
             request_chunk_request_index: 0,
             request_buf: Bstr::new(),
             request_header: None,
-            request_content_length: 0,
-            request_body_data_left: 0,
+            request_content_length: None,
+            request_body_data_left: None,
             request_chunked_length: None,
             request_state: State::IDLE,
             request_state_previous: State::NONE,
@@ -399,8 +399,8 @@ impl ConnectionParser {
             response_bytes_consumed: 0,
             response_buf: Bstr::new(),
             response_header: None,
-            response_content_length: 0,
-            response_body_data_left: 0,
+            response_content_length: None,
+            response_body_data_left: None,
             response_chunked_length: None,
             response_state: State::IDLE,
             response_state_previous: State::NONE,
@@ -568,8 +568,8 @@ impl ConnectionParser {
 
     /// This function is most likely not used and/or not needed.
     pub fn request_reset(&mut self) {
-        self.request_content_length = -1;
-        self.request_body_data_left = -1;
+        self.request_content_length = None;
+        self.request_body_data_left = None;
         self.request_chunk_request_index = self.request_chunk_count;
     }
 
@@ -834,7 +834,7 @@ impl ConnectionParser {
             tx.response_content_encoding_processing = HtpContentEncoding::NONE;
             tx.response_progress = HtpResponseProgress::BODY;
             self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
-            self.response_body_data_left = -1
+            self.response_body_data_left = None
         } else {
             self.response_state = State::LINE;
             self.response_mut().response_progress = HtpResponseProgress::LINE

@@ -327,7 +327,11 @@ pub unsafe extern "C" fn htp_tx_request_content_type(tx: *const Transaction) -> 
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -> i64 {
     tx.as_ref()
-        .map(|tx| tx.request_content_length)
+        .map(|tx| {
+            tx.request_content_length
+                .map(|len| len as i64)
+                .unwrap_or(-1)
+        })
         .unwrap_or(-1)
 }
 
@@ -607,7 +611,11 @@ pub unsafe extern "C" fn htp_tx_response_entity_len(tx: *const Transaction) -> i
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_content_length(tx: *const Transaction) -> i64 {
     tx.as_ref()
-        .map(|tx| tx.response_content_length)
+        .map(|tx| {
+            tx.response_content_length
+                .map(|len| len as i64)
+                .unwrap_or(-1)
+        })
         .unwrap_or(-1)
 }
 

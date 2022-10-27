@@ -375,10 +375,10 @@ pub struct Transaction {
     /// Request decompressor used to decompress request body data.
     pub request_decompressor: Option<Decompressor>,
     /// Contains the value specified in the Content-Length header. The value of this
-    /// field will be -1 from the beginning of the transaction and until request
-    /// headers are processed. It will stay -1 if the C-L header was not provided,
+    /// field will be None from the beginning of the transaction and until request
+    /// headers are processed. It will stay None if the C-L header was not provided,
     /// or if the value in it cannot be parsed.
-    pub request_content_length: i64,
+    pub request_content_length: Option<u64>,
     /// Transaction-specific REQUEST_BODY_DATA hook. Behaves as
     /// the configuration hook with the same name.
     pub hook_request_body_data: DataHook,
@@ -471,9 +471,9 @@ pub struct Transaction {
     pub response_entity_len: i64,
     /// Contains the value specified in the Content-Length header. The value of this
     /// field will be -1 from the beginning of the transaction and until response
-    /// headers are processed. It will stay -1 if the C-L header was not provided,
+    /// headers are processed. It will stay None if the C-L header was not provided,
     /// or if the value in it cannot be parsed.
-    pub response_content_length: i64,
+    pub response_content_length: Option<u64>,
     /// Response transfer coding, which indicates if there is a response body,
     /// and how it is transported (e.g., as-is, or chunked).
     pub response_transfer_coding: HtpTransferCoding,
@@ -615,7 +615,7 @@ impl Transaction {
             request_content_encoding: HtpContentEncoding::NONE,
             request_content_encoding_processing: HtpContentEncoding::NONE,
             request_content_type: None,
-            request_content_length: -1,
+            request_content_length: None,
             request_decompressor: None,
             hook_request_body_data: DataHook::default(),
             hook_response_body_data: DataHook::default(),
@@ -642,7 +642,7 @@ impl Transaction {
             is_http_2_upgrade: false,
             response_message_len: 0,
             response_entity_len: 0,
-            response_content_length: -1,
+            response_content_length: None,
             response_transfer_coding: HtpTransferCoding::UNKNOWN,
             response_content_encoding: HtpContentEncoding::NONE,
             response_content_encoding_processing: HtpContentEncoding::NONE,
@@ -761,14 +761,12 @@ impl Transaction {
                 //      which is bound to fail (because it will contain commas).
             }
             // Get the body length.
-            if let Some(content_length) =
-                parse_content_length(cl.value.as_slice(), Some(&mut self.logger))
-            {
+            self.request_content_length =
+                parse_content_length(cl.value.as_slice(), Some(&mut self.logger));
+            if self.request_content_length.is_some() {
                 // We have a request body of known length.
-                self.request_content_length = content_length;
                 self.request_transfer_coding = HtpTransferCoding::IDENTITY
             } else {
-                self.request_content_length = -1;
                 self.request_transfer_coding = HtpTransferCoding::INVALID;
                 self.flags.set(HtpFlags::REQUEST_INVALID_C_L);
                 self.flags.set(HtpFlags::REQUEST_INVALID)
