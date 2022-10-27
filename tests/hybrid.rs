@@ -119,7 +119,7 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: &mut Data) -> Result<()> {
         return Err(HtpStatus::ERROR);
     }
 
-    let data: &[u8] = unsafe { std::slice::from_raw_parts(d.data(), d.len()) };
+    let data = d.as_slice().unwrap();
     match user_data.response_body_chunks_seen {
         0 => {
             if data == b"<h1>Hello" {
