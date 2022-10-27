@@ -145,7 +145,7 @@ impl ConnectionParser {
         // Adjust the counters.
         self.response_data_consume(input, bytes_to_consume);
         if let Some(len) = &mut self.response_chunked_length {
-            *len = len.wrapping_sub(bytes_to_consume as i32);
+            *len -= bytes_to_consume as u32;
             // Have we seen the entire chunk?
             if *len == 0 {
                 self.response_state = State::BODY_CHUNKED_DATA_END;
@@ -250,8 +250,8 @@ impl ConnectionParser {
             // Sends close signal to decompressors
             return self.response_body_data(data.data());
         }
-        let bytes_to_consume: usize =
-            std::cmp::min(data.len(), self.response_body_data_left as usize);
+        let left = self.response_body_data_left.ok_or(HtpStatus::ERROR)?;
+        let bytes_to_consume: usize = std::cmp::min(data.len(), left as usize);
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
@@ -271,16 +271,15 @@ impl ConnectionParser {
         }
         // Adjust the counters.
         self.response_data_consume(data, bytes_to_consume);
-        self.response_body_data_left =
-            (self.response_body_data_left as u64).wrapping_sub(bytes_to_consume as u64) as i64;
+        self.response_body_data_left = Some(left - bytes_to_consume as u64);
         // Have we seen the entire response body?
-        if self.response_body_data_left == 0 {
-            self.response_state = State::FINALIZE;
-            // Tells decompressors to output partially decompressed data
-            return self.response_body_data(None);
+        if self.response_body_data_left > Some(0) {
+            return Err(HtpStatus::DATA);
         }
-        // Ask for more data
-        Err(HtpStatus::DATA)
+        // End of response body.
+        self.response_state = State::FINALIZE;
+        // Sends close signal to decompressors, outputting any partially decompressed data
+        self.response_body_data(None)
     }
 
     /// Processes identity response body of unknown length. In this case, we assume the
@@ -415,7 +414,7 @@ impl ConnectionParser {
         // before sending its body cf
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expect
         else if self.response().response_status_number.in_range(400, 499)
-            && self.request_content_length > 0
+            && self.request_content_length > Some(0)
             && self.request_body_data_left == self.request_content_length
         {
             if let Some((_, expect)) = self.response().request_headers.get_nocase("expect") {
@@ -528,24 +527,22 @@ impl ConnectionParser {
                     self.response_mut().flags.set(HtpFlags::REQUEST_SMUGGLING)
                 }
                 // Get body length
-                if let Some(content_length) =
-                    parse_content_length((*cl.value).as_slice(), Some(&mut self.logger))
-                {
-                    self.response_mut().response_content_length = content_length;
-                    self.response_content_length = self.response().response_content_length;
-                    self.response_body_data_left = self.response_content_length;
-                    if self.response_content_length != 0 {
+                self.response_mut().response_content_length =
+                    parse_content_length((*cl.value).as_slice(), Some(&mut self.logger));
+                self.response_content_length = self.response().response_content_length;
+                self.response_body_data_left = self.response_content_length;
+                if let Some(len) = self.response().response_content_length {
+                    if len != 0 {
                         self.response_state = State::BODY_IDENTITY_CL_KNOWN;
                         self.response_mut().response_progress = HtpResponseProgress::BODY
                     } else {
                         self.response_state = State::FINALIZE
                     }
                 } else {
-                    let response_content_length = self.response().response_content_length;
                     htp_error!(
                         self.logger,
                         HtpLogCode::INVALID_CONTENT_LENGTH_FIELD_IN_RESPONSE,
-                        format!("Invalid C-L field in response: {}", response_content_length)
+                        "Invalid C-L field in response"
                     );
                     return Err(HtpStatus::ERROR);
                 }
@@ -571,7 +568,7 @@ impl ConnectionParser {
                 self.response_state = State::BODY_IDENTITY_STREAM_CLOSE;
                 self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
                 self.response_mut().response_progress = HtpResponseProgress::BODY;
-                self.response_body_data_left = -1
+                self.response_body_data_left = None
             }
         }
         // NOTE We do not need to check for short-style HTTP/0.9 requests here because
@@ -646,7 +643,7 @@ impl ConnectionParser {
             if no_more_input {
                 self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
                 self.response_mut().response_progress = HtpResponseProgress::BODY;
-                self.response_body_data_left = -1;
+                self.response_body_data_left = None;
                 self.response_state = State::FINALIZE
             }
             return Ok(());
@@ -1139,8 +1136,8 @@ impl ConnectionParser {
             tx.request_progress = HtpRequestProgress::COMPLETE;
             self.request_next();
         }
-        self.response_content_length = -1;
-        self.response_body_data_left = -1;
+        self.response_content_length = None;
+        self.response_body_data_left = None;
         self.state_response_start()
     }
 

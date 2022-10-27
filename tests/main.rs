@@ -1467,21 +1467,34 @@ fn PostNoBody() {
 }
 
 #[test]
-fn PostChunkedInvalid1() {
+fn PostChunkedValid1() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run_file("63-post-chunked-invalid-1.t").is_err());
+    assert!(t.run_file("63-post-chunked-valid.t").is_ok());
+
+    assert_eq!(t.connp.request_chunked_length.unwrap(), 2147483613);
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+
+    assert_eq!(HtpRequestProgress::BODY, tx.request_progress);
+    assert_eq!(HtpResponseProgress::COMPLETE, tx.response_progress);
+    assert!(tx
+        .response_content_type
+        .as_ref()
+        .unwrap()
+        .eq_slice("text/html"));
 }
 
 #[test]
 fn PostChunkedInvalid2() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run_file("64-post-chunked-invalid-2.t").is_err());
+    assert!(t.run_file("64-post-chunked-invalid-1.t").is_err());
 }
 
 #[test]
 fn PostChunkedInvalid3() {
     let mut t = Test::new(TestConfig());
-    assert!(t.run_file("65-post-chunked-invalid-3.t").is_err());
+    assert!(t.run_file("65-post-chunked-invalid-2.t").is_err());
 }
 
 #[test]
