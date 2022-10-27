@@ -211,7 +211,7 @@ mod test {
         assert!(hook
             .run_all(
                 &connp,
-                &mut Data::new(std::ptr::null_mut(), &ParserData::default(), false)
+                &mut Data::new(std::ptr::null_mut(), &ParserData::default())
             )
             .is_ok());
     }
