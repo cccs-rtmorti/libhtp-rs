@@ -15,7 +15,7 @@ use htp::{
 
 use htp::test::{MainUserData, Test, TestConfig};
 
-use std::{iter::IntoIterator, slice};
+use std::iter::IntoIterator;
 
 // import common testing utilities
 mod common;
@@ -571,31 +571,30 @@ fn SmallChunks() {
 }
 
 fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: &mut Data) -> Result<()> {
-    let len = d.len();
     let tx = unsafe { &mut *d.tx() };
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data: &[u8] = unsafe { slice::from_raw_parts(d.data(), len) };
+    let data = d.as_slice().unwrap();
     match counter {
         0 => {
-            if !((len == 11) && data == b"User-Agent:") {
+            if data != b"User-Agent:" {
                 eprintln!("Mismatch in chunk 0");
                 counter = -1;
             }
         }
         1 => {
-            if !((len == 5) && data == b" Test") {
+            if data != b" Test" {
                 eprintln!("Mismatch in chunk 1");
                 counter = -1;
             }
         }
         2 => {
-            if !((len == 5) && data == b" User") {
+            if data != b" User" {
                 eprintln!("Mismatch in chunk 2");
                 counter = -1;
             }
         }
         3 => {
-            if !((len == 30) && data == b" Agent\nHost: www.example.com\n\n") {
+            if data != b" Agent\nHost: www.example.com\n\n" {
                 eprintln!("Mismatch in chunk 3");
                 counter = -1;
             }
@@ -626,19 +625,18 @@ fn RequestHeaderData() {
 }
 
 fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: &mut Data) -> Result<()> {
-    let len = d.len();
     let tx = unsafe { &mut *d.tx() };
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data: &[u8] = unsafe { slice::from_raw_parts(d.data(), len) };
+    let data = d.as_slice().unwrap();
     match counter {
         0 => {
-            if !((len == 7) && (data == b"Cookie:")) {
+            if data != b"Cookie:" {
                 eprintln!("Mismatch in chunk 0");
                 counter = -1;
             }
         }
         1 => {
-            if !((len == 6) && (data == b" 2\r\n\r\n")) {
+            if data != b" 2\r\n\r\n" {
                 eprintln!("Mismatch in chunk 1");
                 counter = -2;
             }
@@ -669,31 +667,30 @@ fn RequestTrailerData() {
 }
 
 fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: &mut Data) -> Result<()> {
-    let len = d.len();
     let tx = unsafe { &mut *d.tx() };
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data: &[u8] = unsafe { slice::from_raw_parts(d.data(), len) };
+    let data = d.as_slice().unwrap();
     match counter {
             0 => {
-                if !((len == 5) && (data == b"Date:")) {
+                if data != b"Date:" {
                     eprintln!("Mismatch in chunk 0");
                     counter = -1;
                 }
             }
             1 => {
-                if !((len == 5) && (data == b" Mon,")) {
+                if data != b" Mon," {
                     eprintln!("Mismatch in chunk 1");
                     counter = -2;
                 }
             }
             2 => {
-                if !((len == 34) && (data == " 31 Aug 2009 20:25:50 GMT\r\nServer:".as_bytes())) {
+                if data != b" 31 Aug 2009 20:25:50 GMT\r\nServer:" {
                     eprintln!("Mismatch in chunk 2");
                     counter = -3;
                 }
             }
             3 => {
-                if !((len == 83) && (data == " Apache\r\nConnection: close\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n".as_bytes())) {
+                if data != b" Apache\r\nConnection: close\r\nContent-Type: text/html\r\nTransfer-Encoding: chunked\r\n\r\n" {
                     eprintln!("Mismatch in chunk 3");
                     counter = -4;
                 }
@@ -725,34 +722,33 @@ fn ResponseHeaderData() {
 }
 
 fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: &mut Data) -> Result<()> {
-    let len = d.len();
     let tx = unsafe { &mut *d.tx() };
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data: &[u8] = unsafe { slice::from_raw_parts(d.data(), len) };
+    let data = d.as_slice().unwrap();
     match counter {
         0 => {
-            if !((len == 11) && (data == b"Set-Cookie:")) {
+            if data != b"Set-Cookie:" {
                 eprintln!("Mismatch in chunk 0");
                 counter = -1;
             }
         }
 
         1 => {
-            if !((len == 6) && (data == b" name=")) {
+            if data != b" name=" {
                 eprintln!("Mismatch in chunk 1");
                 counter = -2;
             }
         }
 
         2 => {
-            if !((len == 22) && (data == b"value\r\nAnother-Header:")) {
+            if data != b"value\r\nAnother-Header:" {
                 eprintln!("Mismatch in chunk 1");
                 counter = -3;
             }
         }
 
         3 => {
-            if !((len == 17) && (data == b" Header-Value\r\n\r\n")) {
+            if data != b" Header-Value\r\n\r\n" {
                 eprintln!("Mismatch in chunk 1");
                 counter = -4;
             }
