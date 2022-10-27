@@ -730,16 +730,6 @@ pub unsafe extern "C" fn htp_tx_data_len(data: *const Data) -> isize {
         .unwrap_or(-1)
 }
 
-/// Get whether this is the last chunk of data.
-///
-/// Returns true if this is the last chunk of data or false otherwise.
-/// # Safety
-/// When calling this method, you have to ensure that data is either properly initialized or NULL
-#[no_mangle]
-pub unsafe extern "C" fn htp_tx_data_is_last(data: *const Data) -> bool {
-    data.as_ref().map(|data| data.is_last()).unwrap_or(false)
-}
-
 /// Get whether this data is empty.
 ///
 /// Returns true if data is NULL or zero-length.

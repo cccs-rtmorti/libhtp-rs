@@ -6,7 +6,7 @@ use crate::{
     error::{NomError, Result},
     hook::DataHook,
     parsers::parse_chunked_length,
-    transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
+    transaction::{Data, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     util::{
         chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
         take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, FlagOperations,
@@ -130,13 +130,11 @@ impl HtpMethod {
 }
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
-    fn request_receiver_send_data(&mut self, data: &mut ParserData, is_last: bool) -> Result<()> {
-        let tx = self.request_mut() as *mut Transaction;
+    fn request_receiver_send_data(&mut self, data: &mut ParserData) -> Result<()> {
+        let data = ParserData::from(data.callback_data());
+        let mut tx_data = Data::new(self.request_mut(), &data);
         if let Some(hook) = &self.request_data_receiver_hook {
-            hook.run_all(
-                self,
-                &mut Data::new(tx, &ParserData::from(data.callback_data()), is_last),
-            )?;
+            hook.run_all(self, &mut tx_data)?;
         } else {
             return Ok(());
         };
@@ -155,7 +153,7 @@ impl ConnectionParser {
         if self.request_data_receiver_hook.is_none() {
             return Ok(());
         }
-        let rc = self.request_receiver_send_data(input, true);
+        let rc = self.request_receiver_send_data(input);
         self.request_data_receiver_hook = None;
         rc
     }
@@ -435,7 +433,7 @@ impl ConnectionParser {
             // Create a new gap of the appropriate length
             let parser_data = ParserData::from(bytes_to_consume);
             // Send the gap to the data hooks
-            let mut tx_data = Data::new(self.request_mut(), &parser_data, false);
+            let mut tx_data = Data::new(self.request_mut(), &parser_data);
             self.request_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
@@ -705,7 +703,7 @@ impl ConnectionParser {
                 let _ = self.request_mut().request_process_urlencoded_data(data);
                 // Send data to the callbacks.
                 let data = ParserData::from(data);
-                let mut data = Data::new(self.request_mut(), &data, false);
+                let mut data = Data::new(self.request_mut(), &data);
                 self.request_run_hook_body_data(&mut data).map_err(|e| {
                     htp_error!(
                         self.logger,
@@ -911,12 +909,7 @@ impl ConnectionParser {
         // If no data is passed, call the hooks with NULL to signify the end of the
         // request body.
         let parser_data = ParserData::from(data);
-        let mut tx_data = Data::new(
-            self.request_mut(),
-            &parser_data,
-            // is_last is not used in this callback
-            false,
-        );
+        let mut tx_data = Data::new(self.request_mut(), &parser_data);
 
         // Keep track of actual request body length.
         self.request_mut().request_entity_len += tx_data.len() as i64;
@@ -1211,7 +1204,7 @@ impl ConnectionParser {
                 // Do we need more data?
                 Err(HtpStatus::DATA) | Err(HtpStatus::DATA_BUFFER) => {
                     // Ignore result.
-                    let _ = self.request_receiver_send_data(&mut chunk, false);
+                    let _ = self.request_receiver_send_data(&mut chunk);
                     self.request_status = HtpStreamState::DATA;
                     return HtpStreamState::DATA;
                 }

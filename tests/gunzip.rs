@@ -47,7 +47,7 @@ impl Test {
                 HtpContentEncoding::GZIP,
                 Box::new(move |data: Option<&[u8]>| {
                     let data = ParserData::from(data);
-                    let mut tx_data = Data::new(tx, &data, false);
+                    let mut tx_data = Data::new(tx, &data);
                     GUnzip_decompressor_callback(&mut tx_data);
                     Ok(tx_data.len())
                 }),

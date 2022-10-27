@@ -67,16 +67,12 @@ pub struct Data<'a> {
     tx: *mut Transaction,
     /// Ref to the parser data.
     data: &'a ParserData<'a>,
-    /// Indicator if this chunk of data is the last in the series. Currently
-    /// used only by REQUEST_HEADER_DATA, REQUEST_TRAILER_DATA, RESPONSE_HEADER_DATA,
-    /// and RESPONSE_TRAILER_DATA callbacks.
-    is_last: bool,
 }
 
 impl<'a> Data<'a> {
     /// Construct a new Data.
-    pub fn new(tx: *mut Transaction, data: &'a ParserData<'a>, is_last: bool) -> Self {
-        Self { tx, data, is_last }
+    pub fn new(tx: *mut Transaction, data: &'a ParserData<'a>) -> Self {
+        Self { tx, data }
     }
 
     /// Returns the transaction associated with the Data.
@@ -97,11 +93,6 @@ impl<'a> Data<'a> {
     /// Return an immutable slice view of the data.
     pub fn as_slice(&self) -> Option<&[u8]> {
         self.data.data()
-    }
-
-    /// Determines if this chunk is the last Data in a series.
-    pub fn is_last(&self) -> bool {
-        self.is_last
     }
 
     /// Determine whether this data is empty.

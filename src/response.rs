@@ -6,9 +6,7 @@ use crate::{
     hook::DataHook,
     parsers::{parse_chunked_length, parse_content_length},
     request::HtpMethod,
-    transaction::{
-        Data, HtpProtocol, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction,
-    },
+    transaction::{Data, HtpProtocol, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding},
     uri::Uri,
     util::{
         is_chunked_ctl_line, is_line_ignorable, is_space, is_valid_chunked_length_data,
@@ -25,13 +23,11 @@ use std::{
 
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
-    fn response_receiver_send_data(&mut self, data: &mut ParserData, is_last: bool) -> Result<()> {
-        let tx = self.response_mut() as *mut Transaction;
+    fn response_receiver_send_data(&mut self, data: &mut ParserData) -> Result<()> {
+        let data = ParserData::from(data.callback_data());
+        let mut tx_data = Data::new(self.response_mut(), &data);
         if let Some(hook) = &self.response_data_receiver_hook {
-            hook.run_all(
-                self,
-                &mut Data::new(tx, &ParserData::from(data.callback_data()), is_last),
-            )?;
+            hook.run_all(self, &mut tx_data)?;
         } else {
             return Ok(());
         };
@@ -44,7 +40,7 @@ impl ConnectionParser {
         if self.response_data_receiver_hook.is_none() {
             return Ok(());
         }
-        let rc = self.response_receiver_send_data(input, true);
+        let rc = self.response_receiver_send_data(input);
         self.response_data_receiver_hook = None;
         rc
     }
@@ -267,7 +263,7 @@ impl ConnectionParser {
             // Create a new gap of the appropriate length
             let parser_data = ParserData::from(bytes_to_consume);
             // Send the gap to the data hooks
-            let mut tx_data = Data::new(self.response_mut(), &parser_data, false);
+            let mut tx_data = Data::new(self.response_mut(), &parser_data);
             self.response_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
@@ -295,7 +291,7 @@ impl ConnectionParser {
     pub fn response_body_identity_stream_close(&mut self, data: &ParserData) -> Result<()> {
         if data.is_gap() {
             // Send the gap to the data hooks
-            let mut tx_data = Data::new(self.response_mut(), data, false);
+            let mut tx_data = Data::new(self.response_mut(), data);
             self.response_run_hook_body_data(&mut tx_data)?;
         } else if !data.is_empty() {
             // Consume all data from the input buffer.
@@ -799,7 +795,7 @@ impl ConnectionParser {
                 // When there's no decompression, response_entity_len.
                 // is identical to response_message_len.
                 let data = ParserData::from(data);
-                let mut tx_data = Data::new(self.response_mut(), &data, false);
+                let mut tx_data = Data::new(self.response_mut(), &data);
                 self.response_mut().response_entity_len += tx_data.len() as i64;
                 self.response_run_hook_body_data(&mut tx_data)?;
             }
@@ -968,12 +964,7 @@ impl ConnectionParser {
         // If no data is passed, call the hooks with NULL to signify the end of the
         // response body.
         let parser_data = ParserData::from(data);
-        let mut tx_data = Data::new(
-            self.response_mut(),
-            &parser_data,
-            // is_last is not used in this callback
-            false,
-        );
+        let mut tx_data = Data::new(self.response_mut(), &parser_data);
 
         // Keep track of actual response body length.
         self.response_mut().response_entity_len += tx_data.len() as i64;
@@ -1273,7 +1264,7 @@ impl ConnectionParser {
                 // Do we need more data?
                 Err(HtpStatus::DATA) | Err(HtpStatus::DATA_BUFFER) => {
                     // Ignore result.
-                    let _ = self.response_receiver_send_data(&mut chunk, false);
+                    let _ = self.response_receiver_send_data(&mut chunk);
                     self.response_status = HtpStreamState::DATA;
                     return HtpStreamState::DATA;
                 }
