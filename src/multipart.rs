@@ -763,8 +763,7 @@ impl Parser {
                     h_existing.value.extend_from_slice(b", ");
                     h_existing.value.extend_from_slice(header.value.as_slice());
                     // Keep track of same-name headers.
-                    // FIXME: Normalize the flags? define the symbol in both Flags and Flags and set the value in both from their own namespace
-                    h_existing.flags.set(Flags::PART_HEADER_REPEATED);
+                    h_existing.flags.set(HeaderFlags::PART_HEADER_REPEATED);
                     self.multipart.flags.set(Flags::PART_HEADER_REPEATED)
                 } else {
                     self.get_current_part()?
