@@ -13,9 +13,7 @@ use nom::{
         is_not, tag, tag_no_case, take, take_till, take_until, take_while, take_while1,
         take_while_m_n,
     },
-    bytes::streaming::{
-        tag as streaming_tag, take_till as streaming_take_till, take_while as streaming_take_while,
-    },
+    bytes::streaming::{tag as streaming_tag, take_till as streaming_take_till},
     character::complete::{char, digit1},
     character::is_space as nom_is_space,
     combinator::{map, not, opt, peek},
@@ -1312,13 +1310,6 @@ pub fn take_till_eol(data: &[u8]) -> IResult<&[u8], (&[u8], Eol)> {
     }
 }
 
-/// Returns all data up to and including the first lf or cr character
-/// Returns Err if not found
-pub fn take_not_eol(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (_, line) = streaming_take_while(|c: u8| c != b'\n' && c != b'\r')(data)?;
-    Ok((&data[line.len() + 1..], &data[0..line.len() + 1]))
-}
-
 /// Skip control characters
 pub fn take_chunked_ctl_chars(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(is_chunked_ctl_char)(data)
@@ -1436,24 +1427,6 @@ mod tests {
     #[case("abcdeg\t", false)]
     fn test_is_word_token(#[case] input: &str, #[case] expected: bool) {
         assert_eq!(is_word_token(input.as_bytes()), expected);
-    }
-
-    #[rstest]
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
-    #[case("header:value", "", "")]
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Incomplete(Size(1))")]
-    #[case("", "", "")]
-    #[case("\nheader:value\r\n", "header:value\r\n", "\n")]
-    #[case("header:value\r\n", "\n", "header:value\r")]
-    #[case("header:value\n\r", "\r", "header:value\n")]
-    #[case("header:value\n\n", "\n", "header:value\n")]
-    #[case("header:value\r\r", "\r", "header:value\r")]
-    #[case("abcdefg\nhijk", "hijk", "abcdefg\n")]
-    fn test_take_not_eol(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
-        assert_eq!(
-            take_not_eol(input.as_bytes()).unwrap(),
-            (remaining.as_bytes(), parsed.as_bytes())
-        );
     }
 
     #[rstest]
