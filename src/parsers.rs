@@ -302,7 +302,7 @@ pub fn parse_hostport(input: &[u8]) -> IResult<&[u8], parsed_hostport> {
 /// Extracts the version protocol from the input slice.
 ///
 /// Returns (any unparsed trailing data, (version_number, flag indicating whether input contains trailing and/or leading whitespace and/or leading zeros))
-pub fn protocol_version(input: &[u8]) -> IResult<&[u8], (&[u8], bool)> {
+fn protocol_version(input: &[u8]) -> IResult<&[u8], (&[u8], bool)> {
     map(
         tuple((
             take_ascii_whitespace(),
@@ -394,7 +394,7 @@ fn parse_authorization_digest(auth_header_value: &[u8]) -> IResult<&[u8], Vec<u8
 }
 
 /// Parses Basic Authorization request header.
-pub fn parse_authorization_basic(request_tx: &mut Transaction, auth_header: &Header) -> Result<()> {
+fn parse_authorization_basic(request_tx: &mut Transaction, auth_header: &Header) -> Result<()> {
     // Skip 'Basic<lws>'
     let (remaining_input, _) =
         tuple((tag_no_case("basic"), take_ascii_whitespace()))(auth_header.value.as_slice())
@@ -454,7 +454,7 @@ pub fn parse_authorization(request_tx: &mut Transaction) -> Result<()> {
 /// Parses a single v0 request cookie.
 ///
 /// Returns the (name, value).
-pub fn single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
+fn single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
     let parts: Vec<&[u8]> = data.splitn(2, |&x| x == b'=').collect();
     match parts.len() {
         1 => (data, b""),
