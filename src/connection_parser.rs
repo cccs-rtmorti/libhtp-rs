@@ -1,6 +1,6 @@
 use crate::{
     bstr::Bstr,
-    config::{Config, HtpServerPersonality},
+    config::Config,
     connection::{Connection, Flags},
     decompressors::HtpContentEncoding,
     error::Result,
@@ -511,31 +511,6 @@ impl ConnectionParser {
             // These are only used by request_state
             _ => Err(HtpStatus::ERROR),
         }
-    }
-
-    /// The function used for request line parsing. Depends on the personality.
-    pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
-        self.request_mut().request_line = Some(Bstr::from(request_line));
-        self.parse_request_line_generic_ex(
-            request_line,
-            self.cfg.server_personality == HtpServerPersonality::APACHE_2,
-        )
-    }
-
-    /// The function is used for response line parsing.
-    pub fn parse_response_line(&mut self, response_line: &[u8]) -> Result<()> {
-        self.response_mut().response_line = Some(Bstr::from(response_line));
-        self.parse_response_line_generic(response_line)
-    }
-
-    /// The function is used for request header parsing.
-    pub fn parse_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
-        self.parse_request_headers_generic(data)
-    }
-
-    /// The function is used for response header parsing.
-    pub fn parse_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
-        self.parse_response_headers_generic(data)
     }
 
     /// Closes the connection associated with the supplied parser.

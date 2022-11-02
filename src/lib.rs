@@ -73,12 +73,8 @@ pub mod multipart;
 pub mod parsers;
 /// Module for request parsing.
 pub mod request;
-/// Module for request parsing.
-mod request_generic;
 /// Module for response parsing.
 pub mod response;
-/// Module for response parsing.
-mod response_generic;
 /// Module for custom table.
 pub mod table;
 /// Module for transaction parsing.
