@@ -7,8 +7,8 @@ use htp::{
     error::Result,
     log::{HtpLogCode, HtpLogLevel},
     transaction::{
-        Data, HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
-        HtpResponseProgress, HtpTransferCoding,
+        HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
+        HtpResponseProgress, HtpTransferCoding, Transaction,
     },
     util::{FlagOperations, HtpFileSource, HtpFlags},
 };
@@ -570,10 +570,12 @@ fn SmallChunks() {
     assert!(t.run_file("25-small-chunks.t").is_ok());
 }
 
-fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(d: &mut Data) -> Result<()> {
-    let tx = unsafe { &mut *d.tx() };
+fn ConnectionParsing_RequestHeaderData_REQUEST_HEADER_DATA(
+    tx: &mut Transaction,
+    d: &ParserData,
+) -> Result<()> {
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data = d.as_slice().unwrap();
+    let data = d.as_slice();
     match counter {
         0 => {
             if data != b"User-Agent:" {
@@ -624,10 +626,12 @@ fn RequestHeaderData() {
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
-fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(d: &mut Data) -> Result<()> {
-    let tx = unsafe { &mut *d.tx() };
+fn ConnectionParsing_RequestTrailerData_REQUEST_TRAILER_DATA(
+    tx: &mut Transaction,
+    d: &ParserData,
+) -> Result<()> {
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data = d.as_slice().unwrap();
+    let data = d.as_slice();
     match counter {
         0 => {
             if data != b"Cookie:" {
@@ -666,10 +670,12 @@ fn RequestTrailerData() {
     assert_eq!(2, *tx.user_data::<i32>().unwrap());
 }
 
-fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(d: &mut Data) -> Result<()> {
-    let tx = unsafe { &mut *d.tx() };
+fn ConnectionParsing_ResponseHeaderData_RESPONSE_HEADER_DATA(
+    tx: &mut Transaction,
+    d: &ParserData,
+) -> Result<()> {
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data = d.as_slice().unwrap();
+    let data = d.as_slice();
     match counter {
             0 => {
                 if data != b"Date:" {
@@ -721,10 +727,12 @@ fn ResponseHeaderData() {
     assert_eq!(4, *tx.user_data::<i32>().unwrap());
 }
 
-fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(d: &mut Data) -> Result<()> {
-    let tx = unsafe { &mut *d.tx() };
+fn ConnectionParsing_ResponseTrailerData_RESPONSE_TRAILER_DATA(
+    tx: &mut Transaction,
+    d: &ParserData,
+) -> Result<()> {
     let mut counter = *tx.user_data::<i32>().unwrap_or(&0);
-    let data = d.as_slice().unwrap();
+    let data = d.as_slice();
     match counter {
         0 => {
             if data != b"Set-Cookie:" {

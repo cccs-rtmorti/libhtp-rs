@@ -99,6 +99,11 @@ impl<'a> Data<'a> {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Returns a reference to the internal ParserData struct.
+    pub fn parser_data(&self) -> &ParserData {
+        self.data
+    }
 }
 
 /// Enumerates the possible request and response body codings.

@@ -4,7 +4,7 @@ use crate::{
     config::{Config, HtpServerPersonality},
     connection_parser::{ConnectionParser, HtpStreamState, ParserData},
     error::Result,
-    transaction::Data,
+    transaction::Transaction,
 };
 use chrono::{DateTime, Utc};
 use std::{
@@ -299,23 +299,23 @@ impl Test {
     }
 }
 
-fn response_body_data(d: &mut Data) -> Result<()> {
-    let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
-    let bstr = if let Some(slice) = d.as_slice() {
-        Bstr::from(slice)
-    } else {
+fn response_body_data(tx: &mut Transaction, d: &ParserData) -> Result<()> {
+    let user_data = tx.user_data_mut::<MainUserData>().unwrap();
+    let bstr = if d.is_gap() {
         Bstr::with_capacity(d.len())
+    } else {
+        Bstr::from(d.as_slice())
     };
     user_data.response_data.push(bstr);
     Ok(())
 }
 
-fn request_body_data(d: &mut Data) -> Result<()> {
-    let user_data = unsafe { (*d.tx()).user_data_mut::<MainUserData>().unwrap() };
-    let bstr = if let Some(slice) = d.as_slice() {
-        Bstr::from(slice)
-    } else {
+fn request_body_data(tx: &mut Transaction, d: &ParserData) -> Result<()> {
+    let user_data = tx.user_data_mut::<MainUserData>().unwrap();
+    let bstr = if d.is_gap() {
         Bstr::with_capacity(d.len())
+    } else {
+        Bstr::from(d.as_slice())
     };
     user_data.request_data.push(bstr);
     Ok(())

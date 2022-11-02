@@ -4,7 +4,7 @@ use htp::{
     config::{Config, HtpServerPersonality},
     connection_parser::{ConnectionParser, ParserData},
     decompressors::{Decompressor, HtpContentEncoding},
-    transaction::{Data, Transaction},
+    transaction::Transaction,
     HtpStatus,
 };
 use std::{env, path::PathBuf};
@@ -24,8 +24,8 @@ enum TestError {
     Htp(HtpStatus),
 }
 
-fn GUnzip_decompressor_callback(d: &mut Data) -> HtpStatus {
-    unsafe { (*d.tx()).set_user_data(Box::new(Bstr::from(d.as_slice().unwrap()))) };
+fn GUnzip_decompressor_callback(tx: &mut Transaction, d: &ParserData) -> HtpStatus {
+    tx.set_user_data(Box::new(Bstr::from(d.as_slice())));
     HtpStatus::OK
 }
 
@@ -47,9 +47,8 @@ impl Test {
                 HtpContentEncoding::GZIP,
                 Box::new(move |data: Option<&[u8]>| {
                     let data = ParserData::from(data);
-                    let mut tx_data = Data::new(tx, &data);
-                    GUnzip_decompressor_callback(&mut tx_data);
-                    Ok(tx_data.len())
+                    GUnzip_decompressor_callback(unsafe { &mut *tx }, &data);
+                    Ok(data.len())
                 }),
                 Default::default(),
             )
