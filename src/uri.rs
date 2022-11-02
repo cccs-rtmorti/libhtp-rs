@@ -3,10 +3,9 @@ use crate::{
     config::{DecoderConfig, HtpUnwanted},
     log::Logger,
     parsers::{credentials, fragment, hostname, parse_hostport, path, port, query, scheme},
-    util::{
-        convert_port, decode_uri_path_inplace, urldecode_inplace, urldecode_uri,
-        utf8_decode_and_validate_uri_path_inplace, FlagOperations, HtpFlags,
-    },
+    urlencoded::{decode_uri_inplace, decode_uri_with_flags, path_decode_uri_inplace},
+    utf8_decoder::Utf8Decoder,
+    util::{convert_port, FlagOperations, HtpFlags},
 };
 use nom::{combinator::opt, sequence::tuple};
 
@@ -103,7 +102,7 @@ impl Uri {
     /// Normalize uri username.
     pub fn normalized_username(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(username) = self.username.as_ref() {
-            urldecode_uri(&self.cfg, flags, username.as_slice()).ok()
+            decode_uri_with_flags(&self.cfg, flags, username.as_slice()).ok()
         } else {
             None
         }
@@ -112,7 +111,7 @@ impl Uri {
     /// Normalize uri password.
     pub fn normalized_password(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(password) = self.password.as_ref() {
-            urldecode_uri(&self.cfg, flags, password.as_slice()).ok()
+            decode_uri_with_flags(&self.cfg, flags, password.as_slice()).ok()
         } else {
             None
         }
@@ -122,7 +121,7 @@ impl Uri {
     pub fn normalized_hostname(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(hostname) = self.hostname.as_ref() {
             let mut normalized_hostname =
-                urldecode_uri(&self.cfg, flags, hostname.as_slice()).ok()?;
+                decode_uri_with_flags(&self.cfg, flags, hostname.as_slice()).ok()?;
             normalized_hostname.make_ascii_lowercase();
             // Remove dots from the end of the string.
             while normalized_hostname.last() == Some(&(b'.')) {
@@ -151,7 +150,7 @@ impl Uri {
     /// Normalize uri fragment.
     pub fn normalized_fragment(&self, flags: &mut u64) -> Option<Bstr> {
         if let Some(fragment) = self.fragment.as_ref() {
-            urldecode_uri(&self.cfg, flags, fragment).ok()
+            decode_uri_with_flags(&self.cfg, flags, fragment).ok()
         } else {
             None
         }
@@ -163,9 +162,9 @@ impl Uri {
             // Decode URL-encoded (and %u-encoded) characters, as well as lowercase,
             // compress separators and convert backslashes.
             // Ignore result.
-            decode_uri_path_inplace(&self.cfg, flags, status, &mut path);
+            path_decode_uri_inplace(&self.cfg, flags, status, &mut path);
             // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
-            utf8_decode_and_validate_uri_path_inplace(&self.cfg, flags, status, &mut path);
+            Utf8Decoder::decode_and_validate_inplace(&self.cfg, flags, status, &mut path);
             // RFC normalization.
             normalize_uri_path_inplace(&mut path);
             Some(path)
@@ -309,7 +308,7 @@ impl Uri {
             // Path is already decoded when we parsed the uri in transaction, only decode once more
             if self.cfg.double_decode_normalized_path {
                 let path_len = path.len();
-                let _ = urldecode_inplace(&self.cfg, &mut path);
+                let _ = decode_uri_inplace(&self.cfg, &mut path);
                 if path_len > path.len() {
                     if let Some(logger) = logger.as_mut() {
                         htp_warn!(
@@ -323,10 +322,10 @@ impl Uri {
             partial_normalized_uri.add(path.as_slice());
         }
         if let Some(mut query) = self.query.clone() {
-            let _ = urldecode_inplace(&self.cfg, &mut query);
+            let _ = decode_uri_inplace(&self.cfg, &mut query);
             if self.cfg.double_decode_normalized_query {
                 let query_len = query.len();
-                let _ = urldecode_inplace(&self.cfg, &mut query);
+                let _ = decode_uri_inplace(&self.cfg, &mut query);
                 if query_len > query.len() {
                     if let Some(logger) = logger.as_mut() {
                         htp_warn!(

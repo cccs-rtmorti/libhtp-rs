@@ -87,7 +87,7 @@ pub mod transaction;
 pub mod transactions;
 /// Module for uri parsing.
 pub mod uri;
-/// Module for url parsing.
+/// Module for url decoding.
 pub mod urlencoded;
 /// Module for utf8 decoding.
 mod utf8_decoder;

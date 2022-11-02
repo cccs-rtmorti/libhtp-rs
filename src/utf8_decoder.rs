@@ -18,6 +18,8 @@
 // Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
 // See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 use crate::{
+    bstr::Bstr,
+    config::{DecoderConfig, HtpUnwanted},
     unicode_bestfit_map::UnicodeBestfitMap,
     util::{FlagOperations, HtpFlags},
 };
@@ -191,5 +193,62 @@ impl Utf8Decoder {
             return self.codepoint as u8;
         }
         self.bestfit_map.get(self.codepoint)
+    }
+
+    /// Decode a UTF-8 encoded path. Replaces a possibly-invalid utf8 byte stream with
+    /// an ascii stream. Overlong characters will be decoded and invalid characters will
+    /// be replaced with the replacement byte specified in the cfg. Best-fit mapping will
+    /// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
+    /// be stored in the input path if the transaction cfg indicates it
+    pub fn decode_and_validate_inplace(
+        cfg: &DecoderConfig,
+        flags: &mut u64,
+        status: &mut HtpUnwanted,
+        path: &mut Bstr,
+    ) {
+        let mut decoder = Utf8Decoder::new(cfg.bestfit_map);
+        decoder.decode_and_validate(path.as_slice());
+        if cfg.utf8_convert_bestfit {
+            path.clear();
+            path.add(decoder.decoded_bytes.as_slice());
+        }
+        flags.set(decoder.flags);
+
+        if flags.is_set(HtpFlags::PATH_UTF8_INVALID)
+            && cfg.utf8_invalid_unwanted != HtpUnwanted::IGNORE
+        {
+            *status = cfg.utf8_invalid_unwanted;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{bstr::Bstr, config::Config, config::HtpUnwanted, utf8_decoder::Utf8Decoder};
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(b"\xf1.\xf1\xef\xbd\x9dabcd", "?.?}abcd")]
+    //1111 0000 1001 0000 1000 1101 1111 1111
+    #[case::invalid_incomplete_seq(b"\xf0\x90\x8d\xff", "??")]
+    //1110 0010 1000 0010
+    #[case::invalid_incomplete_seq(b"\xe2\x82", "?")]
+    //1100 0010 1111 1111 1111 0000
+    #[case::invalid_incomplete_seq(b"\xc2\xff\xf0", "??")]
+    //1111 0000 1001 0000 0010 1000 1011 1100
+    #[case::invalid_incomplete_seq(b"\xf0\x90\x28\xbc", "?(?")]
+    fn test_decode_and_validate_inplace(#[case] input: &[u8], #[case] expected: &str) {
+        let mut cfg = Config::default();
+        cfg.set_utf8_convert_bestfit(true);
+        let mut i = Bstr::from(input);
+        let mut flags = 0;
+        let mut response_status_expected_number = HtpUnwanted::IGNORE;
+        Utf8Decoder::decode_and_validate_inplace(
+            &cfg.decoder_cfg,
+            &mut flags,
+            &mut response_status_expected_number,
+            &mut i,
+        );
+        assert_eq!(i, Bstr::from(expected));
     }
 }
