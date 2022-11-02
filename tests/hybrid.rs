@@ -5,7 +5,7 @@ use htp::{
     config::{Config, HtpServerPersonality},
     connection_parser::{ConnectionParser, ParserData},
     error::Result,
-    transaction::{Data, Header, HtpDataSource, HtpProtocol, HtpResponseNumber, Transaction},
+    transaction::{Header, HtpDataSource, HtpProtocol, HtpResponseNumber, Transaction},
     uri::Uri,
     HtpStatus,
 };
@@ -107,19 +107,18 @@ fn HybridParsing_Get_Callback_TRANSACTION_COMPLETE(tx: &mut Transaction) -> Resu
     Ok(())
 }
 
-fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(d: &mut Data) -> Result<()> {
-    let user_data = unsafe {
-        (*d.tx())
-            .user_data_mut::<HybridParsing_Get_User_Data>()
-            .unwrap()
-    };
+fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
+    tx: &mut Transaction,
+    d: &ParserData,
+) -> Result<()> {
+    let user_data = tx.user_data_mut::<HybridParsing_Get_User_Data>().unwrap();
 
     // Don't do anything if in errored state.
     if user_data.response_body_correctly_received == -1 {
         return Err(HtpStatus::ERROR);
     }
 
-    let data = d.as_slice().unwrap();
+    let data = d.as_slice();
     match user_data.response_body_chunks_seen {
         0 => {
             if data == b"<h1>Hello" {

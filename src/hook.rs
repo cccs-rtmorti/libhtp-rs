@@ -1,5 +1,5 @@
 use crate::{
-    connection_parser::ConnectionParser,
+    connection_parser::{ConnectionParser, ParserData},
     error::Result,
     log::Log,
     transaction::{Data, Transaction},
@@ -22,7 +22,7 @@ pub type DataExternalCallbackFn =
     unsafe extern "C" fn(connp: *const ConnectionParser, data: *mut Data) -> HtpStatus;
 
 /// Native (rust) callback function prototype
-pub type DataNativeCallbackFn = fn(data: &mut Data) -> Result<()>;
+pub type DataNativeCallbackFn = fn(&mut Transaction, data: &ParserData) -> Result<()>;
 
 /// Hook for Data
 pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
@@ -117,7 +117,7 @@ impl DataHook {
                     }
                 }
                 Callback::Native(cbk_fn) => {
-                    if let Err(e) = cbk_fn(data) {
+                    if let Err(e) = cbk_fn(unsafe { &mut *data.tx() }, data.parser_data()) {
                         if e != HtpStatus::DECLINED {
                             return Err(e);
                         }
@@ -205,7 +205,7 @@ mod test {
         let connp = ConnectionParser::new(Config::default());
         let mut hook = DataHook::default();
 
-        hook.register(|_| Ok(()));
+        hook.register(|_, _| Ok(()));
         hook.register_extern(foo);
 
         assert!(hook
