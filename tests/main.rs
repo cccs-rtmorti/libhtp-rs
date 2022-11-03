@@ -3047,6 +3047,53 @@ fn ResponseBodyData() {
 }
 
 #[test]
+fn ResponseHeaderParsing() {
+    let mut t = Test::new(TestConfig());
+    assert!(t.run_file("123-response-header-bug.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).expect("expected tx to exist");
+
+    let actual: Vec<(&[u8], &[u8])> = (&tx.response_headers)
+        .into_iter()
+        .map(|(_, val)| (val.name.as_slice(), val.value.as_slice()))
+        .collect();
+
+    let expected: Vec<(&[u8], &[u8])> = [
+        ("Date", "Mon, 31 Aug 2009 20:25:50 GMT"),
+        ("Server", "Apache"),
+        ("Connection", "close"),
+        ("Content-Type", "text/html"),
+        ("Content-Length", "12"),
+    ]
+    .iter()
+    .map(|(key, val)| (key.as_bytes(), val.as_bytes()))
+    .collect();
+    assert_eq!(
+        actual,
+        expected,
+        "{:?} != {:?}",
+        actual
+            .clone()
+            .into_iter()
+            .map(|(key, val)| (
+                String::from_utf8_lossy(key).to_string(),
+                String::from_utf8_lossy(val).to_string()
+            ))
+            .collect::<Vec<(String, String)>>(),
+        expected
+            .clone()
+            .into_iter()
+            .map(|(key, val)| (
+                String::from_utf8_lossy(key).to_string(),
+                String::from_utf8_lossy(val).to_string()
+            ))
+            .collect::<Vec<(String, String)>>(),
+    );
+}
+
+#[test]
 fn RequestSingleBytes() {
     // Test input fed in one byte at a time
     let input = b" GET / HTTP/1.0\r\nUser-Agent: Test/1.0\r\n\r\n";
