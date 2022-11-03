@@ -113,6 +113,7 @@ pub enum Side {
 pub struct Parser {
     side: Side,
     complete: bool,
+    permissive_folding: bool,
 }
 
 impl Parser {
@@ -120,7 +121,13 @@ impl Parser {
         Self {
             side,
             complete: false,
+            permissive_folding: true,
         }
+    }
+
+    pub fn set_permissive_folding(mut self, permissive_folding: bool) -> Self {
+        self.permissive_folding = permissive_folding;
+        self
     }
 
     /// Sets the parser complete state.
@@ -209,7 +216,7 @@ impl Parser {
     fn eol(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
         move |input| {
             map(
-                tuple((self.complete_eol(), not(folding_lws))),
+                tuple((self.complete_eol(), not(self.folding_lws()))),
                 |(end, _)| end,
             )(input)
         }
@@ -223,6 +230,15 @@ impl Parser {
     /// Parse one null byte or complete end of line
     fn complete_null_or_eol(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
         move |input| alt((null, self.complete_eol()))(input)
+    }
+
+    /// Extracts folding lws according to how permissive_folding is set
+    fn folding_lws(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
+        if self.permissive_folding {
+            folding_lws
+        } else {
+            folding_lws_strict
+        }
     }
 
     /// Parse empty header folding as a single EOL (eol + whitespace + eol = eol)
@@ -251,7 +267,7 @@ impl Parser {
                     tuple((
                         not(self.folding_empty()),
                         map(self.complete_eol_regular(), |eol| (eol, 0)),
-                        folding_lws,
+                        self.folding_lws(),
                     )),
                     |(_, (eol, flags), (folding_lws, other_flags))| {
                         (eol, folding_lws, flags | other_flags)
@@ -259,7 +275,7 @@ impl Parser {
                 )(input)
             } else {
                 map(
-                    tuple((self.complete_eol(), folding_lws)),
+                    tuple((self.complete_eol(), self.folding_lws())),
                     |((eol, flags), (folding_lws, other_flags))| {
                         (eol, folding_lws, flags | other_flags)
                     },
@@ -632,6 +648,11 @@ fn folding_lws_special(input: &[u8]) -> IResult<&[u8], &[u8]> {
         tuple((tag("\r"), not(alt((tag("\r"), tag("\n")))), space0)),
         |(fold, _, spaces): (&[u8], _, &[u8])| &input[..fold.len() + spaces.len()],
     )(input)
+}
+
+/// Extracts folding lws (whitespace only)
+fn folding_lws_strict(input: &[u8]) -> IResult<&[u8], ParsedBytes> {
+    map(space1, |fold| (fold, Flags::FOLDING))(input)
 }
 
 /// Extracts any folding lws (whitespace or any special cases)
