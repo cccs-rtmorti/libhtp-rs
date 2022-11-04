@@ -2,7 +2,7 @@
 
 ---
 
-Copyright 2009-2010 Open Information Security Foundation
+Copyright 2009-2010 Open Information Security Foundation  
 Copyright 2010-2013 Qualys, Inc.
 
 ---
@@ -28,13 +28,13 @@ follows:
     user in control, allowing him to choose the most desired library
     characteristic.
 
- | IMPORTANT   LIBHTP IS NOT YET CONSIDERED STABLE. USE AT YOUR OWN RISK. DO NOT
- |             USE IN PRODUCTION. WORK IS CURRENTLY UNDER WAY TO ENSURE THAT
- |             LIBHTP IS SECURE AND THAT IT PERFORMS WELL.
+ | IMPORTANT   LIBHTP IS NOT YET CONSIDERED STABLE. USE AT YOUR OWN RISK. DO NOT  
+ |             USE IN PRODUCTION. WORK IS CURRENTLY UNDER WAY TO ENSURE THAT  
+ |             LIBHTP IS SECURE AND THAT IT PERFORMS WELL.  
 
- | STATUS      LIBHTP IS VERY YOUNG AT THIS POINT. IT WILL BE SOME TIME BEFORE
- |             IT CAN BE CONSIDER COMPLETE. AT THE MOMENT, THE FOCUS OF DEVELOPMENT
- |             IS ON ACHIEVING THE FIRST TWO GOALS.
+ | STATUS      LIBHTP IS VERY YOUNG AT THIS POINT. IT WILL BE SOME TIME BEFORE  
+ |             IT CAN BE CONSIDER COMPLETE. AT THE MOMENT, THE FOCUS OF DEVELOPMENT  
+ |             IS ON ACHIEVING THE FIRST TWO GOALS.  
 
 See the LICENSE file distributed with this work for information
 regarding licensing, copying and copyright ownership.
