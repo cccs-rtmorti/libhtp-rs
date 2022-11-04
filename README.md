@@ -1,8 +1,11 @@
 # LibHTP
-============================================================================
+
+---
+
 Copyright 2009-2010 Open Information Security Foundation
 Copyright 2010-2013 Qualys, Inc.
-============================================================================
+
+---
 
 LibHTP is a security-aware parser for the HTTP protocol and the related bits
 and pieces. The goals of the project, in the order of importance, are as
