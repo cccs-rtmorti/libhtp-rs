@@ -286,7 +286,7 @@ impl Parser {
     }
 
     /// Handles part data, updating flags, and creating new headers as necessary.
-    pub fn handle_part_data(&mut self, to_consume: &[u8], is_line: bool) -> Result<()> {
+    fn handle_part_data(&mut self, to_consume: &[u8], is_line: bool) -> Result<()> {
         // End of the line.
         let mut line: Option<Bstr> = None;
         // Keep track of raw part length.
@@ -471,7 +471,7 @@ impl Parser {
     }
 
     /// Finalizes part processing.
-    pub fn finalize_part_data(&mut self) -> Result<()> {
+    fn finalize_part_data(&mut self) -> Result<()> {
         // Determine if this part is the epilogue.
         if self.multipart.flags.is_set(Flags::SEEN_LAST_BOUNDARY) {
             if self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN {
@@ -721,7 +721,7 @@ impl Parser {
     ///
     /// Returns HtpStatus::OK on success, HtpStatus::DECLINED on parsing error, HtpStatus::ERROR
     /// on fatal error.
-    pub fn parse_header(&mut self) -> Result<()> {
+    fn parse_header(&mut self) -> Result<()> {
         // We do not allow NUL bytes here.
         if self.pending_header_line.as_slice().contains(&(b'\0')) {
             self.multipart.flags.set(Flags::NUL_BYTE);
@@ -845,7 +845,7 @@ impl Parser {
     }
 
     /// Send file data to request file data callback.
-    pub fn run_request_file_data_hook(&mut self, is_end: bool) -> Result<()> {
+    fn run_request_file_data_hook(&mut self, is_end: bool) -> Result<()> {
         //TODO: do without these clones!
         let data = self.to_consume.clone();
         let data = if !is_end { data.as_slice() } else { b"" };

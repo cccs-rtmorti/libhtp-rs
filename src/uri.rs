@@ -4,7 +4,7 @@ use crate::{
     log::Logger,
     parsers::{credentials, fragment, hostname, parse_hostport, path, port, query, scheme},
     urlencoded::{decode_uri_inplace, decode_uri_with_flags, path_decode_uri_inplace},
-    utf8_decoder::Utf8Decoder,
+    utf8_decoder::decode_and_validate_inplace,
     util::{convert_port, FlagOperations, HtpFlags},
 };
 use nom::{combinator::opt, sequence::tuple};
@@ -164,7 +164,7 @@ impl Uri {
             // Ignore result.
             path_decode_uri_inplace(&self.cfg, flags, status, &mut path);
             // Handle UTF-8 in the path. Validate it first, and only save it if cfg specifies it
-            Utf8Decoder::decode_and_validate_inplace(&self.cfg, flags, status, &mut path);
+            decode_and_validate_inplace(&self.cfg, flags, status, &mut path);
             // RFC normalization.
             normalize_uri_path_inplace(&mut path);
             Some(path)

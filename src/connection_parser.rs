@@ -128,7 +128,7 @@ impl<'a> ParserData<'a> {
     }
 
     /// Returns how much data has been consumed so far
-    pub fn consumed_len(&self) -> usize {
+    fn consumed_len(&self) -> usize {
         self.position.get()
     }
 
@@ -153,7 +153,7 @@ impl<'a> ParserData<'a> {
     }
 
     /// Set the position offset into the data for parsing
-    pub fn set_position(&self, position: usize) {
+    fn set_position(&self, position: usize) {
         self.position.set(position);
     }
 
@@ -163,7 +163,7 @@ impl<'a> ParserData<'a> {
     }
 
     /// Decrements the internal position where we are parsing
-    pub fn unconsume(&self, unconsume: usize) {
+    fn unconsume(&self, unconsume: usize) {
         if unconsume < self.position.get() {
             self.set_position(self.position.get() - unconsume);
         } else {
@@ -781,7 +781,7 @@ impl ConnectionParser {
     }
 
     /// Determine if the transaction is complete and run any hooks.
-    pub fn finalize(&mut self, tx_index: usize) -> Result<()> {
+    fn finalize(&mut self, tx_index: usize) -> Result<()> {
         if let Some(tx) = self.tx(tx_index) {
             if !tx.is_complete() {
                 return Ok(());

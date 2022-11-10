@@ -612,7 +612,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    pub fn response_line_complete(&mut self, line: &[u8], no_more_input: bool) -> Result<()> {
+    fn response_line_complete(&mut self, line: &[u8], no_more_input: bool) -> Result<()> {
         self.check_response_buffer_limit(line.len())?;
         if line.is_empty() {
             return Err(HtpStatus::DATA);
@@ -707,7 +707,7 @@ impl ConnectionParser {
     /// Response header parser.
     ///
     ///Returns a tuple of the unparsed data and a boolean indicating if the EOH was seen.
-    pub fn parse_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
+    fn parse_response_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
         let rc = self.response_mut().response_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
@@ -1220,7 +1220,7 @@ impl ConnectionParser {
     }
 
     /// Prepend response decompressor
-    pub fn response_prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
+    fn response_prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
         let compression_options = self.cfg.compression_options;
         if encoding != HtpContentEncoding::NONE {
             if let Some(decompressor) = self.response_mut().response_decompressor.take() {
@@ -1343,7 +1343,7 @@ impl ConnectionParser {
     }
 
     /// Run the RESPONSE_BODY_DATA hook.
-    pub fn response_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
+    fn response_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
         // Do not invoke callbacks with an empty data chunk.
         if d.is_empty() {
             return Ok(());
@@ -1495,7 +1495,7 @@ impl ConnectionParser {
     }
 
     /// Advance out buffer cursor and buffer data.
-    pub fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
+    fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
         self.check_response_buffer_limit(data.len())?;
         self.response_buf.add(data.as_slice());
         self.response_data_consume(data, data.len());

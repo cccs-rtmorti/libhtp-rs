@@ -249,7 +249,7 @@ pub struct FileData<'a> {
 
 impl FileData<'_> {
     /// Construct new FileData.
-    pub fn new(file: &File, data: *const u8, len: usize) -> FileData {
+    fn new(file: &File, data: *const u8, len: usize) -> FileData {
         FileData { file, data, len }
     }
 }
@@ -259,7 +259,7 @@ impl FileData<'_> {
 /// | "," | ";" | ":" | "\" | <">
 /// | "/" | "[" | "]" | "?" | "="
 /// | "{" | "}" | SP | HT
-pub fn is_separator(c: u8) -> bool {
+fn is_separator(c: u8) -> bool {
     matches!(
         c as char,
         '(' | ')'
@@ -310,7 +310,7 @@ pub fn chomp(mut data: &[u8]) -> &[u8] {
 }
 
 /// Trim the leading whitespace
-pub fn trim_start(input: &[u8]) -> &[u8] {
+fn trim_start(input: &[u8]) -> &[u8] {
     let mut result = input;
     while let Some(x) = result.first() {
         if is_space(*x) {
@@ -323,7 +323,7 @@ pub fn trim_start(input: &[u8]) -> &[u8] {
 }
 
 /// Trim the trailing whitespace
-pub fn trim_end(input: &[u8]) -> &[u8] {
+fn trim_end(input: &[u8]) -> &[u8] {
     let mut result = input;
     while let Some(x) = result.last() {
         if is_space(*x) {
@@ -418,13 +418,13 @@ pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]>
 /// Is the given line empty?
 ///
 /// Returns true or false
-pub fn is_line_empty(data: &[u8]) -> bool {
+fn is_line_empty(data: &[u8]) -> bool {
     matches!(data, b"\x0d" | b"\x0a" | b"\x0d\x0a")
 }
 
 /// Determine if entire line is whitespace as defined by
 /// util::is_space.
-pub fn is_line_whitespace(data: &[u8]) -> bool {
+fn is_line_whitespace(data: &[u8]) -> bool {
     !data.iter().any(|c| !is_space(*c))
 }
 
@@ -463,22 +463,8 @@ pub fn hex_digits() -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> {
     }
 }
 
-/// Determines if the given line is a continuation (of some previous line).
-pub fn is_line_folded(data: &[u8]) -> bool {
-    if data.is_empty() {
-        return false;
-    }
-    is_folding_char(data[0])
-}
-
-/// Determines if given character is folding.
-/// folding characters = /t, ' ', '\0'
-pub fn is_folding_char(c: u8) -> bool {
-    nom_is_space(c) || c == 0
-}
-
 /// Determines if the given line is a request terminator.
-pub fn is_line_terminator(
+fn is_line_terminator(
     server_personality: HtpServerPersonality,
     data: &[u8],
     next_no_lf: bool,
@@ -583,14 +569,6 @@ pub fn get_version() -> &'static str {
     HTP_VERSION_STRING_FULL
 }
 
-/// Splits by colon and removes leading whitespace from value
-/// Returns header,value pair if succeeds.
-pub fn split_by_colon(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (value, (header, _)) = tuple((take_until(":"), char(':')))(data)?;
-    let (value, _) = nom_take_is_space(value)?;
-    Ok((header, value))
-}
-
 /// Take leading whitespace as defined by nom_is_space.
 pub fn nom_take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(nom_is_space)(data)
@@ -599,15 +577,6 @@ pub fn nom_take_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Take data before the first null character if it exists.
 pub fn take_until_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(|c| c != b'\0')(data)
-}
-
-/// Returns data without trailing whitespace as defined by util::is_space.
-pub fn take_is_space_trailing(data: &[u8]) -> IResult<&[u8], &[u8]> {
-    if let Some(index) = data.iter().rposition(|c| !is_space(*c)) {
-        Ok((&data[..(index + 1)], &data[(index + 1)..]))
-    } else {
-        Ok((b"", data))
-    }
 }
 
 /// Take leading space as defined by util::is_space.
@@ -623,11 +592,6 @@ pub fn take_is_space_or_null(data: &[u8]) -> IResult<&[u8], &[u8]> {
 /// Take any non-space character as defined by is_space.
 pub fn take_not_is_space(data: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(|c: u8| !is_space(c))(data)
-}
-
-/// Returns true if each character is a token
-pub fn is_word_token(data: &[u8]) -> bool {
-    !data.iter().any(|c| !is_token(*c))
 }
 
 /// Returns all data up to and including the first new line or null
@@ -731,19 +695,6 @@ mod tests {
 
     #[rstest]
     #[case("", "", "")]
-    #[case("word   \t", "word", "   \t")]
-    #[case("word", "word", "")]
-    #[case("\t  word   ", "\t  word", "   ")]
-    #[case("     ", "", "     ")]
-    fn test_is_space_trailing(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
-        assert_eq!(
-            take_is_space_trailing(input.as_bytes()).unwrap(),
-            (remaining.as_bytes(), parsed.as_bytes())
-        );
-    }
-
-    #[rstest]
-    #[case("", "", "")]
     #[case("   hell o", "hell o", "   ")]
     #[case("   \thell o", "hell o", "   \t")]
     #[case("hell o", "hell o", "")]
@@ -767,37 +718,6 @@ mod tests {
     #[case("kfgjl  hTtp ", true)]
     fn test_treat_response_line_as_body(#[case] input: &str, #[case] expected: bool) {
         assert_eq!(treat_response_line_as_body(input.as_bytes()), expected);
-    }
-
-    #[rstest]
-    #[should_panic(
-        expected = "called `Result::unwrap()` on an `Err` value: Error(Error { input: [], code: TakeUntil })"
-    )]
-    #[case("", "", "")]
-    #[should_panic(
-        expected = "called `Result::unwrap()` on an `Err` value: Error(Error { input: [78, 111, 32, 99, 111, 108, 111, 110], code: TakeUntil })"
-    )]
-    #[case("No colon", "", "")]
-    #[case("Content-Length: 230", "Content-Length", "230")]
-    #[case(":No header name", "", "No header name")]
-    fn test_split_by_colon(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
-        assert_eq!(
-            split_by_colon(input.as_bytes()).unwrap(),
-            (remaining.as_bytes(), parsed.as_bytes())
-        );
-    }
-
-    #[rstest]
-    #[case("", true)]
-    #[case("allalpha", true)]
-    #[case("alpha567numeric1234", true)]
-    #[case("234543", true)]
-    #[case("content-length", true)]
-    #[case("alpha{}", false)]
-    #[case("\n", false)]
-    #[case("abcdeg\t", false)]
-    fn test_is_word_token(#[case] input: &str, #[case] expected: bool) {
-        assert_eq!(is_word_token(input.as_bytes()), expected);
     }
 
     #[rstest]
@@ -919,16 +839,6 @@ mod tests {
     #[case("\n", true)]
     fn test_is_line_empty(#[case] input: &str, #[case] expected: bool) {
         assert_eq!(is_line_empty(input.as_bytes()), expected);
-    }
-
-    #[rstest]
-    #[case("", false)]
-    #[case("\tline", true)]
-    #[case(" \t  line", true)]
-    #[case(" line", true)]
-    #[case("line ", false)]
-    fn test_is_line_folded(#[case] input: &str, #[case] expected: bool) {
-        assert_eq!(is_line_folded(input.as_bytes()), expected);
     }
 
     #[rstest]
