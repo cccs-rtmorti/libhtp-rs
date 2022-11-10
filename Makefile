@@ -100,7 +100,7 @@ install:
 	install -d $(DESTDIR)$(LIBDIR)
 	install -d $(DESTDIR)$(INCLUDEDIR)/htp
 	install -m 0755 target/release/libhtp.so $(DESTDIR)$(LIBDIR)/libhtp.so.${CRATE_VERSION}
-	cd $(DESTDIR)$(LIBDIR) && ln -s ./libhtp.so.${CRATE_VERSION_MAJOR} ./libhtp.so
+	(cd $(DESTDIR)$(LIBDIR) && ln -s ./libhtp.so.${CRATE_VERSION} ./libhtp.so)
 	install -m 644 htp/*.h $(DESTDIR)$(INCLUDEDIR)/htp
 
 .PHONY: uninstall
