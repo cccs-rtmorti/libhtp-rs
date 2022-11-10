@@ -144,7 +144,7 @@ impl Utf8Decoder {
     /// characters will be decoded and invalid characters will be replaced with
     /// the replacement byte specified in the bestfit_map. Best-fit mapping will be used
     /// to convert UTF-8 into a single-byte stream.
-    pub fn decode_and_validate(&mut self, input: &[u8]) {
+    fn decode_and_validate(&mut self, input: &[u8]) {
         //Reset all internals
         self.state = 0;
         self.seq = 0;
@@ -194,37 +194,37 @@ impl Utf8Decoder {
         }
         self.bestfit_map.get(self.codepoint)
     }
-
-    /// Decode a UTF-8 encoded path. Replaces a possibly-invalid utf8 byte stream with
-    /// an ascii stream. Overlong characters will be decoded and invalid characters will
-    /// be replaced with the replacement byte specified in the cfg. Best-fit mapping will
-    /// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
-    /// be stored in the input path if the transaction cfg indicates it
-    pub fn decode_and_validate_inplace(
-        cfg: &DecoderConfig,
-        flags: &mut u64,
-        status: &mut HtpUnwanted,
-        path: &mut Bstr,
-    ) {
-        let mut decoder = Utf8Decoder::new(cfg.bestfit_map);
-        decoder.decode_and_validate(path.as_slice());
-        if cfg.utf8_convert_bestfit {
-            path.clear();
-            path.add(decoder.decoded_bytes.as_slice());
-        }
-        flags.set(decoder.flags);
-
-        if flags.is_set(HtpFlags::PATH_UTF8_INVALID)
-            && cfg.utf8_invalid_unwanted != HtpUnwanted::IGNORE
-        {
-            *status = cfg.utf8_invalid_unwanted;
-        }
-    }
 }
 
+/// Decode a UTF-8 encoded path. Replaces a possibly-invalid utf8 byte stream with
+/// an ascii stream. Overlong characters will be decoded and invalid characters will
+/// be replaced with the replacement byte specified in the cfg. Best-fit mapping will
+/// be used to convert UTF-8 into a single-byte stream. The resulting decoded path will
+/// be stored in the input path if the transaction cfg indicates it
+pub fn decode_and_validate_inplace(
+    cfg: &DecoderConfig,
+    flags: &mut u64,
+    status: &mut HtpUnwanted,
+    path: &mut Bstr,
+) {
+    let mut decoder = Utf8Decoder::new(cfg.bestfit_map);
+    decoder.decode_and_validate(path.as_slice());
+    if cfg.utf8_convert_bestfit {
+        path.clear();
+        path.add(decoder.decoded_bytes.as_slice());
+    }
+    flags.set(decoder.flags);
+
+    if flags.is_set(HtpFlags::PATH_UTF8_INVALID) && cfg.utf8_invalid_unwanted != HtpUnwanted::IGNORE
+    {
+        *status = cfg.utf8_invalid_unwanted;
+    }
+}
 #[cfg(test)]
 mod tests {
-    use crate::{bstr::Bstr, config::Config, config::HtpUnwanted, utf8_decoder::Utf8Decoder};
+    use crate::{
+        bstr::Bstr, config::Config, config::HtpUnwanted, utf8_decoder::decode_and_validate_inplace,
+    };
     use rstest::rstest;
 
     #[rstest]
@@ -243,7 +243,7 @@ mod tests {
         let mut i = Bstr::from(input);
         let mut flags = 0;
         let mut response_status_expected_number = HtpUnwanted::IGNORE;
-        Utf8Decoder::decode_and_validate_inplace(
+        decode_and_validate_inplace(
             &cfg.decoder_cfg,
             &mut flags,
             &mut response_status_expected_number,

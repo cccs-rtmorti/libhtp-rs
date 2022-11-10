@@ -98,7 +98,7 @@ pub enum HtpMethod {
 
 impl HtpMethod {
     /// Creates a new HtpMethod from the slice.
-    pub fn new(method: &[u8]) -> Self {
+    fn new(method: &[u8]) -> Self {
         match method {
             b"GET" => HtpMethod::GET,
             b"PUT" => HtpMethod::PUT,
@@ -594,7 +594,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    pub fn request_line_complete(&mut self, line: &[u8]) -> Result<()> {
+    fn request_line_complete(&mut self, line: &[u8]) -> Result<()> {
         self.check_request_buffer_limit(line.len())?;
         if line.is_empty() {
             return Err(HtpStatus::DATA);
@@ -708,7 +708,7 @@ impl ConnectionParser {
     }
 
     /// Parse request headers
-    pub fn parse_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
+    fn parse_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
         let rc = self.request_mut().request_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
@@ -1161,7 +1161,7 @@ impl ConnectionParser {
     }
 
     /// Prepend a decompressor to the request
-    pub fn request_prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
+    fn request_prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
         let compression_options = self.cfg.compression_options;
         if encoding != HtpContentEncoding::NONE {
             if let Some(decompressor) = self.request_mut().request_decompressor.take() {
@@ -1359,7 +1359,7 @@ impl ConnectionParser {
 
     /// Buffer incomplete request data and verify that field_limit
     /// constraint is met.
-    pub fn handle_request_absent_lf(&mut self, data: &ParserData) -> Result<()> {
+    fn handle_request_absent_lf(&mut self, data: &ParserData) -> Result<()> {
         self.check_request_buffer_limit(data.len())?;
         self.request_buf.add(data.as_slice());
         self.request_data_consume(data, data.len());
@@ -1367,7 +1367,7 @@ impl ConnectionParser {
     }
 
     /// Run the REQUEST_BODY_DATA hook.
-    pub fn request_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
+    fn request_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
         // Do not invoke callbacks with an empty data chunk
         if !d.data().is_null() && d.is_empty() {
             return Ok(());
