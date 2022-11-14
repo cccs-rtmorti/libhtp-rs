@@ -648,8 +648,10 @@ fn ParsedUriSupplied() {
         .unwrap();
 
     let mut tx = t.connp.tx_mut(tx_id).unwrap();
-    let mut u = Uri::default();
-    u.path = Some(Bstr::from("/123"));
+    let u = Uri {
+        path: Some(Bstr::from("/123")),
+        ..Default::default()
+    };
     tx.parsed_uri = Some(u);
     t.connp.state_request_line().unwrap();
 

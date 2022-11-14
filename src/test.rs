@@ -181,7 +181,7 @@ impl Test {
         // Configure user data and callbacks
         t.connp
             .response_mut()
-            .set_user_data(Box::new(MainUserData::default()));
+            .set_user_data(Box::<MainUserData>::default());
         t
     }
 
