@@ -19,12 +19,15 @@ pub unsafe extern "C" fn htp_connp_close(
     timestamp: *const libc::timeval,
 ) {
     if let Some(connp) = connp.as_mut() {
-        connp.close(timestamp.as_ref().map(|val| {
-            DateTime::<Utc>::from_utc(
-                NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
-                Utc,
-            )
-        }))
+        connp.close(
+            timestamp
+                .as_ref()
+                .map(|val| {
+                    NaiveDateTime::from_timestamp_opt(val.tv_sec, val.tv_usec as u32)
+                        .map(|time| DateTime::<Utc>::from_utc(time, Utc))
+                })
+                .unwrap_or(None),
+        )
     }
 }
 
@@ -128,12 +131,13 @@ pub unsafe extern "C" fn htp_connp_open(
             } else {
                 None
             },
-            timestamp.as_ref().map(|timestamp| {
-                DateTime::<Utc>::from_utc(
-                    NaiveDateTime::from_timestamp(timestamp.tv_sec, timestamp.tv_usec as u32),
-                    Utc,
-                )
-            }),
+            timestamp
+                .as_ref()
+                .map(|val| {
+                    NaiveDateTime::from_timestamp_opt(val.tv_sec, val.tv_usec as u32)
+                        .map(|time| DateTime::<Utc>::from_utc(time, Utc))
+                })
+                .unwrap_or(None),
         )
     }
 }
@@ -149,12 +153,15 @@ pub unsafe extern "C" fn htp_connp_request_close(
     timestamp: *const libc::timeval,
 ) {
     if let Some(connp) = connp.as_mut() {
-        connp.request_close(timestamp.as_ref().map(|val| {
-            DateTime::<Utc>::from_utc(
-                NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
-                Utc,
-            )
-        }))
+        connp.request_close(
+            timestamp
+                .as_ref()
+                .map(|val| {
+                    NaiveDateTime::from_timestamp_opt(val.tv_sec, val.tv_usec as u32)
+                        .map(|time| DateTime::<Utc>::from_utc(time, Utc))
+                })
+                .unwrap_or(None),
+        )
     }
 }
 
@@ -177,12 +184,13 @@ pub unsafe extern "C" fn htp_connp_request_data(
         .map(|connp| {
             connp.request_data(
                 ParserData::from((data as *const u8, len)),
-                timestamp.as_ref().map(|val| {
-                    DateTime::<Utc>::from_utc(
-                        NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
-                        Utc,
-                    )
-                }),
+                timestamp
+                    .as_ref()
+                    .map(|val| {
+                        NaiveDateTime::from_timestamp_opt(val.tv_sec, val.tv_usec as u32)
+                            .map(|time| DateTime::<Utc>::from_utc(time, Utc))
+                    })
+                    .unwrap_or(None),
             )
         })
         .unwrap_or(HtpStreamState::ERROR)
@@ -206,12 +214,13 @@ pub unsafe extern "C" fn htp_connp_response_data(
         .map(|connp| {
             connp.response_data(
                 ParserData::from((data as *const u8, len)),
-                timestamp.as_ref().map(|val| {
-                    DateTime::<Utc>::from_utc(
-                        NaiveDateTime::from_timestamp(val.tv_sec, val.tv_usec as u32),
-                        Utc,
-                    )
-                }),
+                timestamp
+                    .as_ref()
+                    .map(|val| {
+                        NaiveDateTime::from_timestamp_opt(val.tv_sec, val.tv_usec as u32)
+                            .map(|time| DateTime::<Utc>::from_utc(time, Utc))
+                    })
+                    .unwrap_or(None),
             )
         })
         .unwrap_or(HtpStreamState::ERROR)
