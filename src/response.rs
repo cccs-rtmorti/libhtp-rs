@@ -1330,8 +1330,10 @@ impl ConnectionParser {
                 "Unable to match response to request"
             );
             let tx = self.response_mut();
-            let mut uri = Uri::default();
-            uri.path = Some(Bstr::from("/libhtp::request_uri_not_seen"));
+            let uri = Uri {
+                path: Some(Bstr::from("/libhtp::request_uri_not_seen")),
+                ..Default::default()
+            };
             tx.request_uri = uri.path.clone();
             tx.parsed_uri = Some(uri);
             tx.request_progress = HtpRequestProgress::COMPLETE;
@@ -1495,7 +1497,7 @@ impl ConnectionParser {
     }
 
     /// Advance out buffer cursor and buffer data.
-    fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
+    pub fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
         self.check_response_buffer_limit(data.len())?;
         self.response_buf.add(data.as_slice());
         self.response_data_consume(data, data.len());

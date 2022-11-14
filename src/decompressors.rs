@@ -86,7 +86,7 @@ impl Options {
     /// The limit will be set to `MAX_BOMB_LIMIT` if the provided arg exceeds this value.
     pub fn set_bomb_limit(&mut self, bomblimit: usize) {
         if bomblimit > MAX_BOMB_LIMIT as usize {
-            self.bomb_limit = MAX_BOMB_LIMIT as i32;
+            self.bomb_limit = MAX_BOMB_LIMIT;
         } else {
             self.bomb_limit = bomblimit as i32
         };

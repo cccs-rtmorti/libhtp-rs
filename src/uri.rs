@@ -56,11 +56,11 @@ impl std::fmt::Debug for Uri {
     }
 }
 
-impl Uri {
-    /// Create an empty Uri struct but with the given DecoderCfg
-    pub fn with_config(cfg: DecoderConfig) -> Self {
+impl Default for Uri {
+    /// Create an empty Uri struct.
+    fn default() -> Self {
         Self {
-            cfg,
+            cfg: DecoderConfig::default(),
             scheme: None,
             username: None,
             password: None,
@@ -72,11 +72,13 @@ impl Uri {
             fragment: None,
         }
     }
+}
 
-    /// Create an empty Uri struct.
-    pub fn default() -> Self {
+impl Uri {
+    /// Create an empty Uri struct but with the given DecoderCfg
+    pub fn with_config(cfg: DecoderConfig) -> Self {
         Self {
-            cfg: DecoderConfig::default(),
+            cfg,
             scheme: None,
             username: None,
             password: None,
