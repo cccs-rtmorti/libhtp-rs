@@ -21,7 +21,7 @@ pub extern "C" fn htp_config_create() -> *mut Config {
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_destroy(cfg: *mut Config) {
     if !cfg.is_null() {
-        let _ = Box::from_raw(cfg);
+        drop(Box::from_raw(cfg));
     }
 }
 

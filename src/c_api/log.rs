@@ -48,7 +48,6 @@ pub unsafe extern "C" fn htp_log_code(log: *const Log) -> HtpLogCode {
 #[no_mangle]
 pub unsafe extern "C" fn htp_log_free(log: *mut Log) {
     if !log.is_null() {
-        // log will be dropped when this box goes out of scope
-        let _ = Box::from_raw(log);
+        drop(Box::from_raw(log));
     }
 }
