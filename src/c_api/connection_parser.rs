@@ -51,7 +51,7 @@ pub unsafe extern "C" fn htp_connp_create(cfg: *mut Config) -> *mut ConnectionPa
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_connp_destroy_all(connp: *mut ConnectionParser) {
-    let _ = Box::from_raw(connp);
+    drop(Box::from_raw(connp));
 }
 
 /// Returns the connection associated with the connection parser.
