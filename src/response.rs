@@ -1497,7 +1497,7 @@ impl ConnectionParser {
     }
 
     /// Advance out buffer cursor and buffer data.
-    pub fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
+    fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
         self.check_response_buffer_limit(data.len())?;
         self.response_buf.add(data.as_slice());
         self.response_data_consume(data, data.len());
