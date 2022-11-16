@@ -5,7 +5,7 @@ use crate::{connection::Connection, log::Log};
 /// # Safety
 /// When calling this method, you have to ensure that conn is either properly initialized or NULL
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_request_data_counter(conn: *const Connection) -> i64 {
+pub unsafe extern "C" fn htp_conn_request_data_counter(conn: *const Connection) -> u64 {
     conn.as_ref()
         .map(|conn| conn.request_data_counter)
         .unwrap_or(0)
@@ -15,7 +15,7 @@ pub unsafe extern "C" fn htp_conn_request_data_counter(conn: *const Connection) 
 /// # Safety
 /// When calling this method, you have to ensure that conn is either properly initialized or NULL
 #[no_mangle]
-pub unsafe extern "C" fn htp_conn_response_data_counter(conn: *const Connection) -> i64 {
+pub unsafe extern "C" fn htp_conn_response_data_counter(conn: *const Connection) -> u64 {
     conn.as_ref()
         .map(|conn| conn.response_data_counter)
         .unwrap_or(0)

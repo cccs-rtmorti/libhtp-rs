@@ -317,7 +317,7 @@ pub struct ConnectionParser {
     pub request_body_data_left: Option<u64>,
     /// Holds the amount of data that needs to be read from the
     /// current data chunk. Only used with chunked request bodies.
-    pub request_chunked_length: Option<u32>,
+    pub request_chunked_length: Option<u64>,
     /// Current request parser state.
     pub request_state: State,
     /// Previous request parser state. Used to detect state changes.
@@ -344,7 +344,7 @@ pub struct ConnectionParser {
     pub response_body_data_left: Option<u64>,
     /// Holds the amount of data that needs to be read from the
     /// current response data chunk. Only used with chunked response bodies.
-    pub response_chunked_length: Option<u32>,
+    pub response_chunked_length: Option<u64>,
     /// Current response parser state.
     pub response_state: State,
     /// Previous response parser state.
@@ -549,8 +549,8 @@ impl ConnectionParser {
     }
 
     /// Returns the number of bytes consumed from the current data chunks so far.
-    pub fn request_data_consumed(&self) -> i64 {
-        self.request_bytes_consumed as i64
+    pub fn request_data_consumed(&self) -> usize {
+        self.request_bytes_consumed
     }
 
     /// Consume the given number of bytes from the ParserData and update
@@ -590,8 +590,8 @@ impl ConnectionParser {
     /// where only partial consumption is possible. In such cases DATA_OTHER will be returned.
     /// Consumed bytes are no longer necessary, but the remainder of the buffer will be saved
     /// for later.
-    pub fn response_data_consumed(&self) -> i64 {
-        self.response_bytes_consumed as i64
+    pub fn response_data_consumed(&self) -> usize {
+        self.response_bytes_consumed
     }
 
     /// Opens connection.

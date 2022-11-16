@@ -311,11 +311,15 @@ impl ConnectionParser {
         if let Ok((_, line)) = take_till_lf(input.as_slice()) {
             let len = line.len();
             self.request_data_consume(input, len);
-            self.request_mut().request_message_len += len as i64;
+            self.request_mut().request_message_len =
+                self.request().request_message_len.wrapping_add(len as u64);
             self.request_state = State::BODY_CHUNKED_LENGTH;
             Ok(())
         } else {
-            self.request_mut().request_message_len += input.len() as i64;
+            self.request_mut().request_message_len = self
+                .request()
+                .request_message_len
+                .wrapping_add(input.len() as u64);
             self.handle_request_absent_lf(input)
         }
     }
@@ -340,7 +344,7 @@ impl ConnectionParser {
         // Adjust counters.
         self.request_data_consume(input, bytes_to_consume);
         if let Some(len) = self.request_chunked_length.as_mut() {
-            *len -= bytes_to_consume as u32;
+            *len -= bytes_to_consume as u64;
             if *len == 0 {
                 // End of the chunk.
                 self.request_state = State::BODY_CHUNKED_DATA_END;
@@ -363,18 +367,20 @@ impl ConnectionParser {
                     self.check_request_buffer_limit(line.len())?;
                 }
                 if line.eq(b"\n") {
-                    self.request_mut().request_message_len =
-                        (self.request().request_message_len as u64).wrapping_add(line.len() as u64)
-                            as i64;
+                    self.request_mut().request_message_len = self
+                        .request()
+                        .request_message_len
+                        .wrapping_add(line.len() as u64);
                     //Empty chunk len. Try to continue parsing.
                     data = remaining;
                     continue;
                 }
                 let mut data = self.request_buf.clone();
                 data.add(line);
-                self.request_mut().request_message_len = (self.request().request_message_len as u64)
-                    .wrapping_add(data.len() as u64)
-                    as i64;
+                self.request_mut().request_message_len = self
+                    .request()
+                    .request_message_len
+                    .wrapping_add(data.len() as u64);
                 // Handle chunk length.
                 let len = parse_chunked_length(&data)?;
                 self.request_chunked_length = len;
@@ -434,7 +440,7 @@ impl ConnectionParser {
             self.request_mut().request_message_len = self
                 .request()
                 .request_message_len
-                .wrapping_add(bytes_to_consume as i64);
+                .wrapping_add(bytes_to_consume as u64);
             // Create a new gap of the appropriate length
             let parser_data = ParserData::from(bytes_to_consume);
             // Send the gap to the data hooks
@@ -939,7 +945,10 @@ impl ConnectionParser {
     pub fn request_body_data(&mut self, data: Option<&[u8]>) -> Result<()> {
         // None data is used to indicate the end of request body.
         // Keep track of body size before decompression.
-        self.request_mut().request_message_len += data.unwrap_or(b"").len() as i64;
+        self.request_mut().request_message_len = self
+            .request()
+            .request_message_len
+            .wrapping_add(data.unwrap_or(b"").len() as u64);
         match self.request().request_content_encoding_processing {
             HtpContentEncoding::GZIP
             | HtpContentEncoding::DEFLATE
@@ -987,7 +996,7 @@ impl ConnectionParser {
                 // is identical to request_message_len.
                 // None data is used to indicate the end of request body.
                 // Keep track of the body length.
-                self.request_mut().request_entity_len += data.unwrap_or(b"").len() as i64;
+                self.request_mut().request_entity_len += data.unwrap_or(b"").len() as u64;
                 let _ = self.request_mut().request_process_multipart_data(data);
                 let _ = self.request_mut().request_process_urlencoded_data(data);
                 // Send data to the callbacks.
@@ -1201,7 +1210,10 @@ impl ConnectionParser {
         let mut tx_data = Data::new(self.request_mut(), &parser_data);
 
         // Keep track of actual request body length.
-        self.request_mut().request_entity_len += tx_data.len() as i64;
+        self.request_mut().request_entity_len = self
+            .request()
+            .request_entity_len
+            .wrapping_add(tx_data.len() as u64);
 
         // Invoke all callbacks.
         self.request_run_hook_body_data(&mut tx_data)
@@ -1237,7 +1249,7 @@ impl ConnectionParser {
         let bomb_limit = compression_options.get_bomb_limit();
         let request_entity_len = self.request().request_entity_len;
         let request_message_len = self.request().request_message_len;
-        if request_entity_len > bomb_limit as i64 && exceeds_ratio {
+        if request_entity_len > bomb_limit && exceeds_ratio {
             htp_log!(
                 self.logger,
                 HtpLogLevel::ERROR,
@@ -1325,9 +1337,7 @@ impl ConnectionParser {
 
     /// Consumes whatever is left in the buffer after detecting an http/0.9 session.
     pub fn request_ignore_data_after_http_0_9(&mut self, data: &mut ParserData) -> Result<()> {
-        let bytes_left = data.len() as i64;
-
-        if bytes_left > 0 {
+        if !data.is_empty() {
             self.conn.flags.set(ConnectionFlags::HTTP_0_9_EXTRA)
         }
         self.request_data_consume(data, data.len());

@@ -122,12 +122,18 @@ impl ConnectionParser {
         if let Ok((_, line)) = take_till_lf(input.as_slice()) {
             let len = line.len();
             self.response_data_consume(input, len);
-            self.response_mut().response_message_len += len as i64;
+            self.response_mut().response_message_len = self
+                .response()
+                .response_message_len
+                .wrapping_add(len as u64);
             self.response_state = State::BODY_CHUNKED_LENGTH;
             Ok(())
         } else {
             // Advance to end. Dont need to buffer
-            self.response_mut().response_message_len += input.len() as i64;
+            self.response_mut().response_message_len = self
+                .response()
+                .response_message_len
+                .wrapping_add(input.len() as u64);
             self.response_data_consume(input, input.len());
             Err(HtpStatus::DATA_BUFFER)
         }
@@ -150,7 +156,7 @@ impl ConnectionParser {
         // Adjust the counters.
         self.response_data_consume(input, bytes_to_consume);
         if let Some(len) = &mut self.response_chunked_length {
-            *len -= bytes_to_consume as u32;
+            *len -= bytes_to_consume as u64;
             // Have we seen the entire chunk?
             if *len == 0 {
                 self.response_state = State::BODY_CHUNKED_DATA_END;
@@ -175,8 +181,7 @@ impl ConnectionParser {
                     }
                     if is_chunked_ctl_line(line) {
                         self.response_mut().response_message_len =
-                            (self.response().response_message_len as u64)
-                                .wrapping_add(line.len() as u64) as i64;
+                            (self.response().response_message_len).wrapping_add(line.len() as u64);
                         //Empty chunk len. Try to continue parsing.
                         data = remaining;
                         continue;
@@ -184,8 +189,7 @@ impl ConnectionParser {
                     let mut data = self.response_buf.clone();
                     data.add(line);
                     self.response_mut().response_message_len =
-                        (self.response().response_message_len as u64)
-                            .wrapping_add(data.len() as u64) as i64;
+                        (self.response().response_message_len).wrapping_add(data.len() as u64);
 
                     match parse_chunked_length(&data) {
                         Ok(len) => {
@@ -256,7 +260,7 @@ impl ConnectionParser {
             return self.response_body_data(data.data());
         }
         let left = self.response_body_data_left.ok_or(HtpStatus::ERROR)?;
-        let bytes_to_consume: usize = std::cmp::min(data.len(), left as usize);
+        let bytes_to_consume = std::cmp::min(data.len() as u64, left);
         if bytes_to_consume == 0 {
             return Err(HtpStatus::DATA);
         }
@@ -264,19 +268,19 @@ impl ConnectionParser {
             self.response_mut().response_message_len = self
                 .response()
                 .response_message_len
-                .wrapping_add(bytes_to_consume as i64);
+                .wrapping_add(bytes_to_consume);
             // Create a new gap of the appropriate length
-            let parser_data = ParserData::from(bytes_to_consume);
+            let parser_data = ParserData::from(bytes_to_consume as usize);
             // Send the gap to the data hooks
             let mut tx_data = Data::new(self.response_mut(), &parser_data);
             self.response_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
-            self.response_body_data(Some(&data.as_slice()[0..bytes_to_consume]))?;
+            self.response_body_data(Some(&data.as_slice()[0..bytes_to_consume as usize]))?;
         }
         // Adjust the counters.
-        self.response_data_consume(data, bytes_to_consume);
-        self.response_body_data_left = Some(left - bytes_to_consume as u64);
+        self.response_data_consume(data, bytes_to_consume as usize);
+        self.response_body_data_left = Some(left - bytes_to_consume);
         // Have we seen the entire response body?
         if self.response_body_data_left > Some(0) {
             return Err(HtpStatus::DATA);
@@ -944,7 +948,10 @@ impl ConnectionParser {
     pub fn response_body_data(&mut self, data: Option<&[u8]>) -> Result<()> {
         // None data is used to indicate the end of response body.
         // Keep track of body size before decompression.
-        self.response_mut().response_message_len += data.unwrap_or(b"").len() as i64;
+        self.response_mut().response_message_len = self
+            .response()
+            .response_message_len
+            .wrapping_add(data.unwrap_or(b"").len() as u64);
 
         match self.response().response_content_encoding_processing {
             HtpContentEncoding::GZIP
@@ -994,7 +1001,10 @@ impl ConnectionParser {
                 // is identical to response_message_len.
                 let data = ParserData::from(data);
                 let mut tx_data = Data::new(self.response_mut(), &data);
-                self.response_mut().response_entity_len += tx_data.len() as i64;
+                self.response_mut().response_entity_len = self
+                    .response()
+                    .response_entity_len
+                    .wrapping_add(tx_data.len() as u64);
                 self.response_run_hook_body_data(&mut tx_data)?;
             }
             HtpContentEncoding::ERROR => {
@@ -1165,7 +1175,10 @@ impl ConnectionParser {
         let mut tx_data = Data::new(self.response_mut(), &parser_data);
 
         // Keep track of actual response body length.
-        self.response_mut().response_entity_len += tx_data.len() as i64;
+        self.response_mut().response_entity_len = self
+            .response()
+            .response_entity_len
+            .wrapping_add(tx_data.len() as u64);
 
         // Invoke all callbacks.
         self.response_run_hook_body_data(&mut tx_data)
@@ -1201,7 +1214,7 @@ impl ConnectionParser {
         let bomb_limit = compression_options.get_bomb_limit();
         let response_entity_len = self.response().response_entity_len;
         let response_message_len = self.response().response_message_len;
-        if response_entity_len > bomb_limit as i64 && exceeds_ratio {
+        if response_entity_len > bomb_limit && exceeds_ratio {
             htp_log!(
                 self.logger,
                 HtpLogLevel::ERROR,
