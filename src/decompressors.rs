@@ -1,5 +1,7 @@
-use std::io::{Cursor, Write};
-use std::time::Instant;
+use std::{
+    io::{Cursor, Write},
+    time::Instant,
+};
 
 /// Buffer compression output to this chunk size.
 const ENCODING_CHUNK_SIZE: usize = 8192;
@@ -7,19 +9,17 @@ const ENCODING_CHUNK_SIZE: usize = 8192;
 /// Default LZMA dictionary memory limit in bytes.
 const DEFAULT_LZMA_MEMLIMIT: usize = 1_048_576;
 /// Default number of LZMA layers to pass to the decompressor.
-const DEFAULT_LZMA_LAYERS: usize = 1;
-/// Default max output size for a compression bomb.
-const DEFAULT_BOMB_LIMIT: i32 = 1_048_576;
-/// Upper limit to max output size for a compression bomb.
-const MAX_BOMB_LIMIT: i32 = std::i32::MAX;
+const DEFAULT_LZMA_LAYERS: u32 = 1;
+/// Default max output size for a compression bomb in bytes (1 MB default).
+const DEFAULT_BOMB_LIMIT: u64 = 1_048_576;
 /// Default compressed-to-decrompressed ratio that should not be exceeded during decompression.
-const DEFAULT_BOMB_RATIO: i64 = 2048;
+const DEFAULT_BOMB_RATIO: u64 = 2048;
 /// Default time limit for a decompression bomb in microseconds.
 const DEFAULT_TIME_LIMIT: u32 = 100_000;
 /// Default number of iterations before checking the time limit.
 const DEFAULT_TIME_FREQ_TEST: u32 = 256;
 /// Default number of layers that will be decompressed
-const DEFAULT_LAYER_LIMIT: usize = 2;
+const DEFAULT_LAYER_LIMIT: u32 = 2;
 
 #[derive(Copy, Clone)]
 /// Decompression options
@@ -27,17 +27,17 @@ pub struct Options {
     /// lzma options or None to disable lzma.
     lzma: Option<lzma_rs::decompress::Options>,
     /// Max number of LZMA layers to pass to the decompressor.
-    lzma_layers: Option<usize>,
+    lzma_layers: Option<u32>,
     /// max output size for a compression bomb.
-    bomb_limit: i32,
+    bomb_limit: u64,
     /// max compressed-to-decrompressed ratio that should not be exceeded during decompression.
-    bomb_ratio: i64,
+    bomb_ratio: u64,
     /// max time for a decompression bomb in microseconds.
     time_limit: u32,
     /// number of iterations to before checking the time_limit.
     time_test_freq: u32,
     /// Max number of layers of compression we will decompress
-    layer_limit: Option<usize>,
+    layer_limit: Option<u32>,
 }
 
 impl Options {
@@ -67,38 +67,32 @@ impl Options {
     }
 
     /// Configures the maximum layers passed to lzma-rs.
-    pub fn set_lzma_layers(&mut self, layers: Option<usize>) {
+    pub fn set_lzma_layers(&mut self, layers: Option<u32>) {
         self.lzma_layers = layers;
     }
 
     /// Gets the maximum layers passed to lzma-rs.
-    pub fn get_lzma_layers(&self) -> Option<usize> {
+    pub fn get_lzma_layers(&self) -> Option<u32> {
         self.lzma_layers
     }
 
     /// Get the compression bomb limit.
-    pub fn get_bomb_limit(&self) -> i32 {
+    pub fn get_bomb_limit(&self) -> u64 {
         self.bomb_limit
     }
 
     /// Set the compression bomb limit.
-    ///
-    /// The limit will be set to `MAX_BOMB_LIMIT` if the provided arg exceeds this value.
-    pub fn set_bomb_limit(&mut self, bomblimit: usize) {
-        if bomblimit > MAX_BOMB_LIMIT as usize {
-            self.bomb_limit = MAX_BOMB_LIMIT;
-        } else {
-            self.bomb_limit = bomblimit as i32
-        };
+    pub fn set_bomb_limit(&mut self, bomblimit: u64) {
+        self.bomb_limit = bomblimit;
     }
 
     /// Get the bomb ratio.
-    pub fn get_bomb_ratio(&self) -> i64 {
+    pub fn get_bomb_ratio(&self) -> u64 {
         self.bomb_ratio
     }
 
     /// Set the bomb ratio.
-    pub fn set_bomb_ratio(&mut self, bomb_ratio: i64) {
+    pub fn set_bomb_ratio(&mut self, bomb_ratio: u64) {
         self.bomb_ratio = bomb_ratio;
     }
 
@@ -123,12 +117,12 @@ impl Options {
     }
 
     /// Get the decompression layer limit.
-    pub fn get_layer_limit(&self) -> Option<usize> {
+    pub fn get_layer_limit(&self) -> Option<u32> {
         self.layer_limit
     }
 
     /// Set the decompression layer limit.
-    pub fn set_layer_limit(&mut self, layer_limit: Option<usize>) {
+    pub fn set_layer_limit(&mut self, layer_limit: Option<u32>) {
         self.layer_limit = layer_limit;
     }
 }
@@ -316,7 +310,9 @@ impl Decompressor {
         let now = Instant::now();
         if let Some(time_before) = self.time_before.replace(now) {
             // it is unlikely that more than 2^64 will be spent on a single stream
-            self.time_spent += now.duration_since(time_before).as_micros() as u64;
+            self.time_spent = self
+                .time_spent
+                .wrapping_add(now.duration_since(time_before).as_micros() as u64);
             Some(self.time_spent)
         } else {
             None

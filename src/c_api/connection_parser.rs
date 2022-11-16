@@ -6,7 +6,10 @@ use crate::{
     transaction::Transaction,
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
-use std::{convert::TryFrom, ffi::CStr};
+use std::{
+    convert::{TryFrom, TryInto},
+    ffi::CStr,
+};
 
 /// Closes the connection associated with the supplied parser.
 ///
@@ -115,22 +118,14 @@ pub unsafe extern "C" fn htp_connp_open(
                     .ok()
                     .and_then(|val| val.parse().ok())
             }),
-            if client_port >= 0 || client_port <= std::u16::MAX as libc::c_int {
-                Some(client_port as u16)
-            } else {
-                None
-            },
+            client_port.try_into().ok(),
             server_addr.as_ref().and_then(|server_addr| {
                 CStr::from_ptr(server_addr)
                     .to_str()
                     .ok()
                     .and_then(|val| val.parse().ok())
             }),
-            if server_port >= 0 || server_port <= std::u16::MAX as libc::c_int {
-                Some(server_port as u16)
-            } else {
-                None
-            },
+            server_port.try_into().ok(),
             timestamp
                 .as_ref()
                 .map(|val| {
@@ -322,7 +317,7 @@ pub unsafe extern "C" fn htp_connp_flush_incomplete_transactions(connp: *mut Con
 pub unsafe extern "C" fn htp_connp_request_data_consumed(connp: *const ConnectionParser) -> i64 {
     connp
         .as_ref()
-        .map(|connp| connp.request_data_consumed())
+        .map(|connp| connp.request_data_consumed().try_into().ok().unwrap_or(-1))
         .unwrap_or(-1)
 }
 
@@ -339,6 +334,6 @@ pub unsafe extern "C" fn htp_connp_request_data_consumed(connp: *const Connectio
 pub unsafe extern "C" fn htp_connp_response_data_consumed(connp: *const ConnectionParser) -> i64 {
     connp
         .as_ref()
-        .map(|connp| connp.response_data_consumed())
+        .map(|connp| connp.response_data_consumed().try_into().ok().unwrap_or(-1))
         .unwrap_or(-1)
 }

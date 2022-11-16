@@ -3,7 +3,10 @@ use crate::{
     connection_parser::ConnectionParser, decompressors::HtpContentEncoding,
     hook::DataExternalCallbackFn, request::HtpMethod, transaction::*, uri::Uri,
 };
-use std::{convert::TryFrom, rc::Rc};
+use std::{
+    convert::{TryFrom, TryInto},
+    rc::Rc,
+};
 
 /// Destroys the supplied transaction.
 /// # Safety
@@ -329,7 +332,7 @@ pub unsafe extern "C" fn htp_tx_request_content_length(tx: *const Transaction) -
     tx.as_ref()
         .map(|tx| {
             tx.request_content_length
-                .map(|len| len as i64)
+                .map(|len| len.try_into().ok().unwrap_or(-1))
                 .unwrap_or(-1)
         })
         .unwrap_or(-1)
@@ -388,7 +391,9 @@ pub unsafe extern "C" fn htp_tx_request_port_number(tx: *const Transaction) -> i
 /// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_message_len(tx: *const Transaction) -> i64 {
-    tx.as_ref().map(|tx| tx.request_message_len).unwrap_or(-1)
+    tx.as_ref()
+        .map(|tx| tx.request_message_len.try_into().ok().unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's request entity length.
@@ -400,7 +405,9 @@ pub unsafe extern "C" fn htp_tx_request_message_len(tx: *const Transaction) -> i
 /// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_request_entity_len(tx: *const Transaction) -> i64 {
-    tx.as_ref().map(|tx| tx.request_entity_len).unwrap_or(-1)
+    tx.as_ref()
+        .map(|tx| tx.request_entity_len.try_into().ok().unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's response line.
@@ -586,7 +593,9 @@ pub unsafe extern "C" fn htp_tx_response_header_index(
 /// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_message_len(tx: *const Transaction) -> i64 {
-    tx.as_ref().map(|tx| tx.response_message_len).unwrap_or(-1)
+    tx.as_ref()
+        .map(|tx| tx.response_message_len.try_into().ok().unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's response entity length.
@@ -598,7 +607,9 @@ pub unsafe extern "C" fn htp_tx_response_message_len(tx: *const Transaction) -> 
 /// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_tx_response_entity_len(tx: *const Transaction) -> i64 {
-    tx.as_ref().map(|tx| tx.response_entity_len).unwrap_or(-1)
+    tx.as_ref()
+        .map(|tx| tx.response_entity_len.try_into().ok().unwrap_or(-1))
+        .unwrap_or(-1)
 }
 
 /// Get a transaction's response content length.
@@ -613,7 +624,7 @@ pub unsafe extern "C" fn htp_tx_response_content_length(tx: *const Transaction) 
     tx.as_ref()
         .map(|tx| {
             tx.response_content_length
-                .map(|len| len as i64)
+                .map(|len| len.try_into().ok().unwrap_or(-1))
                 .unwrap_or(-1)
         })
         .unwrap_or(-1)

@@ -40,9 +40,9 @@ pub struct Connection {
     /// When was this connection closed?
     pub close_timestamp: DateTime<Utc>,
     /// Inbound data counter.
-    pub request_data_counter: i64,
+    pub request_data_counter: u64,
     /// Outbound data counter.
-    pub response_data_counter: i64,
+    pub response_data_counter: u64,
 }
 
 impl Default for Connection {
@@ -95,14 +95,12 @@ impl Connection {
 
     /// Keeps track of inbound packets and data.
     pub fn track_inbound_data(&mut self, len: usize) {
-        self.request_data_counter =
-            (self.request_data_counter as u64).wrapping_add(len as u64) as i64;
+        self.request_data_counter = (self.request_data_counter).wrapping_add(len as u64);
     }
 
     /// Keeps track of outbound packets and data.
     pub fn track_outbound_data(&mut self, len: usize) {
-        self.response_data_counter =
-            (self.response_data_counter as u64).wrapping_add(len as u64) as i64;
+        self.response_data_counter = (self.response_data_counter).wrapping_add(len as u64);
     }
 
     /// Return the log channel sender

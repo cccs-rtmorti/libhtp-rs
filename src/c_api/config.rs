@@ -4,6 +4,7 @@ use crate::{
     hook::{DataExternalCallbackFn, LogExternalCallbackFn, TxExternalCallbackFn},
     HtpStatus,
 };
+use std::convert::TryInto;
 
 /// Creates a new configuration structure. Configuration structures created at
 /// configuration time must not be changed afterwards in order to support lock-less
@@ -280,8 +281,10 @@ pub unsafe extern "C" fn htp_config_set_compression_bomb_limit(
     cfg: *mut Config,
     bomblimit: libc::size_t,
 ) {
-    if let Some(cfg) = cfg.as_mut() {
-        cfg.compression_options.set_bomb_limit(bomblimit)
+    if let Ok(bomblimit) = bomblimit.try_into() {
+        if let Some(cfg) = cfg.as_mut() {
+            cfg.compression_options.set_bomb_limit(bomblimit)
+        }
     }
 }
 
@@ -340,7 +343,7 @@ pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut Config, limit: lib
         cfg.compression_options.set_lzma_layers(if limit <= 0 {
             None
         } else {
-            Some(limit as usize)
+            limit.try_into().ok()
         })
     }
 }
@@ -452,7 +455,7 @@ pub unsafe extern "C" fn htp_config_set_decompression_layer_limit(
         cfg.set_decompression_layer_limit(if limit <= 0 {
             None
         } else {
-            Some(limit as usize)
+            limit.try_into().ok()
         })
     }
 }

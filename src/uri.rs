@@ -245,42 +245,50 @@ impl Uri {
         // On the first pass determine the length of the final bstrs
         let mut partial_len = 0usize;
         let mut complete_len = 0usize;
-        complete_len += self
-            .scheme
-            .as_ref()
-            .map(|scheme| scheme.len() + 3)
-            .unwrap_or(0); // '://'
-        complete_len += self
-            .username
-            .as_ref()
-            .map(|username| username.len())
-            .unwrap_or(0);
-        complete_len += self
-            .password
-            .as_ref()
-            .map(|password| password.len())
-            .unwrap_or(0);
+        complete_len = complete_len.wrapping_add(
+            self.scheme
+                .as_ref()
+                .map(|scheme| scheme.len() + 3)
+                .unwrap_or(0),
+        ); // '://'
+        complete_len = complete_len.wrapping_add(
+            self.username
+                .as_ref()
+                .map(|username| username.len())
+                .unwrap_or(0),
+        );
+        complete_len = complete_len.wrapping_add(
+            self.password
+                .as_ref()
+                .map(|password| password.len())
+                .unwrap_or(0),
+        );
         if self.username.is_some() || self.password.is_some() {
-            complete_len += 2; // ':' and '@'
+            complete_len = complete_len.wrapping_add(2); // ':' and '@'
         }
-        complete_len += self
-            .hostname
-            .as_ref()
-            .map(|hostname| hostname.len())
-            .unwrap_or(0);
-        complete_len += self.port.as_ref().map(|port| port.len()).unwrap_or(0); // ':'
-        partial_len += self.path.as_ref().map(|path| path.len()).unwrap_or(0);
-        partial_len += self
-            .query
-            .as_ref()
-            .map(|query| query.len() + 1)
-            .unwrap_or(0); // ?
-        partial_len += self
-            .fragment
-            .as_ref()
-            .map(|fragment| fragment.len() + 1)
-            .unwrap_or(0); // #
-        complete_len += partial_len;
+        complete_len = complete_len.wrapping_add(
+            self.hostname
+                .as_ref()
+                .map(|hostname| hostname.len())
+                .unwrap_or(0),
+        );
+        complete_len =
+            complete_len.wrapping_add(self.port.as_ref().map(|port| port.len()).unwrap_or(0)); // ':'
+        partial_len =
+            partial_len.wrapping_add(self.path.as_ref().map(|path| path.len()).unwrap_or(0));
+        partial_len = partial_len.wrapping_add(
+            self.query
+                .as_ref()
+                .map(|query| query.len() + 1)
+                .unwrap_or(0),
+        ); // ?
+        partial_len = partial_len.wrapping_add(
+            self.fragment
+                .as_ref()
+                .map(|fragment| fragment.len() + 1)
+                .unwrap_or(0),
+        ); // #
+        complete_len = complete_len.wrapping_add(partial_len);
         // On the second pass construct the string
         let mut normalized_uri = Bstr::with_capacity(complete_len);
         let mut partial_normalized_uri = Bstr::with_capacity(partial_len);

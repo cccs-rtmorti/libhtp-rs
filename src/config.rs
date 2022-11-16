@@ -654,7 +654,7 @@ impl Config {
     }
 
     /// Configures many layers of compression we try to decompress.
-    pub fn set_decompression_layer_limit(&mut self, limit: Option<usize>) {
+    pub fn set_decompression_layer_limit(&mut self, limit: Option<u32>) {
         self.compression_options.set_layer_limit(limit);
     }
 }

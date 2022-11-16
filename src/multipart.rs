@@ -290,7 +290,7 @@ impl Parser {
         // End of the line.
         let mut line: Option<Bstr> = None;
         // Keep track of raw part length.
-        self.get_current_part()?.len += to_consume.len();
+        self.get_current_part()?.len = self.get_current_part()?.len.wrapping_add(to_consume.len());
         // If we're processing a part that came after the last boundary, then we're not sure if it
         // is the epilogue part or some other part (in case of evasion attempt). For that reason we
         // will keep all its data in the part_data_pieces structure. If it ends up not being the
@@ -605,7 +605,7 @@ impl Parser {
                 // Process stored (buffered) data.
                 self.process_aside(true);
                 // Keep track of how many boundaries we've seen.
-                self.multipart.boundary_count += 1;
+                self.multipart.boundary_count = self.multipart.boundary_count.wrapping_add(1);
                 if self.multipart.flags.is_set(Flags::SEEN_LAST_BOUNDARY) {
                     self.multipart.flags.set(Flags::PART_AFTER_LAST_BOUNDARY)
                 }
@@ -959,7 +959,7 @@ pub struct Multipart {
     /// Boundary length.
     pub boundary_len: usize,
     /// How many boundaries were there?
-    pub boundary_count: i32,
+    pub boundary_count: u32,
     /// List of parts, in the order in which they appeared in the body.
     pub parts: Vec<Part>,
     /// Parsing flags.

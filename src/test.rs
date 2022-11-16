@@ -8,7 +8,6 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use std::{
-    convert::TryInto,
     env,
     iter::IntoIterator,
     net::{IpAddr, Ipv4Addr},
@@ -147,7 +146,7 @@ pub fn TestConfig() -> Config {
     cfg.set_server_personality(HtpServerPersonality::APACHE_2)
         .unwrap();
     // The default bomb limit may be slow in some development environments causing tests to fail.
-    cfg.compression_options.set_time_limit(std::u32::MAX);
+    cfg.compression_options.set_time_limit(u32::MAX);
     cfg.set_parse_urlencoded(true);
     cfg.set_parse_multipart(true);
 
@@ -213,11 +212,7 @@ impl Test {
                     }
 
                     if rc == HtpStreamState::DATA_OTHER {
-                        let consumed = self
-                            .connp
-                            .request_data_consumed()
-                            .try_into()
-                            .expect("Error retrieving number of consumed bytes.");
+                        let consumed = self.connp.request_data_consumed();
                         let remaining = data.clone().into_owned();
                         remaining.consume(consumed);
                         request_buf = Some(remaining);
@@ -242,11 +237,7 @@ impl Test {
                     }
 
                     if rc == HtpStreamState::DATA_OTHER {
-                        let consumed = self
-                            .connp
-                            .response_data_consumed()
-                            .try_into()
-                            .expect("Error retrieving number of consumed bytes.");
+                        let consumed = self.connp.response_data_consumed();
                         let remaining = data.clone().into_owned();
                         remaining.consume(consumed);
                         response_buf = Some(remaining);

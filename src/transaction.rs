@@ -349,14 +349,14 @@ pub struct Transaction {
     /// request_message_len contains the length of the request body as it
     /// has been seen over TCP; request_entity_len contains length after
     /// de-chunking and decompression.
-    pub request_message_len: i64,
+    pub request_message_len: u64,
     /// The length of the request entity-body. In most cases, this value
     /// will be the same as request_message_len. The values will be different
     /// if request compression or chunking were applied. In that case,
     /// request_message_len contains the length of the request body as it
     /// has been seen over TCP; request_entity_len contains length after
     /// de-chunking and decompression.
-    pub request_entity_len: i64,
+    pub request_entity_len: u64,
     /// Parsed request headers.
     pub request_headers: Headers,
     /// Request transfer coding. Can be one of UNKNOWN (body presence not
@@ -466,14 +466,14 @@ pub struct Transaction {
     /// response_message_len contains the length of the response body as it
     /// has been seen over TCP; response_entity_len contains the length after
     /// de-chunking and decompression.
-    pub response_message_len: i64,
+    pub response_message_len: u64,
     /// The length of the response entity-body. In most cases, this value
     /// will be the same as response_message_len. The values will be different
     /// if request compression or chunking were applied. In that case,
     /// response_message_len contains the length of the response body as it
     /// has been seen over TCP; response_entity_len contains length after
     /// de-chunking and decompression.
-    pub response_entity_len: i64,
+    pub response_entity_len: u64,
     /// Contains the value specified in the Content-Length header. The value of this
     /// field will be -1 from the beginning of the transaction and until response
     /// headers are processed. It will stay None if the C-L header was not provided,

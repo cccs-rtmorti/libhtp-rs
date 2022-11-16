@@ -75,14 +75,14 @@ pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option
 
 /// Parses chunked length (positive hexadecimal number). White space is allowed before
 /// and after the number.
-pub fn parse_chunked_length(input: &[u8]) -> Result<Option<u32>> {
+pub fn parse_chunked_length(input: &[u8]) -> Result<Option<u64>> {
     let (rest, _) = take_chunked_ctl_chars(input)?;
     let (trailing_data, chunked_length) = hex_digits()(rest)?;
     if trailing_data.is_empty() && chunked_length.is_empty() {
         return Ok(None);
     }
     Ok(Some(
-        u32::from_str_radix(
+        u64::from_str_radix(
             std::str::from_utf8(chunked_length).map_err(|_| HtpStatus::ERROR)?,
             16,
         )
@@ -719,7 +719,7 @@ mod test {
     #[case("12a5", Some(0x12a5))]
     #[case("    \t12a5    ", Some(0x12a5))]
     #[case("    \t    ", None)]
-    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: Option<u32>) {
+    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: Option<u64>) {
         assert_eq!(parse_chunked_length(input.as_bytes()).unwrap(), expected);
     }
 

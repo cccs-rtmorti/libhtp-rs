@@ -5,7 +5,6 @@ use htp::{
     connection_parser::*,
 };
 use std::{
-    convert::TryInto,
     fmt,
     iter::IntoIterator,
     net::{IpAddr, Ipv4Addr},
@@ -82,11 +81,7 @@ impl Test {
 
                     if rc == HtpStreamState::DATA_OTHER {
                         // HTP_STREAM_DATA_OTHER = 5
-                        let consumed = self
-                            .connp
-                            .request_data_consumed()
-                            .try_into()
-                            .expect("Error retrieving number of consumed bytes.");
+                        let consumed = self.connp.request_data_consumed();
                         let mut remaining = Vec::with_capacity(data.len() - consumed);
                         remaining.extend_from_slice(&data[consumed..]);
                         request_buf = Some(remaining);
@@ -111,11 +106,7 @@ impl Test {
                     }
 
                     if rc == HtpStreamState::DATA_OTHER {
-                        let consumed = self
-                            .connp
-                            .response_data_consumed()
-                            .try_into()
-                            .expect("Error retrieving number of consumed bytes.");
+                        let consumed = self.connp.response_data_consumed();
                         let mut remaining = Vec::with_capacity(data.len() - consumed);
                         remaining.extend_from_slice(&data[consumed..]);
                         response_buf = Some(remaining);
