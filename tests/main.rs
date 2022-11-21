@@ -2,7 +2,7 @@
 use htp::{
     bstr::Bstr,
     config::HtpServerPersonality,
-    connection::Flags as ConnectionFlags,
+    connection::ConnectionFlags,
     connection_parser::ParserData,
     error::Result,
     log::{HtpLogCode, HtpLogLevel},

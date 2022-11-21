@@ -6,11 +6,12 @@ use std::{
     time::SystemTime,
 };
 
-/// Export Connection Flags
-pub struct Flags;
+/// Export Connection ConnectionFlags
+#[repr(C)]
+pub struct ConnectionFlags;
 
 /// `Connection` Flags
-impl Flags {
+impl ConnectionFlags {
     /// Default, no flags raised.
     pub const UNKNOWN: u8 = 0x00;
     /// Seen pipelined requests.

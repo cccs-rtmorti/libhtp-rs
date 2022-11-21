@@ -93,7 +93,7 @@ impl Test {
         self.parseRequest(headers, data);
         assert_eq!(3, self.body().parts.len());
 
-        assert!(!self.body().flags.is_set(Flags::INCOMPLETE));
+        assert!(!self.body().flags.is_set(MultipartFlags::INCOMPLETE));
 
         // Field 1
         let field1 = self.body().parts.get(0);
@@ -236,7 +236,7 @@ fn Test1() {
     assert!(part.name.eq_slice("file2"));
     assert_eq!(HtpMultipartType::FILE, part.type_0);
 
-    assert!(!t.body().flags.is_set(Flags::PART_INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::PART_INCOMPLETE));
 }
 
 #[test]
@@ -288,7 +288,7 @@ fn Test2() {
     assert_eq!(HtpMultipartType::UNKNOWN, part.type_0);
     assert!(part.value.eq_slice("x5555x\r\n--x6666x\r--"));
 
-    assert!(t.body().flags.is_set(Flags::INCOMPLETE));
+    assert!(t.body().flags.is_set(MultipartFlags::INCOMPLETE));
 }
 
 #[test]
@@ -425,8 +425,8 @@ fn CrLfLineEndings() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(!t.body().flags.is_set(Flags::LF_LINE));
-    assert!(t.body().flags.is_set(Flags::CRLF_LINE));
+    assert!(!t.body().flags.is_set(MultipartFlags::LF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::CRLF_LINE));
 }
 
 #[test]
@@ -446,8 +446,8 @@ fn LfLineEndings() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::LF_LINE));
-    assert!(!t.body().flags.is_set(Flags::CRLF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::LF_LINE));
+    assert!(!t.body().flags.is_set(MultipartFlags::CRLF_LINE));
 }
 
 #[test]
@@ -467,8 +467,8 @@ fn CrAndLfLineEndings1() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::LF_LINE));
-    assert!(t.body().flags.is_set(Flags::CRLF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::LF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::CRLF_LINE));
 }
 
 #[test]
@@ -488,8 +488,8 @@ fn CrAndLfLineEndings2() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::LF_LINE));
-    assert!(t.body().flags.is_set(Flags::CRLF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::LF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::CRLF_LINE));
 }
 
 #[test]
@@ -509,8 +509,8 @@ fn CrAndLfLineEndings3() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::LF_LINE));
-    assert!(t.body().flags.is_set(Flags::CRLF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::LF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::CRLF_LINE));
 }
 
 #[test]
@@ -530,8 +530,8 @@ fn CrAndLfLineEndings4() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::LF_LINE));
-    assert!(t.body().flags.is_set(Flags::CRLF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::LF_LINE));
+    assert!(t.body().flags.is_set(MultipartFlags::CRLF_LINE));
 }
 
 #[test]
@@ -551,7 +551,7 @@ fn BoundaryInstanceWithLwsAfter() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::BBOUNDARY_LWS_AFTER));
+    assert!(t.body().flags.is_set(MultipartFlags::BBOUNDARY_LWS_AFTER));
 }
 
 #[test]
@@ -571,7 +571,7 @@ fn BoundaryInstanceWithNonLwsAfter1() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::BBOUNDARY_NLWS_AFTER));
+    assert!(t.body().flags.is_set(MultipartFlags::BBOUNDARY_NLWS_AFTER));
 }
 
 #[test]
@@ -591,7 +591,7 @@ fn BoundaryInstanceWithNonLwsAfter2() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::BBOUNDARY_NLWS_AFTER));
+    assert!(t.body().flags.is_set(MultipartFlags::BBOUNDARY_NLWS_AFTER));
 }
 
 #[test]
@@ -611,7 +611,7 @@ fn BoundaryInstanceWithNonLwsAfter3() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::BBOUNDARY_NLWS_AFTER));
+    assert!(t.body().flags.is_set(MultipartFlags::BBOUNDARY_NLWS_AFTER));
 }
 
 #[test]
@@ -634,7 +634,7 @@ fn WithPreamble() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::HAS_PREAMBLE));
+    assert!(t.body().flags.is_set(MultipartFlags::HAS_PREAMBLE));
 
     let part = t.body().parts.get(0);
     assert!(part.is_some());
@@ -663,15 +663,15 @@ fn WithEpilogue1() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::HAS_EPILOGUE));
+    assert!(t.body().flags.is_set(MultipartFlags::HAS_EPILOGUE));
 
     let part = t.body().parts.get(2);
     assert!(part.is_some());
     let part = part.unwrap();
     assert_eq!(HtpMultipartType::EPILOGUE, part.type_0);
     assert!(part.value.eq_slice("Epilogue"));
-    assert!(!t.body().flags.is_set(Flags::INCOMPLETE));
-    assert!(!t.body().flags.is_set(Flags::PART_INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::PART_INCOMPLETE));
 }
 
 #[test]
@@ -694,13 +694,13 @@ fn WithEpilogue2() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::HAS_EPILOGUE));
+    assert!(t.body().flags.is_set(MultipartFlags::HAS_EPILOGUE));
 
     let part = t.body().parts.get(2).unwrap();
     assert_eq!(HtpMultipartType::EPILOGUE, part.type_0);
     assert!(part.value.eq_slice("Epi\nlogue"));
-    assert!(!t.body().flags.is_set(Flags::INCOMPLETE));
-    assert!(!t.body().flags.is_set(Flags::PART_INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::PART_INCOMPLETE));
 }
 
 #[test]
@@ -724,13 +724,13 @@ fn WithEpilogue3() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::HAS_EPILOGUE));
+    assert!(t.body().flags.is_set(MultipartFlags::HAS_EPILOGUE));
 
     let part = t.body().parts.get(2).unwrap();
     assert_eq!(HtpMultipartType::EPILOGUE, part.type_0);
     assert!(part.value.eq_slice("Epi\r\n--logue"));
-    assert!(!t.body().flags.is_set(Flags::INCOMPLETE));
-    assert!(!t.body().flags.is_set(Flags::PART_INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::PART_INCOMPLETE));
 }
 
 #[test]
@@ -755,7 +755,7 @@ fn WithEpilogue4() {
 
     assert_eq!(4, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::HAS_EPILOGUE));
+    assert!(t.body().flags.is_set(MultipartFlags::HAS_EPILOGUE));
 
     let ep1 = t.body().parts.get(2);
     assert!(ep1.is_some());
@@ -769,8 +769,8 @@ fn WithEpilogue4() {
     assert_eq!(HtpMultipartType::EPILOGUE, ep2.type_0);
     assert!(ep2.value.eq_slice("Epilogue2"));
 
-    assert!(!t.body().flags.is_set(Flags::INCOMPLETE));
-    assert!(!t.body().flags.is_set(Flags::PART_INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::INCOMPLETE));
+    assert!(!t.body().flags.is_set(MultipartFlags::PART_INCOMPLETE));
 }
 
 #[test]
@@ -792,7 +792,7 @@ fn HasLastBoundary() {
 
     assert_eq!(2, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::SEEN_LAST_BOUNDARY));
+    assert!(t.body().flags.is_set(MultipartFlags::SEEN_LAST_BOUNDARY));
 }
 
 #[test]
@@ -812,7 +812,7 @@ fn DoesNotHaveLastBoundary() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(!t.body().flags.is_set(Flags::SEEN_LAST_BOUNDARY));
+    assert!(!t.body().flags.is_set(MultipartFlags::SEEN_LAST_BOUNDARY));
 }
 
 #[test]
@@ -832,7 +832,7 @@ fn PartAfterLastBoundary() {
 
     t.parsePartsThenVerify(&parts);
 
-    assert!(t.body().flags.is_set(Flags::SEEN_LAST_BOUNDARY));
+    assert!(t.body().flags.is_set(MultipartFlags::SEEN_LAST_BOUNDARY));
 }
 
 #[test]
@@ -986,7 +986,7 @@ fn CompleteRequest() {
 
     t.parseRequestThenVerify(&headers, &data);
 
-    assert!(!t.body().flags.is_set(Flags::PART_HEADER_FOLDING));
+    assert!(!t.body().flags.is_set(MultipartFlags::PART_HEADER_FOLDING));
 }
 
 #[test]
@@ -1019,8 +1019,8 @@ fn InvalidHeader1() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_INVALID));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1053,8 +1053,8 @@ fn InvalidHeader2() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_INVALID));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1087,8 +1087,8 @@ fn InvalidHeader3() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_INVALID));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1121,8 +1121,8 @@ fn InvalidHeader4() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_INVALID));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1155,8 +1155,8 @@ fn InvalidHeader5() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_INVALID));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1189,8 +1189,8 @@ fn InvalidHeader6() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_INVALID));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1222,8 +1222,8 @@ fn NullByte() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::NUL_BYTE));
-    assert!(t.body().flags.is_set(Flags::INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::NUL_BYTE));
+    assert!(t.body().flags.is_set(MultipartFlags::INVALID));
 }
 
 #[test]
@@ -1325,7 +1325,7 @@ fn BoundaryInvalid() {
     for input in inputs {
         let mut flags: u64 = 0;
         find_boundary(input, &mut flags);
-        assert!(flags.is_set(Flags::HBOUNDARY_INVALID));
+        assert!(flags.is_set(MultipartFlags::HBOUNDARY_INVALID));
     }
 }
 
@@ -1342,7 +1342,7 @@ fn BoundaryUnusual() {
     for input in inputs {
         let mut flags: u64 = 0;
         assert!(find_boundary(input, &mut flags).is_some());
-        assert!(flags.is_set(Flags::HBOUNDARY_UNUSUAL));
+        assert!(flags.is_set(MultipartFlags::HBOUNDARY_UNUSUAL));
     }
 }
 
@@ -1403,7 +1403,7 @@ fn FoldedContentDisposition() {
 
     t.parseRequestThenVerify(&headers, &data);
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_FOLDING));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_FOLDING));
 }
 
 #[test]
@@ -1433,7 +1433,7 @@ fn FoldedContentDisposition2() {
 
     t.parseRequestThenVerify(&headers, &data);
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_FOLDING));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_FOLDING));
 }
 
 #[test]
@@ -1471,8 +1471,8 @@ fn InvalidPartNoData() {
         t.body().parts.get(0).unwrap().type_0
     );
 
-    assert!(t.body().flags.is_set(Flags::PART_INCOMPLETE));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INCOMPLETE));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1505,8 +1505,8 @@ fn InvalidPartNoContentDisposition() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::PART_UNKNOWN));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_UNKNOWN));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1540,8 +1540,8 @@ fn InvalidPartMultipleCD() {
 
     t.parseRequestThenVerify(&headers, &data);
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_REPEATED));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_REPEATED));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1573,8 +1573,8 @@ fn InvalidPartUnknownHeader() {
 
     t.parseRequestThenVerify(&headers, &data);
 
-    assert!(t.body().flags.is_set(Flags::PART_HEADER_UNKNOWN));
-    assert!(t.body().flags.is_set(Flags::PART_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_HEADER_UNKNOWN));
+    assert!(t.body().flags.is_set(MultipartFlags::PART_INVALID));
 }
 
 #[test]
@@ -1607,8 +1607,8 @@ fn InvalidContentDispositionMultipleParams1() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::CD_PARAM_REPEATED));
-    assert!(t.body().flags.is_set(Flags::CD_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::CD_PARAM_REPEATED));
+    assert!(t.body().flags.is_set(MultipartFlags::CD_INVALID));
 }
 
 #[test]
@@ -1641,8 +1641,8 @@ fn InvalidContentDispositionMultipleParams2() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::CD_PARAM_REPEATED));
-    assert!(t.body().flags.is_set(Flags::CD_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::CD_PARAM_REPEATED));
+    assert!(t.body().flags.is_set(MultipartFlags::CD_INVALID));
 }
 
 #[test]
@@ -1675,8 +1675,8 @@ fn InvalidContentDispositionUnknownParam() {
 
     assert_eq!(3, t.body().parts.len());
 
-    assert!(t.body().flags.is_set(Flags::CD_PARAM_UNKNOWN));
-    assert!(t.body().flags.is_set(Flags::CD_INVALID));
+    assert!(t.body().flags.is_set(MultipartFlags::CD_PARAM_UNKNOWN));
+    assert!(t.body().flags.is_set(MultipartFlags::CD_INVALID));
 }
 
 #[test]
@@ -1720,8 +1720,11 @@ fn InvalidContentDispositionSyntax() {
         let header = Header::new(b"Content-Disposition".to_vec().into(), input.into());
         part.headers.add(header.name.clone(), header);
         assert_err!(parser.parse_content_disposition(), HtpStatus::DECLINED);
-        assert!(parser.multipart.flags.is_set(Flags::CD_SYNTAX_INVALID));
-        assert!(parser.multipart.flags.is_set(Flags::CD_INVALID));
+        assert!(parser
+            .multipart
+            .flags
+            .is_set(MultipartFlags::CD_SYNTAX_INVALID));
+        assert!(parser.multipart.flags.is_set(MultipartFlags::CD_INVALID));
     }
 }
 
@@ -1752,7 +1755,7 @@ fn ParamValueEscaping() {
     t.parseRequest(&headers, &data);
     assert_eq!(3, t.body().parts.len());
 
-    assert!(!t.body().flags.is_set(Flags::CD_INVALID));
+    assert!(!t.body().flags.is_set(MultipartFlags::CD_INVALID));
 
     let field1 = t.body().parts.get(0);
     assert!(field1.is_some());
