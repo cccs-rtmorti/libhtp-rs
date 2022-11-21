@@ -2,7 +2,7 @@ use crate::{
     bstr::Bstr,
     config::{Config, MultipartConfig},
     error::{NomError, Result},
-    headers::{Flags as HeaderFlags, Parser as HeadersParser, Side},
+    headers::{HeaderFlags, Parser as HeadersParser, Side},
     hook::FileDataHook,
     parsers::parse_content_type,
     table::Table,
@@ -28,9 +28,10 @@ use std::rc::Rc;
 
 /// Export Multipart flags.
 #[derive(Debug)]
-pub struct Flags;
+#[repr(C)]
+pub struct MultipartFlags;
 
-impl Flags {
+impl MultipartFlags {
     /// Seen a LF line in the payload. LF lines are not allowed, but
     /// some clients do use them and some backends do accept them. Mixing
     /// LF and CRLF lines within some payload might be unusual.
@@ -263,7 +264,7 @@ impl Parser {
             // Set current part.
             if self.multipart.boundary_count == 0 {
                 part.type_0 = HtpMultipartType::PREAMBLE;
-                self.multipart.flags.set(Flags::HAS_PREAMBLE);
+                self.multipart.flags.set(MultipartFlags::HAS_PREAMBLE);
                 self.current_part_mode = HtpMultipartMode::DATA
             } else {
                 // Part after preamble.
@@ -295,7 +296,10 @@ impl Parser {
         // is the epilogue part or some other part (in case of evasion attempt). For that reason we
         // will keep all its data in the part_data_pieces structure. If it ends up not being the
         // epilogue, this structure will be cleared.
-        if self.multipart.flags.is_set(Flags::SEEN_LAST_BOUNDARY)
+        if self
+            .multipart
+            .flags
+            .is_set(MultipartFlags::SEEN_LAST_BOUNDARY)
             && self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN
         {
             self.part_data_pieces.add(to_consume);
@@ -463,7 +467,7 @@ impl Parser {
             self.finalize_part_data()?;
             // It is OK to end abruptly in the epilogue part, but not in any other.
             if self.get_current_part()?.type_0 != HtpMultipartType::EPILOGUE {
-                self.multipart.flags.set(Flags::INCOMPLETE)
+                self.multipart.flags.set(MultipartFlags::INCOMPLETE)
             }
         }
         self.boundary_candidate.clear();
@@ -473,19 +477,25 @@ impl Parser {
     /// Finalizes part processing.
     fn finalize_part_data(&mut self) -> Result<()> {
         // Determine if this part is the epilogue.
-        if self.multipart.flags.is_set(Flags::SEEN_LAST_BOUNDARY) {
+        if self
+            .multipart
+            .flags
+            .is_set(MultipartFlags::SEEN_LAST_BOUNDARY)
+        {
             if self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN {
                 // Assume that the unknown part after the last boundary is the epilogue.
                 self.get_current_part()?.type_0 = HtpMultipartType::EPILOGUE;
 
                 // But if we've already seen a part we thought was the epilogue,
                 // raise PART_UNKNOWN. Multiple epilogues are not allowed.
-                if self.multipart.flags.is_set(Flags::HAS_EPILOGUE) {
-                    self.multipart.flags.set(Flags::PART_UNKNOWN)
+                if self.multipart.flags.is_set(MultipartFlags::HAS_EPILOGUE) {
+                    self.multipart.flags.set(MultipartFlags::PART_UNKNOWN)
                 }
-                self.multipart.flags.set(Flags::HAS_EPILOGUE)
+                self.multipart.flags.set(MultipartFlags::HAS_EPILOGUE)
             } else {
-                self.multipart.flags.set(Flags::PART_AFTER_LAST_BOUNDARY)
+                self.multipart
+                    .flags
+                    .set(MultipartFlags::PART_AFTER_LAST_BOUNDARY)
             }
         }
         // Sanity checks.
@@ -493,12 +503,12 @@ impl Parser {
         if self.get_current_part()?.type_0 != HtpMultipartType::EPILOGUE
             && self.current_part_mode != HtpMultipartMode::DATA
         {
-            self.multipart.flags.set(Flags::PART_INCOMPLETE)
+            self.multipart.flags.set(MultipartFlags::PART_INCOMPLETE)
         }
         // Have we been able to determine the part type? If not, this means
         // that the part did not contain the C-D header.
         if self.get_current_part()?.type_0 == HtpMultipartType::UNKNOWN {
-            self.multipart.flags.set(Flags::PART_UNKNOWN)
+            self.multipart.flags.set(MultipartFlags::PART_UNKNOWN)
         }
         // Finalize part value.
         if self.get_current_part()?.type_0 == HtpMultipartType::FILE {
@@ -527,7 +537,7 @@ impl Parser {
         {
             if let Ok((left, _)) = tag::<_, _, NomError<&[u8]>>("\r\n")(remaining) {
                 consumed = &input[..consumed.len() + 2];
-                self.multipart.flags.set(Flags::CRLF_LINE);
+                self.multipart.flags.set(MultipartFlags::CRLF_LINE);
                 // Prepare to switch to boundary testing.
                 self.parser_state = HtpMultipartState::BOUNDARY;
                 self.boundary_match_pos = 0;
@@ -555,11 +565,11 @@ impl Parser {
                 // Did we have a CR in the previous input chunk?
                 consumed = &input[..consumed.len() + 1];
                 if !self.cr_aside {
-                    self.multipart.flags.set(Flags::LF_LINE)
+                    self.multipart.flags.set(MultipartFlags::LF_LINE)
                 } else {
                     self.to_consume.add("\r");
                     self.cr_aside = false;
-                    self.multipart.flags.set(Flags::CRLF_LINE)
+                    self.multipart.flags.set(MultipartFlags::CRLF_LINE)
                 }
                 self.to_consume.add(consumed);
                 // Prepare to switch to boundary testing.
@@ -606,8 +616,14 @@ impl Parser {
                 self.process_aside(true);
                 // Keep track of how many boundaries we've seen.
                 self.multipart.boundary_count = self.multipart.boundary_count.wrapping_add(1);
-                if self.multipart.flags.is_set(Flags::SEEN_LAST_BOUNDARY) {
-                    self.multipart.flags.set(Flags::PART_AFTER_LAST_BOUNDARY)
+                if self
+                    .multipart
+                    .flags
+                    .is_set(MultipartFlags::SEEN_LAST_BOUNDARY)
+                {
+                    self.multipart
+                        .flags
+                        .set(MultipartFlags::PART_AFTER_LAST_BOUNDARY)
                 }
                 // Run boundary match.
                 let _ = self.handle_boundary();
@@ -653,14 +669,16 @@ impl Parser {
     fn parse_state_last2<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
         if let Ok((remaining, _)) = char::<_, NomError<&[u8]>>('-')(input) {
             // This is indeed the last boundary in the payload.
-            self.multipart.flags.set(Flags::SEEN_LAST_BOUNDARY);
+            self.multipart.flags.set(MultipartFlags::SEEN_LAST_BOUNDARY);
             self.parser_state = HtpMultipartState::BOUNDARY_EAT_LWS;
             remaining
         } else {
             // The second character is not a dash, and so this is not
             // the final boundary. Raise the flag for the first dash,
             // and change state to consume the rest of the boundary line.
-            self.multipart.flags.set(Flags::BBOUNDARY_NLWS_AFTER);
+            self.multipart
+                .flags
+                .set(MultipartFlags::BBOUNDARY_NLWS_AFTER);
             self.parser_state = HtpMultipartState::BOUNDARY_EAT_LWS;
             input
         }
@@ -671,20 +689,24 @@ impl Parser {
     fn parse_state_lws<'a>(&mut self, input: &'a [u8]) -> &'a [u8] {
         if let Ok((remaining, _)) = tag::<_, _, NomError<&[u8]>>("\r\n")(input) {
             // CRLF line ending; we're done with boundary processing; data bytes follow.
-            self.multipart.flags.set(Flags::CRLF_LINE);
+            self.multipart.flags.set(MultipartFlags::CRLF_LINE);
             self.parser_state = HtpMultipartState::DATA;
             remaining
         } else if let Ok((remaining, byte)) = be_u8::<_, NomError<&[u8]>>(input) {
             if byte == b'\n' {
                 // LF line ending; we're done with boundary processing; data bytes follow.
-                self.multipart.flags.set(Flags::LF_LINE);
+                self.multipart.flags.set(MultipartFlags::LF_LINE);
                 self.parser_state = HtpMultipartState::DATA;
             } else if nom_is_space(byte) {
                 // Linear white space is allowed here.
-                self.multipart.flags.set(Flags::BBOUNDARY_LWS_AFTER);
+                self.multipart
+                    .flags
+                    .set(MultipartFlags::BBOUNDARY_LWS_AFTER);
             } else {
                 // Unexpected byte; consume, but remain in the same state.
-                self.multipart.flags.set(Flags::BBOUNDARY_NLWS_AFTER);
+                self.multipart
+                    .flags
+                    .set(MultipartFlags::BBOUNDARY_NLWS_AFTER);
             }
             remaining
         } else {
@@ -724,7 +746,7 @@ impl Parser {
     fn parse_header(&mut self) -> Result<()> {
         // We do not allow NUL bytes here.
         if self.pending_header_line.as_slice().contains(&(b'\0')) {
-            self.multipart.flags.set(Flags::NUL_BYTE);
+            self.multipart.flags.set(MultipartFlags::NUL_BYTE);
             return Err(HtpStatus::DECLINED);
         }
         // Extract the name and the value
@@ -736,7 +758,9 @@ impl Parser {
                 let value_flags = &header.value.flags;
                 let name_flags = &header.name.flags;
                 if value_flags.is_set(HeaderFlags::FOLDING) {
-                    self.multipart.flags.set(Flags::PART_HEADER_FOLDING)
+                    self.multipart
+                        .flags
+                        .set(MultipartFlags::PART_HEADER_FOLDING)
                 }
                 if value_flags.is_set(HeaderFlags::VALUE_EMPTY)
                     || name_flags.is_set(HeaderFlags::NAME_LEADING_WHITESPACE)
@@ -745,14 +769,18 @@ impl Parser {
                     || name_flags.is_set(HeaderFlags::NAME_TRAILING_WHITESPACE)
                 {
                     // Invalid name and/or value found
-                    self.multipart.flags.set(Flags::PART_HEADER_INVALID);
+                    self.multipart
+                        .flags
+                        .set(MultipartFlags::PART_HEADER_INVALID);
                 }
                 // Now extract the name and the value.
                 let header = Header::new(header.name.name.into(), header.value.value.into());
                 if !header.name.eq_nocase("content-disposition")
                     && !header.name.eq_nocase("content-type")
                 {
-                    self.multipart.flags.set(Flags::PART_HEADER_UNKNOWN)
+                    self.multipart
+                        .flags
+                        .set(MultipartFlags::PART_HEADER_UNKNOWN)
                 }
                 // Check if the header already exists.
                 if let Some((_, h_existing)) = self
@@ -764,7 +792,9 @@ impl Parser {
                     h_existing.value.extend_from_slice(header.value.as_slice());
                     // Keep track of same-name headers.
                     h_existing.flags.set(HeaderFlags::PART_HEADER_REPEATED);
-                    self.multipart.flags.set(Flags::PART_HEADER_REPEATED)
+                    self.multipart
+                        .flags
+                        .set(MultipartFlags::PART_HEADER_REPEATED)
                 } else {
                     self.get_current_part()?
                         .headers
@@ -775,7 +805,9 @@ impl Parser {
             self.pending_header_line.add(remaining);
         } else {
             // Invalid name and/or value found
-            self.multipart.flags.set(Flags::PART_HEADER_INVALID);
+            self.multipart
+                .flags
+                .set(MultipartFlags::PART_HEADER_INVALID);
             return Err(HtpStatus::DECLINED);
         }
         Ok(())
@@ -792,7 +824,7 @@ impl Parser {
             if let Some((_, header)) = part.headers.get_nocase_nozero_mut("content-disposition") {
                 header
             } else {
-                self.multipart.flags.set(Flags::PART_UNKNOWN);
+                self.multipart.flags.set(MultipartFlags::PART_UNKNOWN);
                 return Err(HtpStatus::DECLINED);
             }
         };
@@ -809,7 +841,7 @@ impl Parser {
                         // Finally, process the parameter value.
                         // Check that we have not seen the name parameter already.
                         if !part.name.is_empty() {
-                            self.multipart.flags.set(Flags::CD_PARAM_REPEATED);
+                            self.multipart.flags.set(MultipartFlags::CD_PARAM_REPEATED);
                             return Err(HtpStatus::DECLINED);
                         }
                         part.name.clear();
@@ -819,7 +851,7 @@ impl Parser {
                         // Check that we have not seen the filename parameter already.
                         match part.file {
                             Some(_) => {
-                                self.multipart.flags.set(Flags::CD_PARAM_REPEATED);
+                                self.multipart.flags.set(MultipartFlags::CD_PARAM_REPEATED);
                                 return Err(HtpStatus::DECLINED);
                             }
                             None => {
@@ -832,13 +864,13 @@ impl Parser {
                     }
                     _ => {
                         // Unknown parameter.
-                        self.multipart.flags.set(Flags::CD_PARAM_UNKNOWN);
+                        self.multipart.flags.set(MultipartFlags::CD_PARAM_UNKNOWN);
                         return Err(HtpStatus::DECLINED);
                     }
                 }
             }
         } else {
-            self.multipart.flags.set(Flags::CD_SYNTAX_INVALID);
+            self.multipart.flags.set(MultipartFlags::CD_SYNTAX_INVALID);
             return Err(HtpStatus::DECLINED);
         }
         Ok(())
@@ -1068,12 +1100,12 @@ fn content_disposition(input: &[u8]) -> IResult<&[u8], param_name_values> {
 ///    Opera: Content-Type: multipart/form-data; boundary=----------2JL5oh7QWEDwyBllIRc7fh
 ///    Safari: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryre6zL3b0BelnTY5S
 ///
-/// Returns in flags the appropriate Flags
+/// Returns in flags the appropriate MultipartFlags
 fn validate_boundary(boundary: &[u8], flags: &mut u64) {
     // The RFC allows up to 70 characters. In real life,
     // boundaries tend to be shorter.
     if boundary.is_empty() || boundary.len() > 70 {
-        flags.set(Flags::HBOUNDARY_INVALID)
+        flags.set(MultipartFlags::HBOUNDARY_INVALID)
     }
     // Check boundary characters. This check is stricter than the
     // RFC, which seems to allow many separator characters.
@@ -1082,11 +1114,11 @@ fn validate_boundary(boundary: &[u8], flags: &mut u64) {
             match *byte as char {
                 '\'' | '(' | ')' | '+' | '_' | ',' | '.' | '/' | ':' | '=' | '?' => {
                     // These characters are allowed by the RFC, but not common.
-                    flags.set(Flags::HBOUNDARY_UNUSUAL)
+                    flags.set(MultipartFlags::HBOUNDARY_UNUSUAL)
                 }
                 _ => {
                     // Invalid character.
-                    flags.set(Flags::HBOUNDARY_INVALID)
+                    flags.set(MultipartFlags::HBOUNDARY_INVALID)
                 }
             }
         }
@@ -1095,7 +1127,7 @@ fn validate_boundary(boundary: &[u8], flags: &mut u64) {
 
 /// Validates the content type by checking if there are multiple boundary occurrences or any occurrence contains uppercase characters
 ///
-/// Returns in flags the appropriate Flags
+/// Returns in flags the appropriate MultipartFlags
 fn validate_content_type(content_type: &[u8], flags: &mut u64) {
     if let Ok((_, (f, _))) = fold_many1(
         tuple((
@@ -1108,13 +1140,13 @@ fn validate_content_type(content_type: &[u8], flags: &mut u64) {
         |(mut flags, mut seen_prev): (u64, bool), (_, boundary, _, _): (_, &[u8], _, _)| {
             for byte in boundary {
                 if byte.is_ascii_uppercase() {
-                    flags.set(Flags::HBOUNDARY_INVALID);
+                    flags.set(MultipartFlags::HBOUNDARY_INVALID);
                     break;
                 }
             }
             if seen_prev {
                 // Seen multiple boundaries
-                flags.set(Flags::HBOUNDARY_INVALID)
+                flags.set(MultipartFlags::HBOUNDARY_INVALID)
             }
             seen_prev = true;
             (flags, seen_prev)
@@ -1124,7 +1156,7 @@ fn validate_content_type(content_type: &[u8], flags: &mut u64) {
         flags.set(f);
     } else {
         // There must be at least one occurrence!
-        flags.set(Flags::HBOUNDARY_INVALID);
+        flags.set(MultipartFlags::HBOUNDARY_INVALID);
     }
 }
 
@@ -1204,7 +1236,7 @@ fn boundary() -> impl Fn(
 /// Returns in multipart_flags: Multipart flags, which are not compatible from general LibHTP flags.
 ///
 /// Returns boundary if found, None otherwise.
-/// Flags may be set on even without successfully locating the boundary. For
+/// MultipartFlags may be set on even without successfully locating the boundary. For
 /// example, if a boundary could not be extracted but there is indication that
 /// one is present, the HBOUNDARY_INVALID flag will be set.
 pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a [u8]> {
@@ -1217,7 +1249,7 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a 
     // sensitive because it may catch non-browser access with sloppy
     // implementations, but let's go with it for now.
     if !content_type.starts_with(b"multipart/form-data;") {
-        flags.set(Flags::HBOUNDARY_INVALID)
+        flags.set(MultipartFlags::HBOUNDARY_INVALID)
     }
     // Look for the boundary, case insensitive.
     if let Ok((
@@ -1242,7 +1274,7 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a 
             // It is unusual to see whitespace before and/or after the equals sign.
             // Unusual to have a quoted boundary
             // Unusual but allowed to have only whitespace after the boundary
-            flags.set(Flags::HBOUNDARY_UNUSUAL)
+            flags.set(MultipartFlags::HBOUNDARY_UNUSUAL)
         }
         if !chars_before_equal.is_empty()
             || (opening_quote.is_some() && closing_quote.is_none())
@@ -1252,10 +1284,10 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a 
             // Seeing a non-whitespace character before equal sign may indicate evasion
             // Having an opening quote, but no closing quote is invalid
             // Seeing any character after the boundary, other than whitespace is invalid
-            flags.set(Flags::HBOUNDARY_INVALID)
+            flags.set(MultipartFlags::HBOUNDARY_INVALID)
         }
         if boundary.is_empty() {
-            flags.set(Flags::HBOUNDARY_INVALID);
+            flags.set(MultipartFlags::HBOUNDARY_INVALID);
             return None;
         }
         // Validate boundary characters.
@@ -1263,7 +1295,7 @@ pub fn find_boundary<'a>(content_type: &'a [u8], flags: &mut u64) -> Option<&'a 
         validate_content_type(content_type, flags);
         Some(boundary)
     } else {
-        flags.set(Flags::HBOUNDARY_INVALID);
+        flags.set(MultipartFlags::HBOUNDARY_INVALID);
         None
     }
 }
@@ -1308,21 +1340,21 @@ mod test {
     }
 
     #[rstest]
-    #[case(b"Unusual\'Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual(Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual)Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual+Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual_Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual,Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual.Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual/Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual:Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual=Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Unusual?Boundary", Flags::HBOUNDARY_UNUSUAL)]
-    #[case(b"Invalid>Boundary", Flags::HBOUNDARY_INVALID)]
-    #[case::too_long(b"InvalidBoundaryTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOLONG", Flags::HBOUNDARY_INVALID)]
-    #[case::empty(b"", Flags::HBOUNDARY_INVALID)]
-    #[case::invalid_unusual(b"InvalidUnusual.~Boundary", Flags::HBOUNDARY_INVALID | Flags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual\'Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual(Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual)Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual+Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual_Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual,Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual.Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual/Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual:Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual=Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Unusual?Boundary", MultipartFlags::HBOUNDARY_UNUSUAL)]
+    #[case(b"Invalid>Boundary", MultipartFlags::HBOUNDARY_INVALID)]
+    #[case::too_long(b"InvalidBoundaryTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOLONG", MultipartFlags::HBOUNDARY_INVALID)]
+    #[case::empty(b"", MultipartFlags::HBOUNDARY_INVALID)]
+    #[case::invalid_unusual(b"InvalidUnusual.~Boundary", MultipartFlags::HBOUNDARY_INVALID | MultipartFlags::HBOUNDARY_UNUSUAL)]
     fn test_validate_boundary(#[case] input: &[u8], #[case] expected: u64) {
         let mut flags = 0;
         validate_boundary(input, &mut flags);
@@ -1332,14 +1364,20 @@ mod test {
     #[rstest]
     #[case(
         b"multipart/form-data; boundary   = stuff, boundary=stuff",
-        Flags::HBOUNDARY_INVALID
+        MultipartFlags::HBOUNDARY_INVALID
     )]
     #[case(
         b"multipart/form-data; boundary=stuffm BounDary=stuff",
-        Flags::HBOUNDARY_INVALID
+        MultipartFlags::HBOUNDARY_INVALID
     )]
-    #[case(b"multipart/form-data; Boundary=stuff", Flags::HBOUNDARY_INVALID)]
-    #[case(b"multipart/form-data; bouNdary=stuff", Flags::HBOUNDARY_INVALID)]
+    #[case(
+        b"multipart/form-data; Boundary=stuff",
+        MultipartFlags::HBOUNDARY_INVALID
+    )]
+    #[case(
+        b"multipart/form-data; bouNdary=stuff",
+        MultipartFlags::HBOUNDARY_INVALID
+    )]
     #[case(b"multipart/form-data; boundary=stuff", 0)]
     fn test_validate_content_type(#[case] input: &[u8], #[case] expected: u64) {
         let mut flags = 0;

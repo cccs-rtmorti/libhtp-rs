@@ -72,6 +72,7 @@ impl FlagOperations<u64> for u64 {
 /// because we may want to set the same flag in several locations. For example, we
 /// may set HTP_FIELD_FOLDED on the actual folded header, but also on the transaction
 /// that contains the header. Both uses are useful.
+#[repr(C)]
 pub struct HtpFlags;
 
 impl HtpFlags {

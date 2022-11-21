@@ -1,7 +1,7 @@
 use crate::{
     bstr::Bstr,
     config::Config,
-    connection::{Connection, Flags},
+    connection::{Connection, ConnectionFlags},
     decompressors::HtpContentEncoding,
     error::Result,
     hook::DataHook,
@@ -435,7 +435,7 @@ impl ConnectionParser {
     pub fn request_next(&mut self) -> usize {
         // Detect pipelining.
         if self.transactions.request_index() > self.transactions.response_index() {
-            self.conn.flags.set(Flags::PIPELINED)
+            self.conn.flags.set(ConnectionFlags::PIPELINED)
         }
         self.transactions.request_next()
     }

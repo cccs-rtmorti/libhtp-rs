@@ -22,6 +22,9 @@ cpp_compat = true
 style = "both"
 
 [export.rename]
+"MultipartFlags" = "HTP_MULTIPART_FLAGS"
+"ConnectionFlags" = "HTP_CONNECTION_FLAGS"
+"HeaderFlags" = "HTP_HEADER_FLAGS"
 "HtpFlags" = "HTP_FLAGS"
 "HtpStatus" = "htp_status_t"
 "HtpServerPersonality" = "htp_server_personality_t"
@@ -79,8 +82,12 @@ include = ["HtpStatus",
 "HtpFileSource",
 "HtpTransferCoding",
 "HtpResponseProgress",
-"HtpRequestProgress"]
-exclude = ["inflate", "Flags",
+"HtpRequestProgress",
+"HtpFlags",
+"MultipartFlags",
+"ConnectionFlags"]
+
+exclude = ["inflate",
 	   "inflateEnd", "iconv", "iconv_close",
            "iconv_open", "inflateInit2_", "mkstemp",
            "umask", "unlink",

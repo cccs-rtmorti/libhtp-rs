@@ -1,11 +1,11 @@
 use crate::{
     bstr::Bstr,
     config::{HtpServerPersonality, HtpUnwanted},
-    connection::Flags as ConnectionFlags,
+    connection::ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::{NomError, Result},
-    headers::Flags as HeaderFlags,
+    headers::HeaderFlags,
     hook::DataHook,
     parsers::{parse_chunked_length, parse_content_length, parse_protocol},
     transaction::{
@@ -661,9 +661,7 @@ impl ConnectionParser {
             .request_headers
             .get_nocase_mut(header.name.as_slice())
         {
-            // TODO Do we want to have a list of the headers that are
-            //      allowed to be combined in this way?
-            if !h_existing.flags.is_set(HtpFlags::FIELD_REPEATED) {
+            if !h_existing.flags.is_set(HeaderFlags::FIELD_REPEATED) {
                 // This is the second occurence for this header.
                 repeated = true;
             } else if reps < 64 {
@@ -672,8 +670,7 @@ impl ConnectionParser {
                 return Ok(());
             }
             // For simplicity reasons, we count the repetitions of all headers
-            // Keep track of repeated same-name headers.
-            h_existing.flags.set(HtpFlags::FIELD_REPEATED);
+            h_existing.flags.set(HeaderFlags::FIELD_REPEATED);
             // Having multiple C-L headers is against the RFC but
             // servers may ignore the subsequent headers if the values are the same.
             if header.name.cmp_nocase("Content-Length") == Ordering::Equal {

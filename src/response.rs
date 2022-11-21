@@ -3,7 +3,7 @@ use crate::{
     connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
     decompressors::{Decompressor, HtpContentEncoding},
     error::Result,
-    headers::Flags as HeaderFlags,
+    headers::HeaderFlags,
     hook::DataHook,
     parsers::{parse_chunked_length, parse_content_length, parse_protocol, parse_status},
     request::HtpMethod,
@@ -812,8 +812,7 @@ impl ConnectionParser {
             .response_headers
             .get_nocase_mut(header.name.as_slice())
         {
-            // Keep track of repeated same-name headers.
-            if !h_existing.flags.is_set(HtpFlags::FIELD_REPEATED) {
+            if !h_existing.flags.is_set(HeaderFlags::FIELD_REPEATED) {
                 // This is the second occurence for this header.
                 repeated = true;
             } else if reps < 64 {
@@ -821,7 +820,7 @@ impl ConnectionParser {
             } else {
                 return Ok(());
             }
-            h_existing.flags.set(HtpFlags::FIELD_REPEATED);
+            h_existing.flags.set(HeaderFlags::FIELD_REPEATED);
             // For simplicity reasons, we count the repetitions of all headers
             // Having multiple C-L headers is against the RFC but many
             // browsers ignore the subsequent headers if the values are the same.
@@ -1510,7 +1509,7 @@ impl ConnectionParser {
     }
 
     /// Advance out buffer cursor and buffer data.
-    fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
+    pub fn handle_response_absent_lf(&mut self, data: &ParserData) -> Result<()> {
         self.check_response_buffer_limit(data.len())?;
         self.response_buf.add(data.as_slice());
         self.response_data_consume(data, data.len());
