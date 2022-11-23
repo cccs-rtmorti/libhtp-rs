@@ -81,13 +81,16 @@ pub fn parse_chunked_length(input: &[u8]) -> Result<Option<u64>> {
     if trailing_data.is_empty() && chunked_length.is_empty() {
         return Ok(None);
     }
-    Ok(Some(
-        u64::from_str_radix(
-            std::str::from_utf8(chunked_length).map_err(|_| HtpStatus::ERROR)?,
-            16,
-        )
-        .map_err(|_| HtpStatus::ERROR)?,
-    ))
+    let chunked_len = u64::from_str_radix(
+        std::str::from_utf8(chunked_length).map_err(|_| HtpStatus::ERROR)?,
+        16,
+    )
+    .map_err(|_| HtpStatus::ERROR)?;
+    //TODO: remove this limit and update appropriate tests after differential fuzzing
+    if chunked_len > std::i32::MAX as u64 {
+        return Ok(None);
+    }
+    Ok(Some(chunked_len))
 }
 
 /// Attempts to extract the scheme from a given input URI.
