@@ -87,15 +87,6 @@ include = ["HtpStatus",
 "MultipartFlags",
 "ConnectionFlags"]
 
-exclude = ["inflate",
-	   "inflateEnd", "iconv", "iconv_close",
-           "iconv_open", "inflateInit2_", "mkstemp",
-           "umask", "unlink",
-           "write", "CLzmaDec", "LzmaDec_Init",
-           "ELzmaFinishMode", "ELzmaStatus", "LzmaDec_Allocate",
-           "LzmaDec_Free", "LzmaDec_DecodeToBuf", "ISzAlloc",
-           "lzma_Alloc"]
-
 [enum]
 rename_variants = "ScreamingSnakeCase"
 prefix_with_name = false
