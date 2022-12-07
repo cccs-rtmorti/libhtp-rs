@@ -14,8 +14,6 @@ pub mod connection_parser;
 pub mod header;
 /// Functions for working with logs.
 pub mod log;
-/// Functions for working with lzma decompression.
-pub mod lzma;
 /// Functions for working with transactions.
 pub mod transaction;
 /// Functions for working with request uri.
