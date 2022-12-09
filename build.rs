@@ -23,7 +23,6 @@ fn main() {
         PathBuf::from(crate_dir.clone())
     };
     let htp_h_path = hdr_path.join("htp/htp.h");
-    let version_h_path = hdr_path.join("htp/version.h");
 
     cbindgen::generate_with_config(
         crate_dir.clone(),
@@ -31,14 +30,4 @@ fn main() {
     )
     .expect("Unable to generate bindings")
     .write_to_file(htp_h_path);
-
-    // Write a version.h to include with the c_api
-    std::fs::write(
-        version_h_path,
-        format!(
-            "#define HTP_VERSION_STRING_FULL \"LibHTP v{}\"\n",
-            env!("CARGO_PKG_VERSION")
-        ),
-    )
-    .expect("Could not write version.h");
 }
