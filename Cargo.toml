@@ -21,6 +21,7 @@ include = [
     "LICENSE",
     "README.md",
     "src/**/*.rs",
+    "cbindgen.toml",
 ]
 
 [lib]
