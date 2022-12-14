@@ -57,7 +57,6 @@ pub enum State {
 
 /// Enumerates all stream states. Each connection has two streams, one
 /// inbound and one outbound. Their states are tracked separately.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpStreamState {

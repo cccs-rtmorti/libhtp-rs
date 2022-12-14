@@ -23,7 +23,6 @@ use crate::{
 use std::{any::Any, cmp::Ordering, mem::take, rc::Rc};
 
 /// A collection of possible data sources.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpDataSource {
@@ -107,7 +106,6 @@ impl<'a> Data<'a> {
 }
 
 /// Enumerates the possible request and response body codings.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpTransferCoding {
@@ -187,7 +185,6 @@ impl Header {
 /// to the next state when the processing activities associated with that state
 /// begin. For example, when we start to process request line bytes, the request
 /// state will change from NOT_STARTED to LINE.*
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpResponseProgress {
@@ -213,7 +210,6 @@ pub enum HtpResponseProgress {
 /// to the next state when the processing activities associated with that state
 /// begin. For example, when we start to process request line bytes, the request
 /// state will change from NOT_STARTED to LINE.*
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpRequestProgress {
@@ -236,7 +232,6 @@ pub enum HtpRequestProgress {
 }
 
 /// Enumerates the possible values for authentication type.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpAuthType {
@@ -259,7 +254,6 @@ pub enum HtpAuthType {
 }
 
 /// Protocol version constants.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpProtocol {

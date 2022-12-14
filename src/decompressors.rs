@@ -196,7 +196,6 @@ impl Decompress for CallbackWriter {
 }
 
 /// Type of compression.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpContentEncoding {

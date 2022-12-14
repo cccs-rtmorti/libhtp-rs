@@ -2,7 +2,6 @@ use crate::connection::Connection;
 use std::{net::IpAddr, sync::mpsc::Sender};
 
 /// Different codes used for logging.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpLogCode {
@@ -163,7 +162,6 @@ pub enum HtpLogCode {
 }
 
 /// Enumerates all log levels.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug)]
 pub enum HtpLogLevel {

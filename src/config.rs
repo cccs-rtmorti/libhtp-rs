@@ -266,7 +266,6 @@ impl Default for MultipartConfig {
 }
 
 /// Enumerates the possible server personalities.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpServerPersonality {
@@ -294,7 +293,6 @@ pub enum HtpServerPersonality {
 }
 
 /// Enumerates the ways in which servers respond to malformed data.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpUnwanted {
@@ -307,7 +305,6 @@ pub enum HtpUnwanted {
 }
 
 /// Enumerates the possible approaches to handling invalid URL-encodings.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpUrlEncodingHandling {

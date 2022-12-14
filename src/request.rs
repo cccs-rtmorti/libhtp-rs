@@ -29,7 +29,6 @@ use std::{
 };
 
 /// Enumerate HTTP methods.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpMethod {

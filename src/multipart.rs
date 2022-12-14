@@ -938,7 +938,6 @@ impl Drop for Part {
 }
 
 /// Enumerates the current multipart mode.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[allow(clippy::upper_case_acronyms)]
@@ -950,7 +949,6 @@ enum HtpMultipartMode {
 }
 
 /// Enumerates the multipart parsing state.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[allow(clippy::upper_case_acronyms)]
@@ -968,7 +966,6 @@ enum HtpMultipartState {
 }
 
 /// Enumerates the multipart type.
-/// cbindgen:rename-all=QualifiedScreamingSnakeCase
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HtpMultipartType {
