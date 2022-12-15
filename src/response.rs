@@ -1438,18 +1438,6 @@ impl ConnectionParser {
                     return HtpStreamState::ERROR;
                 }
             }
-
-            if self.response_state != State::BODY_IDENTITY_CL_KNOWN
-                && self.response_state != State::BODY_IDENTITY_STREAM_CLOSE
-                && self.response_state != State::FINALIZE
-            {
-                htp_error!(
-                    self.logger,
-                    HtpLogCode::INVALID_GAP,
-                    "Gaps are not allowed during this state"
-                );
-                return HtpStreamState::CLOSED;
-            }
         }
 
         loop
@@ -1462,6 +1450,18 @@ impl ConnectionParser {
         // on processors to add error messages, so we'll
         // keep quiet here.
         {
+            if chunk.is_gap()
+                && self.response_state != State::BODY_IDENTITY_CL_KNOWN
+                && self.response_state != State::BODY_IDENTITY_STREAM_CLOSE
+                && self.response_state != State::FINALIZE
+            {
+                htp_error!(
+                    self.logger,
+                    HtpLogCode::INVALID_GAP,
+                    "Gaps are not allowed during this state"
+                );
+                return HtpStreamState::CLOSED;
+            }
             let mut rc = self.handle_response_state(&mut chunk);
 
             if rc.is_ok() {
