@@ -1429,14 +1429,15 @@ impl ConnectionParser {
             self.response_mut()
                 .flags
                 .set(HtpFlags::RESPONSE_MISSING_BYTES);
-            if self.response().response_progress == HtpResponseProgress::NOT_STARTED {
+
+            if self.response_index() == 0
+                && self.response().response_progress == HtpResponseProgress::NOT_STARTED
+            {
+                // We have a leading gap on the first transaction.
                 // Force the parser to start if it hasn't already
                 self.response_mut().response_progress = HtpResponseProgress::GAP;
-                if self.response_index() == 0 {
-                    // We have a leading gap on the first transaction
-                    self.response_status = HtpStreamState::ERROR;
-                    return HtpStreamState::ERROR;
-                }
+                self.response_status = HtpStreamState::ERROR;
+                return HtpStreamState::ERROR;
             }
         }
 

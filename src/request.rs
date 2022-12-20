@@ -1454,14 +1454,14 @@ impl ConnectionParser {
                 .flags
                 .set(HtpFlags::REQUEST_MISSING_BYTES);
 
-            if self.request().request_progress == HtpRequestProgress::NOT_STARTED {
-                // Force the parser to start if it hasn't already
+            if self.request_index() == 0
+                && self.request().request_progress == HtpRequestProgress::NOT_STARTED
+            {
+                // We have a leading gap on the first transaction.
+                // Force the parser to start if it hasn't already.
                 self.request_mut().request_progress = HtpRequestProgress::GAP;
-                if self.request_index() == 0 {
-                    // We have a leading gap on the first transaction.
-                    self.request_status = HtpStreamState::ERROR;
-                    return HtpStreamState::ERROR;
-                }
+                self.request_status = HtpStreamState::ERROR;
+                return HtpStreamState::ERROR;
             }
         }
 
@@ -1477,6 +1477,7 @@ impl ConnectionParser {
             if chunk.is_gap()
                 && self.request_state != State::BODY_IDENTITY
                 && self.request_state != State::IGNORE_DATA_AFTER_HTTP_0_9
+                && self.request_state != State::FINALIZE
             {
                 // go to request_connect_probe_data ?
                 htp_error!(
