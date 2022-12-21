@@ -19,12 +19,12 @@ use crate::{
     },
     HtpStatus,
 };
-use chrono::{DateTime, Utc};
 use nom::{bytes::streaming::take_till as streaming_take_till, error::ErrorKind, sequence::tuple};
 use std::{
     cmp::{min, Ordering},
     mem::take,
 };
+use time::OffsetDateTime;
 
 impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
@@ -1376,7 +1376,7 @@ impl ConnectionParser {
     pub fn response_data(
         &mut self,
         mut chunk: ParserData,
-        timestamp: Option<DateTime<Utc>>,
+        timestamp: Option<OffsetDateTime>,
     ) -> HtpStreamState {
         // Reset consumed data tracker
         self.response_bytes_consumed = 0;

@@ -6,7 +6,6 @@ use crate::{
     error::Result,
     transaction::Transaction,
 };
-use chrono::{DateTime, Utc};
 use std::{
     env,
     iter::IntoIterator,
@@ -14,6 +13,7 @@ use std::{
     path::PathBuf,
     time::SystemTime,
 };
+use time::OffsetDateTime;
 
 #[derive(Debug)]
 enum Chunk {
@@ -186,7 +186,7 @@ impl Test {
 
     /// Open a connection on the underlying ConnectionParser. Useful if you
     /// want to send data directly to the ConnectionParser after.
-    pub fn open_connection(&mut self, tv_start: Option<DateTime<Utc>>) {
+    pub fn open_connection(&mut self, tv_start: Option<OffsetDateTime>) {
         self.connp.open(
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
             Some(10000),
@@ -197,15 +197,15 @@ impl Test {
     }
 
     fn run(&mut self, test: TestInput) -> std::result::Result<(), TestError> {
-        let tv_start = DateTime::<Utc>::from(SystemTime::now());
-        self.open_connection(Some(tv_start));
+        let tv_start = Some(OffsetDateTime::from(SystemTime::now()));
+        self.open_connection(tv_start);
 
         let mut request_buf: Option<ParserData> = None;
         let mut response_buf: Option<ParserData> = None;
         for chunk in test {
             match chunk {
                 Chunk::Client(data) => {
-                    let rc = self.connp.request_data(data.clone(), Some(tv_start));
+                    let rc = self.connp.request_data(data.clone(), tv_start);
 
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
@@ -223,7 +223,7 @@ impl Test {
                     if let Some(response_remaining) = response_buf {
                         let rc = self
                             .connp
-                            .response_data(response_remaining.as_slice().into(), Some(tv_start));
+                            .response_data(response_remaining.as_slice().into(), tv_start);
                         response_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
@@ -231,7 +231,7 @@ impl Test {
                     }
 
                     // Now use up this data chunk
-                    let rc = self.connp.response_data(data.clone(), Some(tv_start));
+                    let rc = self.connp.response_data(data.clone(), tv_start);
                     if rc == HtpStreamState::ERROR {
                         return Err(TestError::StreamError);
                     }
@@ -247,7 +247,7 @@ impl Test {
                     if let Some(request_remaining) = request_buf {
                         let rc = self
                             .connp
-                            .request_data(request_remaining.as_slice().into(), Some(tv_start));
+                            .request_data(request_remaining.as_slice().into(), tv_start);
                         request_buf = None;
                         if rc == HtpStreamState::ERROR {
                             return Err(TestError::StreamError);
@@ -261,13 +261,13 @@ impl Test {
         if let Some(response_remaining) = response_buf {
             let rc = self
                 .connp
-                .response_data(response_remaining.as_slice().into(), Some(tv_start));
+                .response_data(response_remaining.as_slice().into(), tv_start);
             if rc == HtpStreamState::ERROR {
                 return Err(TestError::StreamError);
             }
         }
         self.connp
-            .close(Some(DateTime::<Utc>::from(SystemTime::now())));
+            .close(Some(OffsetDateTime::from(SystemTime::now())));
         Ok(())
     }
 

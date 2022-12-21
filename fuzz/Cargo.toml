@@ -14,7 +14,6 @@ path = ".."
 git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 
 [dependencies]
-chrono = "0.4.19"
 
 # Prevent this from interfering with workspaces
 [workspace]

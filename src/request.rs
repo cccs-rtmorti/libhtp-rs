@@ -18,7 +18,6 @@ use crate::{
     },
     HtpStatus,
 };
-use chrono::{DateTime, Utc};
 use nom::{
     branch::alt, bytes::complete::take_until, character::complete::char,
     character::is_space as nom_is_space, sequence::tuple,
@@ -27,6 +26,7 @@ use std::{
     cmp::{min, Ordering},
     mem::take,
 };
+use time::OffsetDateTime;
 
 /// Enumerate HTTP methods.
 #[repr(C)]
@@ -1395,7 +1395,7 @@ impl ConnectionParser {
     pub fn request_data(
         &mut self,
         mut chunk: ParserData,
-        timestamp: Option<DateTime<Utc>>,
+        timestamp: Option<OffsetDateTime>,
     ) -> HtpStreamState {
         // Reset the bytes consumed counter
         self.request_bytes_consumed = 0;

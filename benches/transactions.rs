@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use htp::{
     config::{Config, HtpServerPersonality},
@@ -10,6 +9,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     time::{Duration, SystemTime},
 };
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone)]
 enum Chunk {
@@ -60,7 +60,7 @@ impl Test {
     }
 
     fn run(&mut self, test: TestInput) -> Result<(), TestError> {
-        let tv_start = DateTime::<Utc>::from(SystemTime::now());
+        let tv_start = OffsetDateTime::from(SystemTime::now());
         self.connp.open(
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
             Some(10000),
@@ -137,7 +137,7 @@ impl Test {
         }
 
         self.connp
-            .close(Some(DateTime::<Utc>::from(SystemTime::now())));
+            .close(Some(OffsetDateTime::from(SystemTime::now())));
         Ok(())
     }
 }

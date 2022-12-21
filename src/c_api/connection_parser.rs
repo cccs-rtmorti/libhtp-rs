@@ -5,11 +5,19 @@ use crate::{
     connection_parser::{ConnectionParser, HtpStreamState, ParserData},
     transaction::Transaction,
 };
-use chrono::{DateTime, NaiveDateTime, Utc};
 use std::{
     convert::{TryFrom, TryInto},
     ffi::CStr,
 };
+use time::{Duration, OffsetDateTime};
+
+/// Take seconds and microseconds and return a OffsetDateTime
+fn datetime_from_sec_usec(sec: i64, usec: i64) -> Option<OffsetDateTime> {
+    match OffsetDateTime::from_unix_timestamp(sec) {
+        Ok(date) => Some(date + Duration::microseconds(usec)),
+        Err(_) => None,
+    }
+}
 
 /// Closes the connection associated with the supplied parser.
 ///
@@ -25,10 +33,7 @@ pub unsafe extern "C" fn htp_connp_close(
         connp.close(
             timestamp
                 .as_ref()
-                .map(|val| {
-                    NaiveDateTime::from_timestamp_opt(val.tv_sec as i64, val.tv_usec as u32)
-                        .map(|time| DateTime::<Utc>::from_utc(time, Utc))
-                })
+                .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
                 .unwrap_or(None),
         )
     }
@@ -128,10 +133,7 @@ pub unsafe extern "C" fn htp_connp_open(
             server_port.try_into().ok(),
             timestamp
                 .as_ref()
-                .map(|val| {
-                    NaiveDateTime::from_timestamp_opt(val.tv_sec as i64, val.tv_usec as u32)
-                        .map(|time| DateTime::<Utc>::from_utc(time, Utc))
-                })
+                .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
                 .unwrap_or(None),
         )
     }
@@ -151,10 +153,7 @@ pub unsafe extern "C" fn htp_connp_request_close(
         connp.request_close(
             timestamp
                 .as_ref()
-                .map(|val| {
-                    NaiveDateTime::from_timestamp_opt(val.tv_sec as i64, val.tv_usec as u32)
-                        .map(|time| DateTime::<Utc>::from_utc(time, Utc))
-                })
+                .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
                 .unwrap_or(None),
         )
     }
@@ -181,10 +180,7 @@ pub unsafe extern "C" fn htp_connp_request_data(
                 ParserData::from((data as *const u8, len)),
                 timestamp
                     .as_ref()
-                    .map(|val| {
-                        NaiveDateTime::from_timestamp_opt(val.tv_sec as i64, val.tv_usec as u32)
-                            .map(|time| DateTime::<Utc>::from_utc(time, Utc))
-                    })
+                    .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
                     .unwrap_or(None),
             )
         })
@@ -211,10 +207,7 @@ pub unsafe extern "C" fn htp_connp_response_data(
                 ParserData::from((data as *const u8, len)),
                 timestamp
                     .as_ref()
-                    .map(|val| {
-                        NaiveDateTime::from_timestamp_opt(val.tv_sec as i64, val.tv_usec as u32)
-                            .map(|time| DateTime::<Utc>::from_utc(time, Utc))
-                    })
+                    .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
                     .unwrap_or(None),
             )
         })

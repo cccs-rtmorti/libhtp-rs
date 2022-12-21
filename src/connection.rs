@@ -1,10 +1,10 @@
 use crate::log::{Log, Message};
-use chrono::{DateTime, Utc};
 use std::{
     net::IpAddr,
     sync::mpsc::{channel, Receiver, Sender},
     time::SystemTime,
 };
+use time::OffsetDateTime;
 
 /// Export Connection ConnectionFlags
 #[repr(C)]
@@ -37,9 +37,9 @@ pub struct Connection {
     /// Parsing flags.
     pub flags: u8,
     /// When was this connection opened?
-    pub open_timestamp: DateTime<Utc>,
+    pub open_timestamp: OffsetDateTime,
     /// When was this connection closed?
-    pub close_timestamp: DateTime<Utc>,
+    pub close_timestamp: OffsetDateTime,
     /// Inbound data counter.
     pub request_data_counter: u64,
     /// Outbound data counter.
@@ -56,8 +56,8 @@ impl Default for Connection {
             server_port: None,
             log_channel: channel(),
             flags: 0,
-            open_timestamp: DateTime::<Utc>::from(SystemTime::now()),
-            close_timestamp: DateTime::<Utc>::from(SystemTime::now()),
+            open_timestamp: OffsetDateTime::from(SystemTime::now()),
+            close_timestamp: OffsetDateTime::from(SystemTime::now()),
             request_data_counter: 0,
             response_data_counter: 0,
         }
@@ -73,7 +73,7 @@ impl Connection {
         client_port: Option<u16>,
         server_addr: Option<IpAddr>,
         server_port: Option<u16>,
-        timestamp: Option<DateTime<Utc>>,
+        timestamp: Option<OffsetDateTime>,
     ) {
         self.client_addr = client_addr;
         self.client_port = client_port;
@@ -87,7 +87,7 @@ impl Connection {
     }
 
     /// Closes the connection.
-    pub fn close(&mut self, timestamp: Option<DateTime<Utc>>) {
+    pub fn close(&mut self, timestamp: Option<OffsetDateTime>) {
         // Update timestamp.
         if let Some(timestamp) = timestamp {
             self.close_timestamp = timestamp;

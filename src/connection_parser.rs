@@ -11,8 +11,8 @@ use crate::{
     util::{File, FlagOperations, HtpFileSource, HtpFlags},
     HtpStatus,
 };
-use chrono::{DateTime, Utc};
 use std::{any::Any, borrow::Cow, cell::Cell, net::IpAddr, rc::Rc, time::SystemTime};
+use time::OffsetDateTime;
 
 /// Enumerates parsing state.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -292,7 +292,7 @@ pub struct ConnectionParser {
     /// in order to allow more requests to be produced.
     pub response_data_other_at_tx_end: bool,
     /// The time when the last request data chunk was received.
-    pub request_timestamp: DateTime<Utc>,
+    pub request_timestamp: OffsetDateTime,
     /// How many bytes from the last input chunk have we consumed
     /// This is mostly used from callbacks, where the caller
     /// wants to know how far into the last chunk the parser is.
@@ -326,7 +326,7 @@ pub struct ConnectionParser {
 
     // Response parser fields
     /// The time when the last response data chunk was received.
-    pub response_timestamp: DateTime<Utc>,
+    pub response_timestamp: OffsetDateTime,
     /// How many bytes from the last input chunk have we consumed
     /// This is mostly used from callbacks, where the caller
     /// wants to know how far into the last chunk the parser is.
@@ -382,7 +382,7 @@ impl ConnectionParser {
             request_status: HtpStreamState::NEW,
             response_status: HtpStreamState::NEW,
             response_data_other_at_tx_end: false,
-            request_timestamp: DateTime::<Utc>::from(SystemTime::now()),
+            request_timestamp: OffsetDateTime::from(SystemTime::now()),
             request_bytes_consumed: 0,
             request_chunk_count: 0,
             request_chunk_request_index: 0,
@@ -394,7 +394,7 @@ impl ConnectionParser {
             request_state: State::IDLE,
             request_state_previous: State::NONE,
             request_data_receiver_hook: None,
-            response_timestamp: DateTime::<Utc>::from(SystemTime::now()),
+            response_timestamp: OffsetDateTime::from(SystemTime::now()),
             response_bytes_consumed: 0,
             response_buf: Bstr::new(),
             response_header: None,
@@ -513,7 +513,7 @@ impl ConnectionParser {
     }
 
     /// Closes the connection associated with the supplied parser.
-    pub fn request_close(&mut self, timestamp: Option<DateTime<Utc>>) {
+    pub fn request_close(&mut self, timestamp: Option<OffsetDateTime>) {
         // Update internal flags
         if self.request_status != HtpStreamState::ERROR {
             self.request_status = HtpStreamState::CLOSED
@@ -524,7 +524,7 @@ impl ConnectionParser {
     }
 
     /// Closes the connection associated with the supplied parser.
-    pub fn close(&mut self, timestamp: Option<DateTime<Utc>>) {
+    pub fn close(&mut self, timestamp: Option<OffsetDateTime>) {
         // Close the underlying connection.
         self.conn.close(timestamp);
         // Update internal flags
@@ -600,7 +600,7 @@ impl ConnectionParser {
         client_port: Option<u16>,
         server_addr: Option<IpAddr>,
         server_port: Option<u16>,
-        timestamp: Option<DateTime<Utc>>,
+        timestamp: Option<OffsetDateTime>,
     ) {
         // Check connection parser state first.
         if self.request_status != HtpStreamState::NEW || self.response_status != HtpStreamState::NEW
