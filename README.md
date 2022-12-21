@@ -45,7 +45,7 @@ Start using libHTP by including it in your project's `Cargo.toml`
 dependencies. The base library will also be required for using common
 types.
 
-**The minimum supported version of `rustc` is `1.56.0`.**
+**The minimum supported version of `rustc` is `1.58.1`.**
 
 ## Example
 ```

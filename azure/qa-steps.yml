@@ -46,12 +46,12 @@ steps:
   #
   # Build project
   #TODO: remove this when added to the main builder
-  - script: rustup update 1.56.0
+  - script: rustup update 1.58.1
     displayName: Install msrv
 
   #
   # First, with the minimum supported rust version
-  - script: cargo +1.56.0 build --workspace --all-targets --all-features --release
+  - script: cargo +1.58.1 build --workspace --all-targets --all-features --release
     displayName: build (msrv)
     workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
 
