@@ -405,7 +405,8 @@ impl Parser {
                                 if value.is_empty() {
                                     flags.set(HeaderFlags::VALUE_EMPTY);
                                 }
-                                return Ok((rest, Value::new(&value, flags)));
+                                // i is now the latest rest
+                                return Ok((i, Value::new(&value, flags)));
                             }
                             Err(Incomplete(_)) => {
                                 return Err(Incomplete(Needed::new(1)));
