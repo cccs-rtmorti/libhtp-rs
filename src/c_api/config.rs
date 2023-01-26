@@ -378,12 +378,10 @@ pub unsafe extern "C" fn htp_config_set_nul_raw_terminates(cfg: *mut Config, ena
 /// When calling this method, you have to ensure that cfg is either properly initialized or NULL
 #[no_mangle]
 pub unsafe extern "C" fn htp_config_set_parse_request_cookies(
-    cfg: *mut Config,
-    parse_request_cookies: libc::c_int,
+    _cfg: *mut Config,
+    _parse_request_cookies: libc::c_int,
 ) {
-    if let Some(cfg) = cfg.as_mut() {
-        cfg.set_parse_request_cookies(parse_request_cookies == 1)
-    }
+    // do nothing, but keep API
 }
 
 /// Configures whether consecutive path segment separators will be compressed. When enabled, a path
