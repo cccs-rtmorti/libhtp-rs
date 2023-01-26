@@ -5,7 +5,7 @@ use htp::{
     config::{Config, HtpServerPersonality},
     connection_parser::{ConnectionParser, ParserData},
     error::Result,
-    transaction::{Header, HtpDataSource, HtpProtocol, HtpResponseNumber, Transaction},
+    transaction::{Header, HtpProtocol, HtpResponseNumber, Transaction},
     uri::Uri,
     HtpStatus,
 };
@@ -250,10 +250,6 @@ fn GetTest() {
     assert!(parsed_uri.path.as_ref().unwrap().eq_slice("/"));
     assert!(parsed_uri.query.as_ref().unwrap().eq_slice("p=1&q=2"));
 
-    // Check parameters
-    assert_contains_param!(&tx.request_params, "p", "1");
-    assert_contains_param!(&tx.request_params, "q", "2");
-
     // Request headers
     tx_set_header!(tx.request_headers, "Host", "www.example.com");
     tx_set_header!(tx.request_headers, "Connection", "keep-alive");
@@ -385,11 +381,6 @@ fn PostUrlecodedTest() {
 
     // Request complete
     t.connp.state_request_complete(&mut p).unwrap();
-
-    let tx = t.connp.tx(tx_id).unwrap();
-    // Check parameters
-    assert_contains_param!(&tx.request_params, "p", "1");
-    assert_contains_param!(&tx.request_params, "q", "2");
 }
 
 /// Test with a compressed response body and decompression enabled.
@@ -438,7 +429,6 @@ fn CompressedResponse() {
 #[test]
 fn ParamCaseSensitivity() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
 
     // Request begins
     t.connp.state_request_start().unwrap();
@@ -450,13 +440,6 @@ fn ParamCaseSensitivity() {
 
     // Request line complete
     t.connp.state_request_line().unwrap();
-
-    // Check the parameters.
-    let tx = t.connp.tx(tx_id).unwrap();
-    assert_contains_param!(&tx.request_params, "p", "1");
-    assert_contains_param!(&tx.request_params, "q", "2");
-    assert_contains_param_source!(&tx.request_params, HtpDataSource::QUERY_STRING, "q", "2");
-    assert_contains_param_source!(&tx.request_params, HtpDataSource::QUERY_STRING, "Q", "2");
 }
 
 /// Use a POST request in order to test request body processing and parameter
@@ -495,11 +478,6 @@ fn PostUrlecodedChunked() {
 
     // Request complete.
     t.connp.state_request_complete(&mut p).unwrap();
-
-    // Check the parameters.
-    let tx = t.connp.tx(tx_id).unwrap();
-    assert_contains_param!(&tx.request_params, "p", "1");
-    assert_contains_param!(&tx.request_params, "q", "2");
 }
 
 #[test]
@@ -524,10 +502,6 @@ fn RequestLineParsing1() {
     assert!(tx.request_protocol.as_ref().unwrap().eq_slice("HTTP/1.0"));
     let parsed_uri = tx.parsed_uri.as_ref().unwrap();
     assert!(parsed_uri.query.as_ref().unwrap().eq_slice("p=1&q=2"));
-
-    // Check parameters
-    assert_contains_param!(&tx.request_params, "p", "1");
-    assert_contains_param!(&tx.request_params, "q", "2");
 }
 
 #[test]

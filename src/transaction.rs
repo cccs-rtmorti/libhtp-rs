@@ -390,8 +390,6 @@ pub struct Transaction {
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: Option<MultipartParser>,
-    /// Request parameters.
-    pub request_params: Table<Param>,
     /// Authentication type used in the request.
     pub request_auth_type: HtpAuthType,
     /// Authentication username.
@@ -536,7 +534,6 @@ impl std::fmt::Debug for Transaction {
             )
             .field("request_content_type", &self.request_content_type)
             .field("request_content_length", &self.request_content_length)
-            .field("request_params", &self.request_params)
             .field("request_auth_type", &self.request_auth_type)
             .field("request_auth_username", &self.request_auth_username)
             .field("request_auth_password", &self.request_auth_password)
@@ -617,7 +614,6 @@ impl Transaction {
             hook_response_body_data: DataHook::default(),
             request_urlenp_body: None,
             request_mpartp: None,
-            request_params: Table::with_capacity(32),
             request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -690,7 +686,6 @@ impl Transaction {
         if let Some(parameter_processor_fn) = self.cfg.parameter_processor {
             parameter_processor_fn(&mut param)?
         }
-        self.request_params.add(param.name.clone(), param);
         Ok(())
     }
 
