@@ -1408,31 +1408,6 @@ fn PathUtf8_Decode_FullWidth() {
 }
 
 #[test]
-fn RequestCookies1() {
-    let mut t = Test::new(TestConfig());
-
-    assert!(t.run_file("60-request-cookies-1.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    assert_eq!(3, tx.request_cookies.size());
-
-    let mut res = &tx.request_cookies[0];
-    assert!(res.0.eq_slice("p"));
-    assert!(res.1.eq_slice("1"));
-
-    res = &tx.request_cookies[1];
-    assert!(res.0.eq_slice("q"));
-    assert!(res.1.eq_slice("2"));
-
-    res = &tx.request_cookies[2];
-    assert!(res.0.eq_slice("z"));
-    assert!(res.1.eq_slice(""));
-}
-
-#[test]
 fn EmptyLineBetweenRequests() {
     let mut t = Test::new(TestConfig());
 
@@ -2190,94 +2165,6 @@ fn AuthDigest_EscapedQuote() {
         .eq_slice("ivan\"r\""));
 
     assert!(tx.request_auth_password.is_none());
-}
-
-#[test]
-fn RequestCookies2() {
-    let mut t = Test::new(TestConfig());
-
-    assert!(t.run_file("101-request-cookies-2.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    assert_eq!(3, tx.request_cookies.size());
-
-    let mut res = &tx.request_cookies[0];
-    assert!(res.0.eq_slice("p"));
-    assert!(res.1.eq_slice("1"));
-
-    res = &tx.request_cookies[1];
-    assert!(res.0.eq_slice("q"));
-    assert!(res.1.eq_slice("2"));
-
-    res = &tx.request_cookies[2];
-    assert!(res.0.eq_slice("z"));
-    assert!(res.1.eq_slice(""));
-}
-
-#[test]
-fn RequestCookies3() {
-    let mut t = Test::new(TestConfig());
-
-    assert!(t.run_file("102-request-cookies-3.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    assert_eq!(3, tx.request_cookies.size());
-
-    let mut res = &tx.request_cookies[0];
-    assert!(res.0.eq_slice("a"));
-    assert!(res.1.eq_slice("1"));
-
-    res = &tx.request_cookies[1];
-    assert!(res.0.eq_slice("b"));
-    assert!(res.1.eq_slice("2  "));
-
-    res = &tx.request_cookies[2];
-    assert!(res.0.eq_slice("c"));
-    assert!(res.1.eq_slice("double=equal"));
-}
-
-#[test]
-fn RequestCookies4() {
-    let mut t = Test::new(TestConfig());
-
-    assert!(t.run_file("103-request-cookies-4.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    assert_eq!(3, tx.request_cookies.size());
-
-    let mut res = &tx.request_cookies[0];
-    assert!(res.0.eq_slice("c"));
-    assert!(res.1.eq_slice("1"));
-
-    res = &tx.request_cookies[1];
-    assert!(res.0.eq_slice("a"));
-    assert!(res.1.eq_slice("1  "));
-
-    res = &tx.request_cookies[2];
-    assert!(res.0.eq_slice("b"));
-    assert!(res.1.eq_slice("2"));
-}
-
-#[test]
-fn RequestCookies5() {
-    let mut t = Test::new(TestConfig());
-    // Empty cookie
-    assert!(t.run_file("104-request-cookies-5.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    assert_eq!(0, tx.request_cookies.size());
 }
 
 #[test]

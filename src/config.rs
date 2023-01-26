@@ -36,8 +36,6 @@ pub struct Config {
     pub parse_multipart: bool,
     /// Whether to parse urlencoded data.
     pub parse_urlencoded: bool,
-    /// Whether to parse request cookies.
-    pub parse_request_cookies: bool,
     /// Whether to parse HTTP Authentication headers.
     pub parse_request_auth: bool,
     /// Request start hook, invoked when the parser receives the first byte of a new
@@ -131,7 +129,6 @@ impl Default for Config {
             response_decompression_enabled: true,
             parse_multipart: false,
             parse_urlencoded: false,
-            parse_request_cookies: true,
             parse_request_auth: true,
             hook_request_start: TxHook::default(),
             hook_request_line: TxHook::default(),
@@ -458,11 +455,6 @@ impl Config {
     /// limit is controlled by the field_limit parameter.
     pub fn set_field_limit(&mut self, field_limit: usize) {
         self.field_limit = field_limit;
-    }
-
-    /// Enable or disable request cookie parsing. Enabled by default.
-    pub fn set_parse_request_cookies(&mut self, parse_request_cookies: bool) {
-        self.parse_request_cookies = parse_request_cookies;
     }
 
     /// Enable or disable spaces in URIs. Disabled by default.

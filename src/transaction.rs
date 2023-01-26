@@ -9,7 +9,7 @@ use crate::{
     log::Logger,
     multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
     parsers::{
-        parse_authorization, parse_content_length, parse_content_type, parse_cookies_v0,
+        parse_authorization, parse_content_length, parse_content_type,
         parse_hostport,
     },
     request::HtpMethod,
@@ -392,8 +392,6 @@ pub struct Transaction {
     pub request_mpartp: Option<MultipartParser>,
     /// Request parameters.
     pub request_params: Table<Param>,
-    /// Request cookies
-    pub request_cookies: Table<Bstr>,
     /// Authentication type used in the request.
     pub request_auth_type: HtpAuthType,
     /// Authentication username.
@@ -539,7 +537,6 @@ impl std::fmt::Debug for Transaction {
             .field("request_content_type", &self.request_content_type)
             .field("request_content_length", &self.request_content_length)
             .field("request_params", &self.request_params)
-            .field("request_cookies", &self.request_cookies)
             .field("request_auth_type", &self.request_auth_type)
             .field("request_auth_username", &self.request_auth_username)
             .field("request_auth_password", &self.request_auth_password)
@@ -621,7 +618,6 @@ impl Transaction {
             request_urlenp_body: None,
             request_mpartp: None,
             request_params: Table::with_capacity(32),
-            request_cookies: Table::with_capacity(32),
             request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -856,10 +852,6 @@ impl Transaction {
                     }
                 }
             }
-        }
-        // Parse cookies.
-        if self.cfg.parse_request_cookies {
-            parse_cookies_v0(self)?;
         }
         // Parse authentication information.
         if self.cfg.parse_request_auth {

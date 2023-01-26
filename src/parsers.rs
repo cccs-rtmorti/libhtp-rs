@@ -2,7 +2,6 @@ use crate::{
     bstr::Bstr,
     error::Result,
     log::Logger,
-    table::Table,
     transaction::{Header, HtpAuthType, HtpProtocol, HtpResponseNumber, Transaction},
     util::{
         ascii_digits, convert_port, hex_digits, take_ascii_whitespace, take_chunked_ctl_chars,
@@ -454,58 +453,10 @@ pub fn parse_authorization(request_tx: &mut Transaction) -> Result<()> {
     Ok(())
 }
 
-/// Parses a single v0 request cookie.
-///
-/// Returns the (name, value).
-fn single_cookie_v0(data: &[u8]) -> (&[u8], &[u8]) {
-    let parts: Vec<&[u8]> = data.splitn(2, |&x| x == b'=').collect();
-    match parts.len() {
-        1 => (data, b""),
-        2 => (parts[0], parts[1]),
-        _ => (b"", b""),
-    }
-}
-
-/// Parses the Cookie request header in v0 format and places the results into tx->request_cookies.
-pub fn parse_cookies_v0(request_tx: &mut Transaction) -> Result<()> {
-    if let Some((_, cookie_header)) = request_tx.request_headers.get_nocase_nozero_mut("cookie") {
-        let data: &[u8] = cookie_header.value.as_ref();
-        // Create a new table to store cookies.
-        request_tx.request_cookies = Table::with_capacity(4);
-        for cookie in data.split(|b| *b == b';') {
-            if let Ok((cookie, _)) = take_ascii_whitespace()(cookie) {
-                if cookie.is_empty() {
-                    continue;
-                }
-                let (name, value) = single_cookie_v0(cookie);
-                if !name.is_empty() {
-                    request_tx
-                        .request_cookies
-                        .add(Bstr::from(name), Bstr::from(value));
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use rstest::rstest;
-
-    #[rstest]
-    #[case("yummy_cookie=choco", "yummy_cookie", "choco")]
-    #[case("yummy_cookie=", "yummy_cookie", "")]
-    #[case("=choco", "", "choco")]
-    #[case("=", "", "")]
-    #[case("", "", "")]
-    fn test_single_cookie_v0(#[case] input: &str, #[case] name: &str, #[case] value: &str) {
-        assert_eq!(
-            single_cookie_v0(input.as_bytes()),
-            (name.as_bytes(), value.as_bytes())
-        );
-    }
 
     #[rstest]
     #[case("   username=   \"ivan\\\"r\\\"\"", "ivan\"r\"", "")]
