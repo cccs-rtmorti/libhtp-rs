@@ -352,12 +352,12 @@ impl ConnectionParser {
             .response()
             .response_headers
             .get_nocase_nozero("content-length")
-            .map(|(_, val)| val.clone());
+            .map(|val| val.clone());
         let te_opt = self
             .response()
             .response_headers
             .get_nocase_nozero("transfer-encoding")
-            .map(|(_, val)| val.clone());
+            .map(|val| val.clone());
         // Check for "101 Switching Protocol" response.
         // If it's seen, it means that traffic after empty line following headers
         // is no longer HTTP. We can treat it similarly to CONNECT.
@@ -369,7 +369,7 @@ impl ConnectionParser {
                 .response()
                 .response_headers
                 .get_nocase_nozero("upgrade")
-                .map(|(_, upgrade)| upgrade.value.index_of_nocase_nozero("h2c").is_some())
+                .map(|upgrade| upgrade.value.index_of_nocase_nozero("h2c").is_some())
                 .unwrap_or(false)
             {
                 self.response_mut().is_http_2_upgrade = true;
@@ -426,7 +426,7 @@ impl ConnectionParser {
             && self.request_content_length > Some(0)
             && self.request_body_data_left == self.request_content_length
         {
-            if let Some((_, expect)) = self.response().request_headers.get_nocase("expect") {
+            if let Some(expect) = self.response().request_headers.get_nocase("expect") {
                 if expect.value.eq_slice("100-continue") {
                     self.request_state = State::FINALIZE;
                 }
@@ -467,7 +467,7 @@ impl ConnectionParser {
                 .response()
                 .response_headers
                 .get_nocase_nozero("content-type")
-                .map(|(_, val)| val)
+                .map(|val| val)
             {
                 // TODO Some platforms may do things differently here.
                 let response_content_type = if let Ok((_, ct)) =
@@ -807,7 +807,7 @@ impl ConnectionParser {
         let reps = self.response().response_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
-        if let Some((_, h_existing)) = self
+        if let Some(h_existing) = self
             .response_mut()
             .response_headers
             .get_nocase_mut(header.name.as_slice())
@@ -845,7 +845,7 @@ impl ConnectionParser {
         } else {
             self.response_mut()
                 .response_headers
-                .add(header.name.clone(), header);
+                .elements.push(header);
         }
         if update_reps {
             self.response_mut().response_header_repetitions =
@@ -1034,7 +1034,7 @@ impl ConnectionParser {
             .response_mut()
             .response_headers
             .get_nocase_nozero("content-encoding")
-            .map(|(_, val)| val.value.clone());
+            .map(|val| val.value.clone());
         // Process multiple encodings if there is no match on fast path
         let mut slow_path = false;
 

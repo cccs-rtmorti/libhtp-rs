@@ -13,7 +13,6 @@ use crate::{
         parse_hostport,
     },
     request::HtpMethod,
-    table::Table,
     uri::Uri,
     urlencoded::Parser as UrlEncodedParser,
     util::{validate_hostname, FlagOperations, HtpFlags},
@@ -167,7 +166,79 @@ pub struct Header {
 }
 
 /// Table of request or response headers.
-pub type Headers = Table<Header>;
+#[derive(Clone, Debug)]
+pub struct Headers {
+    /// Entries in the table.
+    pub elements: Vec<Header>,
+}
+
+impl Headers {
+    /// Make a new owned Headers Table with given capacity
+    pub fn with_capacity(size: usize) -> Self {
+        Self {
+            elements: Vec::with_capacity(size),
+        }
+    }
+
+    /// Search the Headers table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
+    ///
+    /// Returns None if no match is found.
+    pub fn get_nocase_nozero<K: AsRef<[u8]>>(&self, key: K) -> Option<&Header> {
+        self.elements
+            .iter()
+            .find(|x| x.name.cmp_nocase_nozero_trimmed(key.as_ref()) == Ordering::Equal)
+    }
+
+    /// Search the Headers table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
+    ///
+    /// Returns None if no match is found.
+    pub fn get_nocase_nozero_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut Header> {
+        self.elements
+            .iter_mut()
+            .find(|x| x.name.cmp_nocase_nozero_trimmed(key.as_ref()) == Ordering::Equal)
+    }
+
+    /// Search the Headers table for the first tuple with a key matching the given slice, ingnoring ascii case in self
+    ///
+    /// Returns None if no match is found.
+    pub fn get_nocase_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut Header> {
+        self.elements
+            .iter_mut()
+            .find(|x| x.name.cmp_nocase_trimmed(key.as_ref()) == Ordering::Equal)
+    }
+
+    /// Search the Headers table for the first tuple with a key matching the given slice, ingnoring ascii case in self
+    ///
+    /// Returns None if no match is found.
+    pub fn get_nocase<K: AsRef<[u8]>>(&self, key: K) -> Option<&Header> {
+        self.elements
+            .iter()
+            .find(|x| x.name.cmp_nocase_trimmed(key.as_ref()) == Ordering::Equal)
+    }
+
+    /// Returns the number of elements in the Headers table
+    pub fn size(&self) -> usize {
+        self.elements.len()
+    }
+}
+
+impl<'a> IntoIterator for &'a Headers {
+    type Item = &'a Header;
+    type IntoIter = std::slice::Iter<'a, Header>;
+
+    fn into_iter(self) -> std::slice::Iter<'a, Header> {
+        self.elements.iter()
+    }
+}
+
+impl IntoIterator for Headers {
+    type Item = Header;
+    type IntoIter = std::vec::IntoIter<Header>;
+
+    fn into_iter(self) -> std::vec::IntoIter<Header> {
+        self.elements.into_iter()
+    }
+}
 
 impl Header {
     /// Construct a new header.
@@ -603,7 +674,7 @@ impl Transaction {
             partial_normalized_uri: None,
             request_message_len: 0,
             request_entity_len: 0,
-            request_headers: Table::with_capacity(32),
+            request_headers: Headers::with_capacity(32),
             request_transfer_coding: HtpTransferCoding::UNKNOWN,
             request_content_encoding: HtpContentEncoding::NONE,
             request_content_encoding_processing: HtpContentEncoding::NONE,
@@ -629,7 +700,7 @@ impl Transaction {
             response_status_expected_number: HtpUnwanted::IGNORE,
             response_message: None,
             seen_100continue: false,
-            response_headers: Table::with_capacity(32),
+            response_headers: Headers::with_capacity(32),
             is_http_2_upgrade: false,
             response_message_len: 0,
             response_entity_len: 0,
@@ -700,7 +771,7 @@ impl Transaction {
         // Determine if we have a request body, and how it is packaged.
         let cl_opt = self.request_headers.get_nocase_nozero("content-length");
         // Check for the Transfer-Encoding header, which would indicate a chunked request body.
-        if let Some((_, te)) = self.request_headers.get_nocase_nozero("transfer-encoding") {
+        if let Some(te) = self.request_headers.get_nocase_nozero("transfer-encoding") {
             // Make sure it contains "chunked" only.
             // TODO The HTTP/1.1 RFC also allows the T-E header to contain "identity", which
             //      presumably should have the same effect as T-E header absence. However, Apache
@@ -738,7 +809,7 @@ impl Transaction {
                     self.flags.set(HtpFlags::REQUEST_SMUGGLING)
                 }
             }
-        } else if let Some((_, cl)) = cl_opt {
+        } else if let Some(cl) = cl_opt {
             // Check for a folded C-L header.
             if cl.flags.is_set(HtpFlags::FIELD_FOLDED) {
                 self.flags.set(HtpFlags::REQUEST_SMUGGLING)
@@ -782,7 +853,7 @@ impl Transaction {
             self.request_port_number = Some(*port_number);
         }
         // Examine the Host header.
-        if let Some((_, header)) = self.request_headers.get_nocase_nozero_mut("host") {
+        if let Some(header) = self.request_headers.get_nocase_nozero_mut("host") {
             // Host information available in the headers.
             if let Ok((_, (hostname, port_nmb, valid))) = parse_hostport(&header.value) {
                 if !valid {
@@ -829,7 +900,7 @@ impl Transaction {
             }
         }
         // Determine Content-Type.
-        if let Some((_, ct)) = self.request_headers.get_nocase_nozero("content-type") {
+        if let Some(ct) = self.request_headers.get_nocase_nozero("content-type") {
             self.request_content_type = Some(parse_content_type(ct.value.as_slice())?);
             let mut flags = 0;
             // Check the request content type for urlencoded or see if it matches our MIME type
@@ -1054,4 +1125,36 @@ impl PartialEq for Transaction {
     fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }
+}
+
+
+#[test]
+fn GetNocaseNozero() {
+    let mut t = Headers::with_capacity(2);
+    let v1 = Bstr::from("Value1");
+    let mut k = Bstr::from("K\x00\x00\x00\x00ey\x001");
+    let mut h = Header::new(k, v1.clone());
+    t.elements.push(h);
+    k = Bstr::from("K\x00e\x00\x00Y2");
+    let v2 = Bstr::from("Value2");
+    h = Header::new(k, v2.clone());
+    t.elements.push(h);
+
+    let mut result = t.get_nocase_nozero("key1");
+    let mut res = result.unwrap();
+    assert_eq!(Ordering::Equal, res.name.cmp_slice("K\x00\x00\x00\x00ey\x001"));
+    assert_eq!(v1, res.value);
+
+    result = t.get_nocase_nozero("KeY1");
+    res = result.unwrap();
+    assert_eq!(Ordering::Equal, res.name.cmp_slice("K\x00\x00\x00\x00ey\x001"));
+    assert_eq!(v1, res.value);
+
+    result = t.get_nocase_nozero("KEY2");
+    res = result.unwrap();
+    assert_eq!(Ordering::Equal, res.name.cmp_slice("K\x00e\x00\x00Y2"));
+    assert_eq!(v2, res.value);
+
+    result = t.get_nocase("key1");
+    assert!(result.is_none());
 }

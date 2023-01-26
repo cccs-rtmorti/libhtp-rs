@@ -32,8 +32,7 @@ macro_rules! assert_header_eq {
                 file!(),
                 line!(),
                 column!()
-            ).as_ref())
-            .1;
+            ).as_ref());
         assert_eq!(*header.value, $val);
     }};
     ($tx:expr, $attr:ident, $key:expr, $val:expr,) => {{
@@ -111,8 +110,7 @@ macro_rules! assert_response_header_flag_contains {
                 file!(),
                 line!(),
                 column!()
-            ).as_ref())
-            .1;
+            ).as_ref());
         assert!(header.flags.is_set($val));
         }};
     ($tx:expr, $key:expr, $val:expr,) => {{

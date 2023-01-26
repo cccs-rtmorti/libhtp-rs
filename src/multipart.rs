@@ -5,7 +5,6 @@ use crate::{
     headers::{HeaderFlags, Parser as HeadersParser, Side},
     hook::FileDataHook,
     parsers::parse_content_type,
-    table::Table,
     transaction::{Header, Headers},
     util::{
         is_space, take_ascii_whitespace, take_is_space, take_until_no_case, File, FlagOperations,
@@ -333,7 +332,7 @@ impl Parser {
                     if self.parse_content_disposition() == Err(HtpStatus::ERROR) {
                         return Err(HtpStatus::ERROR);
                     }
-                    if let Some((_, header)) = self
+                    if let Some(header) = self
                         .get_current_part()?
                         .headers
                         .get_nocase_nozero("content-type")
@@ -783,7 +782,7 @@ impl Parser {
                         .set(MultipartFlags::PART_HEADER_UNKNOWN)
                 }
                 // Check if the header already exists.
-                if let Some((_, h_existing)) = self
+                if let Some(h_existing) = self
                     .get_current_part()?
                     .headers
                     .get_nocase_mut(header.name.as_slice())
@@ -798,7 +797,7 @@ impl Parser {
                 } else {
                     self.get_current_part()?
                         .headers
-                        .add(header.name.clone(), header);
+                        .elements.push(header);
                 }
             }
             self.pending_header_line.clear();
@@ -821,7 +820,7 @@ impl Parser {
         // Find the C-D header.
         let part = self.get_current_part()?;
         let header = {
-            if let Some((_, header)) = part.headers.get_nocase_nozero_mut("content-disposition") {
+            if let Some(header) = part.headers.get_nocase_nozero_mut("content-disposition") {
                 header
             } else {
                 self.multipart.flags.set(MultipartFlags::PART_UNKNOWN);
@@ -924,7 +923,7 @@ impl Default for Part {
             name: Bstr::with_capacity(64),
             value: Bstr::with_capacity(64),
             content_type: None,
-            headers: Table::with_capacity(4),
+            headers: Headers::with_capacity(4),
             file: None,
         }
     }

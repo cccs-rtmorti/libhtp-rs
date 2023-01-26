@@ -266,8 +266,8 @@ pub unsafe extern "C" fn htp_tx_request_header_index(
     tx.as_ref()
         .map(|tx| {
             tx.request_headers
-                .get(index)
-                .map(|(_, value)| value as *const Header)
+                .elements.get(index)
+                .map(|value| value as *const Header)
                 .unwrap_or(std::ptr::null())
         })
         .unwrap_or(std::ptr::null())
@@ -577,8 +577,8 @@ pub unsafe extern "C" fn htp_tx_response_header_index(
     tx.as_ref()
         .map(|tx| {
             tx.response_headers
-                .get(index)
-                .map(|(_, value)| value as *const Header)
+                .elements.get(index)
+                .map(|value| value as *const Header)
                 .unwrap_or(std::ptr::null())
         })
         .unwrap_or(std::ptr::null())
