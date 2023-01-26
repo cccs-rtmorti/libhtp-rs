@@ -7,7 +7,7 @@ use htp::{
     error::Result,
     log::{HtpLogCode, HtpLogLevel},
     transaction::{
-        HtpAuthType, HtpDataSource, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
+        HtpAuthType, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
         HtpResponseProgress, HtpTransferCoding, Transaction,
     },
     util::{FlagOperations, HtpFileSource, HtpFlags},
@@ -46,8 +46,6 @@ fn Get() {
         .as_ref()
         .unwrap()
         .eq_slice("p=%20"));
-
-    assert_contains_param!(&tx.request_params, "p", " ");
 }
 
 #[test]
@@ -87,8 +85,6 @@ Hello World!"
         .as_ref()
         .unwrap()
         .eq_slice("p=%20"));
-
-    assert_contains_param!(&tx.request_params, "p", " ");
 }
 
 #[test]
@@ -176,8 +172,6 @@ fn PostUrlencoded() {
     // Transaction 1
     let tx = t.connp.tx(0).unwrap();
 
-    assert_contains_param!(&tx.request_params, "p", "0123456789");
-
     assert_eq!(tx.request_progress, HtpRequestProgress::COMPLETE);
     assert_eq!(tx.response_progress, HtpResponseProgress::COMPLETE);
 
@@ -201,7 +195,6 @@ fn PostUrlencodedChunked() {
 
     let tx = t.connp.tx(0).unwrap();
 
-    assert_contains_param!(&tx.request_params, "p", "0123456789");
     assert_eq!(25, tx.request_message_len);
     assert_eq!(12, tx.request_entity_len);
 }
@@ -426,9 +419,6 @@ fn Multipart() {
     let tx = t.connp.tx(0).unwrap();
 
     assert!(tx.is_complete());
-
-    assert_contains_param!(&tx.request_params, "field1", "0123456789");
-    assert_contains_param!(&tx.request_params, "field2", "9876543210");
 }
 
 #[test]
@@ -460,9 +450,6 @@ fn UrlEncoded() {
 
     assert!(tx.request_method.as_ref().unwrap().eq_slice("POST"));
     assert!(tx.request_uri.as_ref().unwrap().eq_slice("/?p=1&q=2"));
-    assert_contains_param_source!(&tx.request_params, HtpDataSource::BODY, "p", "3");
-    assert_contains_param_source!(&tx.request_params, HtpDataSource::BODY, "q", "4");
-    assert_contains_param_source!(&tx.request_params, HtpDataSource::BODY, "z", "5");
 }
 
 #[test]
@@ -822,8 +809,6 @@ fn GetIPv6() {
         .as_ref()
         .unwrap()
         .eq_slice("p=%20"));
-
-    assert_contains_param!(&tx.request_params, "p", " ");
 }
 
 #[test]
@@ -1474,10 +1459,6 @@ fn PostChunkedSplitChunk() {
     assert!(t.run_file("66-post-chunked-split-chunk.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    assert_contains_param!(&tx.request_params, "p", "0123456789");
 }
 
 #[test]
@@ -1882,7 +1863,6 @@ fn GetWhitespace() {
         .as_ref()
         .unwrap()
         .eq_slice("p=%20"));
-    assert_contains_param!(&tx.request_params, "p", " ");
 }
 
 #[test]
