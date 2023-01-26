@@ -516,16 +516,23 @@ impl ConnectionParser {
             // We've seen all the request headers.
             return self.state_request_headers(input);
         }
+        let mut taken = false;
         let request_header = if let Some(mut request_header) = self.request_header.take() {
             request_header.add(data);
+            taken = true;
             request_header
         } else {
-            Bstr::from(data)
+            Bstr::new()
+        };
+        let data2 = if taken {
+            request_header.as_slice()
+        } else {
+            data
         };
 
-        let (remaining, eoh) = self.parse_request_headers(request_header.as_slice())?;
+        let (remaining, eoh) = self.parse_request_headers(data2)?;
         //TODO: Update the request state machine so that we don't have to have this EOL check
-        let eol = remaining.len() == request_header.len()
+        let eol = remaining.len() == data2.len()
             && (remaining.starts_with(b"\r\n") || remaining.starts_with(b"\n"));
         if eoh
             //If the input started with an EOL, we assume this is the end of the headers
