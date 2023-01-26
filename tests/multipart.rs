@@ -44,7 +44,7 @@ impl Test {
         // make a Parser without feeding any data through the connp
         let _tx = self.connp.request();
         // And set the parser
-        self.tx().request_mpartp = Some(Parser::new(&self.connp.cfg, boundary, 0));
+        self.tx().request_mpartp = Some(Box::new(Parser::new(&self.connp.cfg, boundary, 0)));
     }
 
     fn mpartp(&mut self) -> &mut Parser {
