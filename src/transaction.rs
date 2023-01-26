@@ -460,7 +460,7 @@ pub struct Transaction {
     pub request_urlenp_body: Option<UrlEncodedParser>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
-    pub request_mpartp: Option<MultipartParser>,
+    pub request_mpartp: Option<Box<MultipartParser>>,
     /// Authentication type used in the request.
     pub request_auth_type: HtpAuthType,
     /// Authentication username.
@@ -914,7 +914,7 @@ impl Transaction {
                     if !boundary.is_empty() {
                         // Create a Multipart parser instance.
                         self.request_mpartp =
-                            Some(MultipartParser::new(&self.cfg, boundary, flags));
+                            Some(Box::new(MultipartParser::new(&self.cfg, boundary, flags)));
                     }
                 }
             }
