@@ -122,7 +122,7 @@ fn ApacheHeaderParsing() {
 
     let actual: Vec<(&[u8], &[u8])> = (&tx.request_headers)
         .into_iter()
-        .map(|(_, val)| (val.name.as_slice(), val.value.as_slice()))
+        .map(|val| (val.name.as_slice(), val.value.as_slice()))
         .collect();
 
     let expected: Vec<(&[u8], &[u8])> = [
@@ -2911,7 +2911,7 @@ fn ResponseHeaderParsing() {
 
     let actual: Vec<(&[u8], &[u8])> = (&tx.response_headers)
         .into_iter()
-        .map(|(_, val)| (val.name.as_slice(), val.value.as_slice()))
+        .map(|val| (val.name.as_slice(), val.value.as_slice()))
         .collect();
 
     let expected: Vec<(&[u8], &[u8])> = [
@@ -2961,5 +2961,5 @@ fn RequestSingleBytes() {
 
     let tx = t.connp.tx(0).unwrap();
     let h = tx.request_headers.get_nocase_nozero("User-Agent").unwrap();
-    assert!(h.1.value.eq_slice(b"Test/1.0"));
+    assert!(h.value.eq_slice(b"Test/1.0"));
 }

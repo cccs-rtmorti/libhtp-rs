@@ -1718,7 +1718,7 @@ fn InvalidContentDispositionSyntax() {
         parser.current_part_idx = Some(0);
         let part = parser.get_current_part().unwrap();
         let header = Header::new(b"Content-Disposition".to_vec().into(), input.into());
-        part.headers.add(header.name.clone(), header);
+        part.headers.elements.push(header);
         assert_err!(parser.parse_content_disposition(), HtpStatus::DECLINED);
         assert!(parser
             .multipart
@@ -1795,7 +1795,6 @@ fn HeaderValueTrim() {
     let header = &field1
         .headers
         .get_nocase_nozero("content-disposition")
-        .unwrap()
-        .1;
+        .unwrap();
     assert_eq!(header.value, "form-data; name=\"field1\"");
 }

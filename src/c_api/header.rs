@@ -22,7 +22,7 @@ pub unsafe extern "C" fn htp_headers_get(
     if let (Some(headers), Some(ckey)) = (headers.as_ref(), ckey.as_ref()) {
         headers
             .get_nocase_nozero(std::ffi::CStr::from_ptr(ckey).to_bytes())
-            .map(|(_, value)| value as *const Header)
+            .map(|value| value as *const Header)
             .unwrap_or(std::ptr::null())
     } else {
         std::ptr::null()
@@ -43,7 +43,7 @@ pub unsafe extern "C" fn htp_headers_flags(headers: *const Headers) -> u64 {
         .map(|headers| {
             headers
                 .into_iter()
-                .fold(0, |flags, (_, header)| flags | header.flags)
+                .fold(0, |flags, header| flags | header.flags)
         })
         .unwrap_or(0)
 }
@@ -65,8 +65,8 @@ pub unsafe extern "C" fn htp_headers_get_index(
         .as_ref()
         .map(|headers| {
             headers
-                .get(index)
-                .map(|(_, value)| value as *const Header)
+                .elements.get(index)
+                .map(|value| value as *const Header)
                 .unwrap_or(std::ptr::null())
         })
         .unwrap_or(std::ptr::null())

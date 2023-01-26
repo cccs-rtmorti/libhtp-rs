@@ -156,7 +156,7 @@ fn HybridParsing_Get_Callback_RESPONSE_BODY_DATA(
 // Set one request header.
 macro_rules! tx_set_header {
     ($headers:expr, $name:expr, $value:expr) => {
-        $headers.add($name.into(), Header::new($name.into(), $value.into()))
+        $headers.elements.push(Header::new($name.into(), $value.into()))
     };
 }
 

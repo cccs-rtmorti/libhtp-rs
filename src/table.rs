@@ -80,33 +80,6 @@ impl<T> Table<T> {
             .find(|x| x.0.cmp_nocase_trimmed(key.as_ref()) == Ordering::Equal)
     }
 
-    /// Search the table for the first tuple with a key matching the given slice, ingnoring ascii case in self
-    ///
-    /// Returns None if no match is found.
-    pub fn get_nocase_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut (Bstr, T)> {
-        self.elements
-            .iter_mut()
-            .find(|x| x.0.cmp_nocase_trimmed(key.as_ref()) == Ordering::Equal)
-    }
-
-    /// Search the table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
-    ///
-    /// Returns None if no match is found.
-    pub fn get_nocase_nozero<K: AsRef<[u8]>>(&self, key: K) -> Option<&(Bstr, T)> {
-        self.elements
-            .iter()
-            .find(|x| x.0.cmp_nocase_nozero_trimmed(key.as_ref()) == Ordering::Equal)
-    }
-
-    /// Search the table for the first tuple with a tuple key matching the given slice, ignoring ascii case and any zeros in self
-    ///
-    /// Returns None if no match is found.
-    pub fn get_nocase_nozero_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<&mut (Bstr, T)> {
-        self.elements
-            .iter_mut()
-            .find(|x| x.0.cmp_nocase_nozero_trimmed(key.as_ref()) == Ordering::Equal)
-    }
-
     /// Returns the number of elements in the table
     pub fn size(&self) -> usize {
         self.elements.len()
@@ -151,33 +124,6 @@ fn GetNoCase() {
     assert_eq!("Value2", res.1);
 
     result = t.get_nocase("NotAKey");
-    assert!(result.is_none());
-}
-
-#[test]
-fn GetNocaseNozero() {
-    let mut t = Table::with_capacity(2);
-    let mut k = Bstr::from("K\x00\x00\x00\x00ey\x001");
-    t.add(k, "Value1");
-    k = Bstr::from("K\x00e\x00\x00Y2");
-    t.add(k, "Value2");
-
-    let mut result = t.get_nocase_nozero("key1");
-    let mut res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp_slice("K\x00\x00\x00\x00ey\x001"));
-    assert_eq!("Value1", res.1);
-
-    result = t.get_nocase_nozero("KeY1");
-    res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp_slice("K\x00\x00\x00\x00ey\x001"));
-    assert_eq!("Value1", res.1);
-
-    result = t.get_nocase_nozero("KEY2");
-    res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.0.cmp_slice("K\x00e\x00\x00Y2"));
-    assert_eq!("Value2", res.1);
-
-    result = t.get_nocase("key1");
     assert!(result.is_none());
 }
 

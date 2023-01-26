@@ -413,7 +413,7 @@ fn parse_authorization_basic(request_tx: &mut Transaction, auth_header: &Header)
 
 /// Parses Authorization request header.
 pub fn parse_authorization(request_tx: &mut Transaction) -> Result<()> {
-    let auth_header = if let Some((_, auth_header)) = request_tx
+    let auth_header = if let Some(auth_header) = request_tx
         .request_headers
         .get_nocase_nozero("authorization")
     {

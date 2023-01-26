@@ -662,7 +662,7 @@ impl ConnectionParser {
         let reps = self.request().request_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
-        if let Some((_, h_existing)) = self
+        if let Some(h_existing) = self
             .request_mut()
             .request_headers
             .get_nocase_mut(header.name.as_slice())
@@ -700,7 +700,7 @@ impl ConnectionParser {
         } else {
             self.request_mut()
                 .request_headers
-                .add(header.name.clone(), header);
+                .elements.push(header);
         }
         if update_reps {
             self.request_mut().request_header_repetitions =
@@ -1042,7 +1042,7 @@ impl ConnectionParser {
             .request_mut()
             .request_headers
             .get_nocase_nozero("content-encoding")
-            .map(|(_, val)| val.value.clone());
+            .map(|val| val.value.clone());
         // Process multiple encodings if there is no match on fast path
         let mut slow_path = false;
 
