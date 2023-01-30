@@ -62,7 +62,7 @@ impl Bstr {
 
     /// Compare trimmed bstr with the given slice, ingnoring ascii case.
     pub fn cmp_nocase_trimmed<B: AsRef<[u8]>>(&self, other: B) -> Ordering {
-        let lefts = &self.trim();
+        let lefts = &self.trim_with(|c| c.is_ascii_whitespace());
         let rights = &other.as_ref();
         let left = LowercaseIterator::new(lefts);
         let right = LowercaseIterator::new(rights);
