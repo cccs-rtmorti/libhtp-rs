@@ -28,7 +28,7 @@ include = [
 crate-type = ["staticlib", "rlib", "cdylib"]
 
 [features]
-default = []
+default = ["cbindgen"]
 
 [dependencies]
 base64 = "0.12.3"
