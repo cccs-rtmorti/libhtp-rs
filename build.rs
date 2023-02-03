@@ -22,7 +22,7 @@ fn main() {
     } else {
         PathBuf::from(crate_dir.clone())
     };
-    let htp_h_path = hdr_path.join("htp/htp.h");
+    let htp_h_path = hdr_path.join("htp/htp_rs.h");
 
     cbindgen::generate_with_config(
         crate_dir.clone(),
