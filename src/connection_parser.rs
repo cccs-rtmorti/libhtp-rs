@@ -538,6 +538,10 @@ impl ConnectionParser {
         // to process the events that depend on stream closure
         self.request_data(ParserData::default(), timestamp);
         self.response_data(ParserData::default(), timestamp);
+
+        if self.cfg.flush_incomplete {
+            self.flush_incomplete_transactions()
+        }
     }
 
     /// This function is most likely not used and/or not needed.
@@ -935,7 +939,9 @@ impl ConnectionParser {
     ///
     /// This function is meant to be used before dropping the ConnectionParser
     /// so any incomplete transactions can be processed by the caller.
-    pub fn flush_incomplete_transactions(&mut self) {
+    ///
+    /// Safety: must only be called after the current transaction is closed
+    fn flush_incomplete_transactions(&mut self) {
         let mut to_remove = Vec::<usize>::new();
         for tx in &mut self.transactions {
             if tx.is_started() && !tx.is_complete() {
@@ -948,7 +954,9 @@ impl ConnectionParser {
                 .clone()
                 .run_all(self, index)
                 .ok();
-            self.transactions.remove(index);
+            if self.cfg.tx_auto_destroy {
+                self.transactions.remove(index);
+            }
         }
     }
 }

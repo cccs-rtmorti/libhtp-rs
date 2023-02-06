@@ -115,6 +115,8 @@ pub struct Config {
     pub compression_options: Options,
     /// Multipart configurations for file extraction.
     pub multipart_cfg: MultipartConfig,
+    /// Flush incomplete transactions
+    pub flush_incomplete: bool,
 }
 
 impl Default for Config {
@@ -154,6 +156,7 @@ impl Default for Config {
             request_decompression_enabled: false,
             compression_options: Options::default(),
             multipart_cfg: Default::default(),
+            flush_incomplete: false,
         }
     }
 }
@@ -532,6 +535,22 @@ impl Config {
     /// programs that process transactions as they are processed.
     pub fn set_tx_auto_destroy(&mut self, tx_auto_destroy: bool) {
         self.tx_auto_destroy = tx_auto_destroy;
+    }
+
+    /// Configures whether incomplete transactions will be flushed when a connection is closed.
+    ///
+    /// This will invoke the transaction complete callback for each incomplete transaction. The
+    /// transactions passed to the callback will not have their request and response state set
+    /// to complete - they will simply be passed with the state they have within the parser at
+    /// the time of the call.
+    ///
+    /// This option is intended to be used when a connection is closing and we want to process
+    /// any incomplete transactions that were in flight, or which never completed due to packet
+    /// loss or parsing errors.
+    ///
+    /// These transactions will also be removed from the parser when auto destroy is enabled.
+    pub fn set_flush_incomplete(&mut self, flush_incomplete: bool) {
+        self.flush_incomplete = flush_incomplete;
     }
 
     /// Configures a best-fit map, which is used whenever characters longer than one byte

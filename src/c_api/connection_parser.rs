@@ -284,25 +284,6 @@ pub unsafe extern "C" fn htp_connp_get_request_tx(
         .unwrap_or(std::ptr::null())
 }
 
-/// Invoke the transaction complete callback for each incomplete transaction.
-/// The transactions passed to the callback will not have their request and
-/// response state set to complete - they will simply be passed with the state
-/// they have within the parser at the time of the call.
-///
-/// This function is intended to be used when a connection is closing and we want
-/// to process any incomplete transactions that were in flight, or which never
-/// completed due to packet loss or parsing errors.
-///
-/// This function will also cause these transactions to be removed from the parser.
-/// # Safety
-/// When calling this method, you have to ensure that connp is either properly initialized or NULL
-#[no_mangle]
-pub unsafe extern "C" fn htp_connp_flush_incomplete_transactions(connp: *mut ConnectionParser) {
-    if let Some(connp) = connp.as_mut() {
-        connp.flush_incomplete_transactions()
-    }
-}
-
 /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
 /// # Safety
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL

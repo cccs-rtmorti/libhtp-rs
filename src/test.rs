@@ -23,6 +23,8 @@ enum Chunk {
 
 /// A structure to hold callback data
 pub struct MainUserData {
+    /// Call order of callbacks
+    pub order: Vec<String>,
     /// Request data from callbacks
     pub request_data: Vec<Bstr>,
     /// Response data from callbacks
@@ -33,6 +35,7 @@ impl Default for MainUserData {
     /// Make a new user data struct
     fn default() -> Self {
         Self {
+            order: Vec::new(),
             request_data: Vec::with_capacity(5),
             response_data: Vec::with_capacity(5),
         }
@@ -174,8 +177,13 @@ impl Test {
     /// Make a new test with the default TestConfig and register body callbacks.
     pub fn new_with_callbacks() -> Self {
         let mut cfg = TestConfig();
+        cfg.register_request_start(request_start);
+        cfg.register_request_complete(request_complete);
+        cfg.register_response_start(response_start);
+        cfg.register_response_complete(response_complete);
         cfg.register_response_body_data(response_body_data);
         cfg.register_request_body_data(request_body_data);
+        cfg.register_transaction_complete(transaction_complete);
         let mut t = Test::new(cfg);
         // Configure user data and callbacks
         t.connp
@@ -288,6 +296,41 @@ impl Test {
 
         self.run(TestInput::from(testfile))
     }
+}
+
+fn request_start(tx: &mut Transaction) -> Result<()> {
+    let id = tx.index;
+    let user_data = tx.user_data_mut::<MainUserData>().unwrap();
+    user_data.order.push(format!("request_start {}", id));
+    Ok(())
+}
+
+fn request_complete(tx: &mut Transaction) -> Result<()> {
+    let id = tx.index;
+    let user_data = &mut tx.user_data_mut::<MainUserData>().unwrap();
+    user_data.order.push(format!("request_complete {}", id));
+    Ok(())
+}
+
+fn response_start(tx: &mut Transaction) -> Result<()> {
+    let id = tx.index;
+    let user_data = tx.user_data_mut::<MainUserData>().unwrap();
+    user_data.order.push(format!("response_start {}", id));
+    Ok(())
+}
+
+fn response_complete(tx: &mut Transaction) -> Result<()> {
+    let id = tx.index;
+    let user_data = tx.user_data_mut::<MainUserData>().unwrap();
+    user_data.order.push(format!("response_complete {}", id));
+    Ok(())
+}
+
+fn transaction_complete(tx: &mut Transaction) -> Result<()> {
+    let id = tx.index;
+    let user_data = tx.user_data_mut::<MainUserData>().unwrap();
+    user_data.order.push(format!("transaction_complete {}", id));
+    Ok(())
 }
 
 fn response_body_data(tx: &mut Transaction, d: &ParserData) -> Result<()> {

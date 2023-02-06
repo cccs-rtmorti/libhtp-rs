@@ -2963,3 +2963,27 @@ fn RequestSingleBytes() {
     let h = tx.request_headers.get_nocase_nozero("User-Agent").unwrap();
     assert!(h.value.eq_slice(b"Test/1.0"));
 }
+
+#[test]
+fn ResponseIncomplete() {
+    let mut t = Test::new_with_callbacks();
+    assert!(t.run_file("124-response-incomplete.t").is_ok());
+
+    assert_eq!(1, t.connp.tx_size());
+
+    let tx = t.connp.tx(0).unwrap();
+    assert!(tx.is_complete());
+
+    let user_data = tx.user_data::<MainUserData>().unwrap();
+
+    assert_eq!(
+        vec![
+            "request_start 0",
+            "response_start 0",
+            "request_complete 0",
+            "response_complete 0",
+            "transaction_complete 0"
+        ],
+        user_data.order
+    );
+}

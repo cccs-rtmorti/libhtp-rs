@@ -568,6 +568,31 @@ pub unsafe extern "C" fn htp_config_set_tx_auto_destroy(
     }
 }
 
+/// Configures whether incomplete transactions will be flushed when a connection is closed.
+///
+/// This will invoke the transaction complete callback for each incomplete transaction. The
+/// transactions passed to the callback will not have their request and response state set
+/// to complete - they will simply be passed with the state they have within the parser at
+/// the time of the call.
+///
+/// This option is intended to be used when a connection is closing and we want to process
+/// any incomplete transactions that were in flight, or which never completed due to packet
+/// loss or parsing errors.
+///
+/// These transactions will also be removed from the parser when auto destroy is enabled.
+///
+/// # Safety
+/// When calling this method, you have to ensure that cfg is either properly initialized or NULL
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_flush_incomplete(
+    cfg: *mut Config,
+    flush_incomplete: libc::c_int,
+) {
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.set_flush_incomplete(flush_incomplete == 1)
+    }
+}
+
 /// Enable or Disable the built-in Multipart parser to the configuration. Disabled by default.
 /// This parser will extract information stored in request bodies, when they are in multipart/form-data format.
 /// # Safety
