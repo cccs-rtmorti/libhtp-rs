@@ -407,7 +407,6 @@ impl ConnectionParser {
                             HtpLogCode::CONTINUE_ALREADY_SEEN,
                             "Already seen 100-Continue."
                         );
-                        return Err(HtpStatus::ERROR);
                     }
                     // Ignore any response headers seen so far.
                     self.response_mut().response_headers.elements.clear();
