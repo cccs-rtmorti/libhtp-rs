@@ -698,9 +698,7 @@ impl ConnectionParser {
                 h_existing.value.extend_from_slice(header.value.as_slice());
             }
         } else {
-            self.request_mut()
-                .request_headers
-                .elements.push(header);
+            self.request_mut().request_headers.elements.push(header);
         }
         if update_reps {
             self.request_mut().request_header_repetitions =
@@ -1058,7 +1056,9 @@ impl ConnectionParser {
                 HtpContentEncoding::DEFLATE
             } else if ce.cmp_nocase_nozero(b"lzma") == Ordering::Equal {
                 HtpContentEncoding::LZMA
-            } else if ce.cmp_nocase_nozero(b"inflate") == Ordering::Equal {
+            } else if ce.cmp_nocase_nozero(b"inflate") == Ordering::Equal
+                || ce.cmp_nocase_nozero(b"none") == Ordering::Equal
+            {
                 HtpContentEncoding::NONE
             } else {
                 slow_path = true;
@@ -1145,7 +1145,9 @@ impl ConnectionParser {
                                     }
                                 }
                                 HtpContentEncoding::LZMA
-                            } else if encoding.cmp_slice(b"inflate") == Ordering::Equal {
+                            } else if encoding.cmp_slice(b"inflate") == Ordering::Equal
+                                || encoding.cmp_slice(b"none") == Ordering::Equal
+                            {
                                 HtpContentEncoding::NONE
                             } else {
                                 htp_warn!(
