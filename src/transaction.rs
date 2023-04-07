@@ -455,9 +455,6 @@ pub struct Transaction {
     /// Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
     /// the configuration hook with the same name.
     pub hook_response_body_data: DataHook,
-    /// Request body URLENCODED parser. Available only when the request body is in the
-    /// application/x-www-form-urlencoded format and the parser was configured to run.
-    pub request_urlenp_body: Option<UrlEncodedParser>,
     /// Request body MULTIPART parser. Available only when the body is in the
     /// multipart/form-data format and the parser was configured to run.
     pub request_mpartp: Option<Box<MultipartParser>>,
@@ -683,7 +680,6 @@ impl Transaction {
             request_decompressor: None,
             hook_request_body_data: DataHook::default(),
             hook_response_body_data: DataHook::default(),
-            request_urlenp_body: None,
             request_mpartp: None,
             request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
@@ -904,12 +900,7 @@ impl Transaction {
             self.request_content_type = Some(parse_content_type(ct.value.as_slice())?);
             let mut flags = 0;
             // Check the request content type for urlencoded or see if it matches our MIME type
-            if self.cfg.parse_urlencoded
-                && ct.value.starts_with("application/x-www-form-urlencoded")
-            {
-                // Create parser instance.
-                self.request_urlenp_body = Some(UrlEncodedParser::new(self.cfg.decoder_cfg));
-            } else if self.cfg.parse_multipart {
+            if self.cfg.parse_multipart {
                 if let Some(boundary) = find_boundary(ct.value.as_slice(), &mut flags) {
                     if !boundary.is_empty() {
                         // Create a Multipart parser instance.
@@ -930,34 +921,6 @@ impl Transaction {
                     Err(rc)
                 }
             })?;
-        }
-        Ok(())
-    }
-
-    /// Process the provided data as Urlencoded Data
-    ///
-    /// Returns HtpStatus::DECLINED if the provided data is not urlencoded (i.e. no urlencoded parser was ever created)
-    pub fn request_process_urlencoded_data(&mut self, data: Option<&[u8]>) -> Result<()> {
-        let urlenp = self
-            .request_urlenp_body
-            .as_mut()
-            .ok_or(HtpStatus::DECLINED)?;
-        if let Some(data) = data {
-            // Process one chunk of data.
-            urlenp.parse_partial(data);
-        } else {
-            // Finalize parsing.
-            urlenp.finalize();
-            let elements = take(&mut urlenp.params.elements);
-            // Add all parameters to the transaction.
-            for (name, value) in elements.iter() {
-                let param = Param::new(
-                    Bstr::from((*name).as_slice()),
-                    Bstr::from((*value).as_slice()),
-                    HtpDataSource::BODY,
-                );
-                self.request_add_param(param)?;
-            }
         }
         Ok(())
     }

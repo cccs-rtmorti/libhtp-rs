@@ -1001,7 +1001,6 @@ impl ConnectionParser {
                 // Keep track of the body length.
                 self.request_mut().request_entity_len += data.unwrap_or(b"").len() as u64;
                 let _ = self.request_mut().request_process_multipart_data(data);
-                let _ = self.request_mut().request_process_urlencoded_data(data);
                 // Send data to the callbacks.
                 let data = ParserData::from(data);
                 let mut data = Data::new(self.request_mut(), &data);
