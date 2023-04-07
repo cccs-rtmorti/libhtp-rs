@@ -578,7 +578,9 @@ impl ConnectionParser {
                             if nom_is_space(*c) {
                                 afterspace = true;
                             } else if afterspace || is_space(*c) {
-                                break;
+                                // We're done with this request.
+                                self.request_state = State::FINALIZE;
+                                return Ok(());
                             }
                         }
                     }
