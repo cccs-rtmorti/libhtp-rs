@@ -352,12 +352,12 @@ impl ConnectionParser {
             .response()
             .response_headers
             .get_nocase_nozero("content-length")
-            .map(|val| val.clone());
+            .cloned();
         let te_opt = self
             .response()
             .response_headers
             .get_nocase_nozero("transfer-encoding")
-            .map(|val| val.clone());
+            .cloned();
         // Check for "101 Switching Protocol" response.
         // If it's seen, it means that traffic after empty line following headers
         // is no longer HTTP. We can treat it similarly to CONNECT.
@@ -466,7 +466,6 @@ impl ConnectionParser {
                 .response()
                 .response_headers
                 .get_nocase_nozero("content-type")
-                .map(|val| val)
             {
                 // TODO Some platforms may do things differently here.
                 let response_content_type = if let Ok((_, ct)) =

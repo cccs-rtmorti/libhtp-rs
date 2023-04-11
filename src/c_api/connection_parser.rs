@@ -33,7 +33,7 @@ pub unsafe extern "C" fn htp_connp_close(
         connp.close(
             timestamp
                 .as_ref()
-                .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
+                .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
                 .unwrap_or(None),
         )
     }
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn htp_connp_open(
             server_port.try_into().ok(),
             timestamp
                 .as_ref()
-                .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
+                .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
                 .unwrap_or(None),
         )
     }
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn htp_connp_request_close(
         connp.request_close(
             timestamp
                 .as_ref()
-                .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
+                .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
                 .unwrap_or(None),
         )
     }
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn htp_connp_request_data(
                 ParserData::from((data as *const u8, len)),
                 timestamp
                     .as_ref()
-                    .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
+                    .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
                     .unwrap_or(None),
             )
         })
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn htp_connp_response_data(
                 ParserData::from((data as *const u8, len)),
                 timestamp
                     .as_ref()
-                    .map(|val| datetime_from_sec_usec(val.tv_sec as i64, val.tv_usec as i64))
+                    .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
                     .unwrap_or(None),
             )
         })
