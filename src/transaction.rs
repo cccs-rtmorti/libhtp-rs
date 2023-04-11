@@ -8,10 +8,7 @@ use crate::{
     hook::{DataHook, DataNativeCallbackFn},
     log::Logger,
     multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
-    parsers::{
-        parse_authorization, parse_content_length, parse_content_type,
-        parse_hostport,
-    },
+    parsers::{parse_authorization, parse_content_length, parse_content_type, parse_hostport},
     request::HtpMethod,
     uri::Uri,
     urlencoded::Parser as UrlEncodedParser,
@@ -1090,7 +1087,6 @@ impl PartialEq for Transaction {
     }
 }
 
-
 #[test]
 fn GetNocaseNozero() {
     let mut t = Headers::with_capacity(2);
@@ -1105,12 +1101,18 @@ fn GetNocaseNozero() {
 
     let mut result = t.get_nocase_nozero("key1");
     let mut res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.name.cmp_slice("K\x00\x00\x00\x00ey\x001"));
+    assert_eq!(
+        Ordering::Equal,
+        res.name.cmp_slice("K\x00\x00\x00\x00ey\x001")
+    );
     assert_eq!(v1, res.value);
 
     result = t.get_nocase_nozero("KeY1");
     res = result.unwrap();
-    assert_eq!(Ordering::Equal, res.name.cmp_slice("K\x00\x00\x00\x00ey\x001"));
+    assert_eq!(
+        Ordering::Equal,
+        res.name.cmp_slice("K\x00\x00\x00\x00ey\x001")
+    );
     assert_eq!(v1, res.value);
 
     result = t.get_nocase_nozero("KEY2");

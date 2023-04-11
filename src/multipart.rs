@@ -795,9 +795,7 @@ impl Parser {
                         .flags
                         .set(MultipartFlags::PART_HEADER_REPEATED)
                 } else {
-                    self.get_current_part()?
-                        .headers
-                        .elements.push(header);
+                    self.get_current_part()?.headers.elements.push(header);
                 }
             }
             self.pending_header_line.clear();

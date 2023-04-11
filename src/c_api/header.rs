@@ -65,7 +65,8 @@ pub unsafe extern "C" fn htp_headers_get_index(
         .as_ref()
         .map(|headers| {
             headers
-                .elements.get(index)
+                .elements
+                .get(index)
                 .map(|value| value as *const Header)
                 .unwrap_or(std::ptr::null())
         })

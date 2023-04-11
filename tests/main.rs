@@ -7,8 +7,8 @@ use htp::{
     error::Result,
     log::{HtpLogCode, HtpLogLevel},
     transaction::{
-        HtpAuthType, HtpProtocol, HtpRequestProgress, HtpResponseNumber,
-        HtpResponseProgress, HtpTransferCoding, Transaction,
+        HtpAuthType, HtpProtocol, HtpRequestProgress, HtpResponseNumber, HtpResponseProgress,
+        HtpTransferCoding, Transaction,
     },
     util::{FlagOperations, HtpFileSource, HtpFlags},
 };
