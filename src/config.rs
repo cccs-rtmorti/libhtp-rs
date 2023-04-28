@@ -2,8 +2,7 @@ use crate::decompressors::Options;
 use crate::{
     error::Result,
     hook::{
-        DataHook, DataNativeCallbackFn, FileDataHook, LogHook, LogNativeCallbackFn, TxHook,
-        TxNativeCallbackFn,
+        DataHook, DataNativeCallbackFn, LogHook, LogNativeCallbackFn, TxHook, TxNativeCallbackFn,
     },
     log::HtpLogLevel,
     transaction::Param,
@@ -32,8 +31,6 @@ pub struct Config {
     pub decoder_cfg: DecoderConfig,
     /// Whether to decompress compressed response bodies.
     pub response_decompression_enabled: bool,
-    /// Whether to parse multipart data.
-    pub parse_multipart: bool,
     /// Whether to parse urlencoded data.
     pub parse_urlencoded: bool,
     /// Whether to parse HTTP Authentication headers.
@@ -59,9 +56,6 @@ pub struct Config {
     /// is not currently implemented. At the end of the request body
     /// there will be a call with the data set to None.
     pub hook_request_body_data: DataHook,
-    /// Request file data hook, which is invoked whenever request file data is
-    /// available. Currently used only by the Multipart parser.
-    pub hook_request_file_data: FileDataHook,
     /// Receives raw request trailer data, which can be available on requests that have
     /// chunked bodies. The data starts immediately after the zero-length chunk
     /// and includes the terminating empty line.
@@ -113,8 +107,6 @@ pub struct Config {
     pub request_decompression_enabled: bool,
     /// Configuration options for decompression.
     pub compression_options: Options,
-    /// Multipart configurations for file extraction.
-    pub multipart_cfg: MultipartConfig,
     /// Flush incomplete transactions
     pub flush_incomplete: bool,
 }
@@ -129,7 +121,6 @@ impl Default for Config {
             parameter_processor: None,
             decoder_cfg: Default::default(),
             response_decompression_enabled: true,
-            parse_multipart: false,
             parse_urlencoded: false,
             parse_request_auth: true,
             hook_request_start: TxHook::default(),
@@ -138,7 +129,6 @@ impl Default for Config {
             hook_request_header_data: DataHook::default(),
             hook_request_headers: TxHook::default(),
             hook_request_body_data: DataHook::default(),
-            hook_request_file_data: FileDataHook::default(),
             hook_request_trailer_data: DataHook::default(),
             hook_request_trailer: TxHook::default(),
             hook_request_complete: TxHook::default(),
@@ -155,7 +145,6 @@ impl Default for Config {
             requestline_leading_whitespace_unwanted: HtpUnwanted::IGNORE,
             request_decompression_enabled: false,
             compression_options: Options::default(),
-            multipart_cfg: Default::default(),
             flush_incomplete: false,
         }
     }
@@ -240,27 +229,6 @@ impl Default for DecoderConfig {
             utf8_invalid_unwanted: HtpUnwanted::IGNORE,
             utf8_convert_bestfit: false,
             bestfit_map: UnicodeBestfitMap::default(),
-        }
-    }
-}
-
-/// Configuration options for multipart parsing.
-#[derive(Clone)]
-pub struct MultipartConfig {
-    /// Whether to extract files from requests using Multipart encoding.
-    pub extract_request_files: bool,
-    /// How many extracted files are allowed in a single Multipart request?
-    pub extract_request_files_limit: u32,
-    /// The location on disk where temporary files will be created.
-    pub tmpdir: String,
-}
-
-impl Default for MultipartConfig {
-    fn default() -> Self {
-        Self {
-            extract_request_files: false,
-            extract_request_files_limit: 16,
-            tmpdir: "/tmp".to_string(),
         }
     }
 }
@@ -445,12 +413,6 @@ impl Config {
     /// The parser will parse query strings and request bodies with the appropriate MIME type.
     pub fn set_parse_urlencoded(&mut self, parse_urlencoded: bool) {
         self.parse_urlencoded = parse_urlencoded;
-    }
-
-    /// Enable or disable the built-in Multipart parser. Disabled by default.
-    /// This parser will extract information stored in request bodies, when they are in multipart/form-data format.
-    pub fn set_parse_multipart(&mut self, parse_multipart: bool) {
-        self.parse_multipart = parse_multipart;
     }
 
     /// Configures the maximum size of the buffer LibHTP will use when all data is not available

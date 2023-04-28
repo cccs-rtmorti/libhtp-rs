@@ -5,15 +5,6 @@ macro_rules! cstr {
     }};
 }
 
-/// Expects a Result<T, HtpStatus> to fail and checks the error value.
-#[macro_export]
-macro_rules! assert_err {
-    ($result:expr, $expected:expr) => {{
-        let msg = format!("expected {} to fail", stringify!($result));
-        assert_eq!($result.expect_err(&msg), $expected);
-    }};
-}
-
 /// Compares a transaction's header value to an expected value.
 ///
 /// The `attr` argument is meant to be either `request_headers` or `response_headers`.
@@ -140,30 +131,6 @@ macro_rules! assert_response_header_flag_contains {
     }};
 }
 
-/// Assert the table of Param contains a param with the given name value pair
-///
-/// Example usage:
-/// assert_contains_param!(params, "name", "value");
-#[macro_export]
-macro_rules! assert_contains_param {
-    ($params:expr, $name:expr, $val:expr) => {{
-        let param = &(*$params)
-            .get_nocase($name)
-            .expect(
-                format!(
-                    "expected param '{}' to exist at {}:{}:{}",
-                    $name,
-                    file!(),
-                    line!(),
-                    column!()
-                )
-                .as_ref(),
-            )
-            .1;
-        assert!(param.value.eq_slice($val));
-    }};
-}
-
 /// Assert the common evader request values are as expected
 ///
 /// Example usage:
@@ -233,34 +200,5 @@ macro_rules! assert_evader_chunked {
         assert_eq!(b"H+H*".as_ref(), (&user_data.response_data[16]).as_slice());
         assert_eq!(HtpRequestProgress::COMPLETE, ($tx).request_progress);
         assert_eq!(HtpResponseProgress::COMPLETE, ($tx).response_progress);
-    }};
-}
-
-/// Assert the table of Param contains a param from the given source with a matching name value pair
-///
-/// Example usage:
-/// assert_contains_param_source!(params, source, "name", "value");
-#[macro_export]
-macro_rules! assert_contains_param_source {
-    ($params:expr, $source:expr, $name:expr, $val:expr) => {{
-        let param = &(*$params)
-            .elements
-            .iter()
-            .find(|x| {
-                (*x).1.source == $source && (*x).0.cmp_nocase($name) == std::cmp::Ordering::Equal
-            })
-            .expect(
-                format!(
-                    "expected param '{}' from given source {} to exist at {}:{}:{}",
-                    $name,
-                    $source as u32,
-                    file!(),
-                    line!(),
-                    column!()
-                )
-                .as_ref(),
-            )
-            .1;
-        assert!(param.value.eq_slice($val));
     }};
 }

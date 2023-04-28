@@ -1000,7 +1000,6 @@ impl ConnectionParser {
                 // None data is used to indicate the end of request body.
                 // Keep track of the body length.
                 self.request_mut().request_entity_len += data.unwrap_or(b"").len() as u64;
-                let _ = self.request_mut().request_process_multipart_data(data);
                 // Send data to the callbacks.
                 let data = ParserData::from(data);
                 let mut data = Data::new(self.request_mut(), &data);
@@ -1394,10 +1393,6 @@ impl ConnectionParser {
             .run_all(self, d)?;
         // Run configuration hooks second
         self.cfg.hook_request_body_data.run_all(self, d)?;
-        // Treat request body as file
-        if let Some(file) = &mut self.request_file {
-            file.handle_file_data(self.cfg.hook_request_file_data.clone(), d.data(), d.len())?;
-        }
         Ok(())
     }
 

@@ -1,16 +1,10 @@
 //! Utility functions for http parsing.
 
-use crate::{
-    bstr::Bstr,
-    config::HtpServerPersonality,
-    error::{NomError, Result},
-    hook::FileDataHook,
-};
+use crate::{config::HtpServerPersonality, error::NomError};
 use nom::{
     branch::alt,
     bytes::complete::{
-        is_not, tag, tag_no_case, take, take_till, take_until, take_while, take_while1,
-        take_while_m_n,
+        is_not, tag, tag_no_case, take_till, take_until, take_while, take_while1, take_while_m_n,
     },
     bytes::streaming::{tag as streaming_tag, take_till as streaming_take_till},
     character::complete::{char, digit1},
@@ -21,8 +15,7 @@ use nom::{
     IResult, Needed,
 };
 
-use std::{io::Write, str::FromStr};
-use tempfile::{Builder, NamedTempFile};
+use std::str::FromStr;
 
 /// String for the libhtp version.
 pub const HTP_VERSION_STRING_FULL: &'_ str = concat!("LibHTP v", env!("CARGO_PKG_VERSION"), "\x00");
@@ -152,16 +145,6 @@ impl HtpFlags {
     pub const RESPONSE_MISSING_BYTES: u64 = (0x0020_0000_0000 | Self::MISSING_BYTES);
 }
 
-/// Enumerates file sources.
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub enum HtpFileSource {
-    /// File from a multipart request.
-    MULTIPART = 1,
-    /// File from a request body.
-    REQUEST_BODY = 2,
-}
-
 /// Enumerates possible EOLs
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Eol {
@@ -175,83 +158,6 @@ pub enum Eol {
     CRLF,
     /// "\n\r"
     LFCR,
-}
-
-/// Used to represent files that are seen during the processing of HTTP traffic. Most
-/// commonly this refers to files seen in multipart/form-data payloads. In addition, PUT
-/// request bodies can be treated as files.
-#[derive(Debug)]
-pub struct File {
-    /// Where did this file come from? Possible values: MULTIPART and PUT.
-    pub source: HtpFileSource,
-    /// File name, as provided (e.g., in the Content-Disposition multipart part header.
-    pub filename: Option<Bstr>,
-    /// File length.
-    pub len: usize,
-    /// The file used for external storage.
-    pub tmpfile: Option<NamedTempFile>,
-}
-
-impl File {
-    /// Construct new File.
-    pub fn new(source: HtpFileSource, filename: Option<Bstr>) -> File {
-        File {
-            source,
-            filename,
-            len: 0,
-            tmpfile: None,
-        }
-    }
-
-    /// Set new tmpfile.
-    pub fn create(&mut self, tmpfile: &str) -> Result<()> {
-        self.tmpfile = Some(
-            Builder::new()
-                .prefix("libhtp-multipart-file-")
-                .rand_bytes(5)
-                .tempfile_in(tmpfile)?,
-        );
-        Ok(())
-    }
-
-    /// Write data to tmpfile.
-    pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        if let Some(tmpfile) = &mut self.tmpfile {
-            tmpfile.write_all(data)?;
-        }
-        Ok(())
-    }
-
-    /// Update file length and invoke any file data callbacks on the provided cfg
-    pub fn handle_file_data(
-        &mut self,
-        hook: FileDataHook,
-        data: *const u8,
-        len: usize,
-    ) -> Result<()> {
-        self.len = self.len.wrapping_add(len);
-        // Package data for the callbacks.
-        let mut file_data = FileData::new(self, data, len);
-        // Send data to callbacks
-        hook.run_all(&mut file_data)
-    }
-}
-
-/// Represents a chunk of file data.
-pub struct FileData<'a> {
-    /// File information.
-    pub file: &'a File,
-    /// Pointer to the data buffer.
-    pub data: *const u8,
-    /// Buffer length.
-    pub len: usize,
-}
-
-impl FileData<'_> {
-    /// Construct new FileData.
-    fn new(file: &File, data: *const u8, len: usize) -> FileData {
-        FileData { file, data, len }
-    }
 }
 
 /// Determines if character in a seperator.
@@ -385,34 +291,6 @@ where
 /// whitespace = ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c'
 pub fn is_space(c: u8) -> bool {
     matches!(c as char, ' ' | '\t' | '\r' | '\n' | '\x0b' | '\x0c')
-}
-
-/// Helper function that mimics the functionality of bytes::complete::take_until, ignoring tag case
-/// Returns the longest input slice till it case insensitively matches the pattern. It doesn't consume the pattern.
-///
-/// Returns a tuple of the unconsumed data and the data up to but not including the input tag (if present)
-pub fn take_until_no_case(tag: &[u8]) -> impl Fn(&[u8]) -> IResult<&[u8], &[u8]> + '_ {
-    move |input| {
-        if tag.is_empty() {
-            return Ok((b"", input));
-        }
-        let mut new_input = input;
-        let mut bytes_consumed: usize = 0;
-        while !new_input.is_empty() {
-            let (left, consumed) = take_till(|c: u8| {
-                c.to_ascii_lowercase() == tag[0] || c.to_ascii_uppercase() == tag[0]
-            })(new_input)?;
-            new_input = left;
-            bytes_consumed = bytes_consumed.wrapping_add(consumed.len());
-            if tag_no_case::<_, _, NomError<&[u8]>>(tag)(new_input).is_ok() {
-                return Ok((new_input, &input[..bytes_consumed]));
-            } else if let Ok((left, consumed)) = take::<_, _, NomError<&[u8]>>(1usize)(new_input) {
-                bytes_consumed = bytes_consumed.wrapping_add(consumed.len());
-                new_input = left;
-            }
-        }
-        Ok((b"", input))
-    }
 }
 
 /// Is the given line empty?
@@ -942,31 +820,6 @@ mod tests {
     #[case("\x0d\x0a\x20\x09\x0b\x0cX5O!P%@AP", false)]
     fn test_is_valid_chunked_length_data(#[case] input: &str, #[case] expected: bool) {
         assert_eq!(is_valid_chunked_length_data(input.as_bytes()), expected);
-    }
-
-    #[rstest]
-    #[case(
-        "Let's fish for a Tag, but what about this TaG, or this TAG, or another tag. GO FISH.",
-        "Tag, but what about this TaG, or this TAG, or another tag. GO FISH.",
-        "Let's fish for a "
-    )]
-    #[case(
-        ", but what about this TaG, or this TAG, or another tag. GO FISH.",
-        "TaG, or this TAG, or another tag. GO FISH.",
-        ", but what about this "
-    )]
-    #[case(
-        ", or this TAG, or another tag. GO FISH.",
-        "TAG, or another tag. GO FISH.",
-        ", or this "
-    )]
-    #[case(", or another tag. GO FISH.", "tag. GO FISH.", ", or another ")]
-    #[case(". GO FISH.", "", ". GO FISH.")]
-    fn test_take_until_no_case(#[case] input: &str, #[case] remaining: &str, #[case] parsed: &str) {
-        assert_eq!(
-            take_until_no_case(b"TAG")(input.as_bytes()).unwrap(),
-            (remaining.as_bytes(), parsed.as_bytes())
-        );
     }
 
     #[rstest]

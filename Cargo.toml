@@ -35,7 +35,6 @@ base64 = "0.12.3"
 bstr = "0.2"
 libc = "0.2"
 nom = "7.1.1"
-tempfile = "3.1.0"
 lzma-rs = { version = "0.2.0", features = ["stream"] }
 flate2 = "1.0"
 lazy_static = "1.4.0"

@@ -3,7 +3,6 @@ use crate::{
     error::Result,
     log::Log,
     transaction::{Data, Transaction},
-    util::FileData,
     HtpStatus,
 };
 
@@ -26,15 +25,6 @@ pub type DataNativeCallbackFn = fn(&mut Transaction, data: &ParserData) -> Resul
 
 /// Hook for Data
 pub type DataHook = Hook<DataExternalCallbackFn, DataNativeCallbackFn>;
-
-/// External (C) callback function prototype
-pub type FileDataExternalCallbackFn = unsafe extern "C" fn(data: *mut FileData) -> HtpStatus;
-
-/// Native (rust) callback function prototype
-pub type FileDataNativeCallbackFn = fn(data: &mut FileData) -> Result<()>;
-
-/// Hook for htp_tx_filedata_t
-pub type FileDataHook = Hook<FileDataExternalCallbackFn, FileDataNativeCallbackFn>;
 
 /// External (C) callback function prototype
 pub type LogExternalCallbackFn = unsafe extern "C" fn(log: *mut Log) -> HtpStatus;
@@ -118,33 +108,6 @@ impl DataHook {
                 }
                 Callback::Native(cbk_fn) => {
                     if let Err(e) = cbk_fn(unsafe { &mut *data.tx() }, data.parser_data()) {
-                        if e != HtpStatus::DECLINED {
-                            return Err(e);
-                        }
-                    }
-                }
-            };
-        }
-        Ok(())
-    }
-}
-
-impl FileDataHook {
-    /// Run all callbacks on the list
-    ///
-    /// This function will exit early if a callback fails to return HtpStatus::OK
-    /// or HtpStatus::DECLINED.
-    pub fn run_all(&self, data: &mut FileData) -> Result<()> {
-        for cbk_fn in &self.callbacks {
-            match cbk_fn {
-                Callback::External(cbk_fn) => {
-                    let result = unsafe { cbk_fn(data) };
-                    if result != HtpStatus::OK && result != HtpStatus::DECLINED {
-                        return Err(result);
-                    }
-                }
-                Callback::Native(cbk_fn) => {
-                    if let Err(e) = cbk_fn(data) {
                         if e != HtpStatus::DECLINED {
                             return Err(e);
                         }

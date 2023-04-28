@@ -151,7 +151,6 @@ pub fn TestConfig() -> Config {
     // The default bomb limit may be slow in some development environments causing tests to fail.
     cfg.compression_options.set_time_limit(u32::MAX);
     cfg.set_parse_urlencoded(true);
-    cfg.set_parse_multipart(true);
 
     cfg
 }

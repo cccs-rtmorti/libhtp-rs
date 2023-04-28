@@ -46,7 +46,6 @@ impl HeaderFlags {
     pub const TERMINATOR_SPECIAL_CASE: u64 = 0x0800;
     pub const DEFORMED_SEPARATOR: u64 = (0x1000 | Self::NAME_NON_TOKEN_CHARS);
     pub const FOLDING_EMPTY: u64 = (0x2000 | Self::DEFORMED_EOL);
-    pub const PART_HEADER_REPEATED: u64 = 0x4000;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

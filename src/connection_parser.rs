@@ -8,7 +8,7 @@ use crate::{
     log::Logger,
     transaction::{HtpRequestProgress, HtpResponseProgress, HtpTransferCoding, Transaction},
     transactions::Transactions,
-    util::{File, FlagOperations, HtpFileSource, HtpFlags},
+    util::{FlagOperations, HtpFlags},
     HtpStatus,
 };
 use std::{any::Any, borrow::Cow, cell::Cell, net::IpAddr, rc::Rc, time::SystemTime};
@@ -350,8 +350,6 @@ pub struct ConnectionParser {
     pub response_state_previous: State,
     /// The hook that should be receiving raw connection data.
     pub response_data_receiver_hook: Option<DataHook>,
-    /// On request body data, this field contains additional file data.
-    pub request_file: Option<File>,
 
     /// Transactions processed by this parser
     transactions: Transactions,
@@ -404,7 +402,6 @@ impl ConnectionParser {
             response_state: State::IDLE,
             response_state_previous: State::NONE,
             response_data_receiver_hook: None,
-            request_file: None,
             transactions: Transactions::new(&cfg, &logger),
         }
     }
@@ -691,11 +688,6 @@ impl ConnectionParser {
                 self.request_mut().flags.set(HtpFlags::MULTI_PACKET_HEAD)
             }
             self.request_mut().process_request_headers()?;
-            // Check for body data to treat as file uploads.
-            if self.request().request_has_body() {
-                // Prepare to treat request body as a file.
-                self.request_file = Some(File::new(HtpFileSource::REQUEST_BODY, None));
-            }
             // Run hook REQUEST_HEADERS.
             self.cfg
                 .hook_request_headers

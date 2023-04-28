@@ -593,20 +593,6 @@ pub unsafe extern "C" fn htp_config_set_flush_incomplete(
     }
 }
 
-/// Enable or Disable the built-in Multipart parser to the configuration. Disabled by default.
-/// This parser will extract information stored in request bodies, when they are in multipart/form-data format.
-/// # Safety
-/// When calling this method, you have to ensure that cfg is either properly initialized or NULL
-#[no_mangle]
-pub unsafe extern "C" fn htp_config_set_parse_multipart(
-    cfg: *mut Config,
-    parse_multipart: libc::c_int,
-) {
-    if let Some(cfg) = cfg.as_mut() {
-        cfg.set_parse_multipart(parse_multipart == 1)
-    }
-}
-
 /// Enable or disable the built-in Urlencoded parser. Disabled by default.
 /// The parser will parse query strings and request bodies with the appropriate MIME type.
 /// # Safety

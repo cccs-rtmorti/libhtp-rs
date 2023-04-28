@@ -167,7 +167,6 @@ fn TestConfig() -> Config {
     cfg.set_server_personality(HtpServerPersonality::APACHE_2)
         .unwrap();
     cfg.set_parse_urlencoded(true);
-    cfg.set_parse_multipart(true);
     cfg
 }
 

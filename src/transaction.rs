@@ -7,7 +7,6 @@ use crate::{
     headers::{Parser as HeaderParser, Side},
     hook::{DataHook, DataNativeCallbackFn},
     log::Logger,
-    multipart::{find_boundary, HtpMultipartType, Parser as MultipartParser},
     parsers::{parse_authorization, parse_content_length, parse_content_type, parse_hostport},
     request::HtpMethod,
     uri::Uri,
@@ -16,7 +15,7 @@ use crate::{
     HtpStatus,
 };
 
-use std::{any::Any, cmp::Ordering, mem::take, rc::Rc};
+use std::{any::Any, cmp::Ordering, rc::Rc};
 
 /// A collection of possible data sources.
 #[repr(C)]
@@ -452,9 +451,6 @@ pub struct Transaction {
     /// Transaction-specific RESPONSE_BODY_DATA hook. Behaves as
     /// the configuration hook with the same name.
     pub hook_response_body_data: DataHook,
-    /// Request body MULTIPART parser. Available only when the body is in the
-    /// multipart/form-data format and the parser was configured to run.
-    pub request_mpartp: Option<Box<MultipartParser>>,
     /// Authentication type used in the request.
     pub request_auth_type: HtpAuthType,
     /// Authentication username.
@@ -677,7 +673,6 @@ impl Transaction {
             request_decompressor: None,
             hook_request_body_data: DataHook::default(),
             hook_response_body_data: DataHook::default(),
-            request_mpartp: None,
             request_auth_type: HtpAuthType::UNKNOWN,
             request_auth_username: None,
             request_auth_password: None,
@@ -895,17 +890,6 @@ impl Transaction {
         // Determine Content-Type.
         if let Some(ct) = self.request_headers.get_nocase_nozero("content-type") {
             self.request_content_type = Some(parse_content_type(ct.value.as_slice())?);
-            let mut flags = 0;
-            // Check the request content type for urlencoded or see if it matches our MIME type
-            if self.cfg.parse_multipart {
-                if let Some(boundary) = find_boundary(ct.value.as_slice(), &mut flags) {
-                    if !boundary.is_empty() {
-                        // Create a Multipart parser instance.
-                        self.request_mpartp =
-                            Some(Box::new(MultipartParser::new(&self.cfg, boundary, flags)));
-                    }
-                }
-            }
         }
         // Parse authentication information.
         if self.cfg.parse_request_auth {
@@ -918,43 +902,6 @@ impl Transaction {
                     Err(rc)
                 }
             })?;
-        }
-        Ok(())
-    }
-
-    /// Process the provided data as Multipart Data
-    ///
-    /// Returns HtpStatus::DECLINED if the provided data is not multipart (i.e. no multipart parser was ever created)
-    pub fn request_process_multipart_data(&mut self, data: Option<&[u8]>) -> Result<()> {
-        let mpartp = self.request_mpartp.as_mut().ok_or(HtpStatus::DECLINED)?;
-
-        if let Some(data) = data {
-            // Process one chunk of data.
-            mpartp.parse(data);
-        } else {
-            // Finalize parsing.
-            // Ignore result.
-            let _ = mpartp.finalize();
-
-            // take ownership of the parts to iterate over
-            let parts = take(&mut mpartp.get_multipart().parts);
-            for part in &parts {
-                // Use text parameters.
-                if part.type_0 == HtpMultipartType::TEXT {
-                    let param = Param::new(
-                        Bstr::from((*part.name).as_slice()),
-                        Bstr::from((*part.value).as_slice()),
-                        HtpDataSource::BODY,
-                    );
-                    self.request_add_param(param)?;
-                }
-            }
-            // Put the parts back
-            self.request_mpartp
-                .as_mut()
-                .ok_or(HtpStatus::DECLINED)?
-                .get_multipart()
-                .parts = parts;
         }
         Ok(())
     }

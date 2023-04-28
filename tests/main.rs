@@ -10,7 +10,7 @@ use htp::{
         HtpAuthType, HtpProtocol, HtpRequestProgress, HtpResponseNumber, HtpResponseProgress,
         HtpTransferCoding, Transaction,
     },
-    util::{FlagOperations, HtpFileSource, HtpFlags},
+    util::{FlagOperations, HtpFlags},
 };
 
 use htp::test::{MainUserData, Test, TestConfig};
@@ -1721,28 +1721,6 @@ fn HostnameInvalid2() {
 }
 
 #[test]
-fn Put() {
-    let mut t = Test::new(TestConfig());
-    assert!(t.run_file("82-put.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    let file = t.connp.request_file.as_ref().unwrap();
-    assert_eq!(file.len, 12);
-    assert_eq!(file.source as u8, HtpFileSource::REQUEST_BODY as u8);
-    assert!(file.filename.is_none());
-    assert!(file.tmpfile.is_none());
-
-    assert!(tx
-        .request_hostname
-        .as_ref()
-        .unwrap()
-        .eq_slice("www.example.com"));
-}
-
-#[test]
 fn AuthDigestInvalidUsername2() {
     let mut t = Test::new(TestConfig());
     assert!(t.run_file("83-auth-digest-invalid-username-2.t").is_ok());
@@ -2410,28 +2388,6 @@ fn RequestResponseCompression() {
 
     assert_eq!(51, tx.response_message_len);
     assert_eq!(25, tx.response_entity_len);
-}
-
-#[test]
-fn Post() {
-    let mut t = Test::new(TestConfig());
-    assert!(t.run_file("118-post.t").is_ok());
-
-    assert_eq!(1, t.connp.tx_size());
-
-    let tx = t.connp.tx(0).unwrap();
-
-    let file = t.connp.request_file.as_ref().unwrap();
-    assert_eq!(file.len, 12);
-    assert_eq!(file.source as u8, HtpFileSource::REQUEST_BODY as u8);
-    assert!(file.filename.is_none());
-    assert!(file.tmpfile.is_none());
-
-    assert!(tx
-        .request_hostname
-        .as_ref()
-        .unwrap()
-        .eq_slice("www.example.com"));
 }
 
 #[test]

@@ -31,28 +31,21 @@ after_includes = """
 #define htp_content_encoding_t HtpContentEncoding
 #define htp_log_code_t HtpLogCode
 #define htp_log_level_t HtpLogLevel
-#define htp_multipart_mode_t HtpMultipartMode
-#define htp_multipart_state_t HtpMultipartState
-#define htp_multipart_type_t HtpMultipartType
 #define htp_method_t HtpMethod
 #define htp_data_source_t HtpDataSource
 #define htp_parser_id_t HtpParserId
-#define htp_file_source_t HtpFileSource
 #define htp_transfer_coding_t HtpTransferCoding
 #define htp_res_progress_t HtpResponseProgress
 #define htp_req_progress_t HtpRequestProgress
 """
 
 [export.rename]
-"MultipartFlags" = "HTP_MULTIPART_FLAGS"
 "ConnectionFlags" = "HTP_CONNECTION_FLAGS"
 "HeaderFlags" = "HTP_HEADER_FLAGS"
 "HtpFlags" = "HTP_FLAGS"
 "Config" = "htp_cfg_t"
 "Connection" = "htp_conn_t"
 "ConnectionParser" = "htp_connp_t"
-"File" = "htp_file_t"
-"FileData" = "htp_file_data_t"
 "Header" = "htp_header_t"
 "Headers" = "htp_headers_t"
 "Param" = "htp_param_t"
@@ -76,19 +69,14 @@ include = ["HtpStatus",
 "HtpContentEncoding",
 "HtpLogCode",
 "HtpLogLevel",
-"HtpMultipartMode",
-"HtpMultipartState",
-"HtpMultipartType",
 "HtpMethod",
 "HtpDataSource",
 "HtpParserId",
-"HtpFileSource",
 "HtpTransferCoding",
 "HtpResponseProgress",
 "HtpRequestProgress",
 "HtpFlags",
 "HeaderFlags",
-"MultipartFlags",
 "ConnectionFlags"]
 
 [enum]
