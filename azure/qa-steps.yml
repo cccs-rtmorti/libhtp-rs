@@ -130,14 +130,6 @@ steps:
      reportDirectory: '$(Agent.BuildDirectory)/libhtp-rs/coverage/'
 
   #
-  # Run the benchmarks
-  - script: |
-      rustup override set stable
-      cargo bench
-    displayName: bench
-    workingDirectory: $(Agent.BuildDirectory)/libhtp-rs
-
-  #
   # Build rpm
   - script: make rpm
     displayName: rpm
