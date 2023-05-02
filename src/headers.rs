@@ -122,7 +122,7 @@ impl Parser {
         Self {
             side,
             complete: false,
-            permissive_folding: true,
+            permissive_folding: false,
         }
     }
 
@@ -693,7 +693,7 @@ mod test {
     use super::*;
     use crate::error::NomError;
     use nom::{
-        error::ErrorKind::{Not, Tag},
+        error::ErrorKind::{Not, Space, Tag},
         Err::{Error, Incomplete},
         Needed,
     };
@@ -712,7 +712,8 @@ mod test {
                 Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"v2 v2+", HeaderFlags::FOLDING),
                 Header::new_with_flags(b"k3", 0, b"v3", 0),
                 Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"k4 v4", HeaderFlags::MISSING_COLON),
-                Header::new_with_flags(b"k\r5", HeaderFlags::NAME_NON_TOKEN_CHARS, b"v\r5 more", HeaderFlags::FOLDING_SPECIAL_CASE)
+                Header::new_with_flags(b"k\r5", HeaderFlags::NAME_NON_TOKEN_CHARS, b"v\r5", 0),
+                Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"more", HeaderFlags::MISSING_COLON),
                 ], true))), Some(Ok((b!(""), (
             vec![
                 Header::new_with_flags(b"k1", 0, b"v1", 0),
@@ -762,13 +763,23 @@ mod test {
             vec![
                 Header::new_with_flags(b"Name1", 0, b"Value1", 0),
                 Header::new_with_flags(b"Name2", 0, b"Value2", 0),
-                Header::new_with_flags(b"Name3", 0, b"Val ue3 Name4: Value4 Value4.1 Value4.2", HeaderFlags::FOLDING_SPECIAL_CASE),
+                Header::new_with_flags(b"Name3", 0, b"Val", 0),
+                Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"ue3", HeaderFlags::MISSING_COLON),
+                Header::new_with_flags(b"Name4", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value4 Value4.1 Value4.2", HeaderFlags::FOLDING),
                 ],
                 true
         )))))]
     #[case::lfcr_eoh(b"Name1: Value1\n\rName2:Value2\n\rName3: Val\n\r ue3\n\rName4: Value4\n\r Value4.1\n\r Value4.2\n\r\n\r", Some(Ok((b!("\r"),
         (
-            vec![Header::new_with_flags(b"Name1", 0, b"Value1 Name2:Value2 Name3: Val ue3 Name4: Value4 Value4.1 Value4.2", HeaderFlags::FOLDING_SPECIAL_CASE)],
+            vec![
+                Header::new_with_flags(b"Name1", 0, b"Value1", 0),
+                Header::new_with_flags(b"Name2", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value2", 0),
+                Header::new_with_flags(b"Name3", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Val", 0),
+                Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"ue3", HeaderFlags::MISSING_COLON),
+                Header::new_with_flags(b"Name4", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value4", 0),
+                Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"Value4.1", HeaderFlags::MISSING_COLON),
+                Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"Value4.2", HeaderFlags::MISSING_COLON),
+                ],
             true
         )))))]
     fn test_headers_eoh(
@@ -825,12 +836,12 @@ mod test {
     #[case::contains_null(b":\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"", HeaderFlags::VALUE_EMPTY))))]
     #[case::folding(b"K:\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))))]
     #[case::crlf(b":V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"V", 0))))]
-    #[case::lf(b"K:folded\r\n\rV\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"folded V", HeaderFlags::FOLDING_SPECIAL_CASE))))]
-    #[case::lf(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))))]
-    #[case::lf(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))))]
-    #[case::lf(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))))]
-    #[case::lf(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))))]
-    #[case::lf(b"K: V\r\n a\r\n l\r\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING))))]
+    #[case::lf_1(b"K:folded\r\n\rV\r\n\r\n", Ok((b!("\rV\r\n\r\n"), Header::new_with_flags(b"K", 0, b"folded", 0))))]
+    #[case::lf_2(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))))]
+    #[case::lf_3(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))))]
+    #[case::lf_4(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))))]
+    #[case::lf_5(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))))]
+    #[case::lf_6(b"K: V\r\n a\r\n l\r\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING))))]
     fn test_header_with_colon(#[case] input: &[u8], #[case] expected: IResult<&[u8], Header>) {
         let req_parser = Parser::new(Side::Request);
         assert_eq!(req_parser.header_with_colon()(input), expected);
@@ -848,15 +859,15 @@ mod test {
     #[case::contains_null(b":\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"", HeaderFlags::VALUE_EMPTY))), None)]
     #[case::folding(b"K:\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))), None)]
     #[case::empty_name(b":V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"V", 0))), None)]
-    #[case::special_folding(b"K:folded\r\n\rV\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"folded V", HeaderFlags::FOLDING_SPECIAL_CASE))), None)]
+    #[case::special_folding(b"K:folded\r\n\rV\r\n\r\n", Ok((b!("\rV\r\n\r\n"), Header::new_with_flags(b"K", 0, b"folded", 0))), None)]
     #[case(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))), None)]
     #[case::folding(b"K: V\n a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING))), None)]
     #[case(b"Host:www.google.com\rName: Value\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com\rName: Value", 0))), Some(Ok((b!("Name: Value\r\n\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com", 0)))))]
     #[case(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))), None)]
     #[case::folding(b"K: V\r a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V\r a l u e", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING)))))]
-    #[case::deformed_folding(b"K:deformed folded\n\r V\n\r\r\n\n", Ok((b!("\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING_SPECIAL_CASE | HeaderFlags::DEFORMED_EOL))), Some(Ok((b!("\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING | HeaderFlags::DEFORMED_EOL)))))]
-    #[case::deformed_folding(b"K:deformed folded\n\r V\r\n\r\n", Ok(( b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING_SPECIAL_CASE))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING)))))]
-    #[case::deformed_folding(b"K:deformed folded\n\r\r V\r\n\r\n", Ok(( b!("\r\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING_SPECIAL_CASE)))))]
+    #[case::deformed_folding_1(b"K:deformed folded\n\r V\n\r\r\n\n", Ok((b!("\r V\n\r\r\n\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING | HeaderFlags::DEFORMED_EOL)))))]
+    #[case::deformed_folding_2(b"K:deformed folded\n\r V\r\n\r\n", Ok(( b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING)))))]
+    #[case::deformed_folding_3(b"K:deformed folded\n\r\r V\r\n\r\n", Ok(( b!("\r\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0)))))]
     #[case::non_token_trailing_ws(b"K\r \r :\r V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\r \r ", HeaderFlags::NAME_NON_TOKEN_CHARS | HeaderFlags::NAME_TRAILING_WHITESPACE, b"\r V", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
     #[case::deformed_sep(b"K\n\r \r\n :\r\n V\r\n\r\n", Ok((b!("\r \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
     #[case::deformed_sep(b"K\r\n \r\n :\r\n V\r\n\r\n", Ok((b!(" \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
@@ -1015,9 +1026,9 @@ mod test {
     #[case::incomplete_eol(b"\n", Err(Incomplete(Needed::new(1))), None)]
     #[case::incomplete_eol(b"\r\n\t", Err(Incomplete(Needed::new(1))), None)]
     #[case::complete_cr(b"\ra", Err(Error(NomError::new(b!("\ra"), Tag))), Some(Ok((b!("a"), (b!("\r"), 0)))))]
-    #[case::incomplete_crcr(b"\r\r", Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Err(Incomplete(Needed::new(1)))))]
-    #[case::incomplete_lfcr(b"\n\r", Err(Incomplete(Needed::new(1))), None)]
-    #[case::complete_lfcr(b"\n\ra", Err(Error(NomError::new(b!("\ra"), Not))), Some(Ok((b!("a"), (b!("\n\r"), 0)))))]
+    #[case::incomplete_crcr(b"\r\r", Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Ok((b!("\r"), (b!("\r"), 0)))))]
+    #[case::incomplete_lfcr(b"\n\r", Ok((b!("\r"), (b!("\n"), 0))), Some(Err(Incomplete(Needed::new(1)))))]
+    #[case::complete_lfcr(b"\n\ra", Ok((b!("\ra"), (b!("\n"), 0))), Some(Ok((b!("a"), (b!("\n\r"), 0)))))]
     #[case::lfcrlf(b"\n\r\n", Ok((b!("\r\n"), (b!("\n"), 0))), Some(Ok((b!("\n"), (b!("\n\r"), 0)))))]
     #[case::lfcrlfcr(b"\n\r\n\r", Ok((b!("\r\n\r"), (b!("\n"), 0))), Some(Ok((b!("\n\r"), (b!("\n\r"), 0)))))]
     #[case::complete_lf(b"\na", Ok((b!("a"), (b!("\n"), 0))), None)]
@@ -1050,9 +1061,9 @@ mod test {
     #[case::incomplete_eol(b"\n", Err(Incomplete(Needed::new(1))), None)]
     #[case::incomplete_eol(b"\r\n\t", Err(Incomplete(Needed::new(1))), None)]
     #[case::complete_cr(b"\ra", Err(Error(NomError::new(b!("\ra"), Tag))), Some(Ok((b!("a"), (b!("\r"), 0)))))]
-    #[case::incomplete_crcr(b"\r\r", Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Err(Incomplete(Needed::new(1)))))]
-    #[case::incomplete_lfcr(b"\n\r", Err(Incomplete(Needed::new(1))), None)]
-    #[case::complete_lfcr(b"\n\ra", Err(Error(NomError::new(b!("\ra"), Not))), Some(Ok((b!("a"), (b!("\n\r"), 0)))))]
+    #[case::incomplete_crcr(b"\r\r", Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Ok((b!("\r"), (b!("\r"), 0)))))]
+    #[case::incomplete_lfcr(b"\n\r", Ok((b!("\r"), (b!("\n"), 0))), Some(Err(Incomplete(Needed::new(1)))))]
+    #[case::complete_lfcr(b"\n\ra", Ok((b!("\ra"), (b!("\n"), 0))), Some(Ok((b!("a"), (b!("\n\r"), 0)))))]
     #[case::lfcrlf(b"\n\r\n", Ok((b!("\r\n"), (b!("\n"), 0))), Some(Ok((b!("\n"), (b!("\n\r"), 0)))))]
     #[case::lfcrlfcr(b"\n\r\n\r", Ok((b!("\r\n\r"), (b!("\n"), 0))), Some(Ok((b!("\n\r"), (b!("\n\r"), 0)))))]
     #[case::complete_lf(b"\na", Ok((b!("a"), (b!("\n"), 0))), None)]
@@ -1125,22 +1136,22 @@ mod test {
     #[rstest]
     #[case::no_fold_tag(b"test", Err(Error(NomError::new(b!("test"), Tag))), None)]
     #[case::cr(b"\r", Err(Error(NomError::new(b!("\r"), Tag))), Some(Err(Incomplete(Needed::new(1)))))]
-    #[case::crcr(b"\r\r",  Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Err(Incomplete(Needed::new(1)))))]
+    #[case::crcr(b"\r\r",  Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Err(Error(NomError::new(b!("\r"), Space)))))]
     #[case::incomplete_crlf(b"\r\n", Err(Incomplete(Needed::new(1))), None)]
     #[case::incomplete_crlf_ws(b"\r\n\t", Err(Incomplete(Needed::new(1))), None)]
     #[case::incomplete_crlf_ws(b"\r\n \t", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete_crlfcr(b"\r\n\r", Err(Incomplete(Needed::new(1))), None)]
-    #[case::not_fold(b"\r\n\r\n", Err(Error(NomError::new(b!("\n"), Not))), None)]
-    #[case::not_fold(b"\r\n\r\r", Err(Error(NomError::new(b!("\r"), Not))), None)]
+    #[case::incomplete_crlfcr(b"\r\n\r", Err(Error(NomError::new(b!("\r"), Space))), None)]
+    #[case::not_fold_1(b"\r\n\r\n", Err(Error(NomError::new(b!("\r\n"), Space))), None)]
+    #[case::not_fold_2(b"\r\n\r\r", Err(Error(NomError::new(b!("\r\r"), Space))), None)]
     #[case::fold(b"\r\n next", Ok((b!("next"), (b!("\r\n"), b!(" "), HeaderFlags::FOLDING))), None)]
     #[case::fold(b"\r\n\tnext", Ok((b!("next"), (b!("\r\n"), b!("\t"), HeaderFlags::FOLDING))), None)]
     #[case::fold(b"\r\n\t next", Ok((b!("next"), (b!("\r\n"), b!("\t "), HeaderFlags::FOLDING))), None)]
     #[case::fold_not_res(b"\r\n\t\t\r\n", Ok((b!("\r\n"), (b!("\r\n"), b!("\t\t"), HeaderFlags::FOLDING))), Some(Err(Error(NomError::new(b!("\r\n\t\t\r\n"), Not)))))]
     #[case::fold_not_res(b"\r\n\t \t\r", Ok((b!("\r"), (b!("\r\n"), b!("\t \t"), HeaderFlags::FOLDING))), Some(Err(Error(NomError::new(b!("\r\n\t \t\r"), Not)))))]
     #[case::fold_not_res(b"\r\n     \n", Ok((b!("\n"), (b!("\r\n"), b!("     "), HeaderFlags::FOLDING))), Some(Err(Error(NomError::new(b!("\r\n     \n"), Not)))))]
-    #[case::special_fold_not_res(b"\n\r     \n", Ok((b!("\n"), (b!("\n"), b!("\r     "), HeaderFlags::FOLDING_SPECIAL_CASE))), Some(Err(Error(NomError::new(b!("\n\r     \n"), Not)))))]
-    #[case::special_fold(b"\r\n\rnext", Ok((b!("next"), (b!("\r\n"), b!("\r"), HeaderFlags::FOLDING_SPECIAL_CASE))), None)]
-    #[case::special_fold(b"\r\n\r\t next", Ok((b!("next"), (b!("\r\n"), b!("\r\t "), HeaderFlags::FOLDING_SPECIAL_CASE))), None)]
+    #[case::special_fold_not_res(b"\n\r     \n", Err(Error(NomError::new(b!("\r     \n"), Space))), Some(Err(Error(NomError::new(b!("\n\r     \n"), Not)))))]
+    #[case::special_fold_1(b"\r\n\rnext", Err(Error(NomError::new(b!("\rnext"), Space))), None)]
+    #[case::special_fold_2(b"\r\n\r\t next", Err(Error(NomError::new(b!("\r\t next"), Space))), None)]
     #[case::fold_res(b"\r    hello \n", Err(Error(NomError::new(b!("\r    hello \n"), Tag))), Some(Ok((b!("hello \n"), (b!("\r"), b!("    "), HeaderFlags::FOLDING)))))]
     fn test_folding(
         #[case] input: &[u8],
@@ -1159,14 +1170,14 @@ mod test {
     }
 
     #[rstest]
-    #[case::incomplete(b"\r\n", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"\r\n\t", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"\r\n ", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"\r\n\r", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"\r\n ", Err(Incomplete(Needed::new(1))), None)]
-    #[case::crcr(b"\r\r", Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Err(Incomplete(Needed::new(1)))))]
+    #[case::incomplete_1(b"\r\n", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_2(b"\r\n\t", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_3(b"\r\n ", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_4(b"\r\n\r", Ok((b!("\r"),((b!("\r\n"), 0), None))), Some(Err(Incomplete(Needed::new(1)))))]
+    #[case::incomplete_5(b"\r\n ", Err(Incomplete(Needed::new(1))), None)]
+    #[case::crcr(b"\r\r", Err(Error(NomError::new(b!("\r\r"), Tag))), Some(Ok((b!("\r"), ((b!("\r"), 0), None)))))]
     #[case::fold(b"\r\n\ta", Ok((b!("a"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!("\t"))))), None)]
-    #[case::special_fold(b"\r\n\ra", Ok((b!("a"),((b!("\r\n"), HeaderFlags::FOLDING | HeaderFlags::FOLDING_SPECIAL_CASE), Some(b!("\r"))))), None)]
+    #[case::special_fold(b"\r\n\ra", Ok((b!("\ra"),((b!("\r\n"), 0), None))), None)]
     #[case::fold(b"\r\n a", Ok((b!("a"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!(" "))))), None)]
     #[case::crlf_eol(b"\r\na", Ok((b!("a"), ((b!("\r\n"), 0), None))), None)]
     #[case::lflf_eol(b"\n\na", Ok((b!("\na"), ((b!("\n"), 0), None))), None)]
@@ -1174,13 +1185,13 @@ mod test {
     #[case::req_deformed_eol(b"\n\r\r\na", Ok((b!("\r\na"), ((b!("\n\r"), HeaderFlags::DEFORMED_EOL), None))), Some(Ok((b!("\r\na"), ((b!("\n\r"), 0), None)))))]
     #[case::null_terminated(b"\0a", Ok((b!("a"), ((b!("\0"), HeaderFlags::NULL_TERMINATED), None))), None)]
     #[case::res_fold(b"\r a", Err(Error(NomError::new(b!("\r a"), Tag))), Some(Ok((b!("a"), ((b!("\r"), HeaderFlags::FOLDING), Some(b!(" ")))))))]
-    #[case::req_fold_res_empty(b"\n\r \na:b", Ok((b!("\na:b"), ((b!("\n"), HeaderFlags::FOLDING_SPECIAL_CASE), Some(b!("\r "))))), Some(Ok((b!("a:b"), ((b!("\n\r \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
-    #[case::req_fold_res_empty(b"\n \na:b", Ok((b!("\na:b"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\n \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
-    #[case::req_fold_res_empty(b"\r\n \na:b", Ok((b!("\na:b"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\r\n \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
-    #[case::req_fold_res_empty(b"\r\n \r\na:b", Ok((b!("\r\na:b"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\r\n \r\n"), HeaderFlags::FOLDING_EMPTY), None)))))]
+    #[case::req_fold_res_empty_1(b"\n\r \na:b", Ok((b!("\r \na:b"), ((b!("\n"), 0), None))), Some(Ok((b!("a:b"), ((b!("\n\r \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
+    #[case::req_fold_res_empty_2(b"\n \na:b", Ok((b!("\na:b"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\n \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
+    #[case::req_fold_res_empty_3(b"\r\n \na:b", Ok((b!("\na:b"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\r\n \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
+    #[case::req_fold_res_empty_4(b"\r\n \r\na:b", Ok((b!("\r\na:b"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\r\n \r\n"), HeaderFlags::FOLDING_EMPTY), None)))))]
     #[case::req_fold_res_term(b"\n \r\na\n", Ok((b!("\r\na\n"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("\r\na\n"), ((b!("\n "), HeaderFlags::TERMINATOR_SPECIAL_CASE), None)))))]
     #[case::req_fold_res_empty_term(b"\n \r\n\n", Ok((b!("\r\n\n"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("\n"), ((b!("\n \r\n"), HeaderFlags::FOLDING_EMPTY | HeaderFlags::TERMINATOR_SPECIAL_CASE), None)))))]
-    #[case::req_fold_special_res_empty(b"\n\r \na:b", Ok((b!("\na:b"), ((b!("\n"), HeaderFlags::FOLDING_SPECIAL_CASE), Some(b!("\r "))))), Some(Ok((b!("a:b"), ((b!("\n\r \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
+    #[case::req_fold_special_res_empty(b"\n\r \na:b", Ok((b!("\r \na:b"), ((b!("\n"), 0), None))), Some(Ok((b!("a:b"), ((b!("\n\r \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
     fn test_folding_or_terminator(
         #[case] input: &[u8],
         #[case] expected: IResult<&[u8], FoldingOrTerminator>,
@@ -1198,22 +1209,22 @@ mod test {
     }
 
     #[rstest]
-    #[case::incomplete(b" ", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"value", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"\tvalue", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b" value", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"value\r\n", Err(Incomplete(Needed::new(1))), None)]
-    #[case::incomplete(b"\r\r", Err(Incomplete(Needed::new(1))), None)]
-    #[case::diff_values(b"www.google.com\rName: Value\r\n\r\n", Ok((b!("\r\n"), (b!("www.google.com\rName: Value"), ((b!("\r\n"), 0), None)))), Some(Ok((b!("Name: Value\r\n\r\n"), (b!("www.google.com"), ((b!("\r"), 0), None))))))]
-    #[case::diff_values(b"www.google.com\rName: Value\n\r\n", Ok((b!("\r\n"), (b!("www.google.com\rName: Value"), ((b!("\n"), 0), None)))), Some(Ok((b!("Name: Value\n\r\n"), (b!("www.google.com"), ((b!("\r"), 0), None))))))]
-    #[case::diff_values(b"www.google.com\rName: Value\r\n\n", Ok((b!("\n"), (b!("www.google.com\rName: Value"), ((b!("\r\n"), 0), None)))), Some(Ok((b!("Name: Value\r\n\n"), (b!("www.google.com"), ((b!("\r"), 0), None))))))]
-    #[case::value(b"\r\nnext", Ok((b!("next"), (b!(""), ((b!("\r\n"), 0), None)))), None)]
-    #[case::value(b"value\r\nname2", Ok((b!("name2"), (b!("value"), ((b!("\r\n"), 0), None)))), None)]
-    #[case::fold_value(b"value\n more", Ok((b!("more"), (b!("value"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" ")))))), None)]
-    #[case::fold_value(b"value\r\n\t more", Ok((b!("more"), (b!("value"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!("\t ")))))), None)]
-    #[case::req_special_fold_res_value(b"value\r\n\t more", Ok((b!("more"), (b!("value"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!("\t ")))))), None)]
-    #[case::req_special_fold_res_value(b"value\n\rmore", Ok((b!("more"), (b!("value"), ((b!("\n"), HeaderFlags::FOLDING_SPECIAL_CASE), Some(b!("\r")))))), Some(Ok((b!("more"), (b!("value"), ((b!("\n\r"), 0), None))))))]
-    #[case::special_fold(b"value\r\n\rmore", Ok((b!("more"), (b!("value"), ((b!("\r\n"), HeaderFlags::FOLDING_SPECIAL_CASE), Some(b!("\r")))))), None)]
+    #[case::incomplete_1(b" ", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_2(b"value", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_3(b"\tvalue", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_4(b" value", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_5(b"value\r\n", Err(Incomplete(Needed::new(1))), None)]
+    #[case::incomplete_6(b"\r\r", Err(Incomplete(Needed::new(1))), Some(Ok((b!("\r"), (b!(""), ((b!("\r"), 0), None))))))]
+    #[case::diff_values_1(b"www.google.com\rName: Value\r\n\r\n", Ok((b!("\r\n"), (b!("www.google.com\rName: Value"), ((b!("\r\n"), 0), None)))), Some(Ok((b!("Name: Value\r\n\r\n"), (b!("www.google.com"), ((b!("\r"), 0), None))))))]
+    #[case::diff_values_2(b"www.google.com\rName: Value\n\r\n", Ok((b!("\r\n"), (b!("www.google.com\rName: Value"), ((b!("\n"), 0), None)))), Some(Ok((b!("Name: Value\n\r\n"), (b!("www.google.com"), ((b!("\r"), 0), None))))))]
+    #[case::diff_values_3(b"www.google.com\rName: Value\r\n\n", Ok((b!("\n"), (b!("www.google.com\rName: Value"), ((b!("\r\n"), 0), None)))), Some(Ok((b!("Name: Value\r\n\n"), (b!("www.google.com"), ((b!("\r"), 0), None))))))]
+    #[case::value_1(b"\r\nnext", Ok((b!("next"), (b!(""), ((b!("\r\n"), 0), None)))), None)]
+    #[case::value_2(b"value\r\nname2", Ok((b!("name2"), (b!("value"), ((b!("\r\n"), 0), None)))), None)]
+    #[case::fold_value_1(b"value\n more", Ok((b!("more"), (b!("value"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" ")))))), None)]
+    #[case::fold_value_2(b"value\r\n\t more", Ok((b!("more"), (b!("value"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!("\t ")))))), None)]
+    #[case::req_special_fold_res_value_1(b"value\r\n\t more", Ok((b!("more"), (b!("value"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!("\t ")))))), None)]
+    #[case::req_special_fold_res_value_2(b"value\n\rmore", Ok((b!("\rmore"), (b!("value"), ((b!("\n"), 0), None)))), Some(Ok((b!("more"), (b!("value"), ((b!("\n\r"), 0), None))))))]
+    #[case::special_fold(b"value\r\n\rmore", Ok((b!("\rmore"), (b!("value"), ((b!("\r\n"), 0), None)))), None)]
     fn test_value_bytes(
         #[case] input: &[u8],
         #[case] expected: IResult<&[u8], ValueBytes>,
@@ -1241,10 +1252,10 @@ mod test {
     #[case::fold(b"value\r\n more\r\n\r\n", Ok((b!("\r\n"), Value {value: b"value more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
     #[case::fold(b"value\r\n more\r\n\tand more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
     #[case::fold(b"value\n\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
-    #[case::req_special_res_fold(b"value\n more\n\r\tand more\r\n\r\n", Ok((b!("\r\n"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING_SPECIAL_CASE})), Some(Ok((b!("\r\n"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
-    #[case::req_special_res_fold(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING_SPECIAL_CASE})), Some(Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
-    #[case::req_special_res_value(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING_SPECIAL_CASE})), Some(Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
-    #[case::req_special_deformed_res_fold(b"value1\n\r next: value2\r\n  and\r\n more\r\nnext3:", Ok((b!("next3:"), Value {value: b"value1 next: value2 and more".to_vec(), flags: HeaderFlags::FOLDING_SPECIAL_CASE})), Some(Ok((b!("next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0}))))]
+    #[case::req_special_res_fold_1(b"value\n more\n\r\tand more\r\n\r\n", Ok((b!("\r\tand more\r\n\r\n"), Value {value: b"value more".to_vec(), flags: HeaderFlags::FOLDING})), Some(Ok((b!("\r\n"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
+    #[case::req_special_res_fold_2(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("\r\t\tmore\r\n  and\r\n more\r\nnext:"), Value {value: b"value".to_vec(), flags: 0})), Some(Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
+    #[case::req_special_res_value(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("\r\t\tmore\r\n  and\r\n more\r\nnext:"), Value {value: b"value".to_vec(), flags: 0})), Some(Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
+    #[case::req_special_deformed_res_fold(b"value1\n\r next: value2\r\n  and\r\n more\r\nnext3:", Ok((b!("\r next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0})), Some(Ok((b!("next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0}))))]
     #[case::value(b"value\r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: 0})), None)]
     #[case::value_empty(b"\r\nnext:", Ok((b!("next:"), Value {value: b"".to_vec(), flags: HeaderFlags::VALUE_EMPTY})), None)]
     fn test_value(
