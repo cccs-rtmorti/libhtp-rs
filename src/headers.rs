@@ -2,7 +2,7 @@ use crate::util::{is_token, trimmed, FlagOperations};
 use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,
-    bytes::streaming::{tag, take_till, take_till1, take_while, take_while1},
+    bytes::streaming::{take_till, take_till1, take_while, take_while1},
     character::{
         complete::space1 as complete_space1,
         is_space,
@@ -114,7 +114,6 @@ pub enum Side {
 pub struct Parser {
     side: Side,
     complete: bool,
-    permissive_folding: bool,
 }
 
 impl Parser {
@@ -122,13 +121,7 @@ impl Parser {
         Self {
             side,
             complete: false,
-            permissive_folding: false,
         }
-    }
-
-    pub fn set_permissive_folding(mut self, permissive_folding: bool) -> Self {
-        self.permissive_folding = permissive_folding;
-        self
     }
 
     /// Sets the parser complete state.
@@ -217,7 +210,7 @@ impl Parser {
     fn eol(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
         move |input| {
             map(
-                tuple((self.complete_eol(), not(self.folding_lws()))),
+                tuple((self.complete_eol(), not(folding_lws))),
                 |(end, _)| end,
             )(input)
         }
@@ -231,15 +224,6 @@ impl Parser {
     /// Parse one null byte or complete end of line
     fn complete_null_or_eol(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
         move |input| alt((null, self.complete_eol()))(input)
-    }
-
-    /// Extracts folding lws according to how permissive_folding is set
-    fn folding_lws(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
-        if self.permissive_folding {
-            folding_lws
-        } else {
-            folding_lws_strict
-        }
     }
 
     /// Parse empty header folding as a single EOL (eol + whitespace + eol = eol)
@@ -268,18 +252,14 @@ impl Parser {
                     tuple((
                         not(self.folding_empty()),
                         map(self.complete_eol_regular(), |eol| (eol, 0)),
-                        self.folding_lws(),
+                        folding_lws,
                     )),
-                    |(_, (eol, flags), (folding_lws, other_flags))| {
-                        (eol, folding_lws, flags | other_flags)
-                    },
+                    |(_, (eol, flags), (lws, other_flags))| (eol, lws, flags | other_flags),
                 )(input)
             } else {
                 map(
-                    tuple((self.complete_eol(), self.folding_lws())),
-                    |((eol, flags), (folding_lws, other_flags))| {
-                        (eol, folding_lws, flags | other_flags)
-                    },
+                    tuple((self.complete_eol(), folding_lws)),
+                    |((eol, flags), (lws, other_flags))| (eol, lws, flags | other_flags),
                 )(input)
             }
         }
@@ -647,29 +627,9 @@ fn null(input: &[u8]) -> IResult<&[u8], ParsedBytes> {
     })(input)
 }
 
-/// Handles any special cases that are exceptions to the spec
-///
-/// Currently handles the use of a single CR as folding LWS
-fn folding_lws_special(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    map(
-        tuple((tag("\r"), not(alt((tag("\r"), tag("\n")))), space0)),
-        |(fold, _, spaces): (&[u8], _, &[u8])| &input[..fold.len() + spaces.len()],
-    )(input)
-}
-
 /// Extracts folding lws (whitespace only)
-fn folding_lws_strict(input: &[u8]) -> IResult<&[u8], ParsedBytes> {
-    map(space1, |fold| (fold, HeaderFlags::FOLDING))(input)
-}
-
-/// Extracts any folding lws (whitespace or any special cases)
 fn folding_lws(input: &[u8]) -> IResult<&[u8], ParsedBytes> {
-    alt((
-        map(space1, |fold| (fold, HeaderFlags::FOLDING)),
-        map(folding_lws_special, |fold| {
-            (fold, HeaderFlags::FOLDING_SPECIAL_CASE)
-        }),
-    ))(input)
+    map(space1, |fold| (fold, HeaderFlags::FOLDING))(input)
 }
 
 /// Parse a regular separator (colon followed by optional spaces) between header name and value
@@ -1101,36 +1061,6 @@ mod test {
         let res_parser = Parser::new(Side::Response);
         assert_eq!(req_parser.is_terminator(input), expected);
         assert_eq!(res_parser.is_terminator(input), expected);
-    }
-
-    #[rstest]
-    #[case::no_fold_tag(b"test", Err(Error(NomError::new(b!("test"), Tag))))]
-    #[case::incomplete(b"\r", Err(Incomplete(Needed::new(1))))]
-    #[case::not_folding(b"\r\n", Err(Error(NomError::new(b!("\n"), Not))))]
-    #[case::not_folding(b"\r\r", Err(Error(NomError::new(b!("\r"), Not))))]
-    #[case::non_special_folding(b"\r\r\t next", Err(Error(NomError::new(b!("\r\t next"), Not))))]
-    #[case::non_special_folding(b"\r\n\t next", Err(Error(NomError::new(b!("\n\t next"), Not))))]
-    #[case::special_folding(b"\rnext", Ok((b!("next"), b!("\r"))))]
-    #[case::special_folding(b"\r\t next", Ok((b!("next"), b!("\r\t "))))]
-    fn test_folding_lws_special(#[case] input: &[u8], #[case] expected: IResult<&[u8], &[u8]>) {
-        assert_eq!(folding_lws_special(input), expected);
-    }
-
-    #[rstest]
-    #[case::no_fold_tag(b"test", Err(Error(NomError::new(b!("test"), Tag))))]
-    #[case::incomplete(b"\r", Err(Incomplete(Needed::new(1))))]
-    #[case::not_folding(b"\r\n", Err(Error(NomError::new(b!("\n"), Not))))]
-    #[case::not_folding(b"\r\r", Err(Error(NomError::new(b!("\r"), Not))))]
-    #[case::special_folding(b"\rnext", Ok((b!("next"), (b!("\r"), HeaderFlags::FOLDING_SPECIAL_CASE))))]
-    #[case::special_folding(b"\r\t next", Ok((b!("next"), (b!("\r\t "), HeaderFlags::FOLDING_SPECIAL_CASE))))]
-    #[case::folding(b" next", Ok((b!("next"), (b!(" "), HeaderFlags::FOLDING))))]
-    #[case::folding(b"\tnext", Ok((b!("next"), (b!("\t"), HeaderFlags::FOLDING))))]
-    #[case::folding(b"\t next", Ok((b!("next"), (b!("\t "), HeaderFlags::FOLDING))))]
-    #[case::folding(b"\t\t\r\n", Ok((b!("\r\n"), (b!("\t\t"), HeaderFlags::FOLDING))))]
-    #[case::folding(b"\t \t\r", Ok((b!("\r"), (b!("\t \t"), HeaderFlags::FOLDING))))]
-    #[case::folding(b"     \n", Ok((b!("\n"), (b!("     "), HeaderFlags::FOLDING))))]
-    fn test_folding_lws(#[case] input: &[u8], #[case] expected: IResult<&[u8], ParsedBytes>) {
-        assert_eq!(folding_lws(input), expected);
     }
 
     #[rstest]

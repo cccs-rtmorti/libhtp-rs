@@ -704,8 +704,8 @@ impl Transaction {
             index,
             request_header_repetitions: 0,
             response_header_repetitions: 0,
-            request_header_parser: HeaderParser::new(Side::Request).set_permissive_folding(false),
-            response_header_parser: HeaderParser::new(Side::Response).set_permissive_folding(false),
+            request_header_parser: HeaderParser::new(Side::Request),
+            response_header_parser: HeaderParser::new(Side::Response),
         }
     }
 
