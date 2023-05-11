@@ -2943,3 +2943,15 @@ fn ResponseIncomplete() {
         user_data.order
     );
 }
+
+#[test]
+fn RandomInput() {
+    let mut t = Test::new_with_callbacks();
+    if let Ok(file) = std::env::var("LIBHTP_TEST") {
+        t.run_file(&file).ok();
+        println!("{:#?}", t.connp);
+        for x in 0..t.connp.tx_size() {
+            println!("{:#?}", t.connp.tx(x));
+        }
+    }
+}
