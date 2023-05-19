@@ -2,7 +2,7 @@ use crate::util::{is_token, trimmed, FlagOperations};
 use nom::{
     branch::alt,
     bytes::complete::tag as complete_tag,
-    bytes::streaming::{take_till, take_till1, take_while, take_while1},
+    bytes::streaming::{take_till, take_while, take_while1},
     character::{
         complete::space1 as complete_space1,
         is_space,
@@ -542,23 +542,12 @@ impl Parser {
     /// Parse data before an eol with no colon as an empty name with the data as the value
     fn header_sans_colon(&self) -> impl Fn(&[u8]) -> IResult<&[u8], Header> + '_ {
         move |input| {
-            let (mut remaining, (_, mut value)) = tuple((
-                not(complete_tag("\r\n")),
-                take_till1(|c| c == b':' || self.is_terminator(c)),
-            ))(input)?;
-            if value.last() == Some(&b'\r') {
-                value = &value[..value.len() - 1];
-                remaining = &input[value.len()..];
-            }
-            let (remaining, (_, flags)) = self.complete_null_or_eol()(remaining)?;
+            let (remaining, (_, value)) = tuple((not(complete_tag("\r\n")), self.value()))(input)?;
+
+            let flags = value.flags | HeaderFlags::MISSING_COLON;
             Ok((
                 remaining,
-                Header::new_with_flags(
-                    b"",
-                    HeaderFlags::MISSING_COLON | flags,
-                    value,
-                    HeaderFlags::MISSING_COLON | flags,
-                ),
+                Header::new_with_flags(b"", flags, &value.value, flags),
             ))
         }
     }
@@ -579,7 +568,7 @@ impl Parser {
 
     /// Parses a header name and value with, or without a colon separator
     fn header(&self) -> impl Fn(&[u8]) -> IResult<&[u8], Header> + '_ {
-        move |input| alt((self.header_with_colon(), self.header_sans_colon()))(input)
+        move |input| alt((complete(self.header_with_colon()), self.header_sans_colon()))(input)
     }
 
     /// Parse multiple headers and indicate if end of headers or null was found
@@ -774,19 +763,29 @@ mod test {
     }
 
     #[rstest]
-    #[case::incomplete(b"K V", Err(Incomplete(Needed::new(1))))]
-    #[case::contains_colon(b"K:V\r\n", Err(Error(NomError::new(b!(":V\r\n"), Tag))))]
-    #[case::empty_name_value(b"\r\n", Err(Error(NomError::new(b!("\r\n"), Not))))]
-    #[case::contains_null(b"K V\0alue\r\n", Ok((b!(""), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V\0alue", HeaderFlags::MISSING_COLON))))]
-    #[case::folding(b"K V\ralue\r\n", Ok((b!(""), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V\ralue", HeaderFlags::MISSING_COLON))))]
-    #[case::crlf(b"K V\r\nk1:v1\r\n", Ok((b!("k1:v1\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V", HeaderFlags::MISSING_COLON))))]
-    #[case::lf(b"K V\nk1:v1\r\n", Ok((b!("k1:v1\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V", HeaderFlags::MISSING_COLON))))]
-    fn test_header_sans_colon(#[case] input: &[u8], #[case] expected: IResult<&[u8], Header>) {
+    #[case::incomplete(b"K V", Err(Incomplete(Needed::new(1))), None)]
+    #[case::contains_colon_1(b"K:V\r\n", Err(Incomplete(Needed::new(1))), None)]
+    #[case::contains_colon_2(b"K:V\r\nK2: V2", Ok((b!("K2: V2"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K:V", HeaderFlags::MISSING_COLON))), None)]
+    #[case::empty_name_value(b"\r\n", Err(Error(NomError::new(b!("\r\n"), Not))), None)]
+    #[case::contains_null(b"K V\0alue\r\nk", Ok((b!("k"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V\0alue", HeaderFlags::MISSING_COLON))), None)]
+    #[case::folding(b"K V\ralue\r\nk", Ok((b!("k"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V\ralue", HeaderFlags::MISSING_COLON))), Some(Ok((b!("alue\r\nk"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V", HeaderFlags::MISSING_COLON)))))]
+    #[case::crlf(b"K V\r\nk1:v1\r\n", Ok((b!("k1:v1\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V", HeaderFlags::MISSING_COLON))), None)]
+    #[case::lf(b"K V\nk1:v1\r\n", Ok((b!("k1:v1\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V", HeaderFlags::MISSING_COLON))), None)]
+    fn test_header_sans_colon(
+        #[case] input: &[u8],
+        #[case] expected: IResult<&[u8], Header>,
+        #[case] response_parser_expected: Option<IResult<&[u8], Header>>,
+    ) {
         let req_parser = Parser::new(Side::Request);
         assert_eq!(req_parser.header_sans_colon()(input), expected);
 
         let res_parser = Parser::new(Side::Response);
-        assert_eq!(res_parser.header_sans_colon()(input), expected);
+        let res_expected = if let Some(response_expected) = response_parser_expected {
+            response_expected
+        } else {
+            expected
+        };
+        assert_eq!(res_parser.header_sans_colon()(input), res_expected);
     }
 
     #[rstest]
@@ -813,24 +812,24 @@ mod test {
     #[rstest]
     #[case::incomplete(b"K: V", Err(Incomplete(Needed::new(1))), None)]
     #[case::contains_colon(b"K: V\r\n", Err(Incomplete(Needed::new(1))), None)]
-    #[case::missing_colon(b"K V\r\n", Ok((b!(""), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K V", HeaderFlags::MISSING_COLON))), Some(Err(Incomplete(Needed::new(1)))))]
-    #[case::missing_colon(b"K1 V1\r\nK2:V2\n\r\n", Ok((b!("K2:V2\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K1 V1", HeaderFlags::MISSING_COLON))), None)]
+    #[case::missing_colon_1(b"K V\r\n", Err(Incomplete(Needed::new(1))), None)]
+    #[case::missing_colon_2(b"K1 V1\r\nK2:V2\n\r\n", Ok((b!("K2:V2\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K1 V1", HeaderFlags::MISSING_COLON))), None)]
     #[case::empty_name_value(b"K1:V1\nK2:V2\n\r\n", Ok((b!("K2:V2\n\r\n"), Header::new_with_flags(b"K1", 0, b"V1", 0))), None)]
     #[case::contains_null(b":\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"", HeaderFlags::VALUE_EMPTY))), None)]
     #[case::folding(b"K:\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))), None)]
     #[case::empty_name(b":V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"V", 0))), None)]
     #[case::special_folding(b"K:folded\r\n\rV\r\n\r\n", Ok((b!("\rV\r\n\r\n"), Header::new_with_flags(b"K", 0, b"folded", 0))), None)]
-    #[case(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))), None)]
+    #[case::regular_eoh(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))), None)]
     #[case::folding(b"K: V\n a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING))), None)]
-    #[case(b"Host:www.google.com\rName: Value\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com\rName: Value", 0))), Some(Ok((b!("Name: Value\r\n\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com", 0)))))]
-    #[case(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))), None)]
+    #[case::cr_in_name(b"Host:www.google.com\rName: Value\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com\rName: Value", 0))), Some(Ok((b!("Name: Value\r\n\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com", 0)))))]
+    #[case::null_in_value(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))), None)]
     #[case::folding(b"K: V\r a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V\r a l u e", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING)))))]
     #[case::deformed_folding_1(b"K:deformed folded\n\r V\n\r\r\n\n", Ok((b!("\r V\n\r\r\n\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING | HeaderFlags::DEFORMED_EOL)))))]
     #[case::deformed_folding_2(b"K:deformed folded\n\r V\r\n\r\n", Ok(( b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING)))))]
     #[case::deformed_folding_3(b"K:deformed folded\n\r\r V\r\n\r\n", Ok(( b!("\r\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0)))))]
     #[case::non_token_trailing_ws(b"K\r \r :\r V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\r \r ", HeaderFlags::NAME_NON_TOKEN_CHARS | HeaderFlags::NAME_TRAILING_WHITESPACE, b"\r V", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
-    #[case::deformed_sep(b"K\n\r \r\n :\r\n V\r\n\r\n", Ok((b!("\r \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
-    #[case::deformed_sep(b"K\r\n \r\n :\r\n V\r\n\r\n", Ok((b!(" \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
+    #[case::deformed_sep_1(b"K\n\r \r\n :\r\n V\r\n\r\n", Ok((b!("\r \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
+    #[case::deformed_sep_2(b"K\r\n \r\n :\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON | HeaderFlags::FOLDING, b"K  : V", HeaderFlags::MISSING_COLON | HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
     #[case::empty_value_deformed(b"K:\r\n\0Value\r\n V\r\n\r\n", Ok((b!("\0Value\r\n V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"\0Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
     #[case::missing_colon(b"K\r\n:Value\r\n V\r\n\r\n", Ok((b!(":Value\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
     #[case::non_token(b"K\x0c:Value\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\x0c", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value V", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
