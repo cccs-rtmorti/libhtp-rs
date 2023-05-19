@@ -2946,7 +2946,7 @@ fn ResponseIncomplete() {
 
 #[test]
 fn RandomInput() {
-    let mut t = Test::new_with_callbacks();
+    let mut t = Test::new(TestConfig());
     if let Ok(file) = std::env::var("LIBHTP_TEST") {
         t.run_file(&file).ok();
         println!("{:#?}", t.connp);
