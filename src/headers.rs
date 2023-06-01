@@ -379,7 +379,7 @@ impl Parser {
                     if self.side == Side::Response {
                         // Peek ahead for ambiguous name with lws vs. value with folding
                         match tuple((token_chars, separator_regular))(i) {
-                            Ok(_) => {
+                            Ok((_, ((_, tokens, _), (_, _)))) if !tokens.is_empty() => {
                                 flags.unset(HeaderFlags::FOLDING_SPECIAL_CASE);
                                 if value.is_empty() {
                                     flags.set(HeaderFlags::VALUE_EMPTY);
@@ -1187,6 +1187,8 @@ mod test {
     #[case::req_special_deformed_res_fold(b"value1\n\r next: value2\r\n  and\r\n more\r\nnext3:", Ok((b!("\r next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0})), Some(Ok((b!("next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0}))))]
     #[case::value(b"value\r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: 0})), None)]
     #[case::value_empty(b"\r\nnext:", Ok((b!("next:"), Value {value: b"".to_vec(), flags: HeaderFlags::VALUE_EMPTY})), None)]
+    #[case::value_wrapping_with_colon(b"b\r\n c: d\r\nAAA", Ok((b!("AAA"), Value {value: b"b c: d".to_vec(), flags: HeaderFlags::FOLDING})), Some(Ok((b!("c: d\r\nAAA"), Value {value: b"b".to_vec(), flags: 0}))))]
+    #[case::value_wrapping_with_colon_no_tokens(b"b\r\n : d\r\nAAA", Ok((b!("AAA"), Value {value: b"b : d".to_vec(), flags: HeaderFlags::FOLDING})), Some(Ok((b!("AAA"), Value {value: b"b : d".to_vec(), flags: HeaderFlags::FOLDING}))))]
     fn test_value(
         #[case] input: &[u8],
         #[case] expected: IResult<&[u8], Value>,
