@@ -61,6 +61,23 @@ pub unsafe extern "C" fn bstr_cmp_c(b: *const Bstr, c: *const libc::c_char) -> l
     }
 }
 
+/// Case-indensitive comparison of a bstring and a NUL-terminated string.
+/// returns -1 if b is less than c
+///          0 if b is equal to c
+///          1 if b is greater than c
+/// # Safety
+/// b and c must be properly intialized: not NULL, dangling, or misaligned.
+/// c must point to memory that contains a valid nul terminator byte at the end of the string
+#[no_mangle]
+pub unsafe extern "C" fn bstr_cmp_c_nocase(b: *const Bstr, c: *const libc::c_char) -> libc::c_int {
+    let cs = CStr::from_ptr(c);
+    match (*b).cmp_nocase(cs.to_bytes()) {
+        Ordering::Less => -1,
+        Ordering::Equal => 0,
+        Ordering::Greater => 1,
+    }
+}
+
 /// Create a new bstring by copying the provided NUL-terminated string
 /// # Safety
 /// cstr must be properly intialized: not NULL, dangling, or misaligned.
