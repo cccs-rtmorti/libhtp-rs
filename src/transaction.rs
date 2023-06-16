@@ -257,8 +257,6 @@ impl Header {
 pub enum HtpResponseProgress {
     /// Default state.
     NOT_STARTED,
-    /// Response gap.
-    GAP,
     /// Response Line.
     LINE,
     /// Response Headers.
@@ -271,6 +269,8 @@ pub enum HtpResponseProgress {
     COMPLETE,
     /// Error involving response side of transaction.
     ERROR,
+    /// Response gap.
+    GAP,
 }
 
 /// Possible states of a progressing transaction. Internally, progress will change
@@ -282,8 +282,6 @@ pub enum HtpResponseProgress {
 pub enum HtpRequestProgress {
     /// Default state.
     NOT_STARTED,
-    /// In request gap state.
-    GAP,
     /// In request line state.
     LINE,
     /// In request headers state.
@@ -296,6 +294,8 @@ pub enum HtpRequestProgress {
     COMPLETE,
     /// Error involving request side of transaction.
     ERROR,
+    /// In request gap state.
+    GAP,
 }
 
 /// Enumerates the possible values for authentication type.
