@@ -25,6 +25,7 @@ fn datetime_from_sec_usec(sec: i64, usec: i64) -> Option<OffsetDateTime> {
 /// # Safety
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
+#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn htp_connp_close(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
@@ -33,7 +34,7 @@ pub unsafe extern "C" fn htp_connp_close(
         connp.close(
             timestamp
                 .as_ref()
-                .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
+                .map(|val| datetime_from_sec_usec(val.tv_sec.into(), val.tv_usec.into()))
                 .unwrap_or(None),
         )
     }
@@ -107,6 +108,7 @@ pub unsafe extern "C" fn htp_connp_set_user_data(
 /// # Safety
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
+#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn htp_connp_open(
     connp: *mut ConnectionParser,
     client_addr: *const libc::c_char,
@@ -133,7 +135,7 @@ pub unsafe extern "C" fn htp_connp_open(
             server_port.try_into().ok(),
             timestamp
                 .as_ref()
-                .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
+                .map(|val| datetime_from_sec_usec(val.tv_sec.into(), val.tv_usec.into()))
                 .unwrap_or(None),
         )
     }
@@ -145,6 +147,7 @@ pub unsafe extern "C" fn htp_connp_open(
 /// # Safety
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
+#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn htp_connp_request_close(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
@@ -153,7 +156,7 @@ pub unsafe extern "C" fn htp_connp_request_close(
         connp.request_close(
             timestamp
                 .as_ref()
-                .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
+                .map(|val| datetime_from_sec_usec(val.tv_sec.into(), val.tv_usec.into()))
                 .unwrap_or(None),
         )
     }
@@ -167,6 +170,7 @@ pub unsafe extern "C" fn htp_connp_request_close(
 /// # Safety
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
+#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn htp_connp_request_data(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
@@ -180,7 +184,7 @@ pub unsafe extern "C" fn htp_connp_request_data(
                 ParserData::from((data as *const u8, len)),
                 timestamp
                     .as_ref()
-                    .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
+                    .map(|val| datetime_from_sec_usec(val.tv_sec.into(), val.tv_usec.into()))
                     .unwrap_or(None),
             )
         })
@@ -194,6 +198,7 @@ pub unsafe extern "C" fn htp_connp_request_data(
 /// # Safety
 /// When calling this method, you have to ensure that connp is either properly initialized or NULL
 #[no_mangle]
+#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn htp_connp_response_data(
     connp: *mut ConnectionParser,
     timestamp: *const libc::timeval,
@@ -207,7 +212,7 @@ pub unsafe extern "C" fn htp_connp_response_data(
                 ParserData::from((data as *const u8, len)),
                 timestamp
                     .as_ref()
-                    .map(|val| datetime_from_sec_usec(val.tv_sec, val.tv_usec))
+                    .map(|val| datetime_from_sec_usec(val.tv_sec.into(), val.tv_usec.into()))
                     .unwrap_or(None),
             )
         })
