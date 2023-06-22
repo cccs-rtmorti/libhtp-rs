@@ -143,7 +143,7 @@ mod test {
 
     macro_rules! cstr {
         ( $x:expr ) => {{
-            CString::new($x).unwrap().as_ptr()
+            CString::new($x).unwrap()
         }};
     }
 
@@ -160,14 +160,14 @@ mod test {
     #[test]
     fn Bstr_DupC() {
         unsafe {
-            let p1 = bstr_dup_c(cstr!("arfarf"));
+            let p1 = bstr_dup_c(cstr!("arfarf").as_ptr());
 
             assert_eq!(6, bstr_size(p1));
             assert_eq!(6, bstr_len(p1));
             assert_eq!(
                 0,
                 libc::memcmp(
-                    cstr!("arfarf") as *const core::ffi::c_void,
+                    cstr!("arfarf").as_ptr() as *const core::ffi::c_void,
                     bstr_ptr(p1) as *const core::ffi::c_void,
                     6
                 )
@@ -192,10 +192,10 @@ mod test {
     fn Bstr_CmpC() {
         unsafe {
             let p1 = Bstr::from("arfarf");
-            assert_eq!(0, bstr_cmp_c(&p1, cstr!("arfarf")));
-            assert_eq!(-1, bstr_cmp_c(&p1, cstr!("arfarf2")));
-            assert_eq!(1, bstr_cmp_c(&p1, cstr!("arf")));
-            assert_eq!(-1, bstr_cmp_c(&p1, cstr!("not equal")));
+            assert_eq!(0, bstr_cmp_c(&p1, cstr!("arfarf").as_ptr()));
+            assert_eq!(-1, bstr_cmp_c(&p1, cstr!("arfarf2").as_ptr()));
+            assert_eq!(1, bstr_cmp_c(&p1, cstr!("arf").as_ptr()));
+            assert_eq!(-1, bstr_cmp_c(&p1, cstr!("not equal").as_ptr()));
         }
     }
 }
