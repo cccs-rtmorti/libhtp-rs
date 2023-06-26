@@ -33,20 +33,12 @@ impl Transactions {
         // of the request or response transaction index + 1 (if
         // that transaction is started), or zero if neither
         // request or response transaction exist yet
-        match (
-            self.transactions.get(&self.request),
-            self.transactions.get(&self.response),
-        ) {
-            (Some(req), Some(res)) => {
-                if req.index > res.index {
-                    req.index.wrapping_add(req.is_started() as usize)
-                } else {
-                    res.index.wrapping_add(res.is_started() as usize)
-                }
-            }
-            (Some(req), None) => req.index.wrapping_add(req.is_started() as usize),
-            (None, Some(res)) => res.index.wrapping_add(res.is_started() as usize),
-            (None, None) => 0,
+        let tx_to_check = std::cmp::max(self.request, self.response);
+        match self.transactions.get(&tx_to_check) {
+            // Transaction is created, check if it is started
+            Some(tx) => tx.index.wrapping_add(tx.is_started() as usize),
+            // Transaction doesn't exist yet, so the index is the size
+            None => tx_to_check,
         }
     }
 
