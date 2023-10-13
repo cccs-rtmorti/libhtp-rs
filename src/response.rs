@@ -602,14 +602,14 @@ impl ConnectionParser {
                 let mut data = take(&mut self.response_buf);
                 data.add(line);
                 self.response_data_consume(input, line.len());
-                self.response_line_complete(data.as_slice(), input.is_empty())
+                self.response_line_complete(data.as_slice(), input)
             }
             _ => {
                 if self.response_status == HtpStreamState::CLOSED {
                     let mut data = take(&mut self.response_buf);
                     data.add(input.as_slice());
                     self.response_data_consume(input, input.len());
-                    self.response_line_complete(data.as_slice(), input.is_empty())
+                    self.response_line_complete(data.as_slice(), input)
                 } else {
                     self.handle_response_absent_lf(input)
                 }
@@ -621,7 +621,7 @@ impl ConnectionParser {
     ///
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
-    fn response_line_complete(&mut self, line: &[u8], no_more_input: bool) -> Result<()> {
+    fn response_line_complete(&mut self, line: &[u8], input: &ParserData) -> Result<()> {
         self.check_response_buffer_limit(line.len())?;
         if line.is_empty() {
             return Err(HtpStatus::DATA);
@@ -648,13 +648,20 @@ impl ConnectionParser {
         // a response line. If it does not look like a line, process the
         // data as a response body because that is what browsers do.
         if treat_response_line_as_body(line) {
+            // if we have a next line beginning with H, skip this one
+            let next = input.as_slice();
+            if line.len() < 2 || !input.is_empty() && next[0] == b'H' {
+                self.response_mut().response_ignored_lines =
+                    self.response().response_ignored_lines.wrapping_add(1);
+                return Ok(());
+            }
             self.response_mut().response_content_encoding_processing = HtpContentEncoding::NONE;
             self.response_body_data(Some(line))?;
             // Continue to process response body. Because we don't have
             // any headers to parse, we assume the body continues until
             // the end of the stream.
             // Have we seen the entire response body?
-            if no_more_input {
+            if input.is_empty() {
                 self.response_mut().response_transfer_coding = HtpTransferCoding::IDENTITY;
                 self.response_mut().response_progress = HtpResponseProgress::BODY;
                 self.response_body_data_left = None;
