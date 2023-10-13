@@ -650,7 +650,7 @@ impl ConnectionParser {
         if treat_response_line_as_body(line) {
             // if we have a next line beginning with H, skip this one
             let next = input.as_slice();
-            if line.len() < 2 || !input.is_empty() && next[0] == b'H' {
+            if chomp(line).len() <= 2 || !input.is_empty() && next[0] == b'H' {
                 self.response_mut().response_ignored_lines =
                     self.response().response_ignored_lines.wrapping_add(1);
                 return Ok(());
