@@ -622,7 +622,7 @@ fn ParsedUriSupplied() {
         .parse_request_line(b"GET /?p=1&q=2 HTTP/1.0")
         .unwrap();
 
-    let mut tx = t.connp.tx_mut(tx_id).unwrap();
+    let tx = t.connp.tx_mut(tx_id).unwrap();
     let u = Uri {
         path: Some(Bstr::from("/123")),
         ..Default::default()

@@ -140,7 +140,7 @@ fn IndexAccess() {
     assert_eq!("Value2", res.1);
     assert_eq!("Value2", t.get(1).unwrap().1);
 
-    let mut res_mut = t.get_mut(1).unwrap();
+    let res_mut = t.get_mut(1).unwrap();
     res_mut.1 = "Value3";
     assert_eq!("Value3", t.get(1).unwrap().1);
 }
