@@ -381,8 +381,15 @@ impl ConnectionParser {
                     .request_message_len
                     .wrapping_add(data.len() as u64);
                 // Handle chunk length.
-                let len = parse_chunked_length(&data)?;
+                let (len, ext) = parse_chunked_length(&data)?;
                 self.request_chunked_length = len;
+                if ext {
+                    htp_warn!(
+                        self.logger,
+                        HtpLogCode::REQUEST_CHUNK_EXTENSION,
+                        "Request chunk extension"
+                    );
+                }
                 let len = len.as_ref().ok_or(HtpStatus::ERROR).map_err(|e| {
                     // Invalid chunk length
                     htp_error!(

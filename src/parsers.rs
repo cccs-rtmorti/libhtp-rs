@@ -74,11 +74,11 @@ pub fn parse_content_length(input: &[u8], logger: Option<&mut Logger>) -> Option
 
 /// Parses chunked length (positive hexadecimal number). White space is allowed before
 /// and after the number.
-pub fn parse_chunked_length(input: &[u8]) -> Result<Option<u64>> {
+pub fn parse_chunked_length(input: &[u8]) -> Result<(Option<u64>, bool)> {
     let (rest, _) = take_chunked_ctl_chars(input)?;
     let (trailing_data, chunked_length) = hex_digits()(rest)?;
     if trailing_data.is_empty() && chunked_length.is_empty() {
-        return Ok(None);
+        return Ok((None, false));
     }
     let chunked_len = u64::from_str_radix(
         std::str::from_utf8(chunked_length).map_err(|_| HtpStatus::ERROR)?,
@@ -87,9 +87,10 @@ pub fn parse_chunked_length(input: &[u8]) -> Result<Option<u64>> {
     .map_err(|_| HtpStatus::ERROR)?;
     //TODO: remove this limit and update appropriate tests after differential fuzzing
     if chunked_len > std::i32::MAX as u64 {
-        return Ok(None);
+        return Ok((None, false));
     }
-    Ok(Some(chunked_len))
+    let has_ext = trailing_data.contains(&b';');
+    Ok((Some(chunked_len), has_ext))
 }
 
 /// Attempts to extract the scheme from a given input URI.
@@ -670,10 +671,12 @@ mod test {
     }
 
     #[rstest]
-    #[case("12a5", Some(0x12a5))]
-    #[case("    \t12a5    ", Some(0x12a5))]
-    #[case("    \t    ", None)]
-    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: Option<u64>) {
+    #[case("0 ; qw3=asd3; zc3=\"rt\"y3\"", (Some(0), true))]
+    #[case("12a5", (Some(0x12a5), false))]
+    #[case("12a5;ext=value", (Some(0x12a5), true))]
+    #[case("    \t12a5    ", (Some(0x12a5), false))]
+    #[case("    \t    ", (None, false))]
+    fn test_parse_chunked_length(#[case] input: &str, #[case] expected: (Option<u64>, bool)) {
         assert_eq!(parse_chunked_length(input.as_bytes()).unwrap(), expected);
     }
 
