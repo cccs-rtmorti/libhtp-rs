@@ -399,6 +399,17 @@ impl BufWriter for NullBufWriter {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum GzState {
+    Start,
+    Xlen,
+    Extra,
+    Filename,
+    Comment,
+    Crc,
+    AfterHeader,
+}
+
 /// Wrapper around a gzip header parser and a deflate decoder.
 /// We parse the header separately because we want to be tolerant of
 /// checksum or other gzip errors that do not affect our ability
@@ -409,137 +420,173 @@ impl BufWriter for NullBufWriter {
 /// https://noxxi.de/research/http-evader-explained-5-gzip.html
 struct GzipBufWriter {
     buffer: Vec<u8>,
-    header: Option<GzHeader>,
-    inner: flate2::write::DeflateDecoder<Cursor<Box<[u8]>>>,
-}
-
-/// A structure holding a Gzip header
-#[derive(PartialEq, Eq, Clone, Debug, Default)]
-pub struct GzHeader {
-    extra: Option<Vec<u8>>,
-    filename: Option<Vec<u8>>,
-    comment: Option<Vec<u8>>,
-    operating_system: u8,
-    mtime: i32,
-    crc: Option<u16>,
     flags: u8,
-    xfl: u8,
-}
-
-impl GzHeader {
-    const FHCRC: u8 = 1 << 1;
-    const FEXTRA: u8 = 1 << 2;
-    const FNAME: u8 = 1 << 3;
-    const FCOMMENT: u8 = 1 << 4;
-
-    fn parse(data: &[u8]) -> nom::IResult<&[u8], Self> {
-        use nom::bytes::streaming::{tag, take, take_until};
-        use nom::number::streaming::{le_i32, le_u16, le_u8};
-        use nom::sequence::tuple;
-        let rest: &[u8] = data;
-        let (rest, (_, flags, mtime, xfl, operating_system)) =
-            tuple((tag(b"\x1f\x8b\x08"), le_u8, le_i32, le_u8, le_u8))(rest)?;
-
-        let (rest, extra) = match flags & Self::FEXTRA {
-            0 => (rest, None),
-            _ => {
-                let (rest, len) = le_u16(rest)?;
-                let (rest, extra) = take(len as usize)(rest)?;
-                (rest, Some(extra.into()))
-            }
-        };
-
-        let (rest, filename) = match flags & Self::FNAME {
-            0 => (rest, None),
-            _ => {
-                let (rest, (filename, _)) = tuple((take_until(b"\0" as &[u8]), tag(b"\0")))(rest)?;
-                (rest, Some(filename.into()))
-            }
-        };
-
-        let (rest, comment) = match flags & Self::FCOMMENT {
-            0 => (rest, None),
-            _ => {
-                let (rest, (comment, _)) = tuple((take_until(b"\0" as &[u8]), tag(b"\0")))(rest)?;
-                (rest, Some(comment.into()))
-            }
-        };
-
-        let (rest, crc) = match flags & Self::FHCRC {
-            0 => (rest, None),
-            _ => {
-                let (rest, crc) = le_u16(rest)?;
-                (rest, Some(crc))
-            }
-        };
-
-        Ok((
-            rest,
-            GzHeader {
-                extra,
-                filename,
-                comment,
-                operating_system,
-                mtime,
-                crc,
-                flags,
-                xfl,
-            },
-        ))
-    }
+    xlen: u16,
+    inner: flate2::write::DeflateDecoder<Cursor<Box<[u8]>>>,
+    state: GzState,
 }
 
 impl GzipBufWriter {
     fn new(buf: Cursor<Box<[u8]>>) -> Self {
         GzipBufWriter {
             buffer: Vec::with_capacity(10),
-            header: None,
+            flags: 0,
+            xlen: 0,
             inner: flate2::write::DeflateDecoder::new(buf),
+            state: GzState::Start,
         }
     }
 
-    fn parse_gz_header(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        let parse = if !self.buffer.is_empty() {
-            self.buffer.extend_from_slice(data);
-            self.buffer.as_ref()
-        } else {
-            data
-        };
+    fn parse_start(data: &[u8]) -> nom::IResult<&[u8], u8> {
+        use nom::bytes::streaming::tag;
+        use nom::number::streaming::{le_i32, le_u8};
+        use nom::sequence::tuple;
 
-        match GzHeader::parse(parse) {
-            Ok((rest, header)) => {
-                self.header = Some(header);
-                if let Some(readlen) = data.len().checked_sub(rest.len()) {
-                    Ok(readlen)
-                } else {
-                    // If we got here, it means we could have parsed
-                    // the header out of the stored buffer alone, which
-                    // we should have done before we stored it.
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Unexpected remaining data",
-                    ))
-                }
-            }
-            Err(nom::Err::Incomplete(_)) => {
-                // cache for later
-                self.buffer.extend_from_slice(data);
-                Ok(data.len())
-            }
-            Err(_) => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Could not parse gzip header",
-            )),
-        }
+        let (rest, (_, flags, _mtime, _xfl, _operating_system)) =
+            tuple((tag(b"\x1f\x8b\x08"), le_u8, le_i32, le_u8, le_u8))(data)?;
+        Ok((rest, flags))
     }
 }
 
 impl Write for GzipBufWriter {
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        if self.header.is_none() {
-            self.parse_gz_header(data)
+        use nom::bytes::streaming::{tag, take_until};
+        use nom::number::streaming::le_u16;
+        use nom::sequence::tuple;
+
+        const FHCRC: u8 = 1 << 1;
+        const FEXTRA: u8 = 1 << 2;
+        const FNAME: u8 = 1 << 3;
+        const FCOMMENT: u8 = 1 << 4;
+
+        let (mut parse, direct) = if !self.buffer.is_empty() && self.state == GzState::Start {
+            self.buffer.extend_from_slice(data);
+            (self.buffer.as_ref(), false)
         } else {
-            self.inner.write(data)
+            (data, true)
+        };
+
+        loop {
+            match self.state {
+                GzState::Start => match GzipBufWriter::parse_start(parse) {
+                    Ok((rest, flags)) => {
+                        parse = rest;
+                        self.flags = flags;
+                        self.state = GzState::Xlen;
+                    }
+                    Err(nom::Err::Incomplete(_)) => {
+                        if direct {
+                            self.buffer.extend_from_slice(data);
+                        }
+                        return Ok(data.len());
+                    }
+                    Err(_) => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "Could not parse gzip header",
+                        ));
+                    }
+                },
+                GzState::Xlen => {
+                    if self.flags & FEXTRA != 0 {
+                        match le_u16::<&[u8], nom::error::Error<&[u8]>>(parse) {
+                            Ok((rest, xlen)) => {
+                                parse = rest;
+                                self.xlen = xlen;
+                            }
+                            Err(nom::Err::Incomplete(_)) => {
+                                return Ok(data.len() - parse.len());
+                            }
+                            Err(_) => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidInput,
+                                    "Could not parse gzip header",
+                                )); // this one is unreachable
+                            }
+                        }
+                    }
+                    self.state = GzState::Extra;
+                }
+                GzState::Extra => {
+                    if self.xlen > 0 {
+                        if parse.len() < self.xlen as usize {
+                            self.xlen -= parse.len() as u16;
+                            return Ok(data.len());
+                        }
+                        parse = &parse[self.xlen as usize..];
+                    }
+                    self.state = GzState::Filename;
+                }
+                GzState::Filename => {
+                    if self.flags & FNAME != 0 {
+                        match tuple((
+                            take_until::<&[u8], &[u8], nom::error::Error<&[u8]>>(b"\0" as &[u8]),
+                            tag(b"\0"),
+                        ))(parse)
+                        {
+                            Ok((rest, _)) => {
+                                parse = rest;
+                            }
+                            Err(nom::Err::Incomplete(_)) => {
+                                return Ok(data.len());
+                            }
+                            Err(_) => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidInput,
+                                    "Could not parse gzip header",
+                                )); // this one is unreachable
+                            }
+                        }
+                    }
+                    self.state = GzState::Comment;
+                }
+                GzState::Comment => {
+                    if self.flags & FCOMMENT != 0 {
+                        match tuple((
+                            take_until::<&[u8], &[u8], nom::error::Error<&[u8]>>(b"\0" as &[u8]),
+                            tag(b"\0"),
+                        ))(parse)
+                        {
+                            Ok((rest, _)) => {
+                                parse = rest;
+                            }
+                            Err(nom::Err::Incomplete(_)) => {
+                                return Ok(data.len());
+                            }
+                            Err(_) => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidInput,
+                                    "Could not parse gzip header",
+                                )); // this one is unreachable
+                            }
+                        }
+                    }
+                    self.state = GzState::Crc;
+                }
+                GzState::Crc => {
+                    if self.flags & FHCRC != 0 {
+                        match le_u16::<&[u8], nom::error::Error<&[u8]>>(parse) {
+                            Ok((rest, _)) => {
+                                parse = rest;
+                            }
+                            Err(nom::Err::Incomplete(_)) => {
+                                return Ok(data.len() - parse.len());
+                            }
+                            Err(_) => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidInput,
+                                    "Could not parse gzip header",
+                                )); // this one is unreachable
+                            }
+                        }
+                    }
+                    self.state = GzState::AfterHeader;
+                    return Ok(data.len() - parse.len());
+                }
+                GzState::AfterHeader => {
+                    return self.inner.write(parse);
+                }
+            }
         }
     }
 
@@ -908,179 +955,81 @@ impl Decompress for InnerDecompressor {
 fn test_gz_header() {
     // No flags or other bits
     let input = b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x00";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: None,
-                filename: None,
-                comment: None,
-                operating_system: 0,
-                mtime: 0,
-                crc: None,
-                flags: 0,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Just CRC
     let input = b"\x1f\x8b\x08\x02\x00\x00\x00\x00\x00\x00\x11\x22";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: None,
-                filename: None,
-                comment: None,
-                operating_system: 0,
-                mtime: 0,
-                crc: Some(0x2211),
-                flags: 0b0000_0010,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Just extra
     let input = b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\x00\x04\x00abcd";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: Some(b"abcd".to_vec()),
-                filename: None,
-                comment: None,
-                operating_system: 0,
-                mtime: 0,
-                crc: None,
-                flags: 0b0000_0100,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Just filename
     let input = b"\x1f\x8b\x08\x08\x00\x00\x00\x00\x00\x00variable\x00";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: None,
-                filename: Some(b"variable".to_vec()),
-                comment: None,
-                operating_system: 0,
-                mtime: 0,
-                crc: None,
-                flags: 0b0000_1000,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Just comment
     let input = b"\x1f\x8b\x08\x10\x00\x00\x00\x00\x00\x00also variable\x00";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: None,
-                filename: None,
-                comment: Some(b"also variable".to_vec()),
-                operating_system: 0,
-                mtime: 0,
-                crc: None,
-                flags: 0b0001_0000,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Extra and Filename
     let input = b"\x1f\x8b\x08\x0c\x00\x00\x00\x00\x00\x00\x05\x00extrafilename\x00";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: Some(b"extra".to_vec()),
-                filename: Some(b"filename".to_vec()),
-                comment: None,
-                operating_system: 0,
-                mtime: 0,
-                crc: None,
-                flags: 0b0000_1100,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Extra and Comment and CRC
     let input = b"\x1f\x8b\x08\x16\x00\x00\x00\x00\x00\x00\x05\x00extracomment\x00\x34\x12";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: Some(b"extra".to_vec()),
-                filename: None,
-                comment: Some(b"comment".to_vec()),
-                operating_system: 0,
-                mtime: 0,
-                crc: Some(0x1234),
-                flags: 0b0001_0110,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Filename and Comment
     let input = b"\x1f\x8b\x08\x18\x00\x00\x00\x00\x00\x00filename\x00comment\x00";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: None,
-                filename: Some(b"filename".to_vec()),
-                comment: Some(b"comment".to_vec()),
-                operating_system: 0,
-                mtime: 0,
-                crc: None,
-                flags: 0b0001_1000,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Extra Filename and Comment and CRC
     let input =
         b"\x1f\x8b\x08\x1e\x00\x00\x00\x00\x00\x00\x05\x00extrafilename\x00comment\x00\x34\x12";
-    assert_eq!(
-        GzHeader::parse(input),
-        Ok((
-            b"" as &[u8],
-            GzHeader {
-                extra: Some(b"extra".to_vec()),
-                filename: Some(b"filename".to_vec()),
-                comment: Some(b"comment".to_vec()),
-                operating_system: 0,
-                mtime: 0,
-                crc: Some(0x1234),
-                flags: 0b0001_1110,
-                xfl: 0,
-            }
-        ))
-    );
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
 
     // Too short
     let input = b"\x1f\x8b\x08\x1e\x00\x00\x00\x00\x00\x00\x05\x00extrafilename\x00comment\x00\x34";
-    assert!(GzHeader::parse(input).is_err());
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len() - 1);
+    assert_eq!(gzw.state, GzState::Crc);
+    // final missing CRC in header
+    let input = b"\x34\xee";
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::AfterHeader);
     let input = b"\x1f\x8b\x08\x01\x00\x00\x00\x00\x00";
-    assert!(GzHeader::parse(input).is_err());
+    let buf = Cursor::new(Box::new([0u8; ENCODING_CHUNK_SIZE]) as Box<[u8]>);
+    let mut gzw = GzipBufWriter::new(buf);
+    assert_eq!(gzw.write(input).unwrap(), input.len());
+    assert_eq!(gzw.state, GzState::Start);
 }
