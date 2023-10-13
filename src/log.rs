@@ -17,6 +17,10 @@ pub enum HtpLogCode {
     INVALID_REQUEST_CHUNK_LEN,
     /// Response chunked-length parsing failed.
     INVALID_RESPONSE_CHUNK_LEN,
+    /// Response chunk exension.
+    REQUEST_CHUNK_EXTENSION,
+    /// Response chunk exension.
+    RESPONSE_CHUNK_EXTENSION,
     /// Request transfer-encoding invalid.
     INVALID_TRANSFER_ENCODING_VALUE_IN_REQUEST,
     /// Response transfer-encoding invalid.

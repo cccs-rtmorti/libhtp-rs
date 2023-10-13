@@ -192,8 +192,15 @@ impl ConnectionParser {
                         (self.response().response_message_len).wrapping_add(data.len() as u64);
 
                     match parse_chunked_length(&data) {
-                        Ok(len) => {
+                        Ok((len, ext)) => {
                             self.response_chunked_length = len;
+                            if ext {
+                                htp_warn!(
+                                    self.logger,
+                                    HtpLogCode::RESPONSE_CHUNK_EXTENSION,
+                                    "Response chunk extension"
+                                );
+                            }
                             // Handle chunk length
                             if let Some(len) = len {
                                 match len.cmp(&0) {
