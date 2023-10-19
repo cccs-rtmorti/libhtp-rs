@@ -4,7 +4,7 @@ use crate::{
     connection::ConnectionFlags,
     connection_parser::{ConnectionParser, HtpStreamState, ParserData, State},
     decompressors::{Decompressor, HtpContentEncoding},
-    error::{NomError, Result},
+    error::Result,
     headers::HeaderFlags,
     hook::DataHook,
     parsers::{parse_chunked_length, parse_content_length, parse_protocol},
@@ -12,16 +12,13 @@ use crate::{
         Data, Header, HtpProtocol, HtpRequestProgress, HtpResponseProgress, HtpTransferCoding,
     },
     util::{
-        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, nom_take_is_space,
-        split_on_predicate, take_is_space, take_not_is_space, take_till_lf, take_till_lf_null,
-        take_until_null, trimmed, FlagOperations, HtpFlags,
+        chomp, is_line_ignorable, is_space, is_valid_chunked_length_data, split_on_predicate,
+        take_is_space, take_not_is_space, take_till_lf, take_till_lf_null, take_until_null,
+        trimmed, FlagOperations, HtpFlags,
     },
     HtpStatus,
 };
-use nom::{
-    branch::alt, bytes::complete::take_until, character::complete::char,
-    character::is_space as nom_is_space, sequence::tuple,
-};
+use nom::sequence::tuple;
 use std::{
     cmp::{min, Ordering},
     mem::take,
@@ -576,7 +573,7 @@ impl ConnectionParser {
             self.request_state = State::HEADERS;
             self.request_mut().request_progress = HtpRequestProgress::HEADERS
         } else {
-            if let Ok((rem, _)) = nom_take_is_space(input.as_slice()) {
+            if let Ok((rem, _)) = take_is_space(input.as_slice()) {
                 if rem.len() > 0 {
                     // we have more than spaces, no HTTP/0.9
                     htp_warn!(
