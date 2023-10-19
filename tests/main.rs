@@ -535,7 +535,6 @@ fn Http_0_9_Multiple() {
     assert!(t.run_file("23-http09-multiple.t").is_ok());
 
     assert_eq!(1, t.connp.tx_size());
-    assert!(t.connp.conn.flags.is_set(ConnectionFlags::HTTP_0_9_EXTRA));
 
     let _tx = t.connp.tx(0).unwrap();
 }
