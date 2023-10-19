@@ -576,21 +576,9 @@ impl ConnectionParser {
             self.request_state = State::HEADERS;
             self.request_mut().request_progress = HtpRequestProgress::HEADERS
         } else {
-            let mut parser = tuple::<_, _, NomError<&[u8]>, _>((take_until(":"), char(':')));
-            match parser(input.as_slice()) {
-                Ok((_, (hdr, _))) => {
-                    if let Ok((_, space)) = alt((nom_take_is_space, take_is_space))(hdr) {
-                        let mut afterspace = false;
-                        for c in space {
-                            if nom_is_space(*c) {
-                                afterspace = true;
-                            } else if afterspace || is_space(*c) {
-                                // We're done with this request.
-                                self.request_state = State::FINALIZE;
-                                return Ok(());
-                            }
-                        }
-                    }
+            if let Ok((rem, _)) = nom_take_is_space(input.as_slice()) {
+                if rem.len() > 0 {
+                    // we have more than spaces, no HTTP/0.9
                     htp_warn!(
                         self.logger,
                         HtpLogCode::REQUEST_LINE_NO_PROTOCOL,
@@ -602,11 +590,9 @@ impl ConnectionParser {
                     self.request_mut().request_progress = HtpRequestProgress::HEADERS;
                     return Ok(());
                 }
-                Err(_) => {
-                    // We're done with this request.
-                    self.request_state = State::FINALIZE;
-                }
             }
+            // We're done with this request.
+            self.request_state = State::FINALIZE;
         }
         Ok(())
     }
