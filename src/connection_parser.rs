@@ -695,10 +695,7 @@ impl ConnectionParser {
                 .run_all(self, self.request_index())?;
             self.request_initialize_decompressors()?;
 
-            // We cannot proceed if the request is invalid.
-            if self.request().flags.is_set(HtpFlags::REQUEST_INVALID) {
-                return Err(HtpStatus::ERROR);
-            }
+            // We still proceed if the request is invalid.
             self.request_state = State::CONNECT_CHECK;
         } else {
             htp_warn!(
