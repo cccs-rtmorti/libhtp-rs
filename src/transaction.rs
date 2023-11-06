@@ -766,7 +766,7 @@ impl Transaction {
             //      (2.2.22 on Ubuntu 12.04 LTS) instead errors out with "Unknown Transfer-Encoding: identity".
             //      And it behaves strangely, too, sending a 501 and proceeding to process the request
             //      (e.g., PHP is run), but without the body. It then closes the connection.
-            if te.value.cmp_nocase("chunked") != Ordering::Equal {
+            if te.value.index_of_nocase_nozero("chunked").is_none() {
                 // Invalid T-E header value.
                 self.request_transfer_coding = HtpTransferCoding::INVALID;
                 self.flags.set(HtpFlags::REQUEST_INVALID_T_E);
