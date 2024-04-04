@@ -132,7 +132,11 @@ impl ConnectionParser {
     /// Sends outstanding connection data to the currently active data receiver hook.
     fn request_receiver_send_data(&mut self, data: &mut ParserData) -> Result<()> {
         let data = ParserData::from(data.callback_data());
-        let mut tx_data = Data::new(self.request_mut(), &data);
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let mut tx_data = Data::new(req.unwrap(), &data);
         if let Some(hook) = &self.request_data_receiver_hook {
             hook.run_all(self, &mut tx_data)?;
         } else {
@@ -166,11 +170,13 @@ impl ConnectionParser {
         }
 
         if self.request_state == State::HEADERS {
-            let header_fn = Some(self.request().cfg.hook_request_header_data.clone());
-            let trailer_fn = Some(self.request().cfg.hook_request_trailer_data.clone());
+            // ensured by caller
+            let req = self.request().unwrap();
+            let header_fn = Some(req.cfg.hook_request_header_data.clone());
+            let trailer_fn = Some(req.cfg.hook_request_trailer_data.clone());
             input.reset_callback_start();
 
-            match self.request().request_progress {
+            match req.request_progress {
                 HtpRequestProgress::HEADERS => self.request_receiver_set(header_fn),
                 HtpRequestProgress::TRAILER => self.request_receiver_set(trailer_fn),
                 _ => Ok(()),
@@ -222,11 +228,16 @@ impl ConnectionParser {
     /// inbound parsing needs to be suspended until we hear from the
     /// other side.
     pub fn request_connect_check(&mut self) -> Result<()> {
+        let req = self.request();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+
         // If the request uses the CONNECT method, then there will
         // not be a request body, but first we need to wait to see the
         // response in order to determine if the tunneling request
         // was a success.
-        if self.request().request_method_number == HtpMethod::CONNECT {
+        if req.unwrap().request_method_number == HtpMethod::CONNECT {
             self.request_state = State::CONNECT_WAIT_RESPONSE;
             self.request_status = HtpStreamState::DATA_OTHER;
             return Err(HtpStatus::DATA_OTHER);
@@ -278,13 +289,19 @@ impl ConnectionParser {
     /// Returns OK if the parser can resume parsing, HtpStatus::DATA_OTHER if
     /// it needs to continue waiting.
     pub fn request_connect_wait_response(&mut self) -> Result<()> {
+        let req = self.request();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
         // Check that we saw the response line of the current inbound transaction.
-        if self.request().response_progress <= HtpResponseProgress::LINE {
+        if req.response_progress <= HtpResponseProgress::LINE {
             return Err(HtpStatus::DATA_OTHER);
         }
         // A 2xx response means a tunnel was established. Anything
         // else means we continue to follow the HTTP stream.
-        if self.request().response_status_number.in_range(200, 299) {
+        if req.response_status_number.in_range(200, 299) {
             // TODO Check that the server did not accept a connection to itself.
             // The requested tunnel was established: we are going
             // to probe the remaining data on this stream to see
@@ -302,20 +319,22 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
     pub fn request_body_chunked_data_end(&mut self, input: &mut ParserData) -> Result<()> {
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
         // TODO We shouldn't really see anything apart from CR and LF,
         //      so we should warn about anything else.
         if let Ok((_, line)) = take_till_lf(input.as_slice()) {
             let len = line.len();
+            req.request_message_len = req.request_message_len.wrapping_add(len as u64);
             self.request_data_consume(input, len);
-            self.request_mut().request_message_len =
-                self.request().request_message_len.wrapping_add(len as u64);
             self.request_state = State::BODY_CHUNKED_LENGTH;
             Ok(())
         } else {
-            self.request_mut().request_message_len = self
-                .request()
-                .request_message_len
-                .wrapping_add(input.len() as u64);
+            req.request_message_len = req.request_message_len.wrapping_add(input.len() as u64);
             self.handle_request_absent_lf(input)
         }
     }
@@ -362,21 +381,23 @@ impl ConnectionParser {
                 if !self.request_buf.is_empty() {
                     self.check_request_buffer_limit(line.len())?;
                 }
+                let req = self.request_mut();
+                if req.is_none() {
+                    return Err(HtpStatus::ERROR);
+                }
+                let req = req.unwrap();
+
                 if line.eq(b"\n") {
-                    self.request_mut().request_message_len = self
-                        .request()
-                        .request_message_len
-                        .wrapping_add(line.len() as u64);
+                    req.request_message_len =
+                        req.request_message_len.wrapping_add(line.len() as u64);
                     //Empty chunk len. Try to continue parsing.
                     data = remaining;
                     continue;
                 }
                 let mut data = self.request_buf.clone();
                 data.add(line);
-                self.request_mut().request_message_len = self
-                    .request()
-                    .request_message_len
-                    .wrapping_add(data.len() as u64);
+                let req = self.request_mut().unwrap();
+                req.request_message_len = req.request_message_len.wrapping_add(data.len() as u64);
                 // Handle chunk length.
                 let (len, ext) = parse_chunked_length(&data)?;
                 self.request_chunked_length = len;
@@ -400,7 +421,7 @@ impl ConnectionParser {
                     Ordering::Equal => {
                         // End of data
                         self.request_state = State::HEADERS;
-                        self.request_mut().request_progress = HtpRequestProgress::TRAILER
+                        self.request_mut().unwrap().request_progress = HtpRequestProgress::TRAILER
                     }
                     Ordering::Greater => {
                         // More data available.
@@ -440,14 +461,18 @@ impl ConnectionParser {
             return Err(HtpStatus::DATA);
         }
         if data.is_gap() {
-            self.request_mut().request_message_len = self
-                .request()
+            let req = self.request_mut();
+            if req.is_none() {
+                return Err(HtpStatus::ERROR);
+            }
+            let req = req.unwrap();
+            req.request_message_len = req
                 .request_message_len
                 .wrapping_add(bytes_to_consume as u64);
             // Create a new gap of the appropriate length
             let parser_data = ParserData::from(bytes_to_consume);
             // Send the gap to the data hooks
-            let mut tx_data = Data::new(self.request_mut(), &parser_data);
+            let mut tx_data = Data::new(req, &parser_data);
             self.request_run_hook_body_data(&mut tx_data)?;
         } else {
             // Consume the data.
@@ -474,19 +499,27 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
     pub fn request_body_determine(&mut self) -> Result<()> {
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
         // Determine the next state based on the presence of the request
         // body, and the coding used.
-        match self.request().request_transfer_coding {
+        match req.request_transfer_coding {
             HtpTransferCoding::CHUNKED => {
-                self.request_state = State::BODY_CHUNKED_LENGTH;
-                self.request_mut().request_progress = HtpRequestProgress::BODY
+                req.request_progress = HtpRequestProgress::BODY;
+                self.request_state = State::BODY_CHUNKED_LENGTH
             }
             HtpTransferCoding::IDENTITY => {
-                self.request_content_length = self.request().request_content_length;
+                if req.request_content_length > Some(0) {
+                    req.request_progress = HtpRequestProgress::BODY;
+                }
+                self.request_content_length = req.request_content_length;
                 self.request_body_data_left = self.request_content_length;
                 if self.request_content_length > Some(0) {
-                    self.request_state = State::BODY_IDENTITY;
-                    self.request_mut().request_progress = HtpRequestProgress::BODY
+                    self.request_state = State::BODY_IDENTITY
                 } else {
                     self.request_state = State::FINALIZE
                 }
@@ -510,13 +543,19 @@ impl ConnectionParser {
     pub fn request_headers(&mut self, input: &mut ParserData) -> Result<()> {
         let data = input.as_slice();
         if self.request_status == HtpStreamState::CLOSED {
-            self.request_mut().request_header_parser.set_complete(true);
+            let req = self.request_mut();
+            if req.is_none() {
+                return Err(HtpStatus::ERROR);
+            }
+            let req = req.unwrap();
+
+            req.request_header_parser.set_complete(true);
             // Parse previous header, if any.
+            req.request_progress = HtpRequestProgress::TRAILER;
             if let Some(request_header) = self.request_header.take() {
                 self.parse_request_headers(request_header.as_slice())?;
             }
             self.request_buf.clear();
-            self.request_mut().request_progress = HtpRequestProgress::TRAILER;
             // We've seen all the request headers.
             return self.state_request_headers(input);
         }
@@ -566,25 +605,31 @@ impl ConnectionParser {
     /// Returns OK on state change, ERROR on error, or HtpStatus::DATA_BUFFER
     /// when more data is needed.
     pub fn request_protocol(&mut self, input: &mut ParserData) -> Result<()> {
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
         // Is this a short-style HTTP/0.9 request? If it is,
         // we will not want to parse request headers.
-        if !self.request().is_protocol_0_9 {
+        if !req.is_protocol_0_9 {
             // Switch to request header parsing.
-            self.request_state = State::HEADERS;
-            self.request_mut().request_progress = HtpRequestProgress::HEADERS
+            req.request_progress = HtpRequestProgress::HEADERS;
+            self.request_state = State::HEADERS
         } else {
             if let Ok((rem, _)) = take_is_space(input.as_slice()) {
                 if rem.len() > 0 {
                     // we have more than spaces, no HTTP/0.9
+                    req.is_protocol_0_9 = false;
+                    req.request_progress = HtpRequestProgress::HEADERS;
                     htp_warn!(
                         self.logger,
                         HtpLogCode::REQUEST_LINE_NO_PROTOCOL,
                         "Request line: missing protocol"
                     );
-                    self.request_mut().is_protocol_0_9 = false;
                     // Switch to request header parsing.
                     self.request_state = State::HEADERS;
-                    self.request_mut().request_progress = HtpRequestProgress::HEADERS;
                     return Ok(());
                 }
             }
@@ -603,16 +648,22 @@ impl ConnectionParser {
         if line.is_empty() {
             return Err(HtpStatus::DATA);
         }
+        let perso = self.cfg.server_personality;
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
         // Is this a line that should be ignored?
-        if is_line_ignorable(self.cfg.server_personality, line) {
+        if is_line_ignorable(perso, line) {
             // We have an empty/whitespace line, which we'll note, ignore and move on.
-            self.request_mut().request_ignored_lines =
-                self.request().request_ignored_lines.wrapping_add(1);
+            req.request_ignored_lines = req.request_ignored_lines.wrapping_add(1);
             return Ok(());
         }
         // Process request line.
         let data = chomp(line);
-        self.request_mut().request_line = Some(Bstr::from(data));
+        req.request_line = Some(Bstr::from(data));
         self.parse_request_line(data)?;
         // Finalize request line parsing.
         self.state_request_line()?;
@@ -650,15 +701,13 @@ impl ConnectionParser {
     /// which case they will be folded into one before parsing is attempted.
     fn process_request_header(&mut self, header: Header) -> Result<()> {
         // Try to parse the header.
+        // ensured by caller
+        let req = self.request_mut().unwrap();
         let mut repeated = false;
-        let reps = self.request().request_header_repetitions;
+        let reps = req.request_header_repetitions;
         let mut update_reps = false;
         // Do we already have a header with the same name?
-        if let Some(h_existing) = self
-            .request_mut()
-            .request_headers
-            .get_nocase_mut(header.name.as_slice())
-        {
+        if let Some(h_existing) = req.request_headers.get_nocase_mut(header.name.as_slice()) {
             if !h_existing.flags.is_set(HeaderFlags::FIELD_REPEATED) {
                 // This is the second occurence for this header.
                 repeated = true;
@@ -690,11 +739,11 @@ impl ConnectionParser {
                 h_existing.value.extend_from_slice(header.value.as_slice());
             }
         } else {
-            self.request_mut().request_headers.elements.push(header);
+            req.request_headers.elements.push(header);
         }
+        let req = self.request_mut().unwrap();
         if update_reps {
-            self.request_mut().request_header_repetitions =
-                self.request().request_header_repetitions.wrapping_add(1)
+            req.request_header_repetitions = req.request_header_repetitions.wrapping_add(1)
         }
         if repeated {
             htp_warn!(
@@ -708,7 +757,12 @@ impl ConnectionParser {
 
     /// Parse request headers
     fn parse_request_headers<'a>(&mut self, data: &'a [u8]) -> Result<(&'a [u8], bool)> {
-        let rc = self.request_mut().request_header_parser.headers()(data);
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+
+        let rc = req.unwrap().request_header_parser.headers()(data);
         if let Ok((remaining, (headers, eoh))) = rc {
             for h in headers {
                 let mut flags = 0;
@@ -720,7 +774,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_INVALID_LWS_AFTER_NAME,
                         "Request field invalid: LWS after name",
-                        self.request_mut().flags,
+                        self.request_mut().unwrap().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -733,7 +787,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::INVALID_REQUEST_FIELD_FOLDING,
                         "Invalid request field folding",
-                        self.request_mut().flags,
+                        self.request_mut().unwrap().flags,
                         flags,
                         HtpFlags::INVALID_FOLDING
                     );
@@ -746,7 +800,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_HEADER_INVALID,
                         "Request header name is not a token",
-                        self.request_mut().flags,
+                        self.request_mut().unwrap().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -762,7 +816,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_FIELD_MISSING_COLON,
                         "Request field invalid: colon missing",
-                        self.request_mut().flags,
+                        self.request_mut().unwrap().flags,
                         flags,
                         HtpFlags::FIELD_UNPARSEABLE
                     );
@@ -773,7 +827,7 @@ impl ConnectionParser {
                         self.logger,
                         HtpLogCode::REQUEST_INVALID_EMPTY_NAME,
                         "Request field invalid: empty name",
-                        self.request_mut().flags,
+                        self.request_mut().unwrap().flags,
                         flags,
                         HtpFlags::FIELD_INVALID
                     );
@@ -792,7 +846,13 @@ impl ConnectionParser {
 
     /// Parses a single request line.
     pub fn parse_request_line(&mut self, request_line: &[u8]) -> Result<()> {
-        self.request_mut().request_line = Some(Bstr::from(request_line));
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
+        req.request_line = Some(Bstr::from(request_line));
         let mut mstart: bool = false;
         let mut data: &[u8] = request_line;
         if self.cfg.server_personality == HtpServerPersonality::APACHE_2 {
@@ -828,20 +888,20 @@ impl ConnectionParser {
                     // reset mstart so that we copy the whitespace into the method
                     mstart = true;
                     // set expected response code to this anomaly
-                    self.request_mut().response_status_expected_number =
-                        requestline_leading_whitespace_unwanted
+                    let req = self.request_mut().unwrap();
+                    req.response_status_expected_number = requestline_leading_whitespace_unwanted
                 }
             }
 
+            let req = self.request_mut().unwrap();
             if mstart {
-                self.request_mut().request_method = Some(Bstr::from([ls, method].concat()));
+                req.request_method = Some(Bstr::from([ls, method].concat()));
             } else {
-                self.request_mut().request_method = Some(Bstr::from(method));
+                req.request_method = Some(Bstr::from(method));
             }
 
-            if let Some(request_method) = &self.request().request_method {
-                self.request_mut().request_method_number =
-                    HtpMethod::new(request_method.as_slice());
+            if let Some(request_method) = &req.request_method {
+                req.request_method_number = HtpMethod::new(request_method.as_slice());
             }
 
             // Too much performance overhead for fuzzing
@@ -855,9 +915,10 @@ impl ConnectionParser {
 
             if remaining.is_empty() {
                 // No, this looks like a HTTP/0.9 request.
-                self.request_mut().is_protocol_0_9 = true;
-                self.request_mut().request_protocol_number = HtpProtocol::V0_9;
-                if self.request().request_method_number == HtpMethod::UNKNOWN {
+                let req = self.request_mut().unwrap();
+                req.is_protocol_0_9 = true;
+                req.request_protocol_number = HtpProtocol::V0_9;
+                if req.request_method_number == HtpMethod::UNKNOWN {
                     htp_warn!(
                         self.logger,
                         HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD,
@@ -892,14 +953,15 @@ impl ConnectionParser {
                 protocol = uri_protocol.1;
             }
 
-            self.request_mut().request_uri = Some(Bstr::from(uri));
+            let req = self.request_mut().unwrap();
+            req.request_uri = Some(Bstr::from(uri));
 
             // Is there protocol information available?
             if protocol.is_empty() {
                 // No, this looks like a HTTP/0.9 request.
-                self.request_mut().is_protocol_0_9 = true;
-                self.request_mut().request_protocol_number = HtpProtocol::V0_9;
-                if self.request().request_method_number == HtpMethod::UNKNOWN {
+                req.is_protocol_0_9 = true;
+                req.request_protocol_number = HtpProtocol::V0_9;
+                if req.request_method_number == HtpMethod::UNKNOWN {
                     htp_warn!(
                         self.logger,
                         HtpLogCode::REQUEST_LINE_UNKNOWN_METHOD_NO_PROTOCOL,
@@ -910,10 +972,12 @@ impl ConnectionParser {
             }
 
             // The protocol information continues until the end of the line.
-            self.request_mut().request_protocol = Some(Bstr::from(protocol));
-            self.request_mut().request_protocol_number = parse_protocol(protocol, &mut self.logger);
-            if self.request().request_method_number == HtpMethod::UNKNOWN
-                && self.request().request_protocol_number == HtpProtocol::INVALID
+            req.request_protocol = Some(Bstr::from(protocol));
+            self.request_mut().unwrap().request_protocol_number =
+                parse_protocol(protocol, &mut self.logger);
+            let req = self.request().unwrap();
+            if req.request_method_number == HtpMethod::UNKNOWN
+                && req.request_protocol_number == HtpProtocol::INVALID
             {
                 htp_warn!(
                     self.logger,
@@ -938,24 +1002,25 @@ impl ConnectionParser {
     pub fn request_body_data(&mut self, data: Option<&[u8]>) -> Result<()> {
         // None data is used to indicate the end of request body.
         // Keep track of body size before decompression.
-        self.request_mut().request_message_len = self
-            .request()
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+
+        req.request_message_len = req
             .request_message_len
             .wrapping_add(data.unwrap_or(b"").len() as u64);
-        match self.request().request_content_encoding_processing {
+        match req.request_content_encoding_processing {
             HtpContentEncoding::GZIP
             | HtpContentEncoding::DEFLATE
             | HtpContentEncoding::ZLIB
             | HtpContentEncoding::LZMA => {
                 // Send data buffer to the decompressor if it exists
-                if self.request().request_decompressor.is_none() && data.is_none() {
+                if req.request_decompressor.is_none() && data.is_none() {
                     return Ok(());
                 }
-                let mut decompressor = self
-                    .request_mut()
-                    .request_decompressor
-                    .take()
-                    .ok_or(HtpStatus::ERROR)?;
+                let mut decompressor = req.request_decompressor.take().ok_or(HtpStatus::ERROR)?;
                 if let Some(data) = data {
                     decompressor
                         .decompress(data)
@@ -975,9 +1040,8 @@ impl ConnectionParser {
                         decompressor.set_passthrough(true);
                     }
                     // put the decompressor back in its slot
-                    self.request_mut()
-                        .request_decompressor
-                        .replace(decompressor);
+                    let req = self.request_mut().unwrap();
+                    req.request_decompressor.replace(decompressor);
                 } else {
                     // don't put the decompressor back in its slot
                     // ignore errors
@@ -989,10 +1053,10 @@ impl ConnectionParser {
                 // is identical to request_message_len.
                 // None data is used to indicate the end of request body.
                 // Keep track of the body length.
-                self.request_mut().request_entity_len += data.unwrap_or(b"").len() as u64;
+                req.request_entity_len += data.unwrap_or(b"").len() as u64;
                 // Send data to the callbacks.
                 let data = ParserData::from(data);
-                let mut data = Data::new(self.request_mut(), &data);
+                let mut data = Data::new(req, &data);
                 self.request_run_hook_body_data(&mut data).map_err(|e| {
                     htp_error!(
                         self.logger,
@@ -1026,8 +1090,12 @@ impl ConnectionParser {
     ///    forces decompression by setting response_content_encoding to one of the
     ///    supported algorithms.
     pub fn request_initialize_decompressors(&mut self) -> Result<()> {
-        let ce = self
-            .request_mut()
+        let req = self.request_mut();
+        if req.is_none() {
+            return Err(HtpStatus::ERROR);
+        }
+        let req = req.unwrap();
+        let ce = req
             .request_headers
             .get_nocase_nozero("content-encoding")
             .map(|val| val.value.clone());
@@ -1035,7 +1103,7 @@ impl ConnectionParser {
         let mut slow_path = false;
 
         // Fast path - try to match directly on the encoding value
-        self.request_mut().request_content_encoding = if let Some(ce) = &ce {
+        req.request_content_encoding = if let Some(ce) = &ce {
             if ce.cmp_nocase_nozero(b"gzip") == Ordering::Equal
                 || ce.cmp_nocase_nozero(b"x-gzip") == Ordering::Equal
             {
@@ -1059,16 +1127,17 @@ impl ConnectionParser {
         };
 
         // Configure decompression, if enabled in the configuration.
-        self.request_mut().request_content_encoding_processing =
-            if self.cfg.request_decompression_enabled {
-                self.request().request_content_encoding
-            } else {
-                slow_path = false;
-                HtpContentEncoding::NONE
-            };
+        self.request_mut()
+            .unwrap()
+            .request_content_encoding_processing = if self.cfg.request_decompression_enabled {
+            self.request().unwrap().request_content_encoding
+        } else {
+            slow_path = false;
+            HtpContentEncoding::NONE
+        };
 
-        let request_content_encoding_processing =
-            self.request_mut().request_content_encoding_processing;
+        let req = self.request_mut().unwrap();
+        let request_content_encoding_processing = req.request_content_encoding_processing;
         let compression_options = self.cfg.compression_options;
         match &request_content_encoding_processing {
             HtpContentEncoding::GZIP
@@ -1168,13 +1237,14 @@ impl ConnectionParser {
     fn request_prepend_decompressor(&mut self, encoding: HtpContentEncoding) -> Result<()> {
         let compression_options = self.cfg.compression_options;
         if encoding != HtpContentEncoding::NONE {
-            if let Some(decompressor) = self.request_mut().request_decompressor.take() {
-                self.request_mut()
-                    .request_decompressor
+            // ensured by caller
+            let req = self.request_mut().unwrap();
+            if let Some(decompressor) = req.request_decompressor.take() {
+                req.request_decompressor
                     .replace(decompressor.prepend(encoding, compression_options)?);
             } else {
                 // The processing encoding will be the first one encountered
-                self.request_mut().request_content_encoding_processing = encoding;
+                req.request_content_encoding_processing = encoding;
 
                 // Add the callback first because it will be called last in
                 // the chain of writers
@@ -1190,9 +1260,8 @@ impl ConnectionParser {
                         compression_options,
                     )?
                 };
-                self.request_mut()
-                    .request_decompressor
-                    .replace(decompressor);
+                let req = self.request_mut().unwrap();
+                req.request_decompressor.replace(decompressor);
             }
         }
         Ok(())
@@ -1202,20 +1271,20 @@ impl ConnectionParser {
         // If no data is passed, call the hooks with NULL to signify the end of the
         // request body.
         let parser_data = ParserData::from(data);
-        let mut tx_data = Data::new(self.request_mut(), &parser_data);
+        // ensured by only caller
+        let req = self.request_mut().unwrap();
+        let mut tx_data = Data::new(req, &parser_data);
 
         // Keep track of actual request body length.
-        self.request_mut().request_entity_len = self
-            .request()
-            .request_entity_len
-            .wrapping_add(tx_data.len() as u64);
+        req.request_entity_len = req.request_entity_len.wrapping_add(tx_data.len() as u64);
 
         // Invoke all callbacks.
         self.request_run_hook_body_data(&mut tx_data)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "body data hook failed"))?;
 
         let compression_options = self.cfg.compression_options;
-        if let Some(decompressor) = &mut self.request_mut().request_decompressor {
+        let req = self.request_mut().unwrap();
+        if let Some(decompressor) = &mut req.request_decompressor {
             if decompressor.callback_inc() % compression_options.get_time_test_freq() == 0 {
                 if let Some(time_spent) = decompressor.timer_reset() {
                     if time_spent > compression_options.get_time_limit() as u64 {
@@ -1233,17 +1302,17 @@ impl ConnectionParser {
 
         // output > ratio * input ?
         let ratio = compression_options.get_bomb_ratio();
-        let exceeds_ratio =
-            if let Some(ratio) = self.request_mut().request_message_len.checked_mul(ratio) {
-                self.request().request_entity_len > ratio
-            } else {
-                // overflow occured
-                true
-            };
+        let req = self.request().unwrap();
+        let exceeds_ratio = if let Some(ratio) = req.request_message_len.checked_mul(ratio) {
+            req.request_entity_len > ratio
+        } else {
+            // overflow occured
+            true
+        };
 
         let bomb_limit = compression_options.get_bomb_limit();
-        let request_entity_len = self.request().request_entity_len;
-        let request_message_len = self.request().request_message_len;
+        let request_entity_len = req.request_entity_len;
+        let request_message_len = req.request_message_len;
         if request_entity_len > bomb_limit && exceeds_ratio {
             htp_log!(
                 self.logger,
@@ -1374,13 +1443,11 @@ impl ConnectionParser {
     /// Run the REQUEST_BODY_DATA hook.
     fn request_run_hook_body_data(&mut self, d: &mut Data) -> Result<()> {
         // Do not invoke callbacks with an empty data chunk
+        let req = self.request_mut().unwrap();
         if !d.data().is_null() && d.is_empty() {
             return Ok(());
         }
-        self.request()
-            .hook_request_body_data
-            .clone()
-            .run_all(self, d)?;
+        req.hook_request_body_data.clone().run_all(self, d)?;
         // Run configuration hooks second
         self.cfg.hook_request_body_data.run_all(self, d)?;
         Ok(())
@@ -1445,16 +1512,19 @@ impl ConnectionParser {
         //handle gap
         if chunk.is_gap() {
             // Mark the transaction as having a gap
-            self.request_mut()
-                .flags
-                .set(HtpFlags::REQUEST_MISSING_BYTES);
+            let idx = self.request_index();
+            let req = self.request_mut();
+            if req.is_none() {
+                return HtpStreamState::ERROR;
+            }
+            let req = req.unwrap();
 
-            if self.request_index() == 0
-                && self.request().request_progress == HtpRequestProgress::NOT_STARTED
-            {
+            req.flags.set(HtpFlags::REQUEST_MISSING_BYTES);
+
+            if idx == 0 && req.request_progress == HtpRequestProgress::NOT_STARTED {
                 // We have a leading gap on the first transaction.
                 // Force the parser to start if it hasn't already.
-                self.request_mut().request_progress = HtpRequestProgress::GAP;
+                self.request_mut().unwrap().request_progress = HtpRequestProgress::GAP;
                 self.request_status = HtpStreamState::ERROR;
                 return HtpStreamState::ERROR;
             }

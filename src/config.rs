@@ -109,6 +109,8 @@ pub struct Config {
     pub compression_options: Options,
     /// Flush incomplete transactions
     pub flush_incomplete: bool,
+    /// Maximum number of transactions
+    pub max_tx: u32,
 }
 
 impl Default for Config {
@@ -146,6 +148,7 @@ impl Default for Config {
             request_decompression_enabled: false,
             compression_options: Options::default(),
             flush_incomplete: false,
+            max_tx: 512,
         }
     }
 }

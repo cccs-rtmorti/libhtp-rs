@@ -215,7 +215,7 @@ fn GetTest() {
     // Register callbacks
     register_user_callbacks(&mut cfg);
     let mut t = HybridParsingTest::new(cfg);
-    let tx = t.connp.request_mut();
+    let tx = t.connp.request_mut().unwrap();
 
     // Configure user data and callbacks
     tx.set_user_data(Box::new(HybridParsing_Get_User_Data::new()));
@@ -339,7 +339,7 @@ fn GetTest() {
 #[test]
 fn PostUrlecodedTest() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Make dummy parser data to satisfy callbacks
     let mut p = ParserData::from(b"" as &[u8]);
@@ -388,7 +388,7 @@ fn PostUrlecodedTest() {
 #[test]
 fn CompressedResponse() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Make dummy parser data to satisfy callbacks
     let mut p = ParserData::from(b"" as &[u8]);
@@ -448,7 +448,7 @@ fn ParamCaseSensitivity() {
 #[test]
 fn PostUrlecodedChunked() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Make dummy parser data to satisfy callbacks
     let mut p = ParserData::from(b"" as &[u8]);
@@ -484,7 +484,7 @@ fn PostUrlecodedChunked() {
 #[test]
 fn RequestLineParsing1() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Request begins
     t.connp.state_request_start().unwrap();
@@ -508,7 +508,7 @@ fn RequestLineParsing1() {
 #[test]
 fn RequestLineParsing2() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Feed data to the parser.
     t.connp.state_request_start().unwrap();
@@ -527,7 +527,7 @@ fn RequestLineParsing2() {
 #[test]
 fn RequestLineParsing3() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Feed data to the parser.
     t.connp.state_request_start().unwrap();
@@ -549,7 +549,7 @@ fn RequestLineParsing3() {
 #[test]
 fn RequestLineParsing4() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Feed data to the parser.
     t.connp.state_request_start().unwrap();
@@ -573,7 +573,7 @@ fn RequestLineParsing5() {
     let mut cfg = TestConfig();
     cfg.set_allow_space_uri(true);
     let mut t = HybridParsingTest::new(cfg);
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Feed data to the parser.
     t.connp.state_request_start().unwrap();
@@ -593,7 +593,7 @@ fn RequestLineParsing6() {
     let mut cfg = TestConfig();
     cfg.set_allow_space_uri(true);
     let mut t = HybridParsingTest::new(cfg);
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Feed data to the parser.
     t.connp.state_request_start().unwrap();
@@ -614,7 +614,7 @@ fn RequestLineParsing6() {
 #[test]
 fn ParsedUriSupplied() {
     let mut t = HybridParsingTest::new(TestConfig());
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Feed data to the parser.
     t.connp.state_request_start().unwrap();
@@ -652,7 +652,7 @@ fn DoubleEncodedUriPath() {
 
     // Check the results now.
 
-    let tx = t.connp.request();
+    let tx = t.connp.request().unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq_slice("GET"));
     assert_eq!(HtpProtocol::V1_0, tx.request_protocol_number);
     assert!(tx.request_uri.as_ref().unwrap().eq_slice("/%2500"));
@@ -676,7 +676,7 @@ fn DoubleEncodedUriQuery() {
 
     // Check the results now.
 
-    let tx = t.connp.request();
+    let tx = t.connp.request().unwrap();
     assert!(tx.request_method.as_ref().unwrap().eq_slice("GET"));
     assert_eq!(HtpProtocol::V1_0, tx.request_protocol_number);
     assert!(tx.request_uri.as_ref().unwrap().eq_slice("/?a=%2500"));
@@ -699,7 +699,7 @@ fn TestRepeatCallbacks() {
     register_user_callbacks(&mut cfg);
     let mut t = HybridParsingTest::new(cfg);
 
-    let tx_id = t.connp.request().index;
+    let tx_id = t.connp.request().unwrap().index;
 
     // Configure user data and callbacks
     let tx = t.connp.tx_mut(tx_id).unwrap();
@@ -789,7 +789,7 @@ fn ResponseLineIncomplete() {
 
     t.connp.state_response_start().unwrap();
     t.connp.parse_response_line(b"HTTP/1.1").unwrap();
-    let tx = t.connp.response();
+    let tx = t.connp.response().unwrap();
     assert!(tx.response_protocol.as_ref().unwrap().eq_slice("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.is_none());
@@ -808,7 +808,7 @@ fn ResponseLineIncomplete1() {
 
     t.connp.state_response_start().unwrap();
     t.connp.parse_response_line(b"HTTP/1.1 200").unwrap();
-    let tx = t.connp.response();
+    let tx = t.connp.response().unwrap();
     assert!(tx.response_protocol.as_ref().unwrap().eq_slice("HTTP/1.1"));
     assert_eq!(HtpProtocol::V1_1, tx.response_protocol_number);
     assert!(tx.response_status.as_ref().unwrap().eq_slice("200"));
