@@ -368,7 +368,7 @@ pub unsafe extern "C" fn libhtprsFuzzRun(
     cfg.set_server_personality(HtpServerPersonality::IDS)
         .unwrap();
     let mut t = Test::new(cfg);
-    let data = std::slice::from_raw_parts(input as *const u8, input_len as usize);
+    let data = std::slice::from_raw_parts(input, input_len as usize);
     t.run_slice(data).ok();
     let boxed = Box::new(t);
     Box::into_raw(boxed) as *mut _

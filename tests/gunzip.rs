@@ -20,8 +20,8 @@ struct Test {
 }
 
 enum TestError {
-    Io(std::io::Error),
-    Htp(HtpStatus),
+    Io(()),
+    Htp(()),
 }
 
 fn GUnzip_decompressor_callback(tx: &mut Transaction, d: &ParserData) -> HtpStatus {
@@ -69,11 +69,11 @@ impl Test {
         };
         filepath.push(filename);
 
-        let data = std::fs::read(filepath).map_err(TestError::Io)?;
+        let data = std::fs::read(filepath).map_err(|_| TestError::Io(()))?;
         self.decompressor
             .decompress(&data)
             .map(|_| ())
-            .map_err(|_| TestError::Htp(HtpStatus::ERROR))
+            .map_err(|_| TestError::Htp(()))
     }
 }
 

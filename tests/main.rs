@@ -1619,8 +1619,11 @@ fn ResponseMultipleClMismatch() {
 
     let logs = t.connp.conn.get_logs();
     assert_eq!(2, logs.len());
-    assert_eq!(logs.get(0).unwrap().msg.msg, "Ambiguous response C-L value");
-    assert_eq!(HtpLogLevel::WARNING, logs.get(0).unwrap().msg.level);
+    assert_eq!(
+        logs.first().unwrap().msg.msg,
+        "Ambiguous response C-L value"
+    );
+    assert_eq!(HtpLogLevel::WARNING, logs.first().unwrap().msg.level);
     assert_eq!(logs.get(1).unwrap().msg.msg, "Repetition for header");
     assert_eq!(HtpLogLevel::WARNING, logs.get(1).unwrap().msg.level);
 }
@@ -2194,7 +2197,7 @@ fn ResponseHeaderDeformedEOL() {
     let logs = t.connp.conn.get_logs();
     let log_message_count = logs.len();
     assert_eq!(log_message_count, 2);
-    assert_eq!(logs.get(0).unwrap().msg.code, HtpLogCode::DEFORMED_EOL);
+    assert_eq!(logs.first().unwrap().msg.code, HtpLogCode::DEFORMED_EOL);
 
     let user_data = tx.user_data::<MainUserData>().unwrap();
     assert!(user_data.request_data.is_empty());
@@ -2345,10 +2348,10 @@ fn HttpStartFromResponse() {
     let logs = t.connp.conn.get_logs();
     assert_eq!(1, logs.len());
     assert_eq!(
-        logs.get(0).unwrap().msg.msg,
+        logs.first().unwrap().msg.msg,
         "Unable to match response to request"
     );
-    assert_eq!(HtpLogLevel::ERROR, logs.get(0).unwrap().msg.level);
+    assert_eq!(HtpLogLevel::ERROR, logs.first().unwrap().msg.level);
 }
 
 #[test]
