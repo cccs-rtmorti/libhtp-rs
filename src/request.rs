@@ -619,7 +619,7 @@ impl ConnectionParser {
             self.request_state = State::HEADERS
         } else {
             if let Ok((rem, _)) = take_is_space(input.as_slice()) {
-                if rem.len() > 0 {
+                if !rem.is_empty() {
                     // we have more than spaces, no HTTP/0.9
                     req.is_protocol_0_9 = false;
                     req.request_progress = HtpRequestProgress::HEADERS;
