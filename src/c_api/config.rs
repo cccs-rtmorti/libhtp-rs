@@ -348,6 +348,16 @@ pub unsafe extern "C" fn htp_config_set_lzma_layers(cfg: *mut Config, limit: lib
     }
 }
 
+/// Configures the maximum number of live transactions per connection
+/// # Safety
+/// When calling this method, you have to ensure that cfg is either properly initialized or NULL
+#[no_mangle]
+pub unsafe extern "C" fn htp_config_set_max_tx(cfg: *mut Config, limit: u32) {
+    if let Some(cfg) = cfg.as_mut() {
+        cfg.max_tx = limit;
+    }
+}
+
 /// Configures how the server reacts to encoded NUL bytes. Some servers will stop at
 /// at NUL, while some will respond with 400 or 404. When the termination option is not
 /// used, the NUL byte will remain in the path.

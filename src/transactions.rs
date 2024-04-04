@@ -1,4 +1,5 @@
 use crate::{config::Config, log::Logger, transaction::Transaction};
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -48,18 +49,28 @@ impl Transactions {
     }
 
     /// Get the current request transaction
-    pub fn request(&mut self) -> &Transaction {
-        self.request_mut()
+    pub fn request(&mut self) -> Option<&Transaction> {
+        match self.request_mut() {
+            Some(req) => Some(req),
+            None => None,
+        }
     }
 
     /// Get the current request transaction
-    pub fn request_mut(&mut self) -> &mut Transaction {
+    pub fn request_mut(&mut self) -> Option<&mut Transaction> {
         let cfg = &self.config;
         let logger = &self.logger;
         let request = self.request;
-        self.transactions
-            .entry(request)
-            .or_insert_with(|| Transaction::new(cfg, logger, request))
+        let nbtx = self.transactions.len();
+        match self.transactions.entry(request) {
+            Entry::Occupied(entry) => Some(entry.into_mut()),
+            Entry::Vacant(entry) => {
+                if nbtx >= cfg.max_tx as usize {
+                    return None;
+                }
+                Some(entry.insert(Transaction::new(cfg, logger, request)))
+            }
+        }
     }
 
     /// Get the current response transaction index
@@ -68,18 +79,28 @@ impl Transactions {
     }
 
     /// Get the current response transaction
-    pub fn response(&mut self) -> &Transaction {
-        self.response_mut()
+    pub fn response(&mut self) -> Option<&Transaction> {
+        match self.response_mut() {
+            Some(resp) => Some(resp),
+            None => None,
+        }
     }
 
     /// Get the current response transaction
-    pub fn response_mut(&mut self) -> &mut Transaction {
+    pub fn response_mut(&mut self) -> Option<&mut Transaction> {
         let cfg = &self.config;
         let logger = &self.logger;
         let response = self.response;
-        self.transactions
-            .entry(response)
-            .or_insert_with(|| Transaction::new(cfg, logger, response))
+        let nbtx = self.transactions.len();
+        match self.transactions.entry(response) {
+            Entry::Occupied(entry) => Some(entry.into_mut()),
+            Entry::Vacant(entry) => {
+                if nbtx >= cfg.max_tx as usize {
+                    return None;
+                }
+                Some(entry.insert(Transaction::new(cfg, logger, response)))
+            }
+        }
     }
 
     /// Increment the request transaction number.

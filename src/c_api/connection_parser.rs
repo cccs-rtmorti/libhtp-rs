@@ -268,10 +268,12 @@ pub unsafe extern "C" fn htp_connp_tx(
 pub unsafe extern "C" fn htp_connp_get_response_tx(
     connp: *mut ConnectionParser,
 ) -> *const Transaction {
-    connp
-        .as_mut()
-        .map(|connp| connp.response() as *const Transaction)
-        .unwrap_or(std::ptr::null())
+    if let Some(connp) = connp.as_mut() {
+        if let Some(req) = connp.response() {
+            return req;
+        }
+    }
+    std::ptr::null()
 }
 
 /// Retrieves the pointer to the active request transaction. In connection
@@ -283,10 +285,12 @@ pub unsafe extern "C" fn htp_connp_get_response_tx(
 pub unsafe extern "C" fn htp_connp_get_request_tx(
     connp: *mut ConnectionParser,
 ) -> *const Transaction {
-    connp
-        .as_mut()
-        .map(|connp| connp.request() as *const Transaction)
-        .unwrap_or(std::ptr::null())
+    if let Some(connp) = connp.as_mut() {
+        if let Some(req) = connp.request() {
+            return req;
+        }
+    }
+    std::ptr::null()
 }
 
 /// Returns the number of bytes consumed from the current data chunks so far or -1 on error.
