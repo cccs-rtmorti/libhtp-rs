@@ -690,8 +690,6 @@ struct InnerDecompressor {
     inner: Option<Box<dyn Decompress>>,
     /// Encoding type of the decompressor.
     encoding: HtpContentEncoding,
-    /// Next encoding to try when we fail to decompress
-    next_encoding: HtpContentEncoding,
     /// Indicates whether to pass through the data without calling the writer.
     passthrough: bool,
     /// Tracks the number of restarts
@@ -748,7 +746,6 @@ impl InnerDecompressor {
         Ok(Self {
             inner: Some(inner),
             encoding,
-            next_encoding: encoding,
             writer: Some(writer),
             passthrough,
             restarts: 0,
@@ -890,24 +887,19 @@ impl Decompress for InnerDecompressor {
     fn restart(&mut self) -> std::io::Result<()> {
         if self.restarts < 3 {
             // first retry the same encoding type
-            self.next_encoding = if self.restarts == 0 {
-                self.encoding
-            } else {
-                // if that still fails, try the other method we support
-                match self.next_encoding {
-                    HtpContentEncoding::GZIP => HtpContentEncoding::DEFLATE,
-                    HtpContentEncoding::DEFLATE => HtpContentEncoding::ZLIB,
-                    HtpContentEncoding::ZLIB => HtpContentEncoding::GZIP,
-                    HtpContentEncoding::LZMA => HtpContentEncoding::DEFLATE,
-                    HtpContentEncoding::NONE | HtpContentEncoding::ERROR => {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "expected a valid encoding",
-                        ))
-                    }
+            self.encoding = match self.encoding {
+                HtpContentEncoding::GZIP => HtpContentEncoding::DEFLATE,
+                HtpContentEncoding::DEFLATE => HtpContentEncoding::ZLIB,
+                HtpContentEncoding::ZLIB => HtpContentEncoding::GZIP,
+                HtpContentEncoding::LZMA => HtpContentEncoding::DEFLATE,
+                HtpContentEncoding::NONE | HtpContentEncoding::ERROR => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "expected a valid encoding",
+                    ))
                 }
             };
-            let (writer, passthrough) = Self::writer(self.next_encoding, &self.options)?;
+            let (writer, passthrough) = Self::writer(self.encoding, &self.options)?;
             self.writer = Some(writer);
             if passthrough {
                 self.passthrough = passthrough;
