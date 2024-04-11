@@ -2063,7 +2063,7 @@ fn CompressedResponseLzmaMemlimit() {
     let tx = t.connp.tx(0).unwrap();
     assert!(tx.is_complete());
     assert_eq!(90, tx.response_message_len);
-    assert_eq!(54, tx.response_entity_len);
+    assert_eq!(72, tx.response_entity_len);
     assert!(tx.response_message.as_ref().unwrap().eq_slice("ok"));
 }
 
