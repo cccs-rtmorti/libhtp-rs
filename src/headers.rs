@@ -429,15 +429,13 @@ impl Parser {
     fn non_token_name(&self) -> impl Fn(&[u8]) -> IResult<&[u8], ParsedBytes> + '_ {
         move |input| {
             map(
-                alt((
-                    tuple((
-                        take_till(|c| c == b':' || self.is_terminator(c) || c == b'\r'),
-                        peek(self.separator()),
-                    )),
-                    tuple((
-                        take_till(|c| c == b':' || self.is_terminator(c)),
-                        peek(self.separator()),
-                    )),
+                tuple((
+                    take_till(|c| {
+                        c == b':'
+                            || self.is_terminator(c)
+                            || (self.side == Side::Response && c == b'\r')
+                    }),
+                    peek(self.separator()),
                 )),
                 |(name, _): (&[u8], _)| {
                     let mut flags = HeaderFlags::NAME_NON_TOKEN_CHARS;
@@ -669,7 +667,8 @@ mod test {
                 Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"v2 v2+", HeaderFlags::FOLDING),
                 Header::new_with_flags(b"k3", 0, b"v3", 0),
                 Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"k4 v4", HeaderFlags::MISSING_COLON),
-                Header::new_with_flags(b"k\r5", HeaderFlags::NAME_NON_TOKEN_CHARS, b"v", 0),
+                Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"k", HeaderFlags::MISSING_COLON),
+                Header::new_with_flags(b"5", 0, b"v", 0),
                 Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"5", HeaderFlags::MISSING_COLON),
                 Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"more", HeaderFlags::MISSING_COLON)
                 ], true)))))]
@@ -791,7 +790,7 @@ mod test {
     #[rstest]
     #[case::incomplete(b"K: V", Err(Incomplete(Needed::new(1))))]
     #[case::contains_colon(b"K: V\r\n", Err(Incomplete(Needed::new(1))))]
-    #[case::missing_colon(b"K V\r\nK:V\r\n", Err(Error(NomError::new(b!("\nK:V\r\n"), Tag))))]
+    #[case::missing_colon(b"K V\nK:V\r\n", Err(Error(NomError::new(b!("\nK:V\r\n"), Tag))))]
     #[case::contains_null(b":\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"", HeaderFlags::VALUE_EMPTY))))]
     #[case::folding(b"K:\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))))]
     #[case::crlf(b":V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"V", 0))))]
@@ -923,7 +922,7 @@ mod test {
     #[case::surrounding_whitespace_response(b" Hello \n\r \n:\n world", Err(Error(NomError::new(b!("\n\r \n:\n world"), Tag))), Some(Ok((b!("\n\r \n:\n world"), (b!(" Hello "), HeaderFlags::NAME_LEADING_WHITESPACE | HeaderFlags::NAME_TRAILING_WHITESPACE | HeaderFlags::NAME_NON_TOKEN_CHARS)))))]
     #[case::space(b"Hello Invalid: world", Ok((b!(": world"), (b!("Hello Invalid"), HeaderFlags::NAME_NON_TOKEN_CHARS))), None)]
     #[case::semicolon(b"Hello;Invalid: world", Ok((b!(": world"), (b!("Hello;Invalid"), HeaderFlags::NAME_NON_TOKEN_CHARS))), None)]
-    #[case::invalid_cr(b"Hello\rInvalid: world", Ok((b!(": world"), (b!("Hello\rInvalid"), HeaderFlags::NAME_NON_TOKEN_CHARS))), None)]
+    #[case::invalid_cr(b"Hello\rInvalid: world", Ok((b!(": world"), (b!("Hello\rInvalid"), HeaderFlags::NAME_NON_TOKEN_CHARS))), Some(Err(Error(NomError::new(b!("\rInvalid: world"), Tag)))))]
     #[case::invalid_lf(b"Hello\nInvalid: world", Err(Error(NomError::new(b!("\nInvalid: world"), Tag))), None)]
     #[case::invalid_null(b"Hello\0Invalid: world", Ok((b!(": world"), (b!("Hello\0Invalid"), HeaderFlags::NAME_NON_TOKEN_CHARS))), None)]
     fn test_non_token_name(
