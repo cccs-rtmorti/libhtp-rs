@@ -6,7 +6,7 @@ use nom::{
     character::{
         complete::space1 as complete_space1,
         is_space,
-        streaming::{space0, space1},
+        streaming::{space0, space1, one_of},
     },
     combinator::{complete, map, not, opt, peek},
     sequence::tuple,
@@ -277,15 +277,15 @@ impl Parser {
                 map(
                     tuple((
                         self.complete_eol_regular(),
-                        space1,
+                        one_of("\t "),
                         peek(tuple((
                             self.complete_eol_regular(),
                             not(tuple((token_chars, separator_regular))),
                         ))),
                     )),
-                    |(eol, space, _)| {
+                    |(eol, _space, _)| {
                         (
-                            &input[..eol.len() + space.len()],
+                            &input[..eol.len() + 1],
                             HeaderFlags::TERMINATOR_SPECIAL_CASE,
                         )
                     },
