@@ -6,7 +6,7 @@ use nom::{
     character::{
         complete::space1 as complete_space1,
         is_space,
-        streaming::{space0, space1, one_of},
+        streaming::{one_of, space0, space1},
     },
     combinator::{complete, map, not, opt, peek},
     sequence::tuple,
@@ -373,8 +373,9 @@ impl Parser {
         move |input| {
             let (rest, (val_bytes, ((_eol, mut flags), fold))) = self.value_bytes()(input)?;
             let mut value = val_bytes.to_vec();
-            if fold.is_some() {
+            if let Some(fold) = fold {
                 let mut i = rest;
+                let mut ofold = fold;
                 loop {
                     if self.side == Side::Response {
                         // Peek ahead for ambiguous name with lws vs. value with folding
@@ -398,10 +399,16 @@ impl Parser {
                     flags.set(other_flags);
                     //If the value is empty, the value started with a fold and we don't want to push back a space
                     if !value.is_empty() {
-                        value.push(b' ');
+                        if !ofold.is_empty() {
+                            value.push(ofold[0]);
+                        } else {
+                            value.push(b' ');
+                        }
                     }
                     value.extend(val_bytes);
-                    if fold.is_none() {
+                    if let Some(fold) = fold {
+                        ofold = fold;
+                    } else {
                         return Ok((rest, Value::new(&value, flags)));
                     }
                 }
@@ -799,7 +806,7 @@ mod test {
     #[case::lf_3(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))))]
     #[case::lf_4(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))))]
     #[case::lf_5(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))))]
-    #[case::lf_6(b"K: V\r\n a\r\n l\r\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING))))]
+    #[case::lf_6(b"K: V\r\n a\r\n l\r\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u\te", HeaderFlags::FOLDING))))]
     fn test_header_with_colon(#[case] input: &[u8], #[case] expected: IResult<&[u8], Header>) {
         let req_parser = Parser::new(Side::Request);
         assert_eq!(req_parser.header_with_colon()(input), expected);
@@ -819,10 +826,10 @@ mod test {
     #[case::empty_name(b":V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::NAME_EMPTY, b"V", 0))), None)]
     #[case::special_folding(b"K:folded\r\n\rV\r\n\r\n", Ok((b!("\rV\r\n\r\n"), Header::new_with_flags(b"K", 0, b"folded", 0))), None)]
     #[case::regular_eoh(b"K: V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0))), None)]
-    #[case::folding(b"K: V\n a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING))), None)]
+    #[case::folding(b"K: V\n a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u\te", HeaderFlags::FOLDING))), None)]
     #[case::cr_in_name(b"Host:www.google.com\rName: Value\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com\rName: Value", 0))), Some(Ok((b!("Name: Value\r\n\r\n"), Header::new_with_flags(b"Host", 0, b"www.google.com", 0)))))]
     #[case::null_in_value(b"K: V before\0 V after\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V before\0 V after", 0))), None)]
-    #[case::folding(b"K: V\r a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V\r a l u e", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u e", HeaderFlags::FOLDING)))))]
+    #[case::folding(b"K: V\r a\r\n l\n u\r\n\te\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V\r a l u\te", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V a l u\te", HeaderFlags::FOLDING)))))]
     #[case::deformed_folding_1(b"K:deformed folded\n\r V\n\r\r\n\n", Ok((b!("\r V\n\r\r\n\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING | HeaderFlags::DEFORMED_EOL)))))]
     #[case::deformed_folding_2(b"K:deformed folded\n\r V\r\n\r\n", Ok(( b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING)))))]
     #[case::deformed_folding_3(b"K:deformed folded\n\r\r V\r\n\r\n", Ok(( b!("\r\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0)))))]
@@ -1178,11 +1185,11 @@ mod test {
     #[case::fold(b"\r\n value    \r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: HeaderFlags::FOLDING})), None)]
     #[case::fold(b"\r\n value\r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: HeaderFlags::FOLDING})), None)]
     #[case::fold(b"value\r\n more\r\n\r\n", Ok((b!("\r\n"), Value {value: b"value more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
-    #[case::fold(b"value\r\n more\r\n\tand more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
-    #[case::fold(b"value\n\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
-    #[case::req_special_res_fold_1(b"value\n more\n\r\tand more\r\n\r\n", Ok((b!("\r\tand more\r\n\r\n"), Value {value: b"value more".to_vec(), flags: HeaderFlags::FOLDING})), Some(Ok((b!("\r\n"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
-    #[case::req_special_res_fold_2(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("\r\t\tmore\r\n  and\r\n more\r\nnext:"), Value {value: b"value".to_vec(), flags: 0})), Some(Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
-    #[case::req_special_res_value(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("\r\t\tmore\r\n  and\r\n more\r\nnext:"), Value {value: b"value".to_vec(), flags: 0})), Some(Ok((b!("next:"), Value {value: b"value more and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
+    #[case::fold(b"value\r\n more\r\n\tand more\r\nnext:", Ok((b!("next:"), Value {value: b"value more\tand more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
+    #[case::fold(b"value\n\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("next:"), Value {value: b"value\tmore and more".to_vec(), flags: HeaderFlags::FOLDING})), None)]
+    #[case::req_special_res_fold_1(b"value\n more\n\r\tand more\r\n\r\n", Ok((b!("\r\tand more\r\n\r\n"), Value {value: b"value more".to_vec(), flags: HeaderFlags::FOLDING})), Some(Ok((b!("\r\n"), Value {value: b"value more\tand more".to_vec(), flags: HeaderFlags::FOLDING}))))]
+    #[case::req_special_res_fold_2(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("\r\t\tmore\r\n  and\r\n more\r\nnext:"), Value {value: b"value".to_vec(), flags: 0})), Some(Ok((b!("next:"), Value {value: b"value\tmore and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
+    #[case::req_special_res_value(b"value\n\r\t\tmore\r\n  and\r\n more\r\nnext:", Ok((b!("\r\t\tmore\r\n  and\r\n more\r\nnext:"), Value {value: b"value".to_vec(), flags: 0})), Some(Ok((b!("next:"), Value {value: b"value\tmore and more".to_vec(), flags: HeaderFlags::FOLDING}))))]
     #[case::req_special_deformed_res_fold(b"value1\n\r next: value2\r\n  and\r\n more\r\nnext3:", Ok((b!("\r next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0})), Some(Ok((b!("next: value2\r\n  and\r\n more\r\nnext3:"), Value {value: b"value1".to_vec(), flags: 0}))))]
     #[case::value(b"value\r\nnext:", Ok((b!("next:"), Value {value: b"value".to_vec(), flags: 0})), None)]
     #[case::value_empty(b"\r\nnext:", Ok((b!("next:"), Value {value: b"".to_vec(), flags: HeaderFlags::VALUE_EMPTY})), None)]
