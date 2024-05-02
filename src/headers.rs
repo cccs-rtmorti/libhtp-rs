@@ -1127,6 +1127,7 @@ mod test {
     #[case::req_fold_res_empty_4(b"\r\n \r\na:b", Ok((b!("\r\na:b"), ((b!("\r\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("a:b"), ((b!("\r\n \r\n"), HeaderFlags::FOLDING_EMPTY), None)))))]
     #[case::req_fold_res_term(b"\n \r\na\n", Ok((b!("\r\na\n"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("\r\na\n"), ((b!("\n "), HeaderFlags::TERMINATOR_SPECIAL_CASE), None)))))]
     #[case::req_fold_res_empty_term(b"\n \r\n\n", Ok((b!("\r\n\n"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), Some(Ok((b!("\n"), ((b!("\n \r\n"), HeaderFlags::FOLDING_EMPTY | HeaderFlags::TERMINATOR_SPECIAL_CASE), None)))))]
+    #[case::multi_space_line(b"\n  \r\n\n", Ok((b!(" \r\n\n"), ((b!("\n"), HeaderFlags::FOLDING), Some(b!(" "))))), None)]
     #[case::req_fold_special_res_empty(b"\n\r \na:b", Ok((b!("\r \na:b"), ((b!("\n"), 0), None))), Some(Ok((b!("a:b"), ((b!("\n\r \n"), HeaderFlags::FOLDING_EMPTY), None)))))]
     fn test_folding_or_terminator(
         #[case] input: &[u8],
