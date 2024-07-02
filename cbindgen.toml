@@ -60,7 +60,7 @@ after_includes = """
 "Logs" = "htp_logs_t"
 
 [export]
-include = ["HtpStatus", 
+include = ["HtpStatus",
 "HtpServerPersonality",
 "HtpProtocol",
 "HtpUnwanted",
