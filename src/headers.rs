@@ -6,7 +6,7 @@ use nom::{
     character::{
         complete::one_of as complete_one_of,
         is_space,
-        streaming::{one_of, space0, space1},
+        streaming::{one_of, space0},
     },
     combinator::{complete, map, not, opt, peek},
     sequence::tuple,
@@ -649,7 +649,7 @@ mod test {
     use super::*;
     use crate::error::NomError;
     use nom::{
-        error::ErrorKind::{Not, Space, Tag},
+        error::ErrorKind::{Not, Tag},
         Err::{Error, Incomplete},
         Needed,
     };
