@@ -56,7 +56,7 @@ pub unsafe extern "C" fn htp_tx_cfg(tx: *const Transaction) -> *const Config {
 /// # Safety
 /// When calling this method, you have to ensure that tx is either properly initialized or NULL
 #[no_mangle]
-pub unsafe extern "C" fn htp_tx_user_data(tx: *const Transaction) -> *mut libc::c_void {
+pub unsafe extern "C" fn htp_tx_get_user_data(tx: *const Transaction) -> *mut libc::c_void {
     tx.as_ref()
         .and_then(|val| val.user_data::<*mut libc::c_void>())
         .copied()
