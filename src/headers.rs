@@ -43,7 +43,6 @@ impl HeaderFlags {
     pub const NULL_TERMINATED: u64 = 0x0100;
     pub const MISSING_COLON: u64 = (0x0200 | Self::NAME_EMPTY);
     pub const DEFORMED_EOL: u64 = 0x0400;
-    pub const DEFORMED_SEPARATOR: u64 = (0x1000 | Self::NAME_NON_TOKEN_CHARS);
     pub const FOLDING_EMPTY: u64 = (0x2000 | Self::DEFORMED_EOL);
 }
 
@@ -502,9 +501,7 @@ impl Parser {
         move |input| {
             if self.side == Side::Response {
                 alt((
-                    map(self.separator_deformed(), |_| {
-                        HeaderFlags::DEFORMED_SEPARATOR
-                    }),
+                    map(self.separator_deformed(), |_| 0),
                     map(separator_regular, |_| 0),
                 ))(input)
             } else {
@@ -829,13 +826,13 @@ mod test {
     #[case::deformed_folding_1(b"K:deformed folded\n\r V\n\r\r\n\n", Ok((b!("\r V\n\r\r\n\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING | HeaderFlags::DEFORMED_EOL)))))]
     #[case::deformed_folding_2(b"K:deformed folded\n\r V\r\n\r\n", Ok(( b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded V", HeaderFlags::FOLDING)))))]
     #[case::deformed_folding_3(b"K:deformed folded\n\r\r V\r\n\r\n", Ok(( b!("\r\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0))), Some(Ok((b!("\r V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"deformed folded", 0)))))]
-    #[case::non_token_trailing_ws(b"K\r \r :\r V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\r \r ", HeaderFlags::NAME_NON_TOKEN_CHARS | HeaderFlags::NAME_TRAILING_WHITESPACE, b"\r V", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
-    #[case::deformed_sep_1(b"K\n\r \r\n :\r\n V\r\n\r\n", Ok((b!("\r \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
-    #[case::deformed_sep_2(b"K\r\n \r\n :\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON | HeaderFlags::FOLDING, b"K  : V", HeaderFlags::MISSING_COLON | HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"V", HeaderFlags::DEFORMED_SEPARATOR)))))]
-    #[case::empty_value_deformed(b"K:\r\n\0Value\r\n V\r\n\r\n", Ok((b!("\0Value\r\n V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"\0Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
-    #[case::missing_colon(b"K\r\n:Value\r\n V\r\n\r\n", Ok((b!(":Value\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
-    #[case::non_token(b"K\x0c:Value\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\x0c", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value V", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
-    #[case::non_token_trailing(b"K\r :Value\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\r ", HeaderFlags::NAME_TRAILING_WHITESPACE | HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value V", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", HeaderFlags::DEFORMED_SEPARATOR, b"Value V", HeaderFlags::DEFORMED_SEPARATOR | HeaderFlags::FOLDING)))))]
+    #[case::non_token_trailing_ws(b"K\r \r :\r V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\r \r ", HeaderFlags::NAME_NON_TOKEN_CHARS | HeaderFlags::NAME_TRAILING_WHITESPACE, b"\r V", 0))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0)))))]
+    #[case::deformed_sep_1(b"K\n\r \r\n :\r\n V\r\n\r\n", Ok((b!("\r \r\n :\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0)))))]
+    #[case::deformed_sep_2(b"K\r\n \r\n :\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON | HeaderFlags::FOLDING, b"K  : V", HeaderFlags::MISSING_COLON | HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"V", 0)))))]
+    #[case::empty_value_deformed(b"K:\r\n\0Value\r\n V\r\n\r\n", Ok((b!("\0Value\r\n V\r\n\r\n"), Header::new_with_flags(b"K", 0, b"", HeaderFlags::VALUE_EMPTY))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"\0Value V", HeaderFlags::FOLDING)))))]
+    #[case::missing_colon(b"K\r\n:Value\r\n V\r\n\r\n", Ok((b!(":Value\r\n V\r\n\r\n"), Header::new_with_flags(b"", HeaderFlags::MISSING_COLON, b"K", HeaderFlags::MISSING_COLON))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"Value V", HeaderFlags::FOLDING)))))]
+    #[case::non_token(b"K\x0c:Value\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\x0c", HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value V", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"Value V", HeaderFlags::FOLDING)))))]
+    #[case::non_token_trailing(b"K\r :Value\r\n V\r\n\r\n", Ok((b!("\r\n"), Header::new_with_flags(b"K\r ", HeaderFlags::NAME_TRAILING_WHITESPACE | HeaderFlags::NAME_NON_TOKEN_CHARS, b"Value V", HeaderFlags::FOLDING))), Some(Ok((b!("\r\n"), Header::new_with_flags(b"K", 0, b"Value V", HeaderFlags::FOLDING)))))]
     fn test_header(
         #[case] input: &[u8],
         #[case] expected: IResult<&[u8], Header>,
@@ -858,9 +855,9 @@ mod test {
     #[case::colon(b":value", Ok((b!("value"), 0)), None)]
     #[case::colon_whitespace(b": value", Ok((b!("value"), 0)), None)]
     #[case::colon_tab(b":\t value", Ok((b!("value"), 0)), None)]
-    #[case::deformed_sep(b"\r\n \n:\t\r\n value", Err(Error(NomError::new(b!("\r\n \n:\t\r\n value"), Tag))), Some(Ok((b!("value"), HeaderFlags::DEFORMED_SEPARATOR))))]
-    #[case::deformed_sep(b"\x0c:\t value", Err(Error(NomError::new(b!("\x0c:\t value"), Tag))), Some(Ok((b!("value"), HeaderFlags::DEFORMED_SEPARATOR))))]
-    #[case::deformed_sep(b"\r: value", Err(Error(NomError::new(b!("\r: value"), Tag))), Some(Ok((b!("value"), HeaderFlags::DEFORMED_SEPARATOR))))]
+    #[case::deformed_sep(b"\r\n \n:\t\r\n value", Err(Error(NomError::new(b!("\r\n \n:\t\r\n value"), Tag))), Some(Ok((b!("value"), 0))))]
+    #[case::deformed_sep(b"\x0c:\t value", Err(Error(NomError::new(b!("\x0c:\t value"), Tag))), Some(Ok((b!("value"), 0))))]
+    #[case::deformed_sep(b"\r: value", Err(Error(NomError::new(b!("\r: value"), Tag))), Some(Ok((b!("value"), 0))))]
     fn test_separators(
         #[case] input: &[u8],
         #[case] expected: IResult<&[u8], u64>,
