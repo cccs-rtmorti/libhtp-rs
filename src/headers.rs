@@ -37,7 +37,6 @@ impl HeaderFlags {
     pub const NULL_TERMINATED: u64 = 0x0100;
     pub const MISSING_COLON: u64 = (0x0200 | Self::NAME_EMPTY);
     pub const DEFORMED_EOL: u64 = 0x0400;
-    pub const FOLDING_EMPTY: u64 = (0x2000 | Self::DEFORMED_EOL);
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -227,12 +226,7 @@ impl Parser {
                     complete_one_of("\t "),
                     self.complete_eol_regular(),
                 )),
-                |(eol1, _spaces, eol2)| {
-                    (
-                        &input[..eol1.len() + 1 + eol2.len()],
-                        HeaderFlags::FOLDING_EMPTY,
-                    )
-                },
+                |(eol1, _spaces, eol2)| (&input[..eol1.len() + 1 + eol2.len()], 0),
             )(input)
         }
     }
